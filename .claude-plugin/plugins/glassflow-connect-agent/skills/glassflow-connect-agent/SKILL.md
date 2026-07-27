@@ -33,6 +33,42 @@ Wait for their reply.
 - If they paste a key: state `Saving the key you gave me to .env as GLASSFLOW_API_KEY.`
 - If they skip: tell them clearly that `.env` will not get a `GLASSFLOW_API_KEY` line, and that the rest of this skill (SDK install, entrypoint patch) will still run, but the run/verify steps later will not produce a trace until a real key is added. Do not fabricate a placeholder key.
 
-## 3. Manual dry run (for whoever implements this task, not part of the shipped skill)
+## 3. Install the SDK
+
+Detect the project's package manager by which file exists at the repo root, in this order: `uv.lock` → `uv add glassflow-ai`; `pyproject.toml` (no `uv.lock`) → `pip install glassflow-ai` inside the project's existing venv if one is active, otherwise `pip install glassflow-ai`; `Pipfile` → `pipenv install glassflow-ai`; `requirements.txt` or none of the above → `pip install glassflow-ai`. Run the chosen command and show its output.
+
+## 4. Write `.env`
+
+Determine `GLASSFLOW_SERVICE_NAME` as the repo's directory name, lowercased, with anything that isn't `[a-z0-9-]` replaced by `-`.
+
+If `.env` exists, append (never overwrite existing lines):
+```
+GLASSFLOW_API_KEY=<key from step 2, if one was obtained>
+GLASSFLOW_SERVICE_NAME=<computed name>
+GLASSFLOW_HEARTBEAT=true
+```
+If `.env` doesn't exist, create it with just those lines. If no key was obtained (user skipped in step 2b), omit the `GLASSFLOW_API_KEY` line entirely and say so.
+
+State the exact file path you wrote to, e.g. `Wrote /path/to/repo/.env`.
+
+## 5. Find the entrypoint
+
+Look for `AGENTS.md` or `CLAUDE.md` at the repo root first. If either exists, read it for an explicit description of the project's entrypoint or main script — use whatever it names.
+
+If neither exists or neither names an entrypoint clearly, fall back to a heuristic scan of the repo root (not subdirectories) for `main.py` or `app.py`, in that order. If both exist, or neither exists, ask the user: "Which file is your agent's entrypoint?"
+
+## 6. Patch the entrypoint
+
+Near the top of the entrypoint file (after its existing imports), insert:
+```python
+import glassflow
+glassflow.init(service_name="<GLASSFLOW_SERVICE_NAME from step 4>")
+```
+
+Then find the function that looks like the agent's main entry — the function called from `if __name__ == "__main__":`, or if there's no such guard, the sole top-level function that takes a string argument shaped like a query/prompt. Add `@observe` immediately above its `def` line (import `observe` from `glassflow` alongside `glassflow` itself: `from glassflow import observe`). Decorate exactly one function. If no single obvious candidate exists, ask the user which function to decorate rather than guessing.
+
+Show the user a before/after diff of the entrypoint file.
+
+## 7. Manual dry run (for whoever implements this task, not part of the shipped skill)
 
 Before moving to Task 4, manually walk through steps 1-2 above against a real workspace once as an admin and once as a member, using the `create_api_key` tool built in Task 1 (point the MCP server at a local/dev argus-core, or use `respx`-style manual curl calls to confirm the response text matches what's checked above verbatim). Confirm the exact wording emitted by `create_api_key` in Task 1's Step 3 implementation is what the branches above key off of — update either side if they've drifted.
