@@ -1,0 +1,5 @@
+{
+  "name": "glassflow-connect-agent",
+  "version": "0.1.0",
+  "description": "Connect a Python agent repo to GlassFlow observability end-to-end: API key, SDK install, instrumentation, first trace, UI link."
+}
