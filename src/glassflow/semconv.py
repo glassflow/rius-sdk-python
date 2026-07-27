@@ -40,6 +40,30 @@ GEN_AI_REQUEST_PREFIX = "gen_ai.request."
 # gen_ai.* naming style, precedent Langfuse's completion_start_time.
 GEN_AI_FIRST_TOKEN_EVENT = "gen_ai.first_token"
 
+# --- Pending (partial) spans (GLA2-195) ---
+# Marks the content-free snapshot exported at span START; the backend maps it
+# to Finished=0 and the real span replaces it at end. This key knowingly bends
+# the convention-native rule (no glassflow.* namespace): OpenTelemetry has NO
+# pending-span mechanism to align with (spec #3732/#4646, semconv #2133 — all
+# open, none planned), and the only shipping precedent (Logfire's
+# logfire.span_type) is equally vendor-namespaced.
+GLASSFLOW_SPAN_PENDING = "glassflow.span.pending"
+
+# Attributes allowed to ride a pending snapshot: identity/taxonomy known at
+# span start. An ALLOWLIST on purpose — content exclusion must hold for
+# third-party instrumentors' attribute families too, and a blocklist would
+# have to enumerate all of them.
+PENDING_IDENTITY_ATTRIBUTES = frozenset(
+    {
+        OPENINFERENCE_SPAN_KIND,
+        GEN_AI_OPERATION_NAME,
+        GEN_AI_PROVIDER_NAME,
+        GEN_AI_TOOL_NAME,
+    }
+)
+# gen_ai.request.* (model, temperature, ...) is identity, not content.
+PENDING_IDENTITY_PREFIXES = (GEN_AI_REQUEST_PREFIX,)
+
 # Attribute keys carrying user content — masked/stripped at export (see masking.py).
 CONTENT_ATTRIBUTES = frozenset(
     {
@@ -105,6 +129,20 @@ _OPERATION_BY_KIND: dict[SpanKind, str] = {
     SpanKind.EMBEDDING: "embeddings",
     SpanKind.AGENT: "invoke_agent",
 }
+
+
+def kind_attributes(kind: SpanKind) -> dict[str, str]:
+    """Identity attributes for a span of ``kind``, for setting at CREATION.
+
+    Pending snapshots (pending.py) are built at ``on_start``, so taxonomy set
+    via ``set_attribute`` afterwards is invisible to them — passing these at
+    span creation is what makes a pending span classifiable.
+    """
+    attributes = {OPENINFERENCE_SPAN_KIND: kind.value}
+    operation = _OPERATION_BY_KIND.get(kind)
+    if operation is not None:
+        attributes[GEN_AI_OPERATION_NAME] = operation
+    return attributes
 
 
 def set_span_kind(span: Span, kind: SpanKind) -> None:

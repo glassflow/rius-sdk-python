@@ -31,6 +31,7 @@ from .semconv import (
     GEN_AI_USAGE_OUTPUT_TOKENS,
     TRACER_NAME,
     SpanKind,
+    kind_attributes,
     set_span_kind,
 )
 
@@ -234,6 +235,18 @@ def _configure(
         generation.set_input(input)
 
 
+def _creation_attributes(model: str | None, provider: str | None, operation: str) -> dict[str, str]:
+    """Identity attributes for an LLM span at CREATION (pending snapshots
+    are built at on_start; anything set later is invisible to them)."""
+    attributes = kind_attributes(SpanKind.LLM)
+    attributes[GEN_AI_OPERATION_NAME] = operation
+    if model is not None:
+        attributes[GEN_AI_REQUEST_MODEL] = model
+    if provider is not None:
+        attributes[GEN_AI_PROVIDER_NAME] = provider
+    return attributes
+
+
 def start_generation(
     name: str,
     *,
@@ -260,7 +273,9 @@ def start_generation(
     Returns:
         A ``Generation`` handle; call ``.end()`` when the call completes.
     """
-    span = trace.get_tracer(TRACER_NAME, __version__).start_span(name)
+    span = trace.get_tracer(TRACER_NAME, __version__).start_span(
+        name, attributes=_creation_attributes(model, provider, operation)
+    )
     generation = Generation(span)
     _configure(
         generation,
@@ -294,7 +309,9 @@ def start_as_current_generation(
         metadata; the span ends when the block exits.
     """
     tracer = trace.get_tracer(TRACER_NAME, __version__)
-    with tracer.start_as_current_span(name) as span:
+    with tracer.start_as_current_span(
+        name, attributes=_creation_attributes(model, provider, operation)
+    ) as span:
         generation = Generation(span)
         _configure(
             generation,

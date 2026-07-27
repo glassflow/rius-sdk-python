@@ -19,6 +19,7 @@ from .config import GlassflowConfig, resolve_config
 from .heartbeat import HeartbeatSender, OpenRootSpanTracker
 from .instrumentation import enable_instrumentations
 from .masking import MaskingSpanExporter
+from .pending import PendingSpanProcessor
 from .semconv import TRACER_NAME
 
 logger = logging.getLogger(__name__)
@@ -106,6 +107,7 @@ def init(
     heartbeat_interval: float | None = None,
     agent_name: str | None = None,
     heartbeat_transport: Callable[[dict[str, Any]], None] | None = None,
+    partial_spans: bool | None = None,
     set_global: bool = True,
 ) -> GlassflowClient:
     """Initialize the SDK: build a tracer provider that exports OTLP traces.
@@ -165,6 +167,7 @@ def init(
             heartbeat_interval=heartbeat_interval,
             agent_name=agent_name,
             heartbeat_transport=heartbeat_transport,
+            partial_spans=partial_spans,
             set_global=set_global,
         )
 
@@ -185,6 +188,7 @@ def _do_init(
     heartbeat_interval: float | None,
     agent_name: str | None,
     heartbeat_transport: Callable[[dict[str, Any]], None] | None,
+    partial_spans: bool | None,
     set_global: bool,
 ) -> GlassflowClient:
     global _current_client
@@ -199,6 +203,7 @@ def _do_init(
         heartbeat=heartbeat,
         heartbeat_interval=heartbeat_interval,
         agent_name=agent_name,
+        partial_spans=partial_spans,
     )
     # telemetry.sdk.* is reserved for the OTel SDK itself (Resource.create fills
     # it); we identify as a distribution via telemetry.distro.*.
@@ -218,7 +223,12 @@ def _do_init(
             exporter = MaskingSpanExporter(
                 exporter, capture_content=config.capture_content, mask=mask
             )
-        provider.add_span_processor(BatchSpanProcessor(exporter))
+        batch_processor = BatchSpanProcessor(exporter)
+        if config.partial_spans:
+            # Pending snapshots ride the SAME batch pipeline as final spans
+            # (exporter, retries, masking); see pending.py for the contract.
+            provider.add_span_processor(PendingSpanProcessor(batch_processor))
+        provider.add_span_processor(batch_processor)
 
     if set_global and not config.disabled:
         trace.set_tracer_provider(provider)

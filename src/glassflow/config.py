@@ -24,6 +24,7 @@ ENV_CAPTURE_CONTENT = "GLASSFLOW_CAPTURE_CONTENT"
 ENV_HEARTBEAT = "GLASSFLOW_HEARTBEAT"
 ENV_HEARTBEAT_INTERVAL = "GLASSFLOW_HEARTBEAT_INTERVAL"
 ENV_AGENT_NAME = "GLASSFLOW_AGENT_NAME"
+ENV_PARTIAL_SPANS = "GLASSFLOW_PARTIAL_SPANS"
 
 # The backend expresses staleness as multiples of the interval, so the clamp
 # bounds are part of the heartbeat wire contract.
@@ -69,6 +70,7 @@ class GlassflowConfig:
     heartbeat: bool = False
     heartbeat_interval: float = DEFAULT_HEARTBEAT_INTERVAL
     agent_name: str = DEFAULT_SERVICE_NAME
+    partial_spans: bool = False
 
     @property
     def traces_endpoint(self) -> str:
@@ -117,6 +119,7 @@ def resolve_config(
     heartbeat: bool | None = None,
     heartbeat_interval: float | None = None,
     agent_name: str | None = None,
+    partial_spans: bool | None = None,
 ) -> GlassflowConfig:
     """Resolve SDK configuration from arguments, environment, then defaults.
 
@@ -148,6 +151,10 @@ def resolve_config(
         agent_name: Identity heartbeats group under (``GLASSFLOW_AGENT_NAME``);
             defaults to ``service_name`` so the agents view and the traces
             view agree on what an "agent" is.
+        partial_spans: Export a content-free pending snapshot of every
+            sampled span at span START (``GLASSFLOW_PARTIAL_SPANS``), so
+            in-flight work is visible and crashes leave a record. Off by
+            default until the backend's unfinished-spans storage ships.
 
     Returns:
         The resolved, immutable ``GlassflowConfig``.
@@ -170,6 +177,9 @@ def resolve_config(
         else heartbeat_interval
     )
     resolved_agent_name = agent_name or os.getenv(ENV_AGENT_NAME) or resolved_service_name
+    resolved_partial_spans = (
+        _env_bool(ENV_PARTIAL_SPANS, default=False) if partial_spans is None else partial_spans
+    )
 
     resolved_headers = dict(headers or {})
     has_auth = any(key.lower() == "authorization" for key in resolved_headers)
@@ -187,4 +197,5 @@ def resolve_config(
         heartbeat=resolved_heartbeat,
         heartbeat_interval=resolved_heartbeat_interval,
         agent_name=resolved_agent_name,
+        partial_spans=resolved_partial_spans,
     )
