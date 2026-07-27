@@ -69,6 +69,32 @@ Then find the function that looks like the agent's main entry — the function c
 
 Show the user a before/after diff of the entrypoint file.
 
-## 7. Manual dry run (for whoever implements this task, not part of the shipped skill)
+## 7. Ask for a run command
+
+Ask the user: "What command runs your agent or your eval set?" Accept any shell command (e.g. `python main.py`, `pytest tests/eval`).
+
+## 8. Run it
+
+Execute the given command with the repo's `.env` loaded into the environment. Stream its output back to the user as-is, including failures. If it exits non-zero, stop here — report the failure and do not proceed to verification, since there is nothing to verify.
+
+## 9. Verify a trace arrived
+
+Call the `list_agent_traces` MCP tool with `service=<GLASSFLOW_SERVICE_NAME>` and `hours=1`. If its response is `_No results._`, wait 5 seconds and try again, up to 6 total attempts (~30 seconds).
+
+- If a trace shows up (the response is a markdown table with at least one row): proceed to handoff.
+- If still empty after 6 attempts: tell the user a trace didn't arrive, and list the likely causes: network egress to the SDK's configured endpoint may be blocked, the command run in step 8 may not be the one that actually executes the patched entrypoint, or an exception may have prevented any span from closing (point them back at the step 8 output). Do not print a UI link in this case.
+
+## 10. Hand off
+
+Print:
+- The UI link: `https://<ui-host>/w/<workspaceId>/traces?service=<GLASSFLOW_SERVICE_NAME>` (substitute the real UI host for this deployment and the `workspaceId` from the `get_me`/`create_api_key` call earlier in this run).
+- These example prompts to try next, verbatim:
+  - "Summarize my agent's traces from the last hour"
+  - "Show me the slowest trace from that run"
+  - "Did any of those spans error?"
+
+---
+
+## Manual dry run (for whoever implements this task, not part of the shipped skill — not one of the numbered steps above)
 
 Before moving to Task 4, manually walk through steps 1-2 above against a real workspace once as an admin and once as a member, using the `create_api_key` tool built in Task 1 (point the MCP server at a local/dev argus-core, or use `respx`-style manual curl calls to confirm the response text matches what's checked above verbatim). Confirm the exact wording emitted by `create_api_key` in Task 1's Step 3 implementation is what the branches above key off of — update either side if they've drifted.
