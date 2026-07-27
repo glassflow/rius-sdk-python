@@ -13,7 +13,7 @@ Look for `GLASSFLOW_API_KEY` in this repo's `.env` file (or already set in the s
 
 ## 2. Check the caller's role
 
-Call the `get_me` MCP tool. Read its `**Organization**` section:
+Call the `get_me` MCP tool. Also note the workspace's `id` from its Workspaces table (alongside its `name`) — it's needed later for the handoff link in step 10. Read its `**Organization**` section:
 
 - If it says `none (you have not joined an organization yet)` — **stop here**. Tell the user: "You don't belong to a workspace yet — if someone invited you, accept that invite link first, then re-run this skill." Do not proceed to any key step.
 - If the role shown is `admin` — proceed to 2a.
@@ -87,7 +87,7 @@ Call the `list_agent_traces` MCP tool with `service=<GLASSFLOW_SERVICE_NAME>` an
 ## 10. Hand off
 
 Print:
-- The UI link: `https://<ui-host>/w/<workspaceId>/traces?service=<GLASSFLOW_SERVICE_NAME>` (substitute the real UI host for this deployment and the `workspaceId` from the `get_me`/`create_api_key` call earlier in this run).
+- The UI link: `https://<ui-host>/w/<workspaceId>/traces?service=<GLASSFLOW_SERVICE_NAME>` (substitute the real UI host for this deployment and the `workspaceId` noted from the `get_me` Workspaces table in step 2).
 - These example prompts to try next, verbatim:
   - "Summarize my agent's traces from the last hour"
   - "Show me the slowest trace from that run"
