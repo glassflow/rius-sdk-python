@@ -9,19 +9,22 @@ Run this procedure top to bottom. Do not skip the admin check before attempting 
 
 ## 1. Check for an existing key
 
-Look for `GLASSFLOW_API_KEY` in this repo's `.env` file (or already set in the shell environment). If it's already there, tell the user you found an existing key and are skipping key creation, then go straight to "Install the SDK".
+Look for `GLASSFLOW_API_KEY` in this repo's `.env` file (or already set in the shell environment). If it's already there, tell the user you found an existing key and are skipping key creation — but still proceed to step 2 and run its role check and workspace-id capture (needed for step 10's handoff link), just skip sub-steps 2a/2b (minting or requesting a key). Note that step 2's org-less stop condition still applies even with an existing key: a user with a stale key but now no organization (or a pending invite) must still stop there, not proceed.
 
 ## 2. Check the caller's role
 
-Call the `get_me` MCP tool. Also note the workspace's `id` from its Workspaces table (alongside its `name`) — it's needed later for the handoff link in step 10. Read its `**Organization**` section:
+Call the `get_me` MCP tool. Read the Workspaces table (you may have to come back to it once a key is minted — see 2a — since a caller with multiple workspaces can't tell from this table alone which one `create_api_key` will use). Read its `**Organization**` section:
 
 - If it says `none (you have not joined an organization yet)` — **stop here**. Tell the user: "You don't belong to a workspace yet — if someone invited you, accept that invite link first, then re-run this skill." Do not proceed to any key step.
+- If a key already exists (step 1) — skip 2a/2b, but still resolve the workspace id needed for step 10: if the Workspaces table has exactly one row, use its `id`; if it has more than one, ask the user which workspace they're using, then use that row's `id`.
 - If the role shown is `admin` — proceed to 2a.
 - If the role shown is `member` (or anything other than `admin`) — proceed to 2b.
 
 ### 2a. Admin: mint a key
 
-Call the `create_api_key` MCP tool with no arguments (uses the caller's default workspace). Its response either starts with `"Created a new API key in workspace '"` (success — extract the plaintext key from the text after `"Save it now — it will not be shown again:"`, which appears on its own line following a blank line) or with `"You need admin access"` / contains `"Workspace not found"` (treat these as stop conditions and relay the message verbatim; the role check above means the admin-message case should be rare, but the tool can still return it, e.g. if role changed between the check and the call).
+Call the `create_api_key` MCP tool with no arguments (uses the caller's default workspace). Its response either starts with `"Created a new API key in workspace '"` (success — extract the plaintext key from the text after `"Save it now — it will not be shown again:"`, which appears as plaintext on the line following a blank line) or with `"You need admin access"` / contains `"Workspace not found"` (treat these as stop conditions and relay the message verbatim; the role check above means the admin-message case should be rare, but the tool can still return it, e.g. if role changed between the check and the call).
+
+On success, take the workspace name from `create_api_key`'s own message (`"Created a new API key in workspace '<name>'"`) and match it to the same-named row in the Workspaces table from step 2 — use **that row's** `id` for step 10. Do not use an id noted from an earlier ambiguous multi-row read: if the caller belongs to more than one workspace, only the name echoed back by `create_api_key` tells you which workspace the key actually landed in.
 
 State to the user, plainly: `Created a new API key in workspace '<name>' and I'm about to save it to .env as GLASSFLOW_API_KEY.`
 
@@ -41,7 +44,7 @@ Detect the project's package manager by which file exists at the repo root, in t
 
 Determine `GLASSFLOW_SERVICE_NAME` as the repo's directory name, lowercased, with anything that isn't `[a-z0-9-]` replaced by `-`.
 
-If `.env` exists, append (never overwrite existing lines):
+If `.env` exists, append only the lines below that aren't already present (never overwrite existing lines, and never duplicate one that's already there):
 ```
 GLASSFLOW_API_KEY=<key from step 2, if one was obtained>
 GLASSFLOW_SERVICE_NAME=<computed name>
@@ -87,14 +90,9 @@ Call the `list_agent_traces` MCP tool with `service=<GLASSFLOW_SERVICE_NAME>` an
 ## 10. Hand off
 
 Print:
-- The UI link: `https://<ui-host>/w/<workspaceId>/traces?service=<GLASSFLOW_SERVICE_NAME>` (substitute the real UI host for this deployment and the `workspaceId` noted from the `get_me` Workspaces table in step 2).
+- The UI link: `https://<ui-host>/w/<workspaceId>/traces?service=<GLASSFLOW_SERVICE_NAME>` (substitute the `workspaceId` resolved in step 2/2a; `<ui-host>` has no fixed value — fill in the UI host the user or operator gives you for this deployment).
+- One note about `.env` not being auto-loaded: their app won't pick up `GLASSFLOW_API_KEY` (or the other vars) on its own next run — they need to either add `python-dotenv`'s `load_dotenv()` call near their entrypoint's other imports, or export the vars in their shell first (e.g. `set -a; source .env; set +a`).
 - These example prompts to try next, verbatim:
   - "Summarize my agent's traces from the last hour"
   - "Show me the slowest trace from that run"
   - "Did any of those spans error?"
-
----
-
-## Manual dry run (for whoever implements this task, not part of the shipped skill — not one of the numbered steps above)
-
-Before moving to Task 4, manually walk through steps 1-2 above against a real workspace once as an admin and once as a member, using the `create_api_key` tool built in Task 1 (point the MCP server at a local/dev argus-core, or use `respx`-style manual curl calls to confirm the response text matches what's checked above verbatim). Confirm the exact wording emitted by `create_api_key` in Task 1's Step 3 implementation is what the branches above key off of — update either side if they've drifted.

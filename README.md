@@ -66,6 +66,23 @@ glassflow.init(mask=lambda value, *, key: hash_pii(value) if "input" in key else
 glassflow.init(capture_content=False)             # drop content entirely, keep metadata
 ```
 
+## Claude Code integration
+
+The `glassflow-connect-agent` plugin drives the whole setup above end-to-end
+inside Claude Code — it mints an API key, installs the SDK, patches your
+entrypoint, runs your agent, and confirms your first trace.
+
+```
+/plugin marketplace add glassflow/glassflow-python
+/plugin install glassflow-connect-agent
+```
+
+Then invoke it in a Claude Code session with:
+
+```
+/glassflow-connect-agent
+```
+
 ## Auto-instrumentation
 
 The SDK bundles existing OTel instrumentors (OpenInference) as optional extras,
