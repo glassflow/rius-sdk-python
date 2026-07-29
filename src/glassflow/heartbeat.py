@@ -11,13 +11,13 @@ Contract highlights (the spec is normative; this module implements it):
 - First ping immediately at start (the agent appears without waiting an
   interval), then every ``interval`` seconds.
 - Graceful shutdown (``client.shutdown()`` / ``atexit``) sends a final
-  ``stopped: true`` ping. No signal handlers are installed — a library
-  must not own process signals; an unhandled SIGTERM/SIGKILL means no
-  stopped ping, and the backend's stale→gone path covers exactly that.
+  ``stopped: true`` ping. No signal handlers are installed, because a
+  library must not own process signals; an unhandled SIGTERM/SIGKILL means
+  no stopped ping, and the backend's stale→gone path covers exactly that.
 - Never raises into user code. Pings have a short timeout, are never
-  retried or queued (liveness is only true fresh — a late heartbeat is
+  retried or queued (liveness is only true fresh; a late heartbeat is
   misinformation), and delivery problems warn once per process.
-- ``fork()``: the child re-arms with a NEW ``instance_id`` — one identity
+- ``fork()``: the child re-arms with a NEW ``instance_id``, so one identity
   never speaks for two processes.
 """
 
@@ -129,7 +129,7 @@ def _http_transport(url: str, headers: dict[str, str]) -> Callable[[dict[str, An
     """Default transport: a plain POST with a per-call timeout, no retries.
 
     TLS certificate verification is urllib's default and is deliberately not
-    configurable here — a liveness signal must not become a reason to accept
+    configurable here: a liveness signal must not become a reason to accept
     unverified endpoints.
     """
 

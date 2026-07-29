@@ -77,12 +77,12 @@ class GlassflowConfig:
 
     @property
     def heartbeat_endpoint(self) -> str:
-        """Heartbeat URL (``<endpoint>/v1/heartbeat``) — same host as traces."""
+        """Heartbeat URL (``<endpoint>/v1/heartbeat``), same host as traces."""
         return self.endpoint.rstrip("/") + "/v1/heartbeat"
 
 
 def _clamp_sample_rate(value: float) -> float:
-    """Clamp to [0.0, 1.0] — an out-of-range value must degrade, not crash init()."""
+    """Clamp to [0.0, 1.0]; an out-of-range value must degrade, not crash init()."""
     if 0.0 <= value <= 1.0:
         return value
     clamped = min(max(value, 0.0), 1.0)
@@ -91,7 +91,7 @@ def _clamp_sample_rate(value: float) -> float:
 
 
 def _clamp_heartbeat_interval(value: float) -> float:
-    """Clamp to the contract bounds — out-of-range degrades, never crashes init()."""
+    """Clamp to the contract bounds; out-of-range degrades, never crashes init()."""
     if HEARTBEAT_INTERVAL_MIN <= value <= HEARTBEAT_INTERVAL_MAX:
         return value
     clamped = min(max(value, HEARTBEAT_INTERVAL_MIN), HEARTBEAT_INTERVAL_MAX)
@@ -142,7 +142,7 @@ def resolve_config(
         heartbeat: Enable the agent-lifetime heartbeat thread
             (``GLASSFLOW_HEARTBEAT``). Off by default this release.
         heartbeat_interval: Seconds between pings
-            (``GLASSFLOW_HEARTBEAT_INTERVAL``), clamped to ``[5, 300]`` —
+            (``GLASSFLOW_HEARTBEAT_INTERVAL``), clamped to ``[5, 300]``;
             the backend derives staleness from this, so the bounds are part
             of the wire contract.
         agent_name: Identity heartbeats group under (``GLASSFLOW_AGENT_NAME``);

@@ -2,15 +2,15 @@
 
 A ``SpanExporter`` wrapper that, before spans leave the process, either strips
 content attributes (``capture_content=False``) or applies a caller-supplied
-``mask``. It runs on every span it sees — including third-party instrumentation —
-so it's a single client-side choke point for sensitive data.
+``mask``. It runs on every span it sees, including third-party
+instrumentation, so it's a single client-side choke point for sensitive data.
 
 Sanitization works on **copies**: a ``ReadableSpan`` shares its attribute dict
 by reference with every processor on the provider, so mutating it in place
 would rewrite what other exporters see (and race with their iteration).
 
 Fail-closed guarantees: a mask that raises, returns ``None``, or returns a
-value OTel can't encode never leaks the original — the attribute is dropped
+value OTel can't encode never leaks the original; the attribute is dropped
 (or the return value serialized), and the rest of the batch is delivered.
 """
 
@@ -123,7 +123,7 @@ class MaskingSpanExporter(SpanExporter):
         """Coerce a mask's return into something OTel can encode, or None to drop.
 
         BoundedAttributes-style cleaning silently refuses invalid values, which
-        would leave the ORIGINAL in place — so we validate ourselves.
+        would leave the ORIGINAL in place, so we validate ourselves.
         """
         if value is None or isinstance(value, _PRIMITIVES):
             return value

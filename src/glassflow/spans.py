@@ -2,9 +2,9 @@
 
 Two surfaces, following the OpenTelemetry / Langfuse / Laminar convention:
 
-- ``start_as_current_span`` — context manager: activates the span in the OTel
-  context (so children nest under it) and auto-ends it.
-- ``start_span`` — manual: returns an ``Observation`` you must ``.end()``. The span
+- ``start_as_current_span`` is the context manager: it activates the span in
+  the OTel context (so children nest under it) and auto-ends it.
+- ``start_span`` is manual: it returns an ``Observation`` you must ``.end()``. The span
   is parented to the current span at creation but is NOT set as current and does
   NOT auto-record exceptions. For lifetimes a ``with`` block can't express
   (streaming, callbacks, passing a span across boundaries).
