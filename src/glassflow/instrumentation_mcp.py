@@ -4,7 +4,7 @@ Wraps ``mcp.ClientSession.call_tool`` so every tool invocation an agent makes
 over MCP becomes a TOOL-kind span: tool name, arguments, result, latency, and
 error status. Generic instrumentation SDKs cover MCP unevenly (the OpenInference
 MCP package only propagates context; it creates no spans), so we instrument it
-ourselves. Registered in :mod:`glassflow.instrumentation` under ``"mcp"`` — the
+ourselves. Registered in :mod:`glassflow.instrumentation` under ``"mcp"``; the
 top-level import of ``mcp`` below makes an environment without the package look
 "not installed" to the registry, exactly like a missing third-party instrumentor.
 

@@ -1,4 +1,4 @@
-"""GlassFlow SDK — OpenTelemetry-native tracing for AI agents and LLM apps."""
+"""GlassFlow SDK: OpenTelemetry-native tracing for AI agents and LLM apps."""
 
 __version__ = "0.6.0"  # x-release-please-version
 

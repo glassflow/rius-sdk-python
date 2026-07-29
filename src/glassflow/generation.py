@@ -171,7 +171,7 @@ class Generation:
 
         Call from a streaming loop when the first content chunk arrives; the
         backend derives time-to-first-token as the event time minus the span
-        start. Idempotent — only the first call records; safe to call
+        start. Idempotent: only the first call records; safe to call
         unconditionally per chunk. A no-op after ``end()``.
         """
         if self._first_token_recorded or not self._span.is_recording():

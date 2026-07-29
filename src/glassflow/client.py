@@ -134,7 +134,7 @@ def init(
             ``<endpoint>/v1/heartbeat`` from init until process exit so the
             platform can tell a live-but-idle agent from a vanished one.
         heartbeat_interval: Seconds between pings (default 15, clamped to
-            ``[5, 300]`` — the backend derives staleness from this).
+            ``[5, 300]``; the backend derives staleness from this).
         agent_name: Identity heartbeats group under; defaults to
             ``service_name``.
         heartbeat_transport: Override the heartbeat HTTP transport
