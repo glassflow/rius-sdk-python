@@ -108,6 +108,7 @@ def init(
     agent_name: str | None = None,
     heartbeat_transport: Callable[[dict[str, Any]], None] | None = None,
     partial_spans: bool | None = None,
+    partial_spans_delay: float | None = None,
     set_global: bool = True,
 ) -> GlassflowClient:
     """Initialize the SDK: build a tracer provider that exports OTLP traces.
@@ -168,6 +169,7 @@ def init(
             agent_name=agent_name,
             heartbeat_transport=heartbeat_transport,
             partial_spans=partial_spans,
+            partial_spans_delay=partial_spans_delay,
             set_global=set_global,
         )
 
@@ -189,6 +191,7 @@ def _do_init(
     agent_name: str | None,
     heartbeat_transport: Callable[[dict[str, Any]], None] | None,
     partial_spans: bool | None,
+    partial_spans_delay: float | None,
     set_global: bool,
 ) -> GlassflowClient:
     global _current_client
@@ -204,6 +207,7 @@ def _do_init(
         heartbeat_interval=heartbeat_interval,
         agent_name=agent_name,
         partial_spans=partial_spans,
+        partial_spans_delay=partial_spans_delay,
     )
     # telemetry.sdk.* is reserved for the OTel SDK itself (Resource.create fills
     # it); we identify as a distribution via telemetry.distro.*.
@@ -227,7 +231,9 @@ def _do_init(
         if config.partial_spans:
             # Pending snapshots ride the SAME batch pipeline as final spans
             # (exporter, retries, masking); see pending.py for the contract.
-            provider.add_span_processor(PendingSpanProcessor(batch_processor))
+            provider.add_span_processor(
+                PendingSpanProcessor(batch_processor, delay=config.partial_spans_delay)
+            )
         provider.add_span_processor(batch_processor)
 
     if set_global and not config.disabled:
