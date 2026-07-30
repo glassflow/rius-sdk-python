@@ -24,12 +24,20 @@ ENV_CAPTURE_CONTENT = "GLASSFLOW_CAPTURE_CONTENT"
 ENV_HEARTBEAT = "GLASSFLOW_HEARTBEAT"
 ENV_HEARTBEAT_INTERVAL = "GLASSFLOW_HEARTBEAT_INTERVAL"
 ENV_AGENT_NAME = "GLASSFLOW_AGENT_NAME"
+ENV_PARTIAL_SPANS = "GLASSFLOW_PARTIAL_SPANS"
+ENV_PARTIAL_SPANS_DELAY = "GLASSFLOW_PARTIAL_SPANS_DELAY"
 
 # The backend expresses staleness as multiples of the interval, so the clamp
 # bounds are part of the heartbeat wire contract.
 HEARTBEAT_INTERVAL_MIN = 5.0
 HEARTBEAT_INTERVAL_MAX = 300.0
 DEFAULT_HEARTBEAT_INTERVAL = 15.0
+
+# Debounce for partial spans (GLA2-244): 0 = emit immediately at span start;
+# N>0 = emit only if the span is still open after N seconds. Beyond 60s a
+# "live" view stops being live, so larger values are clamped.
+PARTIAL_SPANS_DELAY_MIN = 0.0
+PARTIAL_SPANS_DELAY_MAX = 60.0
 
 _TRUENESS = frozenset({"1", "true", "yes", "on"})
 
@@ -69,6 +77,8 @@ class GlassflowConfig:
     heartbeat: bool = False
     heartbeat_interval: float = DEFAULT_HEARTBEAT_INTERVAL
     agent_name: str = DEFAULT_SERVICE_NAME
+    partial_spans: bool = False
+    partial_spans_delay: float = 0.0
 
     @property
     def traces_endpoint(self) -> str:
@@ -87,6 +97,21 @@ def _clamp_sample_rate(value: float) -> float:
         return value
     clamped = min(max(value, 0.0), 1.0)
     logger.warning("sample_rate %s is outside [0.0, 1.0]; clamped to %s", value, clamped)
+    return clamped
+
+
+def _clamp_partial_spans_delay(value: float) -> float:
+    """Clamp to [0, 60] — out-of-range degrades, never crashes init()."""
+    if PARTIAL_SPANS_DELAY_MIN <= value <= PARTIAL_SPANS_DELAY_MAX:
+        return value
+    clamped = min(max(value, PARTIAL_SPANS_DELAY_MIN), PARTIAL_SPANS_DELAY_MAX)
+    logger.warning(
+        "partial_spans_delay %s is outside [%s, %s]; clamped to %s",
+        value,
+        PARTIAL_SPANS_DELAY_MIN,
+        PARTIAL_SPANS_DELAY_MAX,
+        clamped,
+    )
     return clamped
 
 
@@ -117,6 +142,8 @@ def resolve_config(
     heartbeat: bool | None = None,
     heartbeat_interval: float | None = None,
     agent_name: str | None = None,
+    partial_spans: bool | None = None,
+    partial_spans_delay: float | None = None,
 ) -> GlassflowConfig:
     """Resolve SDK configuration from arguments, environment, then defaults.
 
@@ -148,6 +175,15 @@ def resolve_config(
         agent_name: Identity heartbeats group under (``GLASSFLOW_AGENT_NAME``);
             defaults to ``service_name`` so the agents view and the traces
             view agree on what an "agent" is.
+        partial_spans: Export a content-free pending snapshot of every
+            sampled span at span START (``GLASSFLOW_PARTIAL_SPANS``), so
+            in-flight work is visible and crashes leave a record. Off by
+            default until the backend's unfinished-spans storage ships.
+        partial_spans_delay: Debounce for pending snapshots
+            (``GLASSFLOW_PARTIAL_SPANS_DELAY``), clamped to ``[0, 60]``
+            seconds. ``0`` (default) emits at span start; ``N`` emits only if
+            the span is still open after N seconds — spans that finish
+            sooner cost no network at all.
 
     Returns:
         The resolved, immutable ``GlassflowConfig``.
@@ -170,6 +206,14 @@ def resolve_config(
         else heartbeat_interval
     )
     resolved_agent_name = agent_name or os.getenv(ENV_AGENT_NAME) or resolved_service_name
+    resolved_partial_spans = (
+        _env_bool(ENV_PARTIAL_SPANS, default=False) if partial_spans is None else partial_spans
+    )
+    resolved_partial_spans_delay = _clamp_partial_spans_delay(
+        _env_float(ENV_PARTIAL_SPANS_DELAY, default=0.0)
+        if partial_spans_delay is None
+        else partial_spans_delay
+    )
 
     resolved_headers = dict(headers or {})
     has_auth = any(key.lower() == "authorization" for key in resolved_headers)
@@ -187,4 +231,6 @@ def resolve_config(
         heartbeat=resolved_heartbeat,
         heartbeat_interval=resolved_heartbeat_interval,
         agent_name=resolved_agent_name,
+        partial_spans=resolved_partial_spans,
+        partial_spans_delay=resolved_partial_spans_delay,
     )

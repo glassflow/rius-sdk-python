@@ -24,7 +24,14 @@ from opentelemetry.trace import Span
 
 from . import __version__
 from ._serde import serialize
-from .semconv import INPUT_VALUE, OUTPUT_VALUE, TRACER_NAME, SpanKind, set_span_kind
+from .semconv import (
+    INPUT_VALUE,
+    OUTPUT_VALUE,
+    TRACER_NAME,
+    SpanKind,
+    kind_attributes,
+    set_span_kind,
+)
 
 
 class Observation:
@@ -98,7 +105,10 @@ def start_span(name: str, *, kind: SpanKind = SpanKind.CHAIN, input: Any = None)
     current span and does not auto-record exceptions. Use ``start_as_current_span``
     for block-scoped tracing.
     """
-    span = trace.get_tracer(TRACER_NAME, __version__).start_span(name)
+    # kind at CREATION so pending snapshots (on_start) can classify the span
+    span = trace.get_tracer(TRACER_NAME, __version__).start_span(
+        name, attributes=kind_attributes(kind)
+    )
     observation = Observation(span)
     _configure(observation, kind, input)
     return observation
@@ -117,7 +127,7 @@ def start_as_current_span(
     (OpenTelemetry's ``start_as_current_span`` default), then re-raised.
     """
     tracer = trace.get_tracer(TRACER_NAME, __version__)
-    with tracer.start_as_current_span(name) as span:
+    with tracer.start_as_current_span(name, attributes=kind_attributes(kind)) as span:
         observation = Observation(span)
         _configure(observation, kind, input)
         yield observation
