@@ -37,7 +37,7 @@ jobs:
       - run: uv sync --locked --group dev
       - run: uv run pytest
       - run: uv build
-      - uses: pypa/gh-action-pypi-publish@ba38be9e461d3875417946c167d0b5f3d385a247 # release/v1
+      - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
 
   # Tell argus-docs a new version shipped: its bump-api-reference workflow
   # opens the pin-bump + regenerated-reference PR. Fires only after the PyPI
