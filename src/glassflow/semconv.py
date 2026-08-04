@@ -31,6 +31,10 @@ GEN_AI_INPUT_MESSAGES = "gen_ai.input.messages"
 GEN_AI_OUTPUT_MESSAGES = "gen_ai.output.messages"
 GEN_AI_RESPONSE_FINISH_REASONS = "gen_ai.response.finish_reasons"
 GEN_AI_TOOL_NAME = "gen_ai.tool.name"
+# MCP spec 2026-07-28: a tools/call round can end with an interim
+# "input_required" result (MRTR) instead of a final one. Set ONLY on interim
+# rounds; the key follows the mcp SDK's own `mcp.*` attribute namespace.
+MCP_RESULT_TYPE = "mcp.result_type"
 GEN_AI_REQUEST_PREFIX = "gen_ai.request."
 
 # --- Span event names ---
