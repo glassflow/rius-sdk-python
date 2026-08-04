@@ -38,6 +38,21 @@ jobs:
       - run: uv sync --locked --group dev
       - run: uv run pytest
 
+  # The mcp extra is unbounded (mcp>=1.0.0) and the two majors have different
+  # result shapes (snake_case + InputRequiredResult in 2.x, GLA2-300); the
+  # default suite exercises the locked 1.x, this job re-runs the MCP
+  # instrumentation tests with 2.x overlaid so a future rename fails a build
+  # instead of silently un-flagging error results.
+  mcp-v2:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - run: uv sync --locked --group dev
+      - run: uv run --with "mcp>=2,<3" pytest tests/test_mcp_instrumentation.py
+
   # Every instrumentation.REGISTRY entry must resolve against its real package —
   # enable_instrumentations() swallows ImportError, so a typo'd module/class name
   # would otherwise ship silently.

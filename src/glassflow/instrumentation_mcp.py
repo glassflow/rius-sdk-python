@@ -27,16 +27,23 @@ from ._serde import serialize
 from .semconv import (
     GEN_AI_TOOL_NAME,
     INPUT_VALUE,
+    MCP_RESULT_TYPE,
     OUTPUT_VALUE,
     TRACER_NAME,
     SpanKind,
     set_span_kind,
 )
 
+# mcp 2.x (spec 2026-07-28) renamed CallToolResult's fields to snake_case and
+# dropped the camelCase attributes entirely; reads must try both spellings to
+# stay correct on whichever major the host application has installed.
+
 
 def _serialize_result(result: Any) -> str:
     """Best-effort serialization of a CallToolResult."""
-    structured = getattr(result, "structuredContent", None)
+    structured = getattr(result, "structured_content", None)
+    if structured is None:
+        structured = getattr(result, "structuredContent", None)  # mcp 1.x
     if structured is not None:
         return serialize(structured)
     content = getattr(result, "content", None)
@@ -45,6 +52,28 @@ def _serialize_result(result: Any) -> str:
         if texts:
             return texts[0] if len(texts) == 1 else serialize(texts)
     return serialize(result)
+
+
+def _result_is_error(result: Any) -> bool:
+    """The MCP error-result flag, on either major (never raises)."""
+    return bool(getattr(result, "is_error", getattr(result, "isError", False)))
+
+
+def _record_result(span: Any, result: Any) -> None:
+    """Record a tools/call result on the span, on either mcp major.
+
+    An interim ``InputRequiredResult`` (MRTR, mcp 2.x) is NOT the tool's
+    output: its ``input_requests`` carry elicitation/sampling content, so
+    recording them as ``output.value`` would leak conversation content into
+    a tool span. Interim rounds get only the ``mcp.result_type`` marker; the
+    final round of the retry loop records output as usual.
+    """
+    if getattr(result, "result_type", None) == "input_required":
+        span.set_attribute(MCP_RESULT_TYPE, "input_required")
+        return
+    span.set_attribute(OUTPUT_VALUE, _serialize_result(result))
+    if _result_is_error(result):
+        span.set_status(Status(StatusCode.ERROR, "tool returned an error result"))
 
 
 class MCPInstrumentor:
@@ -93,9 +122,7 @@ class MCPInstrumentor:
                     span.record_exception(exc)
                     span.set_status(Status(StatusCode.ERROR, str(exc)))
                     raise
-                span.set_attribute(OUTPUT_VALUE, _serialize_result(result))
-                if getattr(result, "isError", False):
-                    span.set_status(Status(StatusCode.ERROR, "tool returned an error result"))
+                _record_result(span, result)
                 return result
 
         setattr(ClientSession, "call_tool", instrumented_call_tool)  # noqa: B010
