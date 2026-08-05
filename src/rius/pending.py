@@ -112,7 +112,7 @@ class PendingScheduler:
 
     def _start_thread(self) -> None:
         self._thread = threading.Thread(
-            target=self._run, name="glassflow-pending-scheduler", daemon=True
+            target=self._run, name="rius-pending-scheduler", daemon=True
         )
         self._thread.start()
 

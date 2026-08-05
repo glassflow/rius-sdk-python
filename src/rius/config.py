@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_ENDPOINT = "https://ingest.glassflow.dev"
+DEFAULT_ENDPOINT = "https://ingest.eu.console.rius-glassflow.com"
 DEFAULT_SERVICE_NAME = "unknown_service"
 
 ENV_ENDPOINT = "GLASSFLOW_ENDPOINT"

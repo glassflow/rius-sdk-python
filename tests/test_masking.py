@@ -1,6 +1,6 @@
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from glassflow import init
+from rius import init
 
 
 def test_mask_redacts_content_attributes() -> None:

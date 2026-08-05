@@ -1,7 +1,7 @@
 from opentelemetry import trace
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from glassflow.semconv import (
+from rius.semconv import (
     GEN_AI_OPERATION_NAME,
     OPENINFERENCE_SPAN_KIND,
     SpanKind,

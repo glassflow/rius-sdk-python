@@ -2,8 +2,8 @@ import pytest
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import StatusCode
 
-from glassflow import start_as_current_span, start_span
-from glassflow.semconv import SpanKind
+from rius import start_as_current_span, start_span
+from rius.semconv import SpanKind
 
 # --- context manager: start_as_current_span ---
 

@@ -14,7 +14,7 @@ import os
 
 import pytest
 
-from glassflow.instrumentation import REGISTRY, InstrumentorSpec
+from rius.instrumentation import REGISTRY, InstrumentorSpec
 
 pytestmark = pytest.mark.skipif(
     not os.getenv("GLASSFLOW_ALL_EXTRAS"),

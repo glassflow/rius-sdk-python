@@ -33,11 +33,11 @@ def exported_spans() -> InMemorySpanExporter:
 
 
 @pytest.fixture(autouse=True)
-def _reset_glassflow_lifecycle() -> "Iterator[None]":
+def _reset_rius_lifecycle() -> "Iterator[None]":
     """Clear module-level init()/instrumentation state between tests."""
     yield
-    from glassflow import client as client_module
-    from glassflow import instrumentation as instrumentation_module
+    from rius import client as client_module
+    from rius import instrumentation as instrumentation_module
 
     client_module._current_client = None
     instrumentation_module._ENABLED.clear()

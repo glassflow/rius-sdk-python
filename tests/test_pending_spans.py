@@ -10,8 +10,8 @@ from __future__ import annotations
 from opentelemetry.sdk.trace import SpanProcessor as _SpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from glassflow import init
-from glassflow.semconv import GLASSFLOW_SPAN_PENDING
+from rius import init
+from rius.semconv import GLASSFLOW_SPAN_PENDING
 
 
 def _memory_client(**kwargs: object):
@@ -114,7 +114,7 @@ def test_disabled_kills_pendings_too() -> None:
 
 
 def test_env_var_enables_partial_spans(monkeypatch) -> None:
-    from glassflow.config import resolve_config
+    from rius.config import resolve_config
 
     monkeypatch.setenv("GLASSFLOW_PARTIAL_SPANS", "true")
     assert resolve_config().partial_spans is True
@@ -147,14 +147,14 @@ def test_sdk_helpers_expose_identity_attributes_at_span_start() -> None:
     invisible to the snapshot."""
     from opentelemetry import trace as otel_trace
 
-    import glassflow
+    import rius
 
     recorder = _StartAttributeRecorder()
     otel_trace.get_tracer_provider().add_span_processor(recorder)  # type: ignore[attr-defined]
 
-    with glassflow.start_as_current_span("kindly", kind=glassflow.SpanKind.RETRIEVER):
+    with rius.start_as_current_span("kindly", kind=rius.SpanKind.RETRIEVER):
         pass
-    with glassflow.start_as_current_generation("genny", model="gpt-4o", provider="openai"):
+    with rius.start_as_current_generation("genny", model="gpt-4o", provider="openai"):
         pass
 
     assert recorder.seen["kindly"]["openinference.span.kind"] == "RETRIEVER"

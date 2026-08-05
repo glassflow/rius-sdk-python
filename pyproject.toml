@@ -1,7 +1,7 @@
 [project]
-name = "glassflow-ai"
+name = "glassflow-rius"
 dynamic = ["version"]
-description = "GlassFlow SDK — OpenTelemetry-native tracing for AI agents and LLM applications."
+description = "GlassFlow Rius SDK — OpenTelemetry-native tracing for AI agents and LLM applications."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
@@ -15,7 +15,7 @@ keywords = [
     "llm",
     "agents",
     "genai",
-    "glassflow",
+    "rius",
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -36,7 +36,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Auto-instrumentation extras — one per entry in glassflow.instrumentation.REGISTRY.
+# Auto-instrumentation extras — one per entry in rius.instrumentation.REGISTRY.
 # Floors are the versions the registry smoke test last validated against; no caps
 # (these packages break within 0.x either way — CI catches forward breakage).
 openai = ["openinference-instrumentation-openai>=0.1.52"]
@@ -55,19 +55,19 @@ instruments = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/glassflow/glassflow-python"
-Repository = "https://github.com/glassflow/glassflow-python.git"
-Issues = "https://github.com/glassflow/glassflow-python/issues"
+Homepage = "https://github.com/glassflow/rius-sdk-python"
+Repository = "https://github.com/glassflow/rius-sdk-python.git"
+Issues = "https://github.com/glassflow/rius-sdk-python/issues"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.version]
-path = "src/glassflow/__init__.py"
+path = "src/rius/__init__.py"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/glassflow"]
+packages = ["src/rius"]
 
 [dependency-groups]
 dev = [

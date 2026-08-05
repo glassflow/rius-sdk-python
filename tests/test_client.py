@@ -2,9 +2,9 @@ from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from glassflow import init
-from glassflow.client import GlassflowClient, build_span_exporter
-from glassflow.config import resolve_config
+from rius import init
+from rius.client import GlassflowClient, build_span_exporter
+from rius.config import resolve_config
 
 
 def _memory_client(**kwargs: object) -> tuple[GlassflowClient, InMemorySpanExporter]:
@@ -39,7 +39,7 @@ def test_resource_has_service_name() -> None:
 def test_resource_uses_distro_not_sdk_identity() -> None:
     # Spec: telemetry.sdk.name MUST be "opentelemetry"; distributions identify
     # themselves via telemetry.distro.*.
-    from glassflow import __version__
+    from rius import __version__
 
     client, exporter = _memory_client()
     with client.get_tracer().start_as_current_span("op"):
@@ -47,7 +47,7 @@ def test_resource_uses_distro_not_sdk_identity() -> None:
     client.flush()
     resource_attrs = exporter.get_finished_spans()[0].resource.attributes
     assert resource_attrs["telemetry.sdk.name"] == "opentelemetry"
-    assert resource_attrs["telemetry.distro.name"] == "glassflow-ai"
+    assert resource_attrs["telemetry.distro.name"] == "glassflow-rius"
     assert resource_attrs["telemetry.distro.version"] == __version__
 
 

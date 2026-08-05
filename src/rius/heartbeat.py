@@ -185,7 +185,7 @@ class HeartbeatSender:
 
     def start(self) -> None:
         """Start the daemon thread; first ping goes out immediately."""
-        self._thread = threading.Thread(target=self._run, name="glassflow-heartbeat", daemon=True)
+        self._thread = threading.Thread(target=self._run, name="rius-heartbeat", daemon=True)
         self._thread.start()
         atexit.register(self.stop)
         # A forked child must never reuse the parent's identity; the shared

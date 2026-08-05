@@ -148,7 +148,7 @@ def init(
     with _lock:
         if set_global and _current_client is not None and not _current_client._is_shutdown:
             logger.warning(
-                "glassflow.init() was already called; keeping the existing configuration "
+                "rius.init() was already called; keeping the existing configuration "
                 "(the OpenTelemetry global tracer provider is write-once). Call .shutdown() "
                 "on the existing client first if you need to reconfigure."
             )
@@ -214,7 +214,7 @@ def _do_init(
     resource = Resource.create(
         {
             "service.name": config.service_name,
-            "telemetry.distro.name": "glassflow-ai",
+            "telemetry.distro.name": "glassflow-rius",
             "telemetry.distro.version": __version__,
         }
     )
@@ -240,9 +240,9 @@ def _do_init(
         trace.set_tracer_provider(provider)
         if trace.get_tracer_provider() is not provider:
             logger.warning(
-                "could not register the glassflow tracer provider as the OpenTelemetry "
+                "could not register the rius tracer provider as the OpenTelemetry "
                 "global (another provider is already set); spans from @observe and "
-                "glassflow.get_tracer() will keep using the pre-existing provider. Use "
+                "rius.get_tracer() will keep using the pre-existing provider. Use "
                 "the returned client's get_tracer() for scoped tracing."
             )
 

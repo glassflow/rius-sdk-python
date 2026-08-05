@@ -28,9 +28,9 @@ except ImportError:  # mcp 1.x: FastMCP is the same decorator surface
 
     MCP_V2 = False
 
-from glassflow import init  # noqa: E402
-from glassflow.instrumentation import REGISTRY  # noqa: E402
-from glassflow.instrumentation_mcp import MCPInstrumentor  # noqa: E402
+from rius import init  # noqa: E402
+from rius.instrumentation import REGISTRY  # noqa: E402
+from rius.instrumentation_mcp import MCPInstrumentor  # noqa: E402
 
 
 def _make_server() -> Any:
@@ -220,7 +220,7 @@ class _V2InputRequired:
 
 
 def _record_on_fresh_span(result: Any) -> ReadableSpan:
-    from glassflow.instrumentation_mcp import _record_result
+    from rius.instrumentation_mcp import _record_result
 
     inner = InMemorySpanExporter()
     client = init(span_exporter=inner, set_global=False)

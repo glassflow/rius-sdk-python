@@ -3,7 +3,7 @@
 We reuse existing OTel instrumentors rather than rebuilding provider/framework
 instrumentation. The registry below maps a short name to an instrumentor class;
 packages are imported lazily, so nothing here adds a hard dependency. Install
-via extras (``pip install glassflow-ai[openai]``) and ``init()`` enables what
+via extras (``pip install glassflow-rius[openai]``) and ``init()`` enables what
 it finds, passing our tracer provider so instrumentation spans nest under ours.
 """
 
@@ -47,7 +47,7 @@ REGISTRY: tuple[InstrumentorSpec, ...] = (
     ),
     InstrumentorSpec("litellm", "openinference.instrumentation.litellm", "LiteLLMInstrumentor"),
     # ours — first-class MCP tool-call spans (see instrumentation_mcp.py)
-    InstrumentorSpec("mcp", "glassflow.instrumentation_mcp", "MCPInstrumentor"),
+    InstrumentorSpec("mcp", "rius.instrumentation_mcp", "MCPInstrumentor"),
 )
 
 
@@ -82,7 +82,7 @@ def enable_instrumentations(
             if instruments is not None:
                 logger.warning(
                     "instrument %r requested but %r is not installed; "
-                    'install it via `pip install "glassflow-ai[%s]"`',
+                    'install it via `pip install "glassflow-rius[%s]"`',
                     spec.name,
                     spec.module,
                     spec.name,
