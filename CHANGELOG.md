@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.8.0](https://github.com/glassflow/rius-sdk-python/compare/v0.7.0...v0.8.0) (2026-08-05)
+
+
+### ⚠ BREAKING CHANGES
+
+* rebrand SDK to glassflow-rius, import rius ([#44](https://github.com/glassflow/rius-sdk-python/issues/44))
+
+### Features
+
+* rebrand SDK to glassflow-rius, import rius ([#44](https://github.com/glassflow/rius-sdk-python/issues/44)) ([82c91c1](https://github.com/glassflow/rius-sdk-python/commit/82c91c1f644ca31e53bc2737e8cf2326dfa1aba6))
+
+
+### Documentation
+
+* update readme title ([#46](https://github.com/glassflow/rius-sdk-python/issues/46)) ([4ae480a](https://github.com/glassflow/rius-sdk-python/commit/4ae480a626b4175789bac652bf9767bcbe50a705))
+
 ## [0.7.0](https://github.com/glassflow/glassflow-python/compare/v0.6.0...v0.7.0) (2026-08-04)
 
 
