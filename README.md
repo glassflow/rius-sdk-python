@@ -1,6 +1,6 @@
 # GlassFlow Python SDK
 
-OpenTelemetry-native tracing for AI agents and LLM applications. `glassflow-ai`
+OpenTelemetry-native tracing for AI agents and LLM applications. `glassflow-rius`
 emits [OpenTelemetry GenAI](https://opentelemetry.io/docs/specs/semconv/gen-ai/)
 traces over OTLP to the managed GlassFlow observability platform (or any
 OTLP-compatible backend).
@@ -10,17 +10,17 @@ OTLP-compatible backend).
 ## Install
 
 ```bash
-pip install glassflow-ai
+pip install glassflow-rius
 ```
 
 ## Quickstart
 
 ```python
-import glassflow
-from glassflow import observe, start_as_current_generation, start_as_current_span
-from glassflow.semconv import SpanKind
+import rius
+from rius import observe, start_as_current_generation, start_as_current_span
+from rius.semconv import SpanKind
 
-glassflow.init(
+rius.init(
     api_key="glassflow_...",          # or set GLASSFLOW_API_KEY
     service_name="my-agent",          # or set GLASSFLOW_SERVICE_NAME
 )
@@ -61,9 +61,9 @@ bundled third-party instrumentation. A mask that accepts a `key` keyword also
 receives the attribute key, for per-attribute decisions.
 
 ```python
-glassflow.init(mask=lambda value: "[REDACTED]")   # redact all captured content
-glassflow.init(mask=lambda value, *, key: hash_pii(value) if "input" in key else value)
-glassflow.init(capture_content=False)             # drop content entirely, keep metadata
+rius.init(mask=lambda value: "[REDACTED]")   # redact all captured content
+rius.init(mask=lambda value, *, key: hash_pii(value) if "input" in key else value)
+rius.init(capture_content=False)             # drop content entirely, keep metadata
 ```
 
 ## Auto-instrumentation
@@ -74,14 +74,14 @@ extras you need and `init()` enables whatever it finds; the instrumentation
 spans nest under your `@observe` / `start_as_current_span` traces automatically.
 
 ```bash
-pip install "glassflow-ai[openai]"        # one provider
-pip install "glassflow-ai[instruments]"   # everything supported
+pip install "glassflow-rius[openai]"        # one provider
+pip install "glassflow-rius[instruments]"   # everything supported
 ```
 
 ```python
-glassflow.init()                          # auto-enables installed instrumentors
-glassflow.init(instruments=["openai"])    # restrict to specific ones
-glassflow.init(instruments=[])            # disable auto-instrumentation
+rius.init()                          # auto-enables installed instrumentors
+rius.init(instruments=["openai"])    # restrict to specific ones
+rius.init(instruments=[])            # disable auto-instrumentation
 ```
 
 Supported instruments: `openai`, `anthropic`, `langchain`, `llama-index`,

@@ -21,7 +21,7 @@ from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from glassflow import init
+from rius import init
 
 
 class _SlowExporter(SpanExporter):
@@ -142,8 +142,8 @@ def test_transient_server_errors_are_retried() -> None:
 def test_pending_spans_are_flushed_at_interpreter_exit() -> None:
     server = _start_server(responses=[200])
     code = (
-        "import glassflow\n"
-        f'client = glassflow.init(endpoint="http://127.0.0.1:{server.server_port}")\n'
+        "import rius\n"
+        f'client = rius.init(endpoint="http://127.0.0.1:{server.server_port}")\n'
         'with client.get_tracer().start_as_current_span("exit-op"):\n'
         "    pass\n"
         "# exit without flush() — the atexit hook must drain the queue\n"

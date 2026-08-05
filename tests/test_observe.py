@@ -6,8 +6,8 @@ from opentelemetry import trace
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import StatusCode
 
-from glassflow import observe
-from glassflow.semconv import SpanKind
+from rius import observe
+from rius.semconv import SpanKind
 
 
 @observe

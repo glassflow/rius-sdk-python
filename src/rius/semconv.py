@@ -12,6 +12,9 @@ from enum import Enum
 from opentelemetry.trace import Span
 
 # Instrumentation scope name (stamped on every span as otel.scope.name).
+# Deliberately still "glassflow" after the Rius rebrand (GLA2-322): the value
+# is wire-visible and the backend keys on it; renaming needs backend
+# coordination, tracked separately.
 TRACER_NAME = "glassflow"
 
 # --- Attribute keys ---

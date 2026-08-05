@@ -10,21 +10,21 @@ import threading
 
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from glassflow import init
-from glassflow.pending import PendingScheduler
-from glassflow.semconv import GLASSFLOW_SPAN_PENDING
+from rius import init
+from rius.pending import PendingScheduler
+from rius.semconv import GLASSFLOW_SPAN_PENDING
 
 # --- config resolution -------------------------------------------------------
 
 
 def test_delay_defaults_to_zero() -> None:
-    from glassflow.config import resolve_config
+    from rius.config import resolve_config
 
     assert resolve_config().partial_spans_delay == 0.0
 
 
 def test_delay_env_var_and_clamp(monkeypatch) -> None:
-    from glassflow.config import resolve_config
+    from rius.config import resolve_config
 
     monkeypatch.setenv("GLASSFLOW_PARTIAL_SPANS_DELAY", "2.5")
     assert resolve_config().partial_spans_delay == 2.5

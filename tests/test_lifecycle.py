@@ -12,14 +12,14 @@ from __future__ import annotations
 import pytest
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from glassflow import init
+from rius import init
 
 
 def test_second_global_init_warns_and_returns_existing_client(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     first = init(span_exporter=InMemorySpanExporter(), set_global=True)
-    with caplog.at_level("WARNING", logger="glassflow.client"):
+    with caplog.at_level("WARNING", logger="rius.client"):
         second = init(span_exporter=InMemorySpanExporter(), set_global=True, service_name="other")
     assert second is first
     assert any("already" in record.message for record in caplog.records)
@@ -46,7 +46,7 @@ def test_disabled_init_does_not_claim_the_global_provider_slot(
 ) -> None:
     calls: list[object] = []
     monkeypatch.setattr(
-        "glassflow.client.trace.set_tracer_provider", lambda provider: calls.append(provider)
+        "rius.client.trace.set_tracer_provider", lambda provider: calls.append(provider)
     )
     init(disabled=True)
     assert calls == []
@@ -57,7 +57,7 @@ def test_enabled_global_init_sets_the_global_provider(
 ) -> None:
     calls: list[object] = []
     monkeypatch.setattr(
-        "glassflow.client.trace.set_tracer_provider", lambda provider: calls.append(provider)
+        "rius.client.trace.set_tracer_provider", lambda provider: calls.append(provider)
     )
     client = init(span_exporter=InMemorySpanExporter(), set_global=True)
     assert calls == [client._provider]

@@ -19,9 +19,9 @@ from typing import Any
 import pytest
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from glassflow import init
-from glassflow.config import resolve_config
-from glassflow.heartbeat import HeartbeatSender, OpenRootSpanTracker
+from rius import init
+from rius.config import resolve_config
+from rius.heartbeat import HeartbeatSender, OpenRootSpanTracker
 
 # ---------------------------------------------------------------------------
 # Config surface
@@ -288,7 +288,7 @@ def test_transport_failure_never_raises_and_warns_once(
         tracker=OpenRootSpanTracker(),
         transport=broken,
     )
-    with caplog.at_level(logging.DEBUG, logger="glassflow.heartbeat"):
+    with caplog.at_level(logging.DEBUG, logger="rius.heartbeat"):
         sender._send_ping()  # noqa: SLF001
         sender._send_ping()  # noqa: SLF001
     warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
@@ -372,7 +372,7 @@ def test_atexit_sends_stopped_ping_from_real_process() -> None:
         # init() then exit normally WITHOUT calling shutdown(): the atexit
         # hook alone must produce the stopped ping.
         result = subprocess.run(
-            [sys.executable, "-c", "import glassflow; glassflow.init(instruments=[])"],
+            [sys.executable, "-c", "import rius; rius.init(instruments=[])"],
             env=env,
             timeout=30,
             capture_output=True,
@@ -437,7 +437,7 @@ def test_final_ping_timeout_defaults_shorter_than_ping_timeout() -> None:
 
 def test_stopped_senders_leave_the_fork_registry() -> None:
     """init/shutdown cycles must not accumulate fork-handler references."""
-    from glassflow.heartbeat import _active_senders
+    from rius.heartbeat import _active_senders
 
     before = len(_active_senders)
     sent: list[dict[str, Any]] = []

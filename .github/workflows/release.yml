@@ -25,7 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/project/glassflow-ai/
+      url: https://pypi.org/project/glassflow-rius/
     permissions:
       id-token: write # OIDC for PyPI Trusted Publishing
       contents: read
@@ -98,5 +98,5 @@ jobs:
             -e 's/\[([^]]+)\]\(([^)]+)\)/<\2|\1>/g' \
             | head -c 3500)
           jq -n --arg tag "$TAG" --arg url "$url" --arg body "$body" \
-            '{text: (":package: *glassflow-ai \($tag)* is on PyPI (<\($url)|release notes>)\n\n\($body)")}' \
+            '{text: (":package: *glassflow-rius \($tag)* is on PyPI (<\($url)|release notes>)\n\n\($body)")}' \
             | curl -sS --fail-with-body -X POST -H 'Content-Type: application/json' -d @- "$SLACK_WEBHOOK"

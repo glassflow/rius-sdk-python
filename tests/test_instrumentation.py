@@ -14,9 +14,9 @@ from typing import Any
 import pytest
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-import glassflow.instrumentation as instrumentation
-from glassflow import init
-from glassflow.instrumentation import InstrumentorSpec
+import rius.instrumentation as instrumentation
+from rius import init
+from rius.instrumentation import InstrumentorSpec
 
 
 class FakeInstrumentor:

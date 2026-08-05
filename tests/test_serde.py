@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from glassflow._serde import MAX_ATTR_CHARS, serialize
+from rius._serde import MAX_ATTR_CHARS, serialize
 
 
 class _BrokenRepr:

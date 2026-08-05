@@ -3,7 +3,7 @@ import json
 from opentelemetry.sdk.trace import Event, ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from glassflow import start_as_current_generation, start_generation
+from rius import start_as_current_generation, start_generation
 
 # --- context manager: start_as_current_generation ---
 
