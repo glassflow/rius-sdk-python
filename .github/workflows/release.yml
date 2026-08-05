@@ -39,11 +39,11 @@ jobs:
       - run: uv build
       - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
 
-  # Tell argus-docs a new version shipped: its bump-api-reference workflow
+  # Tell glassflow-docs a new version shipped: its bump-api-reference workflow
   # opens the pin-bump + regenerated-reference PR. Fires only after the PyPI
   # publish succeeded (the docs workflow pip-installs the version). Needs
   # DOCS_DISPATCH_TOKEN — a fine-grained PAT (or GitHub App token) with
-  # contents:write on glassflow/argus-docs; GITHUB_TOKEN cannot dispatch
+  # contents:write on glassflow/glassflow-docs; GITHUB_TOKEN cannot dispatch
   # cross-repo. Skips gracefully while the secret is unset (the docs
   # workflow's weekly schedule is the fallback).
   dispatch-docs:
@@ -64,7 +64,7 @@ jobs:
           curl -sS --fail-with-body -X POST \
             -H "Authorization: Bearer $TOKEN" \
             -H "Accept: application/vnd.github+json" \
-            https://api.github.com/repos/glassflow/argus-docs/dispatches \
+            https://api.github.com/repos/glassflow/glassflow-docs/dispatches \
             -d "{\"event_type\":\"sdk-release\",\"client_payload\":{\"version\":\"$version\"}}"
 
   # Announce on Slack AFTER the PyPI publish succeeds, so the channel only
