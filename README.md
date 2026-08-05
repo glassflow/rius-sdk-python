@@ -1,4 +1,4 @@
-# GlassFlow Python SDK
+# Rius Python SDK
 
 OpenTelemetry-native tracing for AI agents and LLM applications. `glassflow-rius`
 emits [OpenTelemetry GenAI](https://opentelemetry.io/docs/specs/semconv/gen-ai/)
