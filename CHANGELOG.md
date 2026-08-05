@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.7.0](https://github.com/glassflow/glassflow-python/compare/v0.6.0...v0.7.0) (2026-08-04)
+
+
+### Features
+
+* emit partial (pending) spans at span start ([#37](https://github.com/glassflow/glassflow-python/issues/37)) ([e39e555](https://github.com/glassflow/glassflow-python/commit/e39e55545bb718ab83c196c5ec5b2ce631c00cb8))
+
+
+### Bug Fixes
+
+* support mcp 2.x result shapes in MCP instrumentation ([#42](https://github.com/glassflow/glassflow-python/issues/42)) ([65aff4b](https://github.com/glassflow/glassflow-python/commit/65aff4b51bcbd9688f72dd0f0733dbc34bfb642d))
+
+
+### Documentation
+
+* remove em dashes from docstrings ([#39](https://github.com/glassflow/glassflow-python/issues/39)) ([7ca0af5](https://github.com/glassflow/glassflow-python/commit/7ca0af5a6237fec0918ab8745067da2e1f798004))
+
 ## [0.6.0](https://github.com/glassflow/glassflow-python/compare/v0.5.0...v0.6.0) (2026-07-20)
 
 
