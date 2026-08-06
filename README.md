@@ -48,7 +48,7 @@ variables:
 
 | Argument       | Environment variable     | Default                        | Description                                                          |
 | -------------- | ------------------------ | ------------------------------ | -------------------------------------------------------------------- |
-| `endpoint`     | `GLASSFLOW_ENDPOINT`     | `https://ingest.glassflow.dev` | Base OTLP endpoint. Traces are sent to `<endpoint>/v1/traces`.       |
+| `endpoint`     | `GLASSFLOW_ENDPOINT`     | `https://ingest.eu.console.rius-glassflow.com` | Base OTLP endpoint. Traces are sent to `<endpoint>/v1/traces`.       |
 | `api_key`      | `GLASSFLOW_API_KEY`      | —                              | Injected as an `Authorization: Bearer <key>` header on every export. |
 | `service_name` | `GLASSFLOW_SERVICE_NAME` | `unknown_service`              | Sets the OpenTelemetry `service.name` resource attribute.            |
 | `disabled`     | `GLASSFLOW_DISABLED`     | `false`                        | Kill switch. When true, spans are created but never exported.        |
