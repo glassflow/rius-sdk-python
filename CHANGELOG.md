@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.1](https://github.com/glassflow/rius-sdk-python/compare/v0.8.0...v0.8.1) (2026-08-06)
+
+
+### Bug Fixes
+
+* README documented a dead default endpoint ([#47](https://github.com/glassflow/rius-sdk-python/issues/47)) ([abaadc5](https://github.com/glassflow/rius-sdk-python/commit/abaadc595bace230d7ce37919edcb248f11ed577))
+
 ## [0.8.0](https://github.com/glassflow/rius-sdk-python/compare/v0.7.0...v0.8.0) (2026-08-05)
 
 
