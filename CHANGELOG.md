@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.2](https://github.com/glassflow/rius-sdk-python/compare/v0.8.1...v0.8.2) (2026-08-07)
+
+
+### Bug Fixes
+
+* package author email points at the real support address ([#49](https://github.com/glassflow/rius-sdk-python/issues/49)) ([4da0e10](https://github.com/glassflow/rius-sdk-python/commit/4da0e10d13964e7c0e646c58b27065f2605264fe))
+
 ## [0.8.1](https://github.com/glassflow/rius-sdk-python/compare/v0.8.0...v0.8.1) (2026-08-06)
 
 
