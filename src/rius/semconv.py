@@ -12,7 +12,7 @@ from enum import Enum
 from opentelemetry.trace import Span
 
 # Instrumentation scope name (stamped on every span as otel.scope.name).
-# Deliberately still "glassflow" after the Rius rebrand (GLA2-322): the value
+# Deliberately still "glassflow" after the Rius rebrand: the value
 # is wire-visible and the backend keys on it; renaming needs backend
 # coordination, tracked separately.
 TRACER_NAME = "glassflow"
@@ -47,7 +47,7 @@ GEN_AI_REQUEST_PREFIX = "gen_ai.request."
 # gen_ai.* naming style, precedent Langfuse's completion_start_time.
 GEN_AI_FIRST_TOKEN_EVENT = "gen_ai.first_token"
 
-# --- Pending (partial) spans (GLA2-195) ---
+# --- Pending (partial) spans ---
 # Marks the content-free snapshot exported at span START; the backend maps it
 # to Finished=0 and the real span replaces it at end. This key knowingly bends
 # the convention-native rule (no glassflow.* namespace): OpenTelemetry has NO

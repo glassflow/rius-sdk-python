@@ -33,7 +33,7 @@ HEARTBEAT_INTERVAL_MIN = 5.0
 HEARTBEAT_INTERVAL_MAX = 300.0
 DEFAULT_HEARTBEAT_INTERVAL = 15.0
 
-# Debounce for partial spans (GLA2-244): 0 = emit immediately at span start;
+# Debounce for partial spans: 0 = emit immediately at span start;
 # N>0 = emit only if the span is still open after N seconds. Beyond 60s a
 # "live" view stops being live, so larger values are clamped.
 PARTIAL_SPANS_DELAY_MIN = 0.0

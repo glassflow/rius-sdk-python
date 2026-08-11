@@ -4,6 +4,7 @@ __version__ = "0.8.2"  # x-release-please-version
 
 from .client import GlassflowClient, build_span_exporter, get_tracer, init
 from .config import GlassflowConfig, resolve_config
+from .export_health import ProbeTransport
 from .generation import Generation, start_as_current_generation, start_generation
 from .observe import observe
 from .semconv import SpanKind
@@ -14,6 +15,7 @@ __all__ = [
     "GlassflowClient",
     "GlassflowConfig",
     "Observation",
+    "ProbeTransport",
     "SpanKind",
     "__version__",
     "build_span_exporter",

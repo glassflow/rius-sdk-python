@@ -8,7 +8,7 @@ backend stores it as an unfinished row that the real span replaces at end
 keys replacement on), and a snapshot that is never replaced is the durable
 record of what a crashed agent was doing.
 
-Wire contract (GLA2-195):
+Wire contract:
 
 - Same trace_id, span_id, parent, name, and start timestamp as the final
   span; ``end_time == start_time`` (OTLP cannot represent an unfinished
@@ -18,7 +18,7 @@ Wire contract (GLA2-195):
 - Identity/taxonomy attributes only (``PENDING_IDENTITY_ATTRIBUTES`` /
   ``_PREFIXES``); NEVER content, whatever instrumentation set it.
 
-Debounce (GLA2-244): with ``partial_spans_delay > 0`` the snapshot is held
+Debounce: with ``partial_spans_delay > 0`` the snapshot is held
 for N seconds and only emitted if the span is STILL OPEN then — a span that
 finishes first costs zero network. Most agent spans live milliseconds, so a
 small delay cuts pending volume drastically while keeping the live view
@@ -205,7 +205,7 @@ class PendingSpanProcessor(SpanProcessor):
     and masking pipeline with final spans — nothing bespoke on the wire path.
     ``on_start`` stays an in-memory enqueue: the never-block guarantee holds.
 
-    With ``delay > 0`` (GLA2-244) emission is debounced through a
+    With ``delay > 0`` emission is debounced through a
     :class:`PendingScheduler`; ``delay == 0`` keeps the emit-immediately
     behavior with no scheduler thread at all.
     """
