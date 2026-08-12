@@ -21,8 +21,8 @@ from rius import observe, start_as_current_generation, start_as_current_span
 from rius.semconv import SpanKind
 
 rius.init(
-    api_key="glassflow_...",          # or set GLASSFLOW_API_KEY
-    service_name="my-agent",          # or set GLASSFLOW_SERVICE_NAME
+    api_key="glassflow_...",          # or set RIUS_API_KEY
+    service_name="my-agent",          # or set RIUS_SERVICE_NAME
 )
 
 # 1. Decorator — trace a whole function
@@ -48,12 +48,17 @@ variables:
 
 | Argument       | Environment variable     | Default                        | Description                                                          |
 | -------------- | ------------------------ | ------------------------------ | -------------------------------------------------------------------- |
-| `endpoint`     | `GLASSFLOW_ENDPOINT`     | `https://ingest.eu.console.rius-glassflow.com` | Base OTLP endpoint. Traces are sent to `<endpoint>/v1/traces`.       |
-| `api_key`      | `GLASSFLOW_API_KEY`      | —                              | Injected as an `Authorization: Bearer <key>` header on every export. |
-| `service_name` | `GLASSFLOW_SERVICE_NAME` | `unknown_service`              | Sets the OpenTelemetry `service.name` resource attribute.            |
-| `disabled`     | `GLASSFLOW_DISABLED`     | `false`                        | Kill switch. When true, spans are created but never exported.        |
-| `sample_rate`  | `GLASSFLOW_SAMPLE_RATE`  | `1.0`                          | Head sampling ratio `0.0`–`1.0` (whole-trace; children follow root). |
-| `capture_content` | `GLASSFLOW_CAPTURE_CONTENT` | `true`                    | When false, prompt/response content is stripped at export (metadata still sent). |
+| `endpoint`     | `RIUS_ENDPOINT`     | `https://ingest.eu.console.rius-glassflow.com` | Base OTLP endpoint. Traces are sent to `<endpoint>/v1/traces`.       |
+| `api_key`      | `RIUS_API_KEY`      | —                              | Injected as an `Authorization: Bearer <key>` header on every export. |
+| `service_name` | `RIUS_SERVICE_NAME` | `unknown_service`              | Sets the OpenTelemetry `service.name` resource attribute.            |
+| `disabled`     | `RIUS_DISABLED`     | `false`                        | Kill switch. When true, spans are created but never exported.        |
+| `sample_rate`  | `RIUS_SAMPLE_RATE`  | `1.0`                          | Head sampling ratio `0.0`–`1.0` (whole-trace; children follow root). |
+| `capture_content` | `RIUS_CAPTURE_CONTENT` | `true`                    | When false, prompt/response content is stripped at export (metadata still sent). |
+
+Every variable also accepts its former `GLASSFLOW_*` spelling (for example
+`GLASSFLOW_API_KEY`). Those names are deprecated: they keep working for now,
+log a warning naming the `RIUS_*` replacement, and will be removed in a
+future release. When both spellings are set, `RIUS_*` wins.
 
 `mask` is a code-only option (no env var): pass a callable to `init(mask=...)` and
 it is applied to every content attribute value at export, across our spans and any

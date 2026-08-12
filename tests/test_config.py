@@ -2,14 +2,20 @@ import pytest
 
 from rius.config import DEFAULT_ENDPOINT, GlassflowConfig, resolve_config
 
-ENV_VARS = [
-    "GLASSFLOW_ENDPOINT",
-    "GLASSFLOW_API_KEY",
-    "GLASSFLOW_SERVICE_NAME",
-    "GLASSFLOW_DISABLED",
-    "GLASSFLOW_SAMPLE_RATE",
-    "GLASSFLOW_CAPTURE_CONTENT",
+_SUFFIXES = [
+    "ENDPOINT",
+    "API_KEY",
+    "SERVICE_NAME",
+    "DISABLED",
+    "SAMPLE_RATE",
+    "CAPTURE_CONTENT",
+    "HEARTBEAT",
+    "HEARTBEAT_INTERVAL",
+    "AGENT_NAME",
+    "PARTIAL_SPANS",
+    "PARTIAL_SPANS_DELAY",
 ]
+ENV_VARS = [f"{prefix}{suffix}" for prefix in ("RIUS_", "GLASSFLOW_") for suffix in _SUFFIXES]
 
 
 @pytest.fixture(autouse=True)
@@ -116,3 +122,57 @@ def test_config_is_immutable() -> None:
 
 def test_returns_config_instance() -> None:
     assert isinstance(resolve_config(), GlassflowConfig)
+
+
+# --- RIUS_* env vars with deprecated GLASSFLOW_* fallback ---
+
+
+def test_rius_env_vars_are_read(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("RIUS_API_KEY", "gf_new")
+    monkeypatch.setenv("RIUS_ENDPOINT", "https://rius.example.com")
+    monkeypatch.setenv("RIUS_SAMPLE_RATE", "0.5")
+    monkeypatch.setenv("RIUS_HEARTBEAT", "true")
+    config = resolve_config()
+    assert config.api_key == "gf_new"
+    assert config.endpoint == "https://rius.example.com"
+    assert config.sample_rate == 0.5
+    assert config.heartbeat is True
+
+
+def test_glassflow_env_vars_still_work_and_warn(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    import logging
+
+    monkeypatch.setenv("GLASSFLOW_API_KEY", "gf_legacy")
+    monkeypatch.setenv("GLASSFLOW_SAMPLE_RATE", "0.25")
+    with caplog.at_level(logging.WARNING, logger="rius.config"):
+        config = resolve_config()
+    assert config.api_key == "gf_legacy"
+    assert config.sample_rate == 0.25
+    warnings = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
+    assert len(warnings) == 1, warnings
+    assert "deprecated" in warnings[0]
+    assert "GLASSFLOW_API_KEY" in warnings[0] and "RIUS_API_KEY" in warnings[0]
+    assert "GLASSFLOW_SAMPLE_RATE" in warnings[0] and "RIUS_SAMPLE_RATE" in warnings[0]
+
+
+def test_rius_wins_over_glassflow_without_warning(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    import logging
+
+    monkeypatch.setenv("RIUS_API_KEY", "gf_new")
+    monkeypatch.setenv("GLASSFLOW_API_KEY", "gf_legacy")
+    with caplog.at_level(logging.WARNING, logger="rius.config"):
+        config = resolve_config()
+    assert config.api_key == "gf_new"
+    assert not any(
+        "deprecated" in r.getMessage() for r in caplog.records if r.levelno == logging.WARNING
+    )
+
+
+def test_explicit_argument_beats_both_env_vars(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("RIUS_API_KEY", "gf_new")
+    monkeypatch.setenv("GLASSFLOW_API_KEY", "gf_legacy")
+    assert resolve_config(api_key="gf_explicit").api_key == "gf_explicit"

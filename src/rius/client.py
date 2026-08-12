@@ -166,7 +166,7 @@ def init(
             are only enabled when ``instruments`` is passed explicitly.
         span_exporter: Override the default OTLP exporter (useful for testing).
         heartbeat: Enable the agent-lifetime heartbeat thread
-            (``GLASSFLOW_HEARTBEAT``; default off this release). Pings
+            (``RIUS_HEARTBEAT``; default off this release). Pings
             ``<endpoint>/v1/heartbeat`` from init until process exit so the
             platform can tell a live-but-idle agent from a vanished one.
         heartbeat_interval: Seconds between pings (default 15, clamped to
@@ -270,9 +270,9 @@ def _do_init(
                 # The diagnosis is already certain; no probe needed (it
                 # would only repeat this warning as a 401).
                 logger.warning(
-                    "no API key configured (GLASSFLOW_API_KEY unset and no Authorization "
+                    "no API key configured (RIUS_API_KEY unset and no Authorization "
                     "header): traces sent to %s will be rejected with 401. Set "
-                    "GLASSFLOW_API_KEY or pass api_key= to rius.init().",
+                    "RIUS_API_KEY or pass api_key= to rius.init().",
                     config.endpoint,
                 )
             else:

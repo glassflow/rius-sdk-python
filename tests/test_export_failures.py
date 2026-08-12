@@ -18,8 +18,8 @@ from rius.config import DEFAULT_ENDPOINT
 
 @pytest.fixture(autouse=True)
 def _no_ambient_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("GLASSFLOW_API_KEY", raising=False)
-    monkeypatch.delenv("GLASSFLOW_ENDPOINT", raising=False)
+    for var in ("RIUS_API_KEY", "RIUS_ENDPOINT", "GLASSFLOW_API_KEY", "GLASSFLOW_ENDPOINT"):
+        monkeypatch.delenv(var, raising=False)
 
 
 def _init_kwargs(**overrides: object) -> dict[str, object]:
@@ -77,7 +77,7 @@ class TestExportOutcomeExporter:
         msg = warnings[0].getMessage()
         assert "not being delivered" in msg
         assert DEFAULT_ENDPOINT in msg
-        assert "GLASSFLOW_API_KEY" in msg
+        assert "RIUS_API_KEY" in msg
 
     def test_success_records_no_failure_and_no_warning(
         self, caplog: pytest.LogCaptureFixture
@@ -160,7 +160,7 @@ class TestConnectivityCheck:
         warnings = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
         assert len(warnings) == 1
         assert "401" in warnings[0]
-        assert "GLASSFLOW_API_KEY" in warnings[0]
+        assert "RIUS_API_KEY" in warnings[0]
 
     def test_success_stays_quiet(self, caplog: pytest.LogCaptureFixture) -> None:
         with caplog.at_level(logging.WARNING, logger="rius.export_health"):
@@ -177,7 +177,7 @@ class TestConnectivityCheck:
             self._check(send)
         warnings = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
         assert len(warnings) == 1
-        assert "GLASSFLOW_ENDPOINT" in warnings[0]
+        assert "RIUS_ENDPOINT" in warnings[0]
 
     def test_other_status_warns_generically(self, caplog: pytest.LogCaptureFixture) -> None:
         with caplog.at_level(logging.WARNING, logger="rius.export_health"):
@@ -257,7 +257,7 @@ class TestMissingKeyInitWarning:
             client = init(**_init_kwargs())
         client.shutdown()
         messages = [r.getMessage() for r in caplog.records]
-        assert any("GLASSFLOW_API_KEY" in m for m in messages), messages
+        assert any("RIUS_API_KEY" in m for m in messages), messages
         assert any(DEFAULT_ENDPOINT in m for m in messages), messages
 
     def test_custom_endpoint_without_key_stays_silent(
@@ -267,13 +267,13 @@ class TestMissingKeyInitWarning:
         with caplog.at_level(logging.WARNING, logger="rius.client"):
             client = init(**_init_kwargs(endpoint="http://localhost:4318"))
         client.shutdown()
-        assert not any("GLASSFLOW_API_KEY" in r.getMessage() for r in caplog.records)
+        assert not any("RIUS_API_KEY" in r.getMessage() for r in caplog.records)
 
     def test_managed_endpoint_with_key_stays_silent(self, caplog: pytest.LogCaptureFixture) -> None:
         with caplog.at_level(logging.WARNING, logger="rius.client"):
             client = init(**_init_kwargs(api_key="gf_test_key"))
         client.shutdown()
-        assert not any("GLASSFLOW_API_KEY" in r.getMessage() for r in caplog.records)
+        assert not any("RIUS_API_KEY" in r.getMessage() for r in caplog.records)
 
     def test_custom_auth_header_counts_as_credentials(
         self, caplog: pytest.LogCaptureFixture
@@ -281,17 +281,17 @@ class TestMissingKeyInitWarning:
         with caplog.at_level(logging.WARNING, logger="rius.client"):
             client = init(**_init_kwargs(headers={"authorization": "Bearer x"}))
         client.shutdown()
-        assert not any("GLASSFLOW_API_KEY" in r.getMessage() for r in caplog.records)
+        assert not any("RIUS_API_KEY" in r.getMessage() for r in caplog.records)
 
     def test_disabled_stays_silent(self, caplog: pytest.LogCaptureFixture) -> None:
         with caplog.at_level(logging.WARNING, logger="rius.client"):
             client = init(**_init_kwargs(disabled=True))
         client.shutdown()
-        assert not any("GLASSFLOW_API_KEY" in r.getMessage() for r in caplog.records)
+        assert not any("RIUS_API_KEY" in r.getMessage() for r in caplog.records)
 
     def test_custom_span_exporter_stays_silent(self, caplog: pytest.LogCaptureFixture) -> None:
         # An injected exporter does not post to the managed endpoint at all.
         with caplog.at_level(logging.WARNING, logger="rius.client"):
             client = init(**_init_kwargs(span_exporter=InMemorySpanExporter()))
         client.shutdown()
-        assert not any("GLASSFLOW_API_KEY" in r.getMessage() for r in caplog.records)
+        assert not any("RIUS_API_KEY" in r.getMessage() for r in caplog.records)
