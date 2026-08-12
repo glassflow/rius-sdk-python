@@ -121,6 +121,35 @@ def test_capture_content_false_covers_retriever_embedding_and_traceloop_keys() -
     assert attrs["retrieval.documents.0.document.id"] == "doc-1"
 
 
+def test_capture_content_false_covers_unflattened_prompt_keys() -> None:
+    # Instrumentations do not always flatten llm.prompts into indexed
+    # llm.prompts.0 keys; the bare key must be covered too, or the privacy
+    # switch fails open on exactly the attribute that carries every prompt.
+    inner = InMemorySpanExporter()
+    client = init(span_exporter=inner, set_global=False, capture_content=False)
+    with client.get_tracer().start_as_current_span("op") as span:
+        span.set_attribute("llm.prompts", '["secret prompt one", "secret prompt two"]')
+        span.set_attribute("llm.prompt_template", "Answer as {persona}: {question}")
+    client.flush()
+    attrs = inner.get_finished_spans()[0].attributes
+    assert "llm.prompts" not in attrs
+    assert "llm.prompt_template" not in attrs
+
+
+def test_every_content_prefix_has_its_bare_key_covered() -> None:
+    # The invariant whose silent violation caused the llm.prompts gap: a
+    # family covered by prefix (indexed keys) must also cover the bare,
+    # unflattened attribute the prefix is derived from.
+    from rius.semconv import CONTENT_ATTRIBUTE_PREFIXES, CONTENT_ATTRIBUTES
+
+    missing = {
+        prefix.rstrip(".")
+        for prefix in CONTENT_ATTRIBUTE_PREFIXES
+        if prefix.rstrip(".") not in CONTENT_ATTRIBUTES
+    }
+    assert not missing, f"prefixes without their bare key in CONTENT_ATTRIBUTES: {missing}"
+
+
 def test_mask_accepting_key_receives_attribute_key() -> None:
     seen: list[str] = []
 

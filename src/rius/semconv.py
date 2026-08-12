@@ -83,6 +83,11 @@ CONTENT_ATTRIBUTES = frozenset(
         "gen_ai.completion",
         "llm.input_messages",
         "llm.output_messages",
+        # bare (unflattened) forms of the prefix-covered families below:
+        # instrumentations vary on whether they flatten these into indexed
+        # keys, and a prefix match never covers its own bare key
+        "llm.prompts",
+        "llm.prompt_template",
         "mlflow.spanInputs",
         "mlflow.spanOutputs",
         # OpenLLMetry workflow/task spans carry full I/O here
