@@ -1,4 +1,4 @@
-"""Partial (pending) spans: a content-free snapshot exported at span start (GLA2-195).
+"""Partial (pending) spans: a content-free snapshot exported at span start.
 
 Wire contract under test: same trace/span/parent ids, same name and start
 timestamp as the final span; zero duration; the pending marker attribute;

@@ -1,4 +1,4 @@
-"""Debounced partial spans (GLA2-244): delay emission, cancel on fast finish.
+"""Debounced partial spans: delay emission, cancel on fast finish.
 
 Timing is injected everywhere (fake monotonic clocks, bounded Event waits) —
 no test sleeps.

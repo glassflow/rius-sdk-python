@@ -12,7 +12,7 @@ from enum import Enum
 from opentelemetry.trace import Span
 
 # Instrumentation scope name (stamped on every span as otel.scope.name).
-# Deliberately still "glassflow" after the Rius rebrand (GLA2-322): the value
+# Deliberately still "glassflow" after the Rius rebrand: the value
 # is wire-visible and the backend keys on it; renaming needs backend
 # coordination, tracked separately.
 TRACER_NAME = "glassflow"
@@ -41,23 +41,23 @@ MCP_RESULT_TYPE = "mcp.result_type"
 GEN_AI_REQUEST_PREFIX = "gen_ai.request."
 
 # --- Span event names ---
-# First streamed token/chunk arrived — the TTFT anchor (event time minus span
+# First streamed token/chunk arrived: the TTFT anchor (event time minus span
 # start). No client-side semconv exists for this yet (OTel only standardizes
 # the server-side gen_ai.server.time_to_first_token metric); this follows the
 # gen_ai.* naming style, precedent Langfuse's completion_start_time.
 GEN_AI_FIRST_TOKEN_EVENT = "gen_ai.first_token"
 
-# --- Pending (partial) spans (GLA2-195) ---
+# --- Pending (partial) spans ---
 # Marks the content-free snapshot exported at span START; the backend maps it
 # to Finished=0 and the real span replaces it at end. This key knowingly bends
 # the convention-native rule (no glassflow.* namespace): OpenTelemetry has NO
-# pending-span mechanism to align with (spec #3732/#4646, semconv #2133 — all
+# pending-span mechanism to align with (spec #3732/#4646, semconv #2133, all
 # open, none planned), and the only shipping precedent (Logfire's
 # logfire.span_type) is equally vendor-namespaced.
 GLASSFLOW_SPAN_PENDING = "glassflow.span.pending"
 
 # Attributes allowed to ride a pending snapshot: identity/taxonomy known at
-# span start. An ALLOWLIST on purpose — content exclusion must hold for
+# span start. An ALLOWLIST on purpose: content exclusion must hold for
 # third-party instrumentors' attribute families too, and a blocklist would
 # have to enumerate all of them.
 PENDING_IDENTITY_ATTRIBUTES = frozenset(
@@ -71,7 +71,7 @@ PENDING_IDENTITY_ATTRIBUTES = frozenset(
 # gen_ai.request.* (model, temperature, ...) is identity, not content.
 PENDING_IDENTITY_PREFIXES = (GEN_AI_REQUEST_PREFIX,)
 
-# Attribute keys carrying user content — masked/stripped at export (see masking.py).
+# Attribute keys carrying user content, masked/stripped at export (see masking.py).
 CONTENT_ATTRIBUTES = frozenset(
     {
         INPUT_VALUE,
@@ -92,7 +92,7 @@ CONTENT_ATTRIBUTES = frozenset(
 )
 
 # OpenInference/OpenLLMetry instrumentors flatten message content into indexed
-# keys (e.g. `llm.input_messages.0.message.content`) — matched by prefix.
+# keys (e.g. `llm.input_messages.0.message.content`), matched by prefix.
 CONTENT_ATTRIBUTE_PREFIXES = (
     "llm.input_messages.",
     "llm.output_messages.",
@@ -103,7 +103,7 @@ CONTENT_ATTRIBUTE_PREFIXES = (
 )
 
 # Indexed families where only the content leaf is sensitive (siblings like
-# `.document.id` / `.document.score` are metadata) — matched by suffix.
+# `.document.id` / `.document.score` are metadata), matched by suffix.
 CONTENT_ATTRIBUTE_SUFFIXES = (
     ".document.content",
     ".embedding.text",
@@ -142,7 +142,7 @@ def kind_attributes(kind: SpanKind) -> dict[str, str]:
     """Identity attributes for a span of ``kind``, for setting at CREATION.
 
     Pending snapshots (pending.py) are built at ``on_start``, so taxonomy set
-    via ``set_attribute`` afterwards is invisible to them — passing these at
+    via ``set_attribute`` afterwards is invisible to them; passing these at
     span creation is what makes a pending span classifiable.
     """
     attributes = {OPENINFERENCE_SPAN_KIND: kind.value}

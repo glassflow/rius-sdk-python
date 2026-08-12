@@ -3,7 +3,7 @@
 Runs against BOTH mcp majors: the default suite exercises the locked 1.x,
 and the ci `mcp-v2` job re-runs this module against ``mcp>=2`` (spec
 2026-07-28), whose ``CallToolResult`` renamed its fields to snake_case and
-whose tool calls can return interim ``InputRequiredResult``s (GLA2-300).
+whose tool calls can return interim ``InputRequiredResult``s.
 """
 
 from __future__ import annotations
@@ -169,7 +169,7 @@ def test_uninstrument_restores_call_tool() -> None:
     assert not any(s.name.startswith("execute_tool") for s in inner.get_finished_spans())
 
 
-# --- Result-shape compatibility (GLA2-300) -------------------------------
+# --- Result-shape compatibility -------------------------------
 # mcp 2.x renamed CallToolResult's fields to snake_case (isError -> is_error,
 # structuredContent -> structured_content) and added result_type; tool calls
 # can return an interim InputRequiredResult (result_type "input_required")

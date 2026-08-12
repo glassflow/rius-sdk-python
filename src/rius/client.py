@@ -15,7 +15,13 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor, SpanExporter
 from opentelemetry.sdk.trace.sampling import ParentBased, TraceIdRatioBased
 
 from . import __version__
-from .config import GlassflowConfig, resolve_config
+from .config import DEFAULT_ENDPOINT, GlassflowConfig, resolve_config
+from .export_health import (
+    ExportOutcomeExporter,
+    ProbeTransport,
+    _default_probe_send,
+    check_connectivity,
+)
 from .heartbeat import HeartbeatSender, OpenRootSpanTracker
 from .instrumentation import enable_instrumentations
 from .masking import MaskingSpanExporter
@@ -44,6 +50,17 @@ def build_span_exporter(config: GlassflowConfig) -> SpanExporter:
     )
 
 
+def _missing_managed_credentials(config: GlassflowConfig) -> bool:
+    """True when the default exporter would hit the managed platform with no auth.
+
+    Only the managed endpoint warrants a warning: a custom endpoint without
+    credentials is a legitimate own-collector setup.
+    """
+    if config.endpoint != DEFAULT_ENDPOINT:
+        return False
+    return not any(key.lower() == "authorization" for key in (config.headers or {}))
+
+
 class GlassflowClient:
     """Handle over a configured tracer provider.
 
@@ -57,10 +74,14 @@ class GlassflowClient:
         provider: TracerProvider,
         config: GlassflowConfig,
         heartbeat: HeartbeatSender | None = None,
+        export_health: ExportOutcomeExporter | None = None,
+        connectivity_thread: threading.Thread | None = None,
     ) -> None:
         self._provider = provider
         self.config = config
         self._heartbeat = heartbeat
+        self._export_health = export_health
+        self._connectivity_thread = connectivity_thread
         self._is_shutdown = False
 
     def get_tracer(self, name: str = TRACER_NAME) -> trace.Tracer:
@@ -72,8 +93,19 @@ class GlassflowClient:
         return self._provider.get_tracer(name, __version__)
 
     def flush(self, timeout_millis: int = 30_000) -> bool:
-        """Force-flush pending spans. Returns False on timeout."""
-        return self._provider.force_flush(timeout_millis)
+        """Force-flush pending spans and report delivery.
+
+        Returns True only when the queue drained within ``timeout_millis``
+        AND the most recent export attempt succeeded. Earlier releases
+        reported queue drain alone, so it returned True even while every
+        batch was being rejected (e.g. 401 on a bad API key). A False return
+        therefore means either a flush timeout or that spans are currently
+        not being delivered; the log carries the distinction.
+        """
+        drained = self._provider.force_flush(timeout_millis)
+        if self._export_health is not None and self._export_health.last_export_failed:
+            return False
+        return drained
 
     def shutdown(self) -> None:
         """Drain pending spans and stop. Releases the global init() slot.
@@ -107,6 +139,7 @@ def init(
     heartbeat_interval: float | None = None,
     agent_name: str | None = None,
     heartbeat_transport: Callable[[dict[str, Any]], None] | None = None,
+    connectivity_transport: ProbeTransport | None = None,
     partial_spans: bool | None = None,
     partial_spans_delay: float | None = None,
     set_global: bool = True,
@@ -142,6 +175,12 @@ def init(
             ``service_name``.
         heartbeat_transport: Override the heartbeat HTTP transport
             (useful for testing, like ``span_exporter``).
+        connectivity_transport: Override the HTTP send used by the one-shot
+            background connectivity check (useful for testing). The check
+            POSTs an empty OTLP request at init and logs an actionable
+            warning on 401/403, unreachable host, or other non-2xx, so a
+            bad key or endpoint is visible immediately instead of surfacing
+            as silently missing traces.
         set_global: Register the provider as the global OpenTelemetry provider.
     """
     global _current_client
@@ -168,6 +207,7 @@ def init(
             heartbeat_interval=heartbeat_interval,
             agent_name=agent_name,
             heartbeat_transport=heartbeat_transport,
+            connectivity_transport=connectivity_transport,
             partial_spans=partial_spans,
             partial_spans_delay=partial_spans_delay,
             set_global=set_global,
@@ -190,6 +230,7 @@ def _do_init(
     heartbeat_interval: float | None,
     agent_name: str | None,
     heartbeat_transport: Callable[[dict[str, Any]], None] | None,
+    connectivity_transport: ProbeTransport | None,
     partial_spans: bool | None,
     partial_spans_delay: float | None,
     set_global: bool,
@@ -221,13 +262,41 @@ def _do_init(
     sampler = ParentBased(root=TraceIdRatioBased(config.sample_rate))
     provider = TracerProvider(resource=resource, sampler=sampler)
 
+    export_health: ExportOutcomeExporter | None = None
+    connectivity_thread: threading.Thread | None = None
     if not config.disabled:
+        if span_exporter is None:
+            if _missing_managed_credentials(config):
+                # The diagnosis is already certain; no probe needed (it
+                # would only repeat this warning as a 401).
+                logger.warning(
+                    "no API key configured (GLASSFLOW_API_KEY unset and no Authorization "
+                    "header): traces sent to %s will be rejected with 401. Set "
+                    "GLASSFLOW_API_KEY or pass api_key= to rius.init().",
+                    config.endpoint,
+                )
+            else:
+                connectivity_thread = threading.Thread(
+                    target=check_connectivity,
+                    args=(
+                        config.traces_endpoint,
+                        config.headers,
+                        connectivity_transport or _default_probe_send,
+                    ),
+                    name="rius-connectivity-check",
+                    daemon=True,
+                )
+                connectivity_thread.start()
         exporter = span_exporter if span_exporter is not None else build_span_exporter(config)
         if not config.capture_content or mask is not None:
             exporter = MaskingSpanExporter(
                 exporter, capture_content=config.capture_content, mask=mask
             )
-        batch_processor = BatchSpanProcessor(exporter)
+        # Outermost wrapper so it observes the outcome of the whole chain
+        # (masking included); client.flush() reads it for honest delivery
+        # reporting.
+        export_health = ExportOutcomeExporter(exporter, endpoint=config.endpoint)
+        batch_processor = BatchSpanProcessor(export_health)
         if config.partial_spans:
             # Pending snapshots ride the SAME batch pipeline as final spans
             # (exporter, retries, masking); see pending.py for the contract.
@@ -268,7 +337,13 @@ def _do_init(
         )
         sender.start()
 
-    client = GlassflowClient(provider, config, heartbeat=sender)
+    client = GlassflowClient(
+        provider,
+        config,
+        heartbeat=sender,
+        export_health=export_health,
+        connectivity_thread=connectivity_thread,
+    )
     if set_global:
         _current_client = client
     return client

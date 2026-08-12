@@ -130,7 +130,13 @@ def test_mask_error_fails_closed_without_dropping_batch() -> None:
 @pytest.mark.integration
 def test_transient_server_errors_are_retried() -> None:
     server = _start_server(responses=[503, 200])
-    client = init(endpoint=f"http://127.0.0.1:{server.server_port}", set_global=False)
+    # Stub the connectivity probe: it would otherwise consume the scripted
+    # 503 and the retry path under test would never execute.
+    client = init(
+        endpoint=f"http://127.0.0.1:{server.server_port}",
+        set_global=False,
+        connectivity_transport=lambda url, headers: 200,
+    )
     with client.get_tracer().start_as_current_span("op"):
         pass
     assert client.flush() is True
@@ -143,10 +149,12 @@ def test_pending_spans_are_flushed_at_interpreter_exit() -> None:
     server = _start_server(responses=[200])
     code = (
         "import rius\n"
-        f'client = rius.init(endpoint="http://127.0.0.1:{server.server_port}")\n'
+        "# probe stubbed so the request count below is exports only\n"
+        f'client = rius.init(endpoint="http://127.0.0.1:{server.server_port}",\n'
+        "                   connectivity_transport=lambda url, headers: 200)\n"
         'with client.get_tracer().start_as_current_span("exit-op"):\n'
         "    pass\n"
-        "# exit without flush() — the atexit hook must drain the queue\n"
+        "# exit without flush(); the atexit hook must drain the queue\n"
     )
     subprocess.run([sys.executable, "-c", code], check=True, timeout=30)
     assert len(server.requests) == 1

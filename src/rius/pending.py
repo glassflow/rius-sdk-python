@@ -4,11 +4,11 @@ Spans normally leave the process only when they END, so an in-flight agent
 run is invisible and a crashed one exports nothing. With ``partial_spans``
 enabled, every sampled span additionally exports a snapshot at START; the
 backend stores it as an unfinished row that the real span replaces at end
-(same trace/span id and start timestamp — the identity the storage layer
+(same trace/span id and start timestamp, the identity the storage layer
 keys replacement on), and a snapshot that is never replaced is the durable
 record of what a crashed agent was doing.
 
-Wire contract (GLA2-195):
+Wire contract:
 
 - Same trace_id, span_id, parent, name, and start timestamp as the final
   span; ``end_time == start_time`` (OTLP cannot represent an unfinished
@@ -18,14 +18,14 @@ Wire contract (GLA2-195):
 - Identity/taxonomy attributes only (``PENDING_IDENTITY_ATTRIBUTES`` /
   ``_PREFIXES``); NEVER content, whatever instrumentation set it.
 
-Debounce (GLA2-244): with ``partial_spans_delay > 0`` the snapshot is held
-for N seconds and only emitted if the span is STILL OPEN then — a span that
+Debounce: with ``partial_spans_delay > 0`` the snapshot is held
+for N seconds and only emitted if the span is STILL OPEN then; a span that
 finishes first costs zero network. Most agent spans live milliseconds, so a
 small delay cuts pending volume drastically while keeping the live view
 useful (anything worth watching live is open longer than the delay). The
 snapshot is still built at ``on_start`` and held, never rebuilt at emit
 time: content set during the delay (``set_input`` etc.) can never leak onto
-a pending. A delayed pending is byte-identical to an immediate one — zero
+a pending. A delayed pending is byte-identical to an immediate one, with zero
 wire/backend/UI impact.
 """
 
@@ -56,7 +56,7 @@ logger = logging.getLogger(__name__)
 _SpanKey = tuple[int, int]  # (trace_id, span_id)
 
 # ``os.register_at_fork`` callbacks can never be unregistered, so the hook is
-# installed once at module level over a weak set of live schedulers — the same
+# installed once at module level over a weak set of live schedulers, the same
 # pattern as the heartbeat sender. A forked child re-arms its scheduler thread
 # with an EMPTY registry: the parent's open spans are not the child's.
 _active_schedulers: weakref.WeakSet[PendingScheduler] = weakref.WeakSet()
@@ -84,7 +84,7 @@ class PendingScheduler:
     ONE daemon thread regardless of span volume: deadlines live in a heap,
     snapshots in a key->snapshot registry. ``cancel`` just drops the registry
     entry (heap entries for cancelled keys are discarded lazily), so both
-    ``schedule`` and ``cancel`` are O(log n) / O(1) — safe on the span hot
+    ``schedule`` and ``cancel`` are O(log n) / O(1), safe on the span hot
     path. ``clock`` and ``start_thread`` are injectable for tests.
     """
 
@@ -202,10 +202,10 @@ class PendingSpanProcessor(SpanProcessor):
 
     Delegates the snapshot to the provider's existing batch processor
     (``delegate.on_end``), so pendings share the exporter, batching, retry,
-    and masking pipeline with final spans — nothing bespoke on the wire path.
+    and masking pipeline with final spans; nothing bespoke on the wire path.
     ``on_start`` stays an in-memory enqueue: the never-block guarantee holds.
 
-    With ``delay > 0`` (GLA2-244) emission is debounced through a
+    With ``delay > 0`` emission is debounced through a
     :class:`PendingScheduler`; ``delay == 0`` keeps the emit-immediately
     behavior with no scheduler thread at all.
     """
@@ -259,7 +259,7 @@ class PendingSpanProcessor(SpanProcessor):
 
     def force_flush(self, timeout_millis: int = 30000) -> bool:
         # Deliberately NOT a drop (deviation from the ticket's prose, kept to
-        # its ACs): flush() happens mid-operation — killing scheduled pendings
+        # its ACs): flush() happens mid-operation; killing scheduled pendings
         # here would silently disable liveness for spans that stay open. The
         # batch delegate flushes its own queue; not-yet-due pendings simply
         # emit later if their spans are still open.
