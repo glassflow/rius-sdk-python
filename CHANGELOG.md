@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.9.1](https://github.com/glassflow/rius-sdk-python/compare/v0.9.0...v0.9.1) (2026-08-12)
+
+
+### Bug Fixes
+
+* cover bare llm.prompts and llm.prompt_template in content controls ([#54](https://github.com/glassflow/rius-sdk-python/issues/54)) ([82dedf7](https://github.com/glassflow/rius-sdk-python/commit/82dedf7406b7f80466178a730e922017a792820a))
+* sanitize span events and links, not just span attributes ([#56](https://github.com/glassflow/rius-sdk-python/issues/56)) ([2caa7f1](https://github.com/glassflow/rius-sdk-python/commit/2caa7f1f4a1ee78053978de8e6aca04d2f068406))
+
 ## [0.9.0](https://github.com/glassflow/rius-sdk-python/compare/v0.8.2...v0.9.0) (2026-08-12)
 
 
