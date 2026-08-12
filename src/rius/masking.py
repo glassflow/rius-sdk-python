@@ -22,8 +22,9 @@ import logging
 from collections.abc import Callable, Sequence
 from typing import Any
 
-from opentelemetry.sdk.trace import ReadableSpan
+from opentelemetry.sdk.trace import Event, ReadableSpan
 from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
+from opentelemetry.trace import Link
 
 from ._serde import serialize
 from .semconv import (
@@ -60,6 +61,15 @@ def _is_content_key(key: str) -> bool:
     )
 
 
+# record_exception() writes the provider's error string, and providers echo
+# the rejected request into it, so these two carry the same content the
+# attribute strip removes. exception.type deliberately stays: failures remain
+# visible and classifiable with content capture off (same policy as the
+# TypeScript SDK).
+_EXCEPTION_EVENT_NAME = "exception"
+_EXCEPTION_CONTENT_KEYS = frozenset({"exception.message", "exception.stacktrace"})
+
+
 class MaskingSpanExporter(SpanExporter):
     """Strip or redact content attributes before delegating to ``inner``."""
 
@@ -81,12 +91,64 @@ class MaskingSpanExporter(SpanExporter):
         return self._inner.export(spans)
 
     def _sanitized(self, span: ReadableSpan) -> ReadableSpan:
-        attributes = span.attributes
+        # The privacy boundary is the whole span: content rides attributes,
+        # event attributes (OTel GenAI's event-based shape, record_exception's
+        # provider-echoed error strings), and link attributes alike.
+        new_attributes = self._sanitize_mapping(span.attributes)
+        new_events = self._sanitize_events(span.events)
+        new_links = self._sanitize_links(span.links)
+        if new_attributes is None and new_events is None and new_links is None:
+            return span
+        sanitized = copy.copy(span)
+        if new_attributes is not None:
+            sanitized._attributes = new_attributes
+        if new_events is not None:
+            sanitized._events = new_events
+        if new_links is not None:
+            sanitized._links = new_links
+        return sanitized
+
+    def _sanitize_events(self, events: Sequence[Event]) -> tuple[Event, ...] | None:
+        if not events:
+            return None
+        changed = False
+        out: list[Event] = []
+        for event in events:
+            extra = _EXCEPTION_CONTENT_KEYS if event.name == _EXCEPTION_EVENT_NAME else frozenset()
+            new_attributes = self._sanitize_mapping(event.attributes, extra_content_keys=extra)
+            if new_attributes is None:
+                out.append(event)
+                continue
+            changed = True
+            out.append(Event(event.name, new_attributes, event.timestamp))
+        return tuple(out) if changed else None
+
+    def _sanitize_links(self, links: Sequence[Link]) -> tuple[Link, ...] | None:
+        if not links:
+            return None
+        changed = False
+        out: list[Link] = []
+        for link in links:
+            new_attributes = self._sanitize_mapping(link.attributes)
+            if new_attributes is None:
+                out.append(link)
+                continue
+            changed = True
+            out.append(Link(link.context, new_attributes))
+        return tuple(out) if changed else None
+
+    def _sanitize_mapping(
+        self,
+        attributes: Any,
+        *,
+        extra_content_keys: frozenset[str] = frozenset(),
+    ) -> dict[str, Any] | None:
+        """Sanitized copy of an attribute mapping, or None when unchanged."""
         if not attributes:
-            return span
-        keys = [key for key in attributes if _is_content_key(key)]
+            return None
+        keys = [key for key in attributes if _is_content_key(key) or key in extra_content_keys]
         if not keys:
-            return span
+            return None
 
         new_attributes = dict(attributes)
         for key in keys:
@@ -113,10 +175,7 @@ class MaskingSpanExporter(SpanExporter):
                 del new_attributes[key]
             else:
                 new_attributes[key] = masked
-
-        sanitized = copy.copy(span)
-        sanitized._attributes = new_attributes
-        return sanitized
+        return new_attributes
 
     @staticmethod
     def _safe_value(value: Any) -> Any:
