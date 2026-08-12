@@ -63,7 +63,7 @@ def check_connectivity(url: str, headers: dict[str, str] | None, send: ProbeTran
     except Exception as exc:  # noqa: BLE001 - reliability contract: never raise
         logger.warning(
             "cannot reach %s (%s); traces will not be delivered. "
-            "Check GLASSFLOW_ENDPOINT and network egress.",
+            "Check RIUS_ENDPOINT and network egress.",
             url,
             exc,
         )
@@ -73,7 +73,7 @@ def check_connectivity(url: str, headers: dict[str, str] | None, send: ProbeTran
     elif status in (401, 403):
         logger.warning(
             "%s rejected the SDK's credentials (HTTP %s); traces will not be "
-            "delivered. Check GLASSFLOW_API_KEY (revoked or mistyped key?).",
+            "delivered. Check RIUS_API_KEY (revoked or mistyped key?).",
             url,
             status,
         )
@@ -117,7 +117,7 @@ class ExportOutcomeExporter(SpanExporter):
             self._warned = True
             logger.warning(
                 "span export to %s failed; traces are not being delivered. "
-                "Check GLASSFLOW_API_KEY and GLASSFLOW_ENDPOINT (the exporter's "
+                "Check RIUS_API_KEY and RIUS_ENDPOINT (the exporter's "
                 "own log line above has the HTTP status). Further failures log "
                 "at DEBUG until an export succeeds.",
                 self._endpoint,

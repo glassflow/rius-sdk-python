@@ -15,17 +15,23 @@ logger = logging.getLogger(__name__)
 DEFAULT_ENDPOINT = "https://ingest.eu.console.rius-glassflow.com"
 DEFAULT_SERVICE_NAME = "unknown_service"
 
-ENV_ENDPOINT = "GLASSFLOW_ENDPOINT"
-ENV_API_KEY = "GLASSFLOW_API_KEY"
-ENV_SERVICE_NAME = "GLASSFLOW_SERVICE_NAME"
-ENV_DISABLED = "GLASSFLOW_DISABLED"
-ENV_SAMPLE_RATE = "GLASSFLOW_SAMPLE_RATE"
-ENV_CAPTURE_CONTENT = "GLASSFLOW_CAPTURE_CONTENT"
-ENV_HEARTBEAT = "GLASSFLOW_HEARTBEAT"
-ENV_HEARTBEAT_INTERVAL = "GLASSFLOW_HEARTBEAT_INTERVAL"
-ENV_AGENT_NAME = "GLASSFLOW_AGENT_NAME"
-ENV_PARTIAL_SPANS = "GLASSFLOW_PARTIAL_SPANS"
-ENV_PARTIAL_SPANS_DELAY = "GLASSFLOW_PARTIAL_SPANS_DELAY"
+# RIUS_* is the canonical prefix; GLASSFLOW_* is read as a deprecated
+# fallback (product rename). Only the env names changed: wire contracts
+# like the tracer scope and glassflow.span.pending keep their names.
+ENV_PREFIX = "RIUS_"
+DEPRECATED_ENV_PREFIX = "GLASSFLOW_"
+
+ENV_ENDPOINT = "RIUS_ENDPOINT"
+ENV_API_KEY = "RIUS_API_KEY"
+ENV_SERVICE_NAME = "RIUS_SERVICE_NAME"
+ENV_DISABLED = "RIUS_DISABLED"
+ENV_SAMPLE_RATE = "RIUS_SAMPLE_RATE"
+ENV_CAPTURE_CONTENT = "RIUS_CAPTURE_CONTENT"
+ENV_HEARTBEAT = "RIUS_HEARTBEAT"
+ENV_HEARTBEAT_INTERVAL = "RIUS_HEARTBEAT_INTERVAL"
+ENV_AGENT_NAME = "RIUS_AGENT_NAME"
+ENV_PARTIAL_SPANS = "RIUS_PARTIAL_SPANS"
+ENV_PARTIAL_SPANS_DELAY = "RIUS_PARTIAL_SPANS_DELAY"
 
 # The backend expresses staleness as multiples of the interval, so the clamp
 # bounds are part of the heartbeat wire contract.
@@ -42,15 +48,33 @@ PARTIAL_SPANS_DELAY_MAX = 60.0
 _TRUENESS = frozenset({"1", "true", "yes", "on"})
 
 
-def _env_bool(name: str, *, default: bool) -> bool:
-    raw = os.getenv(name)
+def _getenv(name: str, deprecated_used: list[str]) -> str | None:
+    """Read ``name``, falling back to its deprecated ``GLASSFLOW_*`` spelling.
+
+    A fallback hit is recorded in ``deprecated_used`` so ``resolve_config``
+    can emit one consolidated deprecation warning instead of one per
+    variable. When both spellings are set the ``RIUS_*`` one wins and no
+    deprecation is recorded; that caller has already migrated.
+    """
+    value = os.getenv(name)
+    if value is not None:
+        return value
+    suffix = name.removeprefix(ENV_PREFIX)
+    value = os.getenv(DEPRECATED_ENV_PREFIX + suffix)
+    if value is not None:
+        deprecated_used.append(suffix)
+    return value
+
+
+def _env_bool(name: str, deprecated_used: list[str], *, default: bool) -> bool:
+    raw = _getenv(name, deprecated_used)
     if raw is None:
         return default
     return raw.strip().lower() in _TRUENESS
 
 
-def _env_float(name: str, *, default: float) -> float:
-    raw = os.getenv(name)
+def _env_float(name: str, deprecated_used: list[str], *, default: float) -> float:
+    raw = _getenv(name, deprecated_used)
     if raw is None:
         return default
     try:
@@ -147,40 +171,42 @@ def resolve_config(
 ) -> GlassflowConfig:
     """Resolve SDK configuration from arguments, environment, then defaults.
 
-    Explicit arguments win over ``GLASSFLOW_*`` environment variables, which
-    win over built-in defaults. ``sample_rate`` is clamped to ``[0.0, 1.0]``
+    Explicit arguments win over ``RIUS_*`` environment variables, which win
+    over their deprecated ``GLASSFLOW_*`` spellings, which win over built-in
+    defaults. Using a ``GLASSFLOW_*`` variable logs one deprecation warning
+    naming the replacements. ``sample_rate`` is clamped to ``[0.0, 1.0]``
     with a warning; boolean environment variables accept ``1``/``true``/
     ``yes``/``on`` (case-insensitive).
 
     Args:
-        endpoint: Base OTLP endpoint (``GLASSFLOW_ENDPOINT``).
-        api_key: Bearer token for the managed platform (``GLASSFLOW_API_KEY``);
+        endpoint: Base OTLP endpoint (``RIUS_ENDPOINT``).
+        api_key: Bearer token for the managed platform (``RIUS_API_KEY``);
             ``None`` sends no Authorization header.
         service_name: ``service.name`` resource attribute
-            (``GLASSFLOW_SERVICE_NAME``).
+            (``RIUS_SERVICE_NAME``).
         headers: Extra exporter headers; an explicit ``Authorization`` entry
             wins over ``api_key``.
-        disabled: Kill switch (``GLASSFLOW_DISABLED``); spans are dropped
+        disabled: Kill switch (``RIUS_DISABLED``); spans are dropped
             in-process.
         sample_rate: Head-sampling ratio for root traces
-            (``GLASSFLOW_SAMPLE_RATE``).
+            (``RIUS_SAMPLE_RATE``).
         capture_content: When ``False``, content attributes are stripped at
-            export (``GLASSFLOW_CAPTURE_CONTENT``).
+            export (``RIUS_CAPTURE_CONTENT``).
         heartbeat: Enable the agent-lifetime heartbeat thread
-            (``GLASSFLOW_HEARTBEAT``). Off by default this release.
+            (``RIUS_HEARTBEAT``). Off by default this release.
         heartbeat_interval: Seconds between pings
-            (``GLASSFLOW_HEARTBEAT_INTERVAL``), clamped to ``[5, 300]``;
+            (``RIUS_HEARTBEAT_INTERVAL``), clamped to ``[5, 300]``;
             the backend derives staleness from this, so the bounds are part
             of the wire contract.
-        agent_name: Identity heartbeats group under (``GLASSFLOW_AGENT_NAME``);
+        agent_name: Identity heartbeats group under (``RIUS_AGENT_NAME``);
             defaults to ``service_name`` so the agents view and the traces
             view agree on what an "agent" is.
         partial_spans: Export a content-free pending snapshot of every
-            sampled span at span START (``GLASSFLOW_PARTIAL_SPANS``), so
+            sampled span at span START (``RIUS_PARTIAL_SPANS``), so
             in-flight work is visible and crashes leave a record. Off by
             default until the backend's unfinished-spans storage ships.
         partial_spans_delay: Debounce for pending snapshots
-            (``GLASSFLOW_PARTIAL_SPANS_DELAY``), clamped to ``[0, 60]``
+            (``RIUS_PARTIAL_SPANS_DELAY``), clamped to ``[0, 60]``
             seconds. ``0`` (default) emits at span start; ``N`` emits only if
             the span is still open after N seconds; spans that finish
             sooner cost no network at all.
@@ -188,32 +214,58 @@ def resolve_config(
     Returns:
         The resolved, immutable ``GlassflowConfig``.
     """
-    resolved_endpoint = endpoint or os.getenv(ENV_ENDPOINT) or DEFAULT_ENDPOINT
-    resolved_api_key = api_key if api_key is not None else os.getenv(ENV_API_KEY)
-    resolved_service_name = service_name or os.getenv(ENV_SERVICE_NAME) or DEFAULT_SERVICE_NAME
-    resolved_disabled = _env_bool(ENV_DISABLED, default=False) if disabled is None else disabled
+    deprecated_used: list[str] = []
+    resolved_endpoint = endpoint or _getenv(ENV_ENDPOINT, deprecated_used) or DEFAULT_ENDPOINT
+    resolved_api_key = api_key if api_key is not None else _getenv(ENV_API_KEY, deprecated_used)
+    resolved_service_name = (
+        service_name or _getenv(ENV_SERVICE_NAME, deprecated_used) or DEFAULT_SERVICE_NAME
+    )
+    resolved_disabled = (
+        _env_bool(ENV_DISABLED, deprecated_used, default=False) if disabled is None else disabled
+    )
     resolved_sample_rate = _clamp_sample_rate(
-        _env_float(ENV_SAMPLE_RATE, default=1.0) if sample_rate is None else sample_rate
+        _env_float(ENV_SAMPLE_RATE, deprecated_used, default=1.0)
+        if sample_rate is None
+        else sample_rate
     )
     resolved_capture_content = (
-        _env_bool(ENV_CAPTURE_CONTENT, default=True) if capture_content is None else capture_content
+        _env_bool(ENV_CAPTURE_CONTENT, deprecated_used, default=True)
+        if capture_content is None
+        else capture_content
     )
 
-    resolved_heartbeat = _env_bool(ENV_HEARTBEAT, default=False) if heartbeat is None else heartbeat
+    resolved_heartbeat = (
+        _env_bool(ENV_HEARTBEAT, deprecated_used, default=False) if heartbeat is None else heartbeat
+    )
     resolved_heartbeat_interval = _clamp_heartbeat_interval(
-        _env_float(ENV_HEARTBEAT_INTERVAL, default=DEFAULT_HEARTBEAT_INTERVAL)
+        _env_float(ENV_HEARTBEAT_INTERVAL, deprecated_used, default=DEFAULT_HEARTBEAT_INTERVAL)
         if heartbeat_interval is None
         else heartbeat_interval
     )
-    resolved_agent_name = agent_name or os.getenv(ENV_AGENT_NAME) or resolved_service_name
+    resolved_agent_name = (
+        agent_name or _getenv(ENV_AGENT_NAME, deprecated_used) or resolved_service_name
+    )
     resolved_partial_spans = (
-        _env_bool(ENV_PARTIAL_SPANS, default=False) if partial_spans is None else partial_spans
+        _env_bool(ENV_PARTIAL_SPANS, deprecated_used, default=False)
+        if partial_spans is None
+        else partial_spans
     )
     resolved_partial_spans_delay = _clamp_partial_spans_delay(
-        _env_float(ENV_PARTIAL_SPANS_DELAY, default=0.0)
+        _env_float(ENV_PARTIAL_SPANS_DELAY, deprecated_used, default=0.0)
         if partial_spans_delay is None
         else partial_spans_delay
     )
+
+    if deprecated_used:
+        renames = ", ".join(
+            f"{DEPRECATED_ENV_PREFIX}{s} -> {ENV_PREFIX}{s}" for s in deprecated_used
+        )
+        logger.warning(
+            "deprecated GLASSFLOW_-prefixed environment variable(s) in use: %s. "
+            "They keep working for now and will be removed in a future release; "
+            "rename them to the RIUS_ prefix.",
+            renames,
+        )
 
     resolved_headers = dict(headers or {})
     has_auth = any(key.lower() == "authorization" for key in resolved_headers)
