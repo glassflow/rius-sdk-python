@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.9.0](https://github.com/glassflow/rius-sdk-python/compare/v0.8.2...v0.9.0) (2026-08-12)
+
+
+### Features
+
+* RIUS_-prefixed env vars with deprecated GLASSFLOW_ aliases ([#53](https://github.com/glassflow/rius-sdk-python/issues/53)) ([893e265](https://github.com/glassflow/rius-sdk-python/commit/893e2655efce9d19dbb7e941d08f51573e7d23ab))
+* surface export failures — init warnings, connectivity check, honest flush ([#51](https://github.com/glassflow/rius-sdk-python/issues/51)) ([7138f45](https://github.com/glassflow/rius-sdk-python/commit/7138f4504aeaaad8a11e5f2577c57a5fe97b5902))
+
 ## [0.8.2](https://github.com/glassflow/rius-sdk-python/compare/v0.8.1...v0.8.2) (2026-08-07)
 
 
