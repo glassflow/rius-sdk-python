@@ -150,6 +150,104 @@ def test_every_content_prefix_has_its_bare_key_covered() -> None:
     assert not missing, f"prefixes without their bare key in CONTENT_ATTRIBUTES: {missing}"
 
 
+def test_capture_content_false_strips_content_in_event_attributes() -> None:
+    # OTel GenAI has an event-based shape where message content arrives as
+    # span events; the privacy boundary is the span, not one collection on it.
+    inner = InMemorySpanExporter()
+    client = init(span_exporter=inner, set_global=False, capture_content=False)
+    with client.get_tracer().start_as_current_span("op") as span:
+        span.add_event(
+            "gen_ai.user.message",
+            {"gen_ai.input.messages": "secret prompt", "gen_ai.request.model": "gpt-4o"},
+        )
+    client.flush()
+    events = inner.get_finished_spans()[0].events
+    assert len(events) == 1
+    assert events[0].name == "gen_ai.user.message"
+    assert "gen_ai.input.messages" not in events[0].attributes
+    assert events[0].attributes["gen_ai.request.model"] == "gpt-4o"
+
+
+def test_mask_redacts_content_in_event_attributes() -> None:
+    inner = InMemorySpanExporter()
+    client = init(span_exporter=inner, set_global=False, mask=lambda _v: "***")
+    with client.get_tracer().start_as_current_span("op") as span:
+        span.add_event("gen_ai.choice", {"gen_ai.output.messages": "secret answer"})
+    client.flush()
+    events = inner.get_finished_spans()[0].events
+    assert events[0].attributes["gen_ai.output.messages"] == "***"
+
+
+def test_capture_content_false_strips_content_in_link_attributes() -> None:
+    from opentelemetry.trace import Link
+
+    inner = InMemorySpanExporter()
+    client = init(span_exporter=inner, set_global=False, capture_content=False)
+    tracer = client.get_tracer()
+    with tracer.start_as_current_span("linked-to") as target:
+        target_context = target.get_span_context()
+    link = Link(target_context, {"input.value": "secret", "link.kind": "followup"})
+    with tracer.start_as_current_span("op", links=[link]):
+        pass
+    client.flush()
+    exported = {s.name: s for s in inner.get_finished_spans()}
+    links = exported["op"].links
+    assert len(links) == 1
+    assert "input.value" not in links[0].attributes
+    assert links[0].attributes["link.kind"] == "followup"
+
+
+def test_capture_content_false_strips_exception_payload_keeps_type() -> None:
+    # Providers echo the rejected request into the error string, so the
+    # exception event carries the same content the attribute strip removed.
+    # Policy (matching the TypeScript SDK): drop message and stacktrace,
+    # keep the event and exception.type so failures stay diagnosable.
+    inner = InMemorySpanExporter()
+    client = init(span_exporter=inner, set_global=False, capture_content=False)
+    with client.get_tracer().start_as_current_span("op") as span:
+        try:
+            raise ValueError('400 invalid request: {"messages": "secret prompt"}')
+        except ValueError as exc:
+            span.record_exception(exc)
+    client.flush()
+    events = inner.get_finished_spans()[0].events
+    assert len(events) == 1
+    assert events[0].name == "exception"
+    assert events[0].attributes["exception.type"] == "ValueError"
+    assert "exception.message" not in events[0].attributes
+    assert "exception.stacktrace" not in events[0].attributes
+
+
+def test_mask_applies_to_exception_message_and_stacktrace() -> None:
+    inner = InMemorySpanExporter()
+    client = init(span_exporter=inner, set_global=False, mask=lambda _v: "***")
+    with client.get_tracer().start_as_current_span("op") as span:
+        try:
+            raise ValueError("secret prompt echo")
+        except ValueError as exc:
+            span.record_exception(exc)
+    client.flush()
+    events = inner.get_finished_spans()[0].events
+    assert events[0].attributes["exception.type"] == "ValueError"
+    assert events[0].attributes["exception.message"] == "***"
+    assert events[0].attributes["exception.stacktrace"] == "***"
+
+
+def test_events_untouched_when_content_capture_on_and_no_mask() -> None:
+    inner = InMemorySpanExporter()
+    client = init(span_exporter=inner, set_global=False)
+    with client.get_tracer().start_as_current_span("op") as span:
+        span.add_event("gen_ai.user.message", {"gen_ai.input.messages": "kept"})
+        try:
+            raise ValueError("kept too")
+        except ValueError as exc:
+            span.record_exception(exc)
+    client.flush()
+    events = inner.get_finished_spans()[0].events
+    assert events[0].attributes["gen_ai.input.messages"] == "kept"
+    assert events[1].attributes["exception.message"] == "kept too"
+
+
 def test_mask_accepting_key_receives_attribute_key() -> None:
     seen: list[str] = []
 
