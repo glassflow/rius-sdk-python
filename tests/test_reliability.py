@@ -154,7 +154,7 @@ def test_pending_spans_are_flushed_at_interpreter_exit() -> None:
         "                   connectivity_transport=lambda url, headers: 200)\n"
         'with client.get_tracer().start_as_current_span("exit-op"):\n'
         "    pass\n"
-        "# exit without flush() — the atexit hook must drain the queue\n"
+        "# exit without flush(); the atexit hook must drain the queue\n"
     )
     subprocess.run([sys.executable, "-c", code], check=True, timeout=30)
     assert len(server.requests) == 1

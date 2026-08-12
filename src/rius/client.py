@@ -100,7 +100,7 @@ class GlassflowClient:
         reported queue drain alone, so it returned True even while every
         batch was being rejected (e.g. 401 on a bad API key). A False return
         therefore means either a flush timeout or that spans are currently
-        not being delivered — the log carries the distinction.
+        not being delivered; the log carries the distinction.
         """
         drained = self._provider.force_flush(timeout_millis)
         if self._export_health is not None and self._export_health.last_export_failed:
@@ -178,7 +178,7 @@ def init(
         connectivity_transport: Override the HTTP send used by the one-shot
             background connectivity check (useful for testing). The check
             POSTs an empty OTLP request at init and logs an actionable
-            warning on 401/403, unreachable host, or other non-2xx — so a
+            warning on 401/403, unreachable host, or other non-2xx, so a
             bad key or endpoint is visible immediately instead of surfacing
             as silently missing traces.
         set_global: Register the provider as the global OpenTelemetry provider.
@@ -267,11 +267,11 @@ def _do_init(
     if not config.disabled:
         if span_exporter is None:
             if _missing_managed_credentials(config):
-                # The diagnosis is already certain — no probe needed (it
+                # The diagnosis is already certain; no probe needed (it
                 # would only repeat this warning as a 401).
                 logger.warning(
                     "no API key configured (GLASSFLOW_API_KEY unset and no Authorization "
-                    "header) — traces sent to %s will be rejected with 401. Set "
+                    "header): traces sent to %s will be rejected with 401. Set "
                     "GLASSFLOW_API_KEY or pass api_key= to rius.init().",
                     config.endpoint,
                 )

@@ -101,7 +101,7 @@ def _clamp_sample_rate(value: float) -> float:
 
 
 def _clamp_partial_spans_delay(value: float) -> float:
-    """Clamp to [0, 60] — out-of-range degrades, never crashes init()."""
+    """Clamp to [0, 60]; out-of-range degrades, never crashes init()."""
     if PARTIAL_SPANS_DELAY_MIN <= value <= PARTIAL_SPANS_DELAY_MAX:
         return value
     clamped = min(max(value, PARTIAL_SPANS_DELAY_MIN), PARTIAL_SPANS_DELAY_MAX)
@@ -182,7 +182,7 @@ def resolve_config(
         partial_spans_delay: Debounce for pending snapshots
             (``GLASSFLOW_PARTIAL_SPANS_DELAY``), clamped to ``[0, 60]``
             seconds. ``0`` (default) emits at span start; ``N`` emits only if
-            the span is still open after N seconds — spans that finish
+            the span is still open after N seconds; spans that finish
             sooner cost no network at all.
 
     Returns:

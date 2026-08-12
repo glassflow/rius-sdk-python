@@ -35,7 +35,7 @@ def _default_probe_send(url: str, headers: dict[str, str] | None) -> int:
     """POST an empty OTLP request; the status code is the diagnosis.
 
     An empty body is a valid (zero-span) ``ExportTraceServiceRequest``, so a
-    healthy backend answers 2xx and a bad key answers 401/403 — without a
+    healthy backend answers 2xx and a bad key answers 401/403, without a
     single fake span landing anywhere.
     """
     request = urllib.request.Request(
@@ -62,7 +62,7 @@ def check_connectivity(url: str, headers: dict[str, str] | None, send: ProbeTran
         status = send(url, headers)
     except Exception as exc:  # noqa: BLE001 - reliability contract: never raise
         logger.warning(
-            "cannot reach %s (%s) — traces will not be delivered. "
+            "cannot reach %s (%s); traces will not be delivered. "
             "Check GLASSFLOW_ENDPOINT and network egress.",
             url,
             exc,
@@ -72,14 +72,14 @@ def check_connectivity(url: str, headers: dict[str, str] | None, send: ProbeTran
         logger.debug("connectivity check to %s ok (HTTP %s)", url, status)
     elif status in (401, 403):
         logger.warning(
-            "%s rejected the SDK's credentials (HTTP %s) — traces will not be "
+            "%s rejected the SDK's credentials (HTTP %s); traces will not be "
             "delivered. Check GLASSFLOW_API_KEY (revoked or mistyped key?).",
             url,
             status,
         )
     else:
         logger.warning(
-            "connectivity check to %s returned HTTP %s — traces may not be delivered.",
+            "connectivity check to %s returned HTTP %s; traces may not be delivered.",
             url,
             status,
         )
@@ -116,7 +116,7 @@ class ExportOutcomeExporter(SpanExporter):
         if not self._warned:
             self._warned = True
             logger.warning(
-                "span export to %s failed — traces are not being delivered. "
+                "span export to %s failed; traces are not being delivered. "
                 "Check GLASSFLOW_API_KEY and GLASSFLOW_ENDPOINT (the exporter's "
                 "own log line above has the HTTP status). Further failures log "
                 "at DEBUG until an export succeeds.",

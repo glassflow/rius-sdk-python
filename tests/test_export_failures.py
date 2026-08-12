@@ -1,7 +1,7 @@
 """Surfacing export misconfiguration and failures.
 
 A missing/wrong key or endpoint must produce a visible, actionable signal
-without ever raising into app code or blocking init — the failure mode this
+without ever raising into app code or blocking init; the failure mode this
 guards against is a user who believes they are instrumented and has no data.
 """
 
