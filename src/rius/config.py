@@ -98,7 +98,7 @@ class GlassflowConfig:
     disabled: bool = False
     sample_rate: float = 1.0
     capture_content: bool = True
-    heartbeat: bool = False
+    heartbeat: bool = True
     heartbeat_interval: float = DEFAULT_HEARTBEAT_INTERVAL
     agent_name: str = DEFAULT_SERVICE_NAME
     partial_spans: bool = False
@@ -193,7 +193,8 @@ def resolve_config(
         capture_content: When ``False``, content attributes are stripped at
             export (``RIUS_CAPTURE_CONTENT``).
         heartbeat: Enable the agent-lifetime heartbeat thread
-            (``RIUS_HEARTBEAT``). Off by default this release.
+            (``RIUS_HEARTBEAT``). On by default; set ``False`` or
+            ``RIUS_HEARTBEAT=false`` to opt out.
         heartbeat_interval: Seconds between pings
             (``RIUS_HEARTBEAT_INTERVAL``), clamped to ``[5, 300]``;
             the backend derives staleness from this, so the bounds are part
@@ -235,7 +236,7 @@ def resolve_config(
     )
 
     resolved_heartbeat = (
-        _env_bool(ENV_HEARTBEAT, deprecated_used, default=False) if heartbeat is None else heartbeat
+        _env_bool(ENV_HEARTBEAT, deprecated_used, default=True) if heartbeat is None else heartbeat
     )
     resolved_heartbeat_interval = _clamp_heartbeat_interval(
         _env_float(ENV_HEARTBEAT_INTERVAL, deprecated_used, default=DEFAULT_HEARTBEAT_INTERVAL)

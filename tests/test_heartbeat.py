@@ -2,7 +2,7 @@
 
 Implements the heartbeat spec: payload v1, emission semantics (init-to-exit
 lifetime, immediate first ping, stopped ping on graceful shutdown, silent
-failure), and the config surface (off by default, interval clamped [5, 300],
+failure), and the config surface (on by default, interval clamped [5, 300],
 agent_name defaults to service_name).
 """
 
@@ -28,12 +28,21 @@ from rius.heartbeat import HeartbeatSender, OpenRootSpanTracker
 # ---------------------------------------------------------------------------
 
 
-def test_heartbeat_disabled_by_default() -> None:
+def test_heartbeat_enabled_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The conftest guard forces heartbeat off suite-wide (network safety);
+    # clear it here to observe the real default.
+    monkeypatch.delenv("RIUS_HEARTBEAT", raising=False)
+    monkeypatch.delenv("GLASSFLOW_HEARTBEAT", raising=False)
+    assert resolve_config().heartbeat is True
+
+
+def test_heartbeat_opt_out_via_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("RIUS_HEARTBEAT", "false")
     assert resolve_config().heartbeat is False
 
 
 def test_heartbeat_enabled_via_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("GLASSFLOW_HEARTBEAT", "true")
+    monkeypatch.setenv("RIUS_HEARTBEAT", "true")
     assert resolve_config().heartbeat is True
 
 
@@ -250,8 +259,27 @@ def test_open_traces_flow_into_payloads() -> None:
         client.shutdown()
 
 
-def test_heartbeat_off_by_default_no_thread() -> None:
-    client = init(set_global=False, service_name="svc", span_exporter=InMemorySpanExporter())
+def test_heartbeat_on_by_default_starts_thread(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("RIUS_HEARTBEAT", raising=False)
+    monkeypatch.delenv("GLASSFLOW_HEARTBEAT", raising=False)
+    sent: list[dict[str, Any]] = []
+    client = init(
+        set_global=False,
+        service_name="svc",
+        span_exporter=InMemorySpanExporter(),
+        heartbeat_transport=sent.append,
+    )
+    assert client._heartbeat is not None  # noqa: SLF001
+    client.shutdown()
+
+
+def test_heartbeat_opt_out_starts_no_thread() -> None:
+    client = init(
+        set_global=False,
+        service_name="svc",
+        heartbeat=False,
+        span_exporter=InMemorySpanExporter(),
+    )
     assert client._heartbeat is None  # noqa: SLF001
     client.shutdown()
 
@@ -365,9 +393,9 @@ def test_atexit_sends_stopped_ping_from_real_process() -> None:
     try:
         env = {
             **os.environ,
-            "GLASSFLOW_ENDPOINT": f"http://127.0.0.1:{server.server_port}",
-            "GLASSFLOW_HEARTBEAT": "1",
-            "GLASSFLOW_SERVICE_NAME": "atexit-agent",
+            "RIUS_ENDPOINT": f"http://127.0.0.1:{server.server_port}",
+            "RIUS_HEARTBEAT": "1",  # overrides the conftest guard in os.environ
+            "RIUS_SERVICE_NAME": "atexit-agent",
         }
         # init() then exit normally WITHOUT calling shutdown(): the atexit
         # hook alone must produce the stopped ping.

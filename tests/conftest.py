@@ -33,6 +33,17 @@ def exported_spans() -> InMemorySpanExporter:
 
 
 @pytest.fixture(autouse=True)
+def _no_ambient_heartbeat(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Force heartbeat off for every test.
+
+    Heartbeat is on by default, and its default transport does real HTTP;
+    a unit suite must never touch the network. Tests exercising heartbeat
+    behavior delete this variable and inject a stub transport.
+    """
+    monkeypatch.setenv("RIUS_HEARTBEAT", "false")
+
+
+@pytest.fixture(autouse=True)
 def _reset_rius_lifecycle() -> "Iterator[None]":
     """Clear module-level init()/instrumentation state between tests."""
     yield

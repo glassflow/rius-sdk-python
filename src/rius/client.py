@@ -166,7 +166,7 @@ def init(
             are only enabled when ``instruments`` is passed explicitly.
         span_exporter: Override the default OTLP exporter (useful for testing).
         heartbeat: Enable the agent-lifetime heartbeat thread
-            (``RIUS_HEARTBEAT``; default off this release). Pings
+            (``RIUS_HEARTBEAT``; on by default, set False to opt out). Pings
             ``<endpoint>/v1/heartbeat`` from init until process exit so the
             platform can tell a live-but-idle agent from a vanished one.
         heartbeat_interval: Seconds between pings (default 15, clamped to
