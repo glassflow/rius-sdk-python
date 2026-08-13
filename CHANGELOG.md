@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.10.0](https://github.com/glassflow/rius-sdk-python/compare/v0.9.1...v0.10.0) (2026-08-13)
+
+
+### ⚠ BREAKING CHANGES
+
+* enable the heartbeat by default ([#57](https://github.com/glassflow/rius-sdk-python/issues/57))
+
+### Features
+
+* enable the heartbeat by default ([#57](https://github.com/glassflow/rius-sdk-python/issues/57)) ([fe08e46](https://github.com/glassflow/rius-sdk-python/commit/fe08e4612dd7e665088f90b4296951574b624ca2))
+
 ## [0.9.1](https://github.com/glassflow/rius-sdk-python/compare/v0.9.0...v0.9.1) (2026-08-12)
 
 
