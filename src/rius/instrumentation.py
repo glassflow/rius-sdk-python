@@ -5,6 +5,11 @@ instrumentation. The registry below maps a short name to an instrumentor class;
 packages are imported lazily, so nothing here adds a hard dependency. Install
 via extras (``pip install glassflow-rius[openai]``) and ``init()`` enables what
 it finds, passing our tracer provider so instrumentation spans nest under ours.
+
+An extra installs the instrumentation for a library, never the library itself:
+the SDK must not pin or upgrade the versions a user's code runs against. MCP is
+the one instrumentation we ship ourselves, so it has no extra at all and
+enables itself when the ``mcp`` package is importable.
 """
 
 from __future__ import annotations
@@ -25,29 +30,52 @@ _ENABLED: dict[str, Any] = {}
 
 @dataclass(frozen=True)
 class InstrumentorSpec:
-    """A third-party instrumentor we know how to enable."""
+    """An instrumentor we know how to enable."""
 
     name: str
     module: str
     class_name: str
+    #: The extra that installs this instrumentation, or ``None`` when it ships
+    #: with the SDK. Only used to tell a user what to install when they request
+    #: an instrument whose module is missing, so the hint has to distinguish
+    #: "you need our extra" from "you need the library itself".
+    extra: str | None = None
+    #: For a built-in instrumentation (``extra is None``), the library whose
+    #: presence enables it. Set exactly one of ``extra`` or ``library``.
+    library: str | None = None
 
 
 # OpenInference instrumentors (Arize) — same conventions we emit natively.
 # OpenLLMetry entries can be added alongside; the backend normalizer covers both.
 REGISTRY: tuple[InstrumentorSpec, ...] = (
-    InstrumentorSpec("openai", "openinference.instrumentation.openai", "OpenAIInstrumentor"),
     InstrumentorSpec(
-        "anthropic", "openinference.instrumentation.anthropic", "AnthropicInstrumentor"
+        "openai", "openinference.instrumentation.openai", "OpenAIInstrumentor", extra="openai"
     ),
     InstrumentorSpec(
-        "langchain", "openinference.instrumentation.langchain", "LangChainInstrumentor"
+        "anthropic",
+        "openinference.instrumentation.anthropic",
+        "AnthropicInstrumentor",
+        extra="anthropic",
     ),
     InstrumentorSpec(
-        "llama-index", "openinference.instrumentation.llama_index", "LlamaIndexInstrumentor"
+        "langchain",
+        "openinference.instrumentation.langchain",
+        "LangChainInstrumentor",
+        extra="langchain",
     ),
-    InstrumentorSpec("litellm", "openinference.instrumentation.litellm", "LiteLLMInstrumentor"),
-    # ours — first-class MCP tool-call spans (see instrumentation_mcp.py)
-    InstrumentorSpec("mcp", "rius.instrumentation_mcp", "MCPInstrumentor"),
+    InstrumentorSpec(
+        "llama-index",
+        "openinference.instrumentation.llama_index",
+        "LlamaIndexInstrumentor",
+        extra="llama-index",
+    ),
+    InstrumentorSpec(
+        "litellm", "openinference.instrumentation.litellm", "LiteLLMInstrumentor", extra="litellm"
+    ),
+    # Ours: first-class MCP tool-call spans (see instrumentation_mcp.py). No
+    # extra, because the instrumentation ships here; the module imports `mcp`,
+    # so this entry is enabled exactly when the user has that package.
+    InstrumentorSpec("mcp", "rius.instrumentation_mcp", "MCPInstrumentor", library="mcp"),
 )
 
 
@@ -80,12 +108,22 @@ def enable_instrumentations(
             module = importlib.import_module(spec.module)
         except ImportError:
             if instruments is not None:
+                # The fix differs by entry: an extra installs a third-party
+                # instrumentation, while the built-in MCP one needs the `mcp`
+                # library. Naming an extra that does not exist would send the
+                # user in circles.
+                if spec.extra is not None:
+                    hint = f'install it via `pip install "glassflow-rius[{spec.extra}]"`'
+                else:
+                    hint = (
+                        f"it is built in and enables itself once `{spec.library}` "
+                        f"is installed (`pip install {spec.library}`)"
+                    )
                 logger.warning(
-                    "instrument %r requested but %r is not installed; "
-                    'install it via `pip install "glassflow-rius[%s]"`',
+                    "instrument %r requested but %r is not importable; %s",
                     spec.name,
                     spec.module,
-                    spec.name,
+                    hint,
                 )
             continue
         try:

@@ -228,3 +228,92 @@ def test_openai_instrumentation_spans_nest_under_ours() -> None:
     finally:
         instrumentor.uninstrument()
         server.shutdown()
+
+
+def test_missing_extra_instrument_hint_names_the_extra(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A third-party instrumentation is installed through our extra."""
+    monkeypatch.setattr(
+        instrumentation,
+        "REGISTRY",
+        (
+            InstrumentorSpec(
+                "anthropic", "package_that_is_not_installed", "NopeInstrumentor", extra="anthropic"
+            ),
+        ),
+    )
+    with caplog.at_level("WARNING"):
+        init(span_exporter=InMemorySpanExporter(), set_global=False, instruments=["anthropic"])
+    message = "\n".join(record.getMessage() for record in caplog.records)
+    assert 'pip install "glassflow-rius[anthropic]"' in message
+
+
+def test_missing_builtin_instrument_hint_names_the_library(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A built-in instrumentation has no extra, so the hint must name the
+    library instead. Pointing at `glassflow-rius[mcp]` would send the user to
+    an extra that does not exist."""
+    monkeypatch.setattr(
+        instrumentation,
+        "REGISTRY",
+        (
+            InstrumentorSpec(
+                "mcp", "package_that_is_not_installed", "NopeInstrumentor", library="mcp"
+            ),
+        ),
+    )
+    with caplog.at_level("WARNING"):
+        init(span_exporter=InMemorySpanExporter(), set_global=False, instruments=["mcp"])
+    message = "\n".join(record.getMessage() for record in caplog.records)
+    assert "pip install mcp" in message
+    assert "glassflow-rius[mcp]" not in message
+
+
+def test_every_spec_declares_exactly_one_install_source() -> None:
+    """Each entry is installed either through one of our extras or by the user
+    installing the library a built-in instrumentation patches. Both set, or
+    neither, means the requested-but-missing warning cannot name a fix."""
+    for spec in instrumentation.REGISTRY:
+        assert (spec.extra is None) != (spec.library is None), spec.name
+
+
+def test_extras_install_instrumentation_only_never_a_runtime_library() -> None:
+    """The packaging rule this SDK is built on: an extra installs the
+    instrumentation FOR a library, so the SDK never pins or upgrades a version
+    the user's own code runs against. `mcp` used to be the exception, and its
+    extra put a runtime library into environments that never touched MCP.
+    """
+    from pathlib import Path
+
+    # tomllib is stdlib from 3.11 and this package supports 3.10. The assertion
+    # is about static metadata rather than runtime behaviour, so proving it on
+    # the rest of the matrix is enough; a tomli dev dependency just to read one
+    # file on the oldest interpreter is not worth it.
+    tomllib = pytest.importorskip("tomllib", reason="stdlib tomllib requires Python 3.11+")
+
+    pyproject = Path(__file__).resolve().parent.parent / "pyproject.toml"
+    extras = tomllib.loads(pyproject.read_text())["project"]["optional-dependencies"]
+
+    specs = {spec.name: spec for spec in instrumentation.REGISTRY}
+    aggregate = "instruments"
+
+    # Every extra maps to a registry entry that names it, so a stray or
+    # renamed extra cannot drift away from the registry unnoticed.
+    for name in extras:
+        if name == aggregate:
+            continue
+        assert name in specs, f"extra {name!r} has no registry entry"
+        assert specs[name].extra == name
+
+    # No extra exists for a built-in instrumentation, and nothing an extra
+    # installs is a library we merely instrument.
+    builtin_libraries = {spec.library for spec in specs.values() if spec.library}
+    for name, requirements in extras.items():
+        assert name not in builtin_libraries, f"{name!r} is a built-in instrumentation"
+        for requirement in requirements:
+            package = requirement.split(">=")[0].split("==")[0].strip()
+            assert package not in builtin_libraries, (
+                f"extra {name!r} installs {package!r}, a library the SDK only instruments"
+            )

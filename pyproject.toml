@@ -39,19 +39,28 @@ dependencies = [
 # Auto-instrumentation extras — one per entry in rius.instrumentation.REGISTRY.
 # Floors are the versions the registry smoke test last validated against; no caps
 # (these packages break within 0.x either way — CI catches forward breakage).
+# Every extra installs the INSTRUMENTATION for a library and never the library
+# itself, so the SDK cannot pin or upgrade the versions a user's code runs
+# against. The instrumented library is always the user's own dependency; the
+# instrumentors declare it under their own `instruments` extra, which we do not
+# pull in.
+#
+# There is deliberately NO `mcp` extra: MCP is instrumented by our own module
+# (instrumentation_mcp.py), so an instrumentation-only extra would install
+# nothing. It activates whenever the `mcp` package is importable. An extra that
+# installed `mcp` would be the one place the SDK added a runtime library to a
+# user's environment, which is exactly what the rule above exists to prevent.
 openai = ["openinference-instrumentation-openai>=0.1.52"]
 anthropic = ["openinference-instrumentation-anthropic>=1.0.6"]
 langchain = ["openinference-instrumentation-langchain>=0.1.67"]
 llama-index = ["openinference-instrumentation-llama-index>=4.4.3"]
 litellm = ["openinference-instrumentation-litellm>=0.1.34"]
-mcp = ["mcp>=1.0.0"]
 instruments = [
     "openinference-instrumentation-openai>=0.1.52",
     "openinference-instrumentation-anthropic>=1.0.6",
     "openinference-instrumentation-langchain>=0.1.67",
     "openinference-instrumentation-llama-index>=4.4.3",
     "openinference-instrumentation-litellm>=0.1.34",
-    "mcp>=1.0.0",
 ]
 
 [project.urls]
