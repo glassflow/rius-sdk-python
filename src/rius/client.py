@@ -27,6 +27,7 @@ from .instrumentation import enable_instrumentations
 from .masking import MaskingSpanExporter
 from .pending import PendingSpanProcessor
 from .semconv import TRACER_NAME
+from .session import SessionSpanProcessor
 
 logger = logging.getLogger(__name__)
 
@@ -142,6 +143,7 @@ def init(
     connectivity_transport: ProbeTransport | None = None,
     partial_spans: bool | None = None,
     partial_spans_delay: float | None = None,
+    session_id: str | None = None,
     set_global: bool = True,
 ) -> GlassflowClient:
     """Initialize the SDK: build a tracer provider that exports OTLP traces.
@@ -181,6 +183,11 @@ def init(
             warning on 401/403, unreachable host, or other non-2xx, so a
             bad key or endpoint is visible immediately instead of surfacing
             as silently missing traces.
+        session_id: Process-wide session id (``RIUS_SESSION_ID``), stamped as
+            ``session.id`` on every span so the platform groups this
+            process's traces into one session. For one-run-per-process
+            agents; a server handling many sessions scopes each one with
+            ``rius.session()`` instead, which overrides this default.
         set_global: Register the provider as the global OpenTelemetry provider.
     """
     global _current_client
@@ -210,6 +217,7 @@ def init(
             connectivity_transport=connectivity_transport,
             partial_spans=partial_spans,
             partial_spans_delay=partial_spans_delay,
+            session_id=session_id,
             set_global=set_global,
         )
 
@@ -233,6 +241,7 @@ def _do_init(
     connectivity_transport: ProbeTransport | None,
     partial_spans: bool | None,
     partial_spans_delay: float | None,
+    session_id: str | None,
     set_global: bool,
 ) -> GlassflowClient:
     global _current_client
@@ -249,6 +258,7 @@ def _do_init(
         agent_name=agent_name,
         partial_spans=partial_spans,
         partial_spans_delay=partial_spans_delay,
+        session_id=session_id,
     )
     # telemetry.sdk.* is reserved for the OTel SDK itself (Resource.create fills
     # it); we identify as a distribution via telemetry.distro.*.
@@ -297,6 +307,10 @@ def _do_init(
         # reporting.
         export_health = ExportOutcomeExporter(exporter, endpoint=config.endpoint)
         batch_processor = BatchSpanProcessor(export_health)
+        # Registered BEFORE the pending processor: both act at on_start, and
+        # the pending snapshot is built from the attributes already on the
+        # span, so the session id must be stamped first to ride it.
+        provider.add_span_processor(SessionSpanProcessor(config.session_id))
         if config.partial_spans:
             # Pending snapshots ride the SAME batch pipeline as final spans
             # (exporter, retries, masking); see pending.py for the contract.

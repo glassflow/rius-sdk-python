@@ -8,6 +8,7 @@ from .export_health import ProbeTransport
 from .generation import Generation, start_as_current_generation, start_generation
 from .observe import observe
 from .semconv import SpanKind
+from .session import session
 from .spans import Observation, start_as_current_span, start_span
 
 __all__ = [
@@ -23,6 +24,7 @@ __all__ = [
     "init",
     "observe",
     "resolve_config",
+    "session",
     "start_as_current_generation",
     "start_as_current_span",
     "start_generation",
