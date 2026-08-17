@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.11.0](https://github.com/glassflow/rius-sdk-python/compare/v0.10.0...v0.11.0) (2026-08-17)
+
+
+### ⚠ BREAKING CHANGES
+
+* drop the mcp extra so every extra means one thing ([#59](https://github.com/glassflow/rius-sdk-python/issues/59))
+
+### Features
+
+* drop the mcp extra so every extra means one thing ([#59](https://github.com/glassflow/rius-sdk-python/issues/59)) ([0672e94](https://github.com/glassflow/rius-sdk-python/commit/0672e94d4cbae0a21dc886f4bf7dd097db108975))
+
 ## [0.10.0](https://github.com/glassflow/rius-sdk-python/compare/v0.9.1...v0.10.0) (2026-08-13)
 
 
