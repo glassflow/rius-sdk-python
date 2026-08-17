@@ -392,7 +392,6 @@ anthropic = [
     { name = "openinference-instrumentation-anthropic" },
 ]
 instruments = [
-    { name = "mcp" },
     { name = "openinference-instrumentation-anthropic" },
     { name = "openinference-instrumentation-langchain" },
     { name = "openinference-instrumentation-litellm" },
@@ -407,9 +406,6 @@ litellm = [
 ]
 llama-index = [
     { name = "openinference-instrumentation-llama-index" },
-]
-mcp = [
-    { name = "mcp" },
 ]
 openai = [
     { name = "openinference-instrumentation-openai" },
@@ -427,8 +423,6 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "mcp", marker = "extra == 'instruments'", specifier = ">=1.0.0" },
-    { name = "mcp", marker = "extra == 'mcp'", specifier = ">=1.0.0" },
     { name = "openinference-instrumentation-anthropic", marker = "extra == 'anthropic'", specifier = ">=1.0.6" },
     { name = "openinference-instrumentation-anthropic", marker = "extra == 'instruments'", specifier = ">=1.0.6" },
     { name = "openinference-instrumentation-langchain", marker = "extra == 'instruments'", specifier = ">=0.1.67" },

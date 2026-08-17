@@ -55,11 +55,6 @@ variables:
 | `sample_rate`  | `RIUS_SAMPLE_RATE`  | `1.0`                          | Head sampling ratio `0.0`–`1.0` (whole-trace; children follow root). |
 | `capture_content` | `RIUS_CAPTURE_CONTENT` | `true`                    | When false, prompt/response content is stripped at export (metadata still sent). |
 
-Every variable also accepts its former `GLASSFLOW_*` spelling (for example
-`GLASSFLOW_API_KEY`). Those names are deprecated: they keep working for now,
-log a warning naming the `RIUS_*` replacement, and will be removed in a
-future release. When both spellings are set, `RIUS_*` wins.
-
 `mask` is a code-only option (no env var): pass a callable to `init(mask=...)` and
 it is applied to every content attribute value at export, across our spans and any
 bundled third-party instrumentation. A mask that accepts a `key` keyword also
@@ -83,6 +78,13 @@ pip install "glassflow-rius[openai]"        # one provider
 pip install "glassflow-rius[instruments]"   # everything supported
 ```
 
+An extra installs the instrumentation **for** a library, never the library
+itself, so the SDK never pins or upgrades the versions your code runs against:
+`glassflow-rius[anthropic]` expects `anthropic` to be your own dependency,
+which it already is in any project that calls Anthropic. An extra installed
+without its library makes `init()` log a `DependencyConflict` from
+OpenTelemetry and leaves that one integration off.
+
 ```python
 rius.init()                          # auto-enables installed instrumentors
 rius.init(instruments=["openai"])    # restrict to specific ones
@@ -93,8 +95,10 @@ Supported instruments: `openai`, `anthropic`, `langchain`, `llama-index`,
 `litellm`, and `mcp`. Content captured by instrumentors is covered by the same
 `mask` / `capture_content` controls as our own spans.
 
-The `mcp` instrument is built in: if the [`mcp`](https://pypi.org/project/mcp/)
-package is installed, every `ClientSession.call_tool()` your agent makes becomes
+The `mcp` instrument is built in and has **no extra**: there is no third-party
+instrumentation to install, and an extra that installed `mcp` for you would
+break the rule above. If the [`mcp`](https://pypi.org/project/mcp/)
+package is present, every `ClientSession.call_tool()` your agent makes becomes
 a first-class TOOL span (`execute_tool <name>`) with `gen_ai.tool.name`, the
 arguments and result as `input.value`/`output.value`, latency, and error status
 (including tools that return `isError` results).

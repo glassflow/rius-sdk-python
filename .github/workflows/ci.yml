@@ -38,11 +38,13 @@ jobs:
       - run: uv sync --locked --group dev
       - run: uv run pytest
 
-  # The mcp extra is unbounded (mcp>=1.0.0) and the two majors have different
-  # result shapes (snake_case + InputRequiredResult in 2.x, GLA2-300); the
-  # default suite exercises the locked 1.x, this job re-runs the MCP
-  # instrumentation tests with 2.x overlaid so a future rename fails a build
-  # instead of silently un-flagging error results.
+  # MCP has no extra: the instrumentation ships in the SDK and activates when
+  # the user's own `mcp` package is importable, so any major they install is
+  # in scope. The two majors have different result shapes (snake_case +
+  # InputRequiredResult in 2.x, GLA2-300); the default suite exercises the
+  # dev group's 1.x, and this job re-runs the MCP instrumentation tests with
+  # 2.x overlaid so a future rename fails a build instead of silently
+  # un-flagging error results.
   mcp-v2:
     runs-on: ubuntu-latest
     steps:

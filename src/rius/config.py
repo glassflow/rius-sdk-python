@@ -172,11 +172,9 @@ def resolve_config(
     """Resolve SDK configuration from arguments, environment, then defaults.
 
     Explicit arguments win over ``RIUS_*`` environment variables, which win
-    over their deprecated ``GLASSFLOW_*`` spellings, which win over built-in
-    defaults. Using a ``GLASSFLOW_*`` variable logs one deprecation warning
-    naming the replacements. ``sample_rate`` is clamped to ``[0.0, 1.0]``
-    with a warning; boolean environment variables accept ``1``/``true``/
-    ``yes``/``on`` (case-insensitive).
+    over built-in defaults. ``sample_rate`` is clamped to ``[0.0, 1.0]`` with
+    a warning; boolean environment variables accept ``1``/``true``/``yes``/
+    ``on`` (case-insensitive).
 
     Args:
         endpoint: Base OTLP endpoint (``RIUS_ENDPOINT``).
