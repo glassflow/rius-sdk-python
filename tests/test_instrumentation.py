@@ -287,7 +287,11 @@ def test_extras_install_instrumentation_only_never_a_runtime_library() -> None:
     """
     from pathlib import Path
 
-    import tomllib
+    # tomllib is stdlib from 3.11 and this package supports 3.10. The assertion
+    # is about static metadata rather than runtime behaviour, so proving it on
+    # the rest of the matrix is enough; a tomli dev dependency just to read one
+    # file on the oldest interpreter is not worth it.
+    tomllib = pytest.importorskip("tomllib", reason="stdlib tomllib requires Python 3.11+")
 
     pyproject = Path(__file__).resolve().parent.parent / "pyproject.toml"
     extras = tomllib.loads(pyproject.read_text())["project"]["optional-dependencies"]
