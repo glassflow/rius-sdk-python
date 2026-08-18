@@ -32,6 +32,7 @@ ENV_HEARTBEAT_INTERVAL = "RIUS_HEARTBEAT_INTERVAL"
 ENV_AGENT_NAME = "RIUS_AGENT_NAME"
 ENV_PARTIAL_SPANS = "RIUS_PARTIAL_SPANS"
 ENV_PARTIAL_SPANS_DELAY = "RIUS_PARTIAL_SPANS_DELAY"
+ENV_SESSION_ID = "RIUS_SESSION_ID"
 
 # The backend expresses staleness as multiples of the interval, so the clamp
 # bounds are part of the heartbeat wire contract.
@@ -103,6 +104,9 @@ class GlassflowConfig:
     agent_name: str = DEFAULT_SERVICE_NAME
     partial_spans: bool = False
     partial_spans_delay: float = 0.0
+    # Process-wide session default; a `session()` scope overrides it. None
+    # means unset, and spans outside any scope carry no session.id at all.
+    session_id: str | None = None
 
     @property
     def traces_endpoint(self) -> str:
@@ -168,6 +172,7 @@ def resolve_config(
     agent_name: str | None = None,
     partial_spans: bool | None = None,
     partial_spans_delay: float | None = None,
+    session_id: str | None = None,
 ) -> GlassflowConfig:
     """Resolve SDK configuration from arguments, environment, then defaults.
 
@@ -209,6 +214,12 @@ def resolve_config(
             seconds. ``0`` (default) emits at span start; ``N`` emits only if
             the span is still open after N seconds; spans that finish
             sooner cost no network at all.
+        session_id: Process-wide session id (``RIUS_SESSION_ID``), stamped
+            as ``session.id`` on every span. For one-run-per-process
+            agents; a server handling many sessions uses the
+            ``rius.session()`` scope instead, which overrides this
+            default. Unset means spans outside a scope carry no session id
+            and are grouped per trace.
 
     Returns:
         The resolved, immutable ``GlassflowConfig``.
@@ -254,6 +265,9 @@ def resolve_config(
         if partial_spans_delay is None
         else partial_spans_delay
     )
+    # os.getenv directly, not _getenv: this variable is new, so there is no
+    # deprecated GLASSFLOW_ spelling to fall back to.
+    resolved_session_id = session_id or os.getenv(ENV_SESSION_ID) or None
 
     if deprecated_used:
         renames = ", ".join(
@@ -284,4 +298,5 @@ def resolve_config(
         agent_name=resolved_agent_name,
         partial_spans=resolved_partial_spans,
         partial_spans_delay=resolved_partial_spans_delay,
+        session_id=resolved_session_id,
     )

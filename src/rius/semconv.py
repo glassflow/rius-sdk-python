@@ -22,6 +22,10 @@ TRACER_NAME = "glassflow"
 OPENINFERENCE_SPAN_KIND = "openinference.span.kind"
 INPUT_VALUE = "input.value"
 OUTPUT_VALUE = "output.value"
+# The session grouping key (see session.py). OpenInference's spelling, and the
+# one the sink reads first; gen_ai.conversation.id is deliberately not emitted
+# alongside it, one name for one fact.
+SESSION_ID = "session.id"
 
 # OTel GenAI (subset we emit)
 GEN_AI_OPERATION_NAME = "gen_ai.operation.name"
@@ -66,6 +70,9 @@ PENDING_IDENTITY_ATTRIBUTES = frozenset(
         GEN_AI_OPERATION_NAME,
         GEN_AI_PROVIDER_NAME,
         GEN_AI_TOOL_NAME,
+        # Identity, not content: a pending span must be groupable into its
+        # session while still running, that is the live view's whole point.
+        SESSION_ID,
     }
 )
 # gen_ai.request.* (model, temperature, ...) is identity, not content.
