@@ -1,0 +1,14 @@
+{
+  "name": "glassflow",
+  "owner": {
+    "name": "GlassFlow",
+    "url": "https://github.com/glassflow"
+  },
+  "plugins": [
+    {
+      "name": "glassflow-connect-agent",
+      "source": "./.claude-plugin/plugins/glassflow-connect-agent",
+      "description": "Mint an API key, install the SDK, wire it into your agent, and see your first trace — all in one command."
+    }
+  ]
+}
