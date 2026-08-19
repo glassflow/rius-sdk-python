@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import uuid
 from collections.abc import Callable, Sequence
 from typing import Any
 
@@ -26,7 +27,7 @@ from .heartbeat import HeartbeatSender, OpenRootSpanTracker
 from .instrumentation import enable_instrumentations
 from .masking import MaskingSpanExporter
 from .pending import PendingSpanProcessor
-from .semconv import TRACER_NAME
+from .semconv import SERVICE_INSTANCE_ID, TRACER_NAME
 from .session import SessionSpanProcessor
 
 logger = logging.getLogger(__name__)
@@ -171,6 +172,14 @@ def init(
             (``RIUS_HEARTBEAT``; on by default, set False to opt out). Pings
             ``<endpoint>/v1/heartbeat`` from init until process exit so the
             platform can tell a live-but-idle agent from a vanished one.
+            Each ``init()`` mints one instance id, sent both in heartbeat
+            payloads and on every span as the ``service.instance.id``
+            resource attribute, so the platform can join the two and count
+            replicas. Fork caveat: a child forked after ``init()`` heartbeats
+            under a fresh id, but its spans keep the parent's (the OTel
+            Resource is immutable), identifying the pre-fork process family;
+            for exact per-worker span identity, call ``init()`` after the
+            fork (e.g. in gunicorn's ``post_fork``).
         heartbeat_interval: Seconds between pings (default 15, clamped to
             ``[5, 300]``; the backend derives staleness from this).
         agent_name: Identity heartbeats group under; defaults to
@@ -260,11 +269,20 @@ def _do_init(
         partial_spans_delay=partial_spans_delay,
         session_id=session_id,
     )
+    # One identity per client lifetime, shared by spans (resource) and
+    # heartbeats (payload instance_id) so the backend can join them. Minted
+    # here — before the Resource — because the sender is constructed much
+    # later. Fork caveat: the Resource is immutable, so a forked child's
+    # spans keep this (ancestor) id while its heartbeat re-arms with a fresh
+    # one; deployments needing exact per-worker span identity should init()
+    # after fork.
+    instance_id = str(uuid.uuid4())
     # telemetry.sdk.* is reserved for the OTel SDK itself (Resource.create fills
     # it); we identify as a distribution via telemetry.distro.*.
     resource = Resource.create(
         {
             "service.name": config.service_name,
+            SERVICE_INSTANCE_ID: instance_id,
             "telemetry.distro.name": "glassflow-rius",
             "telemetry.distro.version": __version__,
         }
@@ -346,6 +364,7 @@ def _do_init(
             headers=config.headers,
             interval=config.heartbeat_interval,
             agent_name=config.agent_name,
+            instance_id=instance_id,
             tracker=tracker,
             transport=heartbeat_transport,
         )

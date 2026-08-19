@@ -17,6 +17,12 @@ from opentelemetry.trace import Span
 # coordination, tracked separately.
 TRACER_NAME = "glassflow"
 
+# --- Resource attribute keys ---
+# OTel standard identity of one process lifetime (one uuid per client, minted
+# at init). The heartbeat payload's instance_id carries the SAME value, which
+# is what lets the backend join heartbeats to traces and count replicas.
+SERVICE_INSTANCE_ID = "service.instance.id"
+
 # --- Attribute keys ---
 # OpenInference
 OPENINFERENCE_SPAN_KIND = "openinference.span.kind"
