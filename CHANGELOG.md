@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.12.0](https://github.com/glassflow/rius-sdk-python/compare/v0.11.0...v0.12.0) (2026-08-20)
+
+
+### Features
+
+* session ids — a scoped session() plus an init-level default ([#61](https://github.com/glassflow/rius-sdk-python/issues/61)) ([4279e43](https://github.com/glassflow/rius-sdk-python/commit/4279e43687dbf47c4d5746c07f857d6d26b5929c))
+* stamp service.instance.id on spans and share it with the heartbeat ([#63](https://github.com/glassflow/rius-sdk-python/issues/63)) ([e0b2ae9](https://github.com/glassflow/rius-sdk-python/commit/e0b2ae90be997ef9045486e8b17b191488dd61bc))
+
 ## [0.11.0](https://github.com/glassflow/rius-sdk-python/compare/v0.10.0...v0.11.0) (2026-08-17)
 
 
