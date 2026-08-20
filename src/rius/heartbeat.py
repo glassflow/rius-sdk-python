@@ -156,6 +156,7 @@ class HeartbeatSender:
         headers: dict[str, str],
         interval: float,
         agent_name: str,
+        instance_id: str,
         tracker: OpenRootSpanTracker,
         transport: Callable[[dict[str, Any]], None] | None = None,
         ping_timeout: float = _PING_TIMEOUT_S,
@@ -171,7 +172,11 @@ class HeartbeatSender:
             self._send: Callable[[dict[str, Any], float], None] = lambda p, _t: transport(p)
         else:
             self._send = _http_transport(url, headers)
-        self._instance_id = str(uuid.uuid4())
+        # Injected: the same id rides spans as the service.instance.id
+        # resource attribute, which is what lets the backend join heartbeats
+        # to traces. Only _reset_in_child mints a fresh one (a forked child
+        # is a new process lifetime).
+        self._instance_id = instance_id
         self._stop_event = threading.Event()
         self._stopped = False
         self._lock = threading.Lock()

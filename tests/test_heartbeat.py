@@ -141,6 +141,7 @@ def _sender(
         headers={},
         interval=interval,
         agent_name="checkout-agent",
+        instance_id=str(uuid.uuid4()),
         tracker=tracker or OpenRootSpanTracker(),
         transport=sent.append,
     )
@@ -201,6 +202,7 @@ def test_start_sends_immediate_ping() -> None:
         headers={},
         interval=3600.0,
         agent_name="a",
+        instance_id=str(uuid.uuid4()),
         tracker=OpenRootSpanTracker(),
         transport=transport,
     )
@@ -313,6 +315,7 @@ def test_transport_failure_never_raises_and_warns_once(
         headers={},
         interval=3600.0,
         agent_name="a",
+        instance_id=str(uuid.uuid4()),
         tracker=OpenRootSpanTracker(),
         transport=broken,
     )
@@ -351,6 +354,7 @@ def test_http_transport_end_to_end() -> None:
             headers={"Authorization": "Bearer test-key"},
             interval=3600.0,
             agent_name="e2e-agent",
+            instance_id=str(uuid.uuid4()),
             tracker=OpenRootSpanTracker(),
         )
         sender._send_ping()  # noqa: SLF001
@@ -436,6 +440,7 @@ def test_stop_with_dead_slow_endpoint_returns_quickly() -> None:
             headers={},
             interval=3600.0,
             agent_name="a",
+            instance_id=str(uuid.uuid4()),
             tracker=OpenRootSpanTracker(),
             ping_timeout=0.3,
             final_ping_timeout=0.3,
@@ -457,6 +462,7 @@ def test_final_ping_timeout_defaults_shorter_than_ping_timeout() -> None:
         headers={},
         interval=3600.0,
         agent_name="a",
+        instance_id=str(uuid.uuid4()),
         tracker=OpenRootSpanTracker(),
     )
     assert sender._final_ping_timeout < sender._ping_timeout  # noqa: SLF001
