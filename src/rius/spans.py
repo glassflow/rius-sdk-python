@@ -11,6 +11,9 @@ Two surfaces, following the OpenTelemetry / Langfuse / Laminar convention:
 
 ``start_generation`` / ``start_as_current_generation`` are the LLM-specialized
 equivalents.
+
+``current_trace_id`` is the read side of the same context: it reports the trace
+the caller is already running inside, without creating anything.
 """
 
 from __future__ import annotations
@@ -20,7 +23,7 @@ from contextlib import contextmanager
 from typing import Any
 
 from opentelemetry import trace
-from opentelemetry.trace import Span
+from opentelemetry.trace import Span, format_trace_id
 
 from . import __version__
 from ._serde import serialize
@@ -131,3 +134,21 @@ def start_as_current_span(
         observation = Observation(span)
         _configure(observation, kind, input)
         yield observation
+
+
+def current_trace_id() -> str | None:
+    """Return the trace id of the caller's active trace, or ``None`` if untraced.
+
+    Reads the ambient OpenTelemetry context, so it reports whatever trace the
+    caller is running inside — the enclosing ``start_as_current_span`` /
+    ``@observe`` scope, or a context propagated in from upstream — not a trace
+    this SDK created. The id is the standard 32-character lowercase hex form,
+    ready to hand to the platform API or embed in a link.
+
+    ``None`` means there is genuinely no active trace (no span in context, or a
+    sampled-out placeholder), rather than the all-zeros invalid id.
+    """
+    span_context = trace.get_current_span().get_span_context()
+    if not span_context.is_valid:
+        return None
+    return format_trace_id(span_context.trace_id)

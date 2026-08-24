@@ -1,8 +1,10 @@
+import re
+
 import pytest
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from opentelemetry.trace import StatusCode
+from opentelemetry.trace import INVALID_SPAN, StatusCode, format_trace_id, use_span
 
-from rius import start_as_current_span, start_span
+from rius import current_trace_id, start_as_current_span, start_span
 from rius.semconv import SpanKind
 
 # --- context manager: start_as_current_span ---
@@ -74,3 +76,33 @@ def test_manual_span_is_not_current(exported_spans: InMemorySpanExporter) -> Non
     obs.end()
     spans = {s.name: s for s in exported_spans.get_finished_spans()}
     assert spans["inner"].parent is None  # manual span is not activated as current
+
+
+# --- ambient trace id: current_trace_id ---
+
+
+def test_current_trace_id_inside_span_matches_span_context(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    with start_as_current_span("op"):
+        trace_id = current_trace_id()
+    span = exported_spans.get_finished_spans()[0]
+    assert trace_id == format_trace_id(span.context.trace_id)
+    assert re.fullmatch(r"[0-9a-f]{32}", trace_id or "")
+
+
+def test_current_trace_id_nested_span_reports_the_enclosing_trace() -> None:
+    with start_as_current_span("outer"):
+        outer = current_trace_id()
+        with start_as_current_span("inner"):
+            inner = current_trace_id()
+    assert inner == outer
+
+
+def test_current_trace_id_outside_any_span_is_none() -> None:
+    assert current_trace_id() is None
+
+
+def test_current_trace_id_ignores_the_invalid_span() -> None:
+    with use_span(INVALID_SPAN):
+        assert current_trace_id() is None

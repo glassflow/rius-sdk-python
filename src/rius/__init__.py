@@ -9,7 +9,7 @@ from .generation import Generation, start_as_current_generation, start_generatio
 from .observe import observe
 from .semconv import SpanKind
 from .session import session
-from .spans import Observation, start_as_current_span, start_span
+from .spans import Observation, current_trace_id, start_as_current_span, start_span
 
 __all__ = [
     "Generation",
@@ -20,6 +20,7 @@ __all__ = [
     "SpanKind",
     "__version__",
     "build_span_exporter",
+    "current_trace_id",
     "get_tracer",
     "init",
     "observe",
