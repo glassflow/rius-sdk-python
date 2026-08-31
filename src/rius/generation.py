@@ -27,6 +27,8 @@ from .semconv import (
     GEN_AI_REQUEST_PREFIX,
     GEN_AI_RESPONSE_FINISH_REASONS,
     GEN_AI_RESPONSE_MODEL,
+    GEN_AI_USAGE_CACHE_CREATION_INPUT_TOKENS,
+    GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS,
     GEN_AI_USAGE_INPUT_TOKENS,
     GEN_AI_USAGE_OUTPUT_TOKENS,
     TRACER_NAME,
@@ -151,21 +153,46 @@ class Generation:
         self._span.set_attribute(GEN_AI_RESPONSE_MODEL, response_model)
 
     def set_usage(
-        self, *, input_tokens: int | None = None, output_tokens: int | None = None
+        self,
+        *,
+        input_tokens: int | None = None,
+        output_tokens: int | None = None,
+        cache_read_input_tokens: int | None = None,
+        cache_creation_input_tokens: int | None = None,
     ) -> None:
-        """Record token usage (``gen_ai.usage.input_tokens`` / ``output_tokens``).
+        """Record token usage (``gen_ai.usage.*`` attributes).
 
         Send token counts, never cost: cost is computed server-side from
         model pricing.
 
+        Pass provider-reported values as-is. Per the GenAI conventions,
+        ``input_tokens`` is the total including cached tokens (the cache
+        counts are subsets of it); some providers instead report an
+        ``input_tokens`` that excludes cache tokens (e.g. Anthropic, whose
+        OpenAI-style counterpart already includes them). The backend detects
+        and normalizes the exclusive case, so no client-side arithmetic is
+        needed.
+
         Args:
             input_tokens: Prompt tokens consumed, when known.
             output_tokens: Completion tokens produced, when known.
+            cache_read_input_tokens: Input tokens served from a
+                provider-managed prompt cache
+                (``gen_ai.usage.cache_read.input_tokens``).
+            cache_creation_input_tokens: Input tokens written to a
+                provider-managed prompt cache
+                (``gen_ai.usage.cache_creation.input_tokens``).
         """
         if input_tokens is not None:
             self._span.set_attribute(GEN_AI_USAGE_INPUT_TOKENS, input_tokens)
         if output_tokens is not None:
             self._span.set_attribute(GEN_AI_USAGE_OUTPUT_TOKENS, output_tokens)
+        if cache_read_input_tokens is not None:
+            self._span.set_attribute(GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS, cache_read_input_tokens)
+        if cache_creation_input_tokens is not None:
+            self._span.set_attribute(
+                GEN_AI_USAGE_CACHE_CREATION_INPUT_TOKENS, cache_creation_input_tokens
+            )
 
     def record_first_token(self) -> None:
         """Mark the arrival of the first streamed token (``gen_ai.first_token`` event).
