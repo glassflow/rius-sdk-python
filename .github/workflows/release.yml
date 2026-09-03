@@ -100,3 +100,46 @@ jobs:
           jq -n --arg tag "$TAG" --arg url "$url" --arg body "$body" \
             '{text: (":package: *glassflow-rius \($tag)* is on PyPI (<\($url)|release notes>)\n\n\($body)")}' \
             | curl -sS --fail-with-body -X POST -H 'Content-Type: application/json' -d @- "$SLACK_WEBHOOK"
+
+  # Record this version in Linear Releases (the "Python SDK" pipeline). The
+  # sync scans commits since the pipeline's previously recorded release and
+  # sends the squash-merge PR numbers to Linear, which resolves them to the
+  # issues those PRs are linked to — attribution rides the existing
+  # branch-name links, so commit subjects need no ticket refs. Runs only
+  # after the PyPI publish succeeded: a release in Linear means "installable
+  # from the registry", the same contract as the Slack announcement. Needs
+  # LINEAR_ACCESS_KEY — the pipeline access key generated in Linear under
+  # Settings → Releases (a personal API key does not work). Skips gracefully
+  # while the secret is unset.
+  linear-release:
+    needs: [release-please, publish]
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check for a pipeline access key
+        id: key
+        env:
+          LINEAR_ACCESS_KEY: ${{ secrets.LINEAR_ACCESS_KEY }}
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+        run: |
+          if [ -z "$LINEAR_ACCESS_KEY" ]; then
+            echo "LINEAR_ACCESS_KEY not configured; skipping the Linear release sync." >> "$GITHUB_STEP_SUMMARY"
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          fi
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT" # PyPI URLs carry no v prefix
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: ${{ steps.key.outputs.present == 'true' }}
+        with:
+          fetch-depth: 0 # the sync scans history back to the last recorded release
+      - uses: linear/linear-release-action@53ad0f863963e7f8e270fba18426bbb55ef55384 # v0.17.2
+        if: ${{ steps.key.outputs.present == 'true' }}
+        with:
+          access_key: ${{ secrets.LINEAR_ACCESS_KEY }}
+          name: ${{ needs.release-please.outputs.tag_name }}
+          version: ${{ needs.release-please.outputs.tag_name }}
+          links: |
+            PyPI=https://pypi.org/project/glassflow-rius/${{ steps.key.outputs.version }}/
