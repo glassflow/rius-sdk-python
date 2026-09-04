@@ -33,6 +33,12 @@ OUTPUT_VALUE = "output.value"
 # alongside it, one name for one fact.
 SESSION_ID = "session.id"
 
+# Process-local routing marker for multi-workspace export (see workspace.py).
+# Stamped at span start so pending snapshots route too, and ALWAYS stripped by
+# the routing exporter before spans leave the process: the destination's API
+# key is what tells the backend which workspace a span belongs to.
+WORKSPACE_ROUTE = "rius.workspace"
+
 # OTel GenAI (subset we emit)
 GEN_AI_OPERATION_NAME = "gen_ai.operation.name"
 GEN_AI_PROVIDER_NAME = "gen_ai.provider.name"
@@ -81,6 +87,9 @@ PENDING_IDENTITY_ATTRIBUTES = frozenset(
         # Identity, not content: a pending span must be groupable into its
         # session while still running, that is the live view's whole point.
         SESSION_ID,
+        # Routing, not content: a crashed run's snapshot must land in the same
+        # workspace its final span would have. Stripped at export either way.
+        WORKSPACE_ROUTE,
     }
 )
 # gen_ai.request.* (model, temperature, ...) is identity, not content.

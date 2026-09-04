@@ -29,6 +29,7 @@ from .masking import MaskingSpanExporter
 from .pending import PendingSpanProcessor
 from .semconv import SERVICE_INSTANCE_ID, TRACER_NAME
 from .session import SessionSpanProcessor
+from .workspace import ExporterFactory, RoutingSpanExporter, WorkspaceSpanProcessor
 
 logger = logging.getLogger(__name__)
 
@@ -78,13 +79,29 @@ class GlassflowClient:
         heartbeat: HeartbeatSender | None = None,
         export_health: ExportOutcomeExporter | None = None,
         connectivity_thread: threading.Thread | None = None,
+        routing: RoutingSpanExporter | None = None,
     ) -> None:
         self._provider = provider
         self.config = config
         self._heartbeat = heartbeat
         self._export_health = export_health
         self._connectivity_thread = connectivity_thread
+        self._routing = routing
         self._is_shutdown = False
+
+    def register_workspace(self, alias: str, api_key: str) -> None:
+        """Add (or rotate the key of) a workspace destination at runtime.
+
+        Requires routing to be enabled at ``init`` time via ``workspaces=``
+        (an empty dict opts in with no static routes). Spans started inside
+        ``rius.workspace(alias)`` are then exported with ``api_key``.
+        """
+        if self._routing is None:
+            raise RuntimeError(
+                "workspace routing is not enabled: pass workspaces={...} to init() "
+                "(an empty dict is fine) to opt in before registering destinations"
+            )
+        self._routing.register(alias, api_key)
 
     def get_tracer(self, name: str = TRACER_NAME) -> trace.Tracer:
         """Return a tracer bound to this client's provider.
@@ -145,6 +162,8 @@ def init(
     partial_spans: bool | None = None,
     partial_spans_delay: float | None = None,
     session_id: str | None = None,
+    workspaces: dict[str, str] | None = None,
+    workspace_exporter_factory: ExporterFactory | None = None,
     set_global: bool = True,
 ) -> GlassflowClient:
     """Initialize the SDK: build a tracer provider that exports OTLP traces.
@@ -197,6 +216,17 @@ def init(
             process's traces into one session. For one-run-per-process
             agents; a server handling many sessions scopes each one with
             ``rius.session()`` instead, which overrides this default.
+        workspaces: Enable multi-workspace routing: a mapping of alias to
+            API key. Spans started inside ``rius.workspace(alias)`` are
+            exported with that workspace's key; spans outside any scope use
+            the default ``api_key``. Pass ``{}`` to opt in with no static
+            routes and register destinations later via
+            ``register_workspace()``. One trace must stay inside one
+            workspace; see ``rius.workspace``.
+        workspace_exporter_factory: Override how per-workspace exporters are
+            built from an API key (useful for testing, like
+            ``span_exporter``). Defaults to the standard OTLP exporter
+            against the configured endpoint.
         set_global: Register the provider as the global OpenTelemetry provider.
     """
     global _current_client
@@ -227,6 +257,8 @@ def init(
             partial_spans=partial_spans,
             partial_spans_delay=partial_spans_delay,
             session_id=session_id,
+            workspaces=workspaces,
+            workspace_exporter_factory=workspace_exporter_factory,
             set_global=set_global,
         )
 
@@ -251,6 +283,8 @@ def _do_init(
     partial_spans: bool | None,
     partial_spans_delay: float | None,
     session_id: str | None,
+    workspaces: dict[str, str] | None,
+    workspace_exporter_factory: ExporterFactory | None,
     set_global: bool,
 ) -> GlassflowClient:
     global _current_client
@@ -292,6 +326,7 @@ def _do_init(
 
     export_health: ExportOutcomeExporter | None = None
     connectivity_thread: threading.Thread | None = None
+    routing: RoutingSpanExporter | None = None
     if not config.disabled:
         if span_exporter is None:
             if _missing_managed_credentials(config):
@@ -316,6 +351,12 @@ def _do_init(
                 )
                 connectivity_thread.start()
         exporter = span_exporter if span_exporter is not None else build_span_exporter(config)
+        if workspaces is not None:
+            # Innermost in the chain, so masking and export-health wrap the
+            # whole fan-out and apply to every destination alike.
+            factory = workspace_exporter_factory or _workspace_exporter_factory(config)
+            routing = RoutingSpanExporter(exporter, factory, routes=workspaces)
+            exporter = routing
         if not config.capture_content or mask is not None:
             exporter = MaskingSpanExporter(
                 exporter, capture_content=config.capture_content, mask=mask
@@ -327,8 +368,12 @@ def _do_init(
         batch_processor = BatchSpanProcessor(export_health)
         # Registered BEFORE the pending processor: both act at on_start, and
         # the pending snapshot is built from the attributes already on the
-        # span, so the session id must be stamped first to ride it.
+        # span, so the session id (and the workspace route, which decides
+        # which destination the snapshot itself goes to) must be stamped
+        # first to ride it.
         provider.add_span_processor(SessionSpanProcessor(config.session_id))
+        if routing is not None:
+            provider.add_span_processor(WorkspaceSpanProcessor())
         if config.partial_spans:
             # Pending snapshots ride the SAME batch pipeline as final spans
             # (exporter, retries, masking); see pending.py for the contract.
@@ -376,6 +421,7 @@ def _do_init(
         heartbeat=sender,
         export_health=export_health,
         connectivity_thread=connectivity_thread,
+        routing=routing,
     )
     if set_global:
         _current_client = client
@@ -385,3 +431,29 @@ def _do_init(
 def get_tracer(name: str = TRACER_NAME) -> trace.Tracer:
     """Return a tracer from the globally configured provider."""
     return trace.get_tracer(name, __version__)
+
+
+def _workspace_exporter_factory(config: GlassflowConfig) -> Callable[[str], SpanExporter]:
+    """Per-workspace OTLP exporters: same endpoint, that workspace's key."""
+
+    def build(api_key: str) -> SpanExporter:
+        headers = {
+            **{k: v for k, v in (config.headers or {}).items() if k.lower() != "authorization"},
+            "Authorization": f"Bearer {api_key}",
+        }
+        return OTLPSpanExporter(endpoint=config.traces_endpoint, headers=headers)
+
+    return build
+
+
+def register_workspace(alias: str, api_key: str) -> None:
+    """Add (or rotate the key of) a workspace destination on the global client.
+
+    The module-level twin of ``client.register_workspace()``. Requires a
+    global ``init(workspaces=...)`` to have opted into routing.
+    """
+    with _lock:
+        client = _current_client
+    if client is None:
+        raise RuntimeError("rius.init() has not been called (no global client)")
+    client.register_workspace(alias, api_key)
