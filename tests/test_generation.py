@@ -58,11 +58,11 @@ def test_cm_usage_cache_tokens(exported_spans: InMemorySpanExporter) -> None:
             input_tokens=10,
             output_tokens=202,
             cache_read_input_tokens=11579,
-            cache_creation_input_tokens=12694,
+            cache_write_input_tokens=12694,
         )
     attrs = exported_spans.get_finished_spans()[0].attributes
     assert attrs["gen_ai.usage.cache_read.input_tokens"] == 11579
-    assert attrs["gen_ai.usage.cache_creation.input_tokens"] == 12694
+    assert attrs["gen_ai.usage.cache_write.input_tokens"] == 12694
 
 
 def test_cm_usage_cache_tokens_omitted_are_absent(exported_spans: InMemorySpanExporter) -> None:
@@ -70,15 +70,15 @@ def test_cm_usage_cache_tokens_omitted_are_absent(exported_spans: InMemorySpanEx
         gen.set_usage(input_tokens=10, output_tokens=5)
     attrs = exported_spans.get_finished_spans()[0].attributes
     assert "gen_ai.usage.cache_read.input_tokens" not in attrs
-    assert "gen_ai.usage.cache_creation.input_tokens" not in attrs
+    assert "gen_ai.usage.cache_write.input_tokens" not in attrs
 
 
 def test_cm_usage_cache_tokens_zero_recorded(exported_spans: InMemorySpanExporter) -> None:
     with start_as_current_generation("chat") as gen:
-        gen.set_usage(cache_read_input_tokens=0, cache_creation_input_tokens=0)
+        gen.set_usage(cache_read_input_tokens=0, cache_write_input_tokens=0)
     attrs = exported_spans.get_finished_spans()[0].attributes
     assert attrs["gen_ai.usage.cache_read.input_tokens"] == 0
-    assert attrs["gen_ai.usage.cache_creation.input_tokens"] == 0
+    assert attrs["gen_ai.usage.cache_write.input_tokens"] == 0
 
 
 def test_cm_finish_reasons_list(exported_spans: InMemorySpanExporter) -> None:
