@@ -271,3 +271,32 @@ def test_no_masking_by_default() -> None:
         span.set_attribute("input.value", "secret")
     client.flush()
     assert inner.get_finished_spans()[0].attributes["input.value"] == "secret"
+
+
+def test_capture_content_false_strips_tool_definition_content() -> None:
+    inner = InMemorySpanExporter()
+    client = init(span_exporter=inner, set_global=False, capture_content=False)
+    with client.get_tracer().start_as_current_span("op") as span:
+        span.set_attribute("gen_ai.tool.definitions", '[{"name":"q","description":"secret"}]')
+        span.set_attribute("gen_ai.tool.description", "runs SQL against the billing db")
+        span.set_attribute("gen_ai.tool.name", "query_billing")
+    client.flush()
+    attrs = inner.get_finished_spans()[0].attributes
+    assert "gen_ai.tool.definitions" not in attrs
+    assert "gen_ai.tool.description" not in attrs
+    # identity, not content: the tool NAME survives, so traces stay navigable
+    assert attrs["gen_ai.tool.name"] == "query_billing"
+
+
+def test_mask_redacts_tool_definition_content() -> None:
+    inner = InMemorySpanExporter()
+    client = init(span_exporter=inner, set_global=False, mask=lambda _v: "***")
+    with client.get_tracer().start_as_current_span("op") as span:
+        span.set_attribute("gen_ai.tool.definitions", '[{"name":"q"}]')
+        span.set_attribute("gen_ai.tool.description", "does things")
+        span.set_attribute("gen_ai.tool.name", "q")
+    client.flush()
+    attrs = inner.get_finished_spans()[0].attributes
+    assert attrs["gen_ai.tool.definitions"] == "***"
+    assert attrs["gen_ai.tool.description"] == "***"
+    assert attrs["gen_ai.tool.name"] == "q"

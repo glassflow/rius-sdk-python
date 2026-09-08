@@ -102,6 +102,12 @@ CONTENT_ATTRIBUTES = frozenset(
         OUTPUT_VALUE,
         GEN_AI_INPUT_MESSAGES,
         GEN_AI_OUTPUT_MESSAGES,
+        # Sensitive per the GenAI conventions (semconv-genai#431): tool
+        # definitions routinely embed proprietary prompt engineering, and
+        # sometimes credentials or internal URLs in parameter defaults.
+        # gen_ai.tool.name stays: it is identity, not content.
+        "gen_ai.tool.description",
+        "gen_ai.tool.definitions",
         # common third-party content keys (bundled instrumentation)
         "gen_ai.prompt",
         "gen_ai.completion",
