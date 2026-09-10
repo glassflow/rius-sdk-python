@@ -126,6 +126,9 @@ class Generation:
     def __init__(self, span: Span) -> None:
         self._span = span
         self._first_token_recorded = False
+        # Set by _configure; drives the Anthropic input-token summing in
+        # set_usage. A bare Generation(span) has no provider and never sums.
+        self._provider: str | None = None
 
     def set_input(self, messages: Messages) -> None:
         """Record the request messages (``gen_ai.input.messages``).
@@ -168,13 +171,14 @@ class Generation:
         Send token counts, never cost: cost is computed server-side from
         model pricing.
 
-        Pass provider-reported values as-is. Per the GenAI conventions,
-        ``input_tokens`` is the total including cached tokens (the cache
-        counts are subsets of it); some providers instead report an
-        ``input_tokens`` that excludes cache tokens (e.g. Anthropic, whose
-        OpenAI-style counterpart already includes them). The backend detects
-        and normalizes the exclusive case, so no client-side arithmetic is
-        needed.
+        Pass provider-reported values as-is; never pre-add anything. Per the
+        GenAI conventions, ``gen_ai.usage.input_tokens`` is the total
+        including cached tokens (the cache counts are subsets of it).
+        Anthropic's API reports ``input_tokens`` excluding the cache counts,
+        and the conventions require the instrumentation to do the summing,
+        so when the generation's provider is ``"anthropic"`` the emitted
+        total is ``input_tokens`` plus both cache counts. For every other
+        provider the values are recorded verbatim.
 
         Args:
             input_tokens: Prompt tokens consumed, when known.
@@ -193,7 +197,10 @@ class Generation:
                 total, so pass both as reported and do no arithmetic.
         """
         if input_tokens is not None:
-            self._span.set_attribute(GEN_AI_USAGE_INPUT_TOKENS, input_tokens)
+            total = input_tokens
+            if self._provider is not None and self._provider.lower() == "anthropic":
+                total += (cache_read_input_tokens or 0) + (cache_write_input_tokens or 0)
+            self._span.set_attribute(GEN_AI_USAGE_INPUT_TOKENS, total)
         if output_tokens is not None:
             self._span.set_attribute(GEN_AI_USAGE_OUTPUT_TOKENS, output_tokens)
         if cache_read_input_tokens is not None:
@@ -268,6 +275,7 @@ def _configure(
         span.set_attribute(GEN_AI_REQUEST_MODEL, model)
     if provider is not None:
         span.set_attribute(GEN_AI_PROVIDER_NAME, provider)
+        generation._provider = provider
     for key, value in (model_parameters or {}).items():
         span.set_attribute(f"{GEN_AI_REQUEST_PREFIX}{key}", value)
     if reasoning_level is not None:
