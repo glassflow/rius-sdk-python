@@ -25,6 +25,7 @@ from .semconv import (
     GEN_AI_PROVIDER_NAME,
     GEN_AI_REQUEST_MODEL,
     GEN_AI_REQUEST_PREFIX,
+    GEN_AI_REQUEST_REASONING_LEVEL,
     GEN_AI_RESPONSE_FINISH_REASONS,
     GEN_AI_RESPONSE_MODEL,
     GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS,
@@ -257,6 +258,7 @@ def _configure(
     input: Messages | None,
     model_parameters: dict[str, Any] | None,
     operation: str,
+    reasoning_level: str | None,
 ) -> None:
     span = generation._span
     set_span_kind(span, SpanKind.LLM)
@@ -268,6 +270,8 @@ def _configure(
         span.set_attribute(GEN_AI_PROVIDER_NAME, provider)
     for key, value in (model_parameters or {}).items():
         span.set_attribute(f"{GEN_AI_REQUEST_PREFIX}{key}", value)
+    if reasoning_level is not None:
+        span.set_attribute(GEN_AI_REQUEST_REASONING_LEVEL, reasoning_level)
     if input is not None:
         generation.set_input(input)
 
@@ -292,6 +296,7 @@ def start_generation(
     input: Messages | None = None,
     model_parameters: dict[str, Any] | None = None,
     operation: str = "chat",
+    reasoning_level: str | None = None,
 ) -> Generation:
     """Create an LLM-kind span and return a ``Generation``. You MUST call ``.end()``.
 
@@ -306,6 +311,10 @@ def start_generation(
         model_parameters: Request parameters, each recorded as
             ``gen_ai.request.<key>``.
         operation: Operation name (``gen_ai.operation.name``); default ``"chat"``.
+        reasoning_level: Requested reasoning/thinking effort level
+            (``gen_ai.request.reasoning.level``), e.g. OpenAI's
+            ``reasoning.effort`` values. Provider-defined string, recorded
+            verbatim.
 
     Returns:
         A ``Generation`` handle; call ``.end()`` when the call completes.
@@ -321,6 +330,7 @@ def start_generation(
         input=input,
         model_parameters=model_parameters,
         operation=operation,
+        reasoning_level=reasoning_level,
     )
     return generation
 
@@ -334,6 +344,7 @@ def start_as_current_generation(
     input: Messages | None = None,
     model_parameters: dict[str, Any] | None = None,
     operation: str = "chat",
+    reasoning_level: str | None = None,
 ) -> Iterator[Generation]:
     """Open an LLM-kind span as the current span and yield a ``Generation``; auto-ends.
 
@@ -357,5 +368,6 @@ def start_as_current_generation(
             input=input,
             model_parameters=model_parameters,
             operation=operation,
+            reasoning_level=reasoning_level,
         )
         yield generation
