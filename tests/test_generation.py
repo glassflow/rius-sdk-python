@@ -102,6 +102,62 @@ def test_cm_usage_reasoning_tokens_zero_recorded(exported_spans: InMemorySpanExp
     assert attrs["gen_ai.usage.reasoning.output_tokens"] == 0
 
 
+def test_anthropic_input_tokens_summed_with_cache(exported_spans: InMemorySpanExporter) -> None:
+    with start_as_current_generation("chat", provider="anthropic") as gen:
+        gen.set_usage(
+            input_tokens=10,
+            output_tokens=202,
+            cache_read_input_tokens=11579,
+            cache_write_input_tokens=12694,
+        )
+    attrs = exported_spans.get_finished_spans()[0].attributes
+    assert attrs["gen_ai.usage.input_tokens"] == 10 + 11579 + 12694
+    # the subset attributes stay as reported
+    assert attrs["gen_ai.usage.cache_read.input_tokens"] == 11579
+    assert attrs["gen_ai.usage.cache_write.input_tokens"] == 12694
+
+
+def test_anthropic_input_tokens_summed_case_insensitive(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    with start_as_current_generation("chat", provider="Anthropic") as gen:
+        gen.set_usage(input_tokens=100, cache_read_input_tokens=50)
+    attrs = exported_spans.get_finished_spans()[0].attributes
+    assert attrs["gen_ai.usage.input_tokens"] == 150
+
+
+def test_anthropic_input_tokens_unchanged_without_cache(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    with start_as_current_generation("chat", provider="anthropic") as gen:
+        gen.set_usage(input_tokens=100, output_tokens=5)
+    attrs = exported_spans.get_finished_spans()[0].attributes
+    assert attrs["gen_ai.usage.input_tokens"] == 100
+
+
+def test_non_anthropic_input_tokens_never_summed(exported_spans: InMemorySpanExporter) -> None:
+    with start_as_current_generation("chat", provider="openai") as gen:
+        gen.set_usage(input_tokens=1000, cache_read_input_tokens=400)
+    attrs = exported_spans.get_finished_spans()[0].attributes
+    assert attrs["gen_ai.usage.input_tokens"] == 1000
+
+
+def test_no_provider_input_tokens_never_summed(exported_spans: InMemorySpanExporter) -> None:
+    with start_as_current_generation("chat") as gen:
+        gen.set_usage(input_tokens=1000, cache_read_input_tokens=400)
+    attrs = exported_spans.get_finished_spans()[0].attributes
+    assert attrs["gen_ai.usage.input_tokens"] == 1000
+
+
+def test_anthropic_caches_without_input_emit_no_total(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    with start_as_current_generation("chat", provider="anthropic") as gen:
+        gen.set_usage(cache_read_input_tokens=400, cache_write_input_tokens=100)
+    attrs = exported_spans.get_finished_spans()[0].attributes
+    assert "gen_ai.usage.input_tokens" not in attrs
+
+
 def test_cm_finish_reasons_list(exported_spans: InMemorySpanExporter) -> None:
     with start_as_current_generation("chat") as gen:
         gen.set_finish_reasons(["stop", "length"])
