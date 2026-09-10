@@ -1,0 +1,73 @@
+# Watches upstream for renames of gen_ai.* attributes we emit.
+#
+# The GenAI semantic conventions live in semantic-conventions-genai, which
+# cuts NO releases — renames exist only on its main branch, and the published
+# docs site lags or tombstones them. That is how cache_creation shipped here
+# two weeks after upstream renamed it to cache_write. Polling upstream main
+# is the only watchable surface.
+#
+# Two triggers, two behaviors (same split as the TypeScript repo's
+# semconv-parity workflow): on pull_request drift just fails the job, so a
+# semconv change cannot land against a stale upstream; on schedule, drift
+# files ONE issue (deduplicated by marker) because a rename is a wire change
+# and a judgement call — port it, or declare the attribute RIUS_ONLY — that
+# a bot must not pick.
+#
+# This checks OUR names against upstream; the TypeScript repo's
+# semconv-parity separately checks its mirror against ours, so an upstream
+# rename ported here propagates to TS through the existing machinery.
+name: semconv-upstream
+
+on:
+  pull_request:
+    paths:
+      - "src/rius/semconv.py"
+      - "scripts/check_upstream_semconv.py"
+      - ".github/workflows/semconv-upstream.yml"
+  schedule:
+    - cron: "0 6 * * 1" # Mondays, hours before the GenAI SIG agent call
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write # the schedule path files the drift issue
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Check emitted attributes against the upstream registry
+        id: check
+        run: |
+          set +e
+          python3 scripts/check_upstream_semconv.py | tee check-output.txt
+          code=${PIPESTATUS[0]}
+          set -e
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          # On pull_request any nonzero code fails the job right here. On
+          # schedule/dispatch, drift (2) falls through to the issue step;
+          # fetch/parse breakage (3) still fails the run so it is visible.
+          if [ "${{ github.event_name }}" = "pull_request" ] || [ "$code" = "3" ]; then
+            exit "$code"
+          fi
+
+      - name: File (or update) the drift issue
+        if: ${{ github.event_name != 'pull_request' && steps.check.outputs.code == '2' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          marker="semconv-upstream-drift"
+          body="$(printf '<!-- %s -->\nUpstream renamed, removed, or re-scoped attributes we emit. This is a wire change and a judgement call: port the rename (SDK + docs + backend read paths), or declare the attribute RIUS_ONLY in scripts/check_upstream_semconv.py with a reason.\n\n```\n%s\n```\n\nLatest run: %s/%s/actions/runs/%s' \
+            "$marker" "$(cat check-output.txt)" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID")"
+          existing=$(gh issue list --state open --search "in:body $marker" --json number --jq '.[0].number')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$body"
+          else
+            gh issue create \
+              --title "gen_ai.* attributes drifted from the upstream GenAI registry" \
+              --body "$body"
+          fi
