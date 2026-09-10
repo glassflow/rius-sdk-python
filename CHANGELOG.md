@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.13.0](https://github.com/glassflow/rius-sdk-python/compare/v0.12.0...v0.13.0) (2026-09-10)
+
+
+### Features
+
+* add cache-token fields to set_usage ([#65](https://github.com/glassflow/rius-sdk-python/issues/65)) ([e1682d1](https://github.com/glassflow/rius-sdk-python/commit/e1682d1f93906134eec7ccdeddb1cd5f44c9f157))
+* context-scoped multi-workspace routing (workspace() scope + routing exporter) ([#68](https://github.com/glassflow/rius-sdk-python/issues/68)) ([621fab2](https://github.com/glassflow/rius-sdk-python/commit/621fab2c3e98ce7e8619850bce9dc5e877bac458))
+
+
+### Bug Fixes
+
+* emit gen_ai.usage.cache_write.input_tokens per the semconv rename ([#69](https://github.com/glassflow/rius-sdk-python/issues/69)) ([2b91c90](https://github.com/glassflow/rius-sdk-python/commit/2b91c90094e545f830dfccbca6a33c7b6a023f31))
+* strip tool definitions and descriptions when content capture is off ([#71](https://github.com/glassflow/rius-sdk-python/issues/71)) ([6453658](https://github.com/glassflow/rius-sdk-python/commit/64536585edf6ecf97de5b570784b283ac3b96520))
+
 ## [0.12.0](https://github.com/glassflow/rius-sdk-python/compare/v0.11.0...v0.12.0) (2026-08-20)
 
 
