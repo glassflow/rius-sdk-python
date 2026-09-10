@@ -110,6 +110,27 @@ def test_manual_operation_override(exported_spans: InMemorySpanExporter) -> None
     assert attrs["gen_ai.operation.name"] == "text_completion"
 
 
+def test_cm_reasoning_level(exported_spans: InMemorySpanExporter) -> None:
+    with start_as_current_generation("chat", model="o4-mini", reasoning_level="high"):
+        pass
+    attrs = exported_spans.get_finished_spans()[0].attributes
+    assert attrs["gen_ai.request.reasoning.level"] == "high"
+
+
+def test_cm_reasoning_level_omitted_absent(exported_spans: InMemorySpanExporter) -> None:
+    with start_as_current_generation("chat", model="o4-mini"):
+        pass
+    attrs = exported_spans.get_finished_spans()[0].attributes
+    assert "gen_ai.request.reasoning.level" not in attrs
+
+
+def test_manual_reasoning_level(exported_spans: InMemorySpanExporter) -> None:
+    gen = start_generation("chat", reasoning_level="low")
+    gen.end()
+    attrs = exported_spans.get_finished_spans()[0].attributes
+    assert attrs["gen_ai.request.reasoning.level"] == "low"
+
+
 def test_cm_model_parameters(exported_spans: InMemorySpanExporter) -> None:
     with start_as_current_generation(
         "chat", model_parameters={"temperature": 0.7, "max_tokens": 256}
