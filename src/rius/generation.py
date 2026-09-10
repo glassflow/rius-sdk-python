@@ -27,8 +27,8 @@ from .semconv import (
     GEN_AI_REQUEST_PREFIX,
     GEN_AI_RESPONSE_FINISH_REASONS,
     GEN_AI_RESPONSE_MODEL,
-    GEN_AI_USAGE_CACHE_CREATION_INPUT_TOKENS,
     GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS,
+    GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS,
     GEN_AI_USAGE_INPUT_TOKENS,
     GEN_AI_USAGE_OUTPUT_TOKENS,
     TRACER_NAME,
@@ -158,7 +158,7 @@ class Generation:
         input_tokens: int | None = None,
         output_tokens: int | None = None,
         cache_read_input_tokens: int | None = None,
-        cache_creation_input_tokens: int | None = None,
+        cache_write_input_tokens: int | None = None,
     ) -> None:
         """Record token usage (``gen_ai.usage.*`` attributes).
 
@@ -179,9 +179,10 @@ class Generation:
             cache_read_input_tokens: Input tokens served from a
                 provider-managed prompt cache
                 (``gen_ai.usage.cache_read.input_tokens``).
-            cache_creation_input_tokens: Input tokens written to a
+            cache_write_input_tokens: Input tokens written to a
                 provider-managed prompt cache
-                (``gen_ai.usage.cache_creation.input_tokens``).
+                (``gen_ai.usage.cache_write.input_tokens``, called
+                "cache creation" by Anthropic).
         """
         if input_tokens is not None:
             self._span.set_attribute(GEN_AI_USAGE_INPUT_TOKENS, input_tokens)
@@ -189,9 +190,9 @@ class Generation:
             self._span.set_attribute(GEN_AI_USAGE_OUTPUT_TOKENS, output_tokens)
         if cache_read_input_tokens is not None:
             self._span.set_attribute(GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS, cache_read_input_tokens)
-        if cache_creation_input_tokens is not None:
+        if cache_write_input_tokens is not None:
             self._span.set_attribute(
-                GEN_AI_USAGE_CACHE_CREATION_INPUT_TOKENS, cache_creation_input_tokens
+                GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS, cache_write_input_tokens
             )
 
     def record_first_token(self) -> None:
