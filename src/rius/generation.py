@@ -31,6 +31,7 @@ from .semconv import (
     GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS,
     GEN_AI_USAGE_INPUT_TOKENS,
     GEN_AI_USAGE_OUTPUT_TOKENS,
+    GEN_AI_USAGE_REASONING_OUTPUT_TOKENS,
     TRACER_NAME,
     SpanKind,
     kind_attributes,
@@ -159,6 +160,7 @@ class Generation:
         output_tokens: int | None = None,
         cache_read_input_tokens: int | None = None,
         cache_write_input_tokens: int | None = None,
+        reasoning_output_tokens: int | None = None,
     ) -> None:
         """Record token usage (``gen_ai.usage.*`` attributes).
 
@@ -183,6 +185,11 @@ class Generation:
                 provider-managed prompt cache
                 (``gen_ai.usage.cache_write.input_tokens``, called
                 "cache creation" by Anthropic).
+            reasoning_output_tokens: Output tokens spent on reasoning /
+                extended thinking (``gen_ai.usage.reasoning.output_tokens``).
+                A subset of ``output_tokens``, never in addition to it:
+                providers already include reasoning tokens in the output
+                total, so pass both as reported and do no arithmetic.
         """
         if input_tokens is not None:
             self._span.set_attribute(GEN_AI_USAGE_INPUT_TOKENS, input_tokens)
@@ -194,6 +201,8 @@ class Generation:
             self._span.set_attribute(
                 GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS, cache_write_input_tokens
             )
+        if reasoning_output_tokens is not None:
+            self._span.set_attribute(GEN_AI_USAGE_REASONING_OUTPUT_TOKENS, reasoning_output_tokens)
 
     def record_first_token(self) -> None:
         """Mark the arrival of the first streamed token (``gen_ai.first_token`` event).

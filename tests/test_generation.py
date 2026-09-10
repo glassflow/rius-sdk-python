@@ -81,6 +81,27 @@ def test_cm_usage_cache_tokens_zero_recorded(exported_spans: InMemorySpanExporte
     assert attrs["gen_ai.usage.cache_write.input_tokens"] == 0
 
 
+def test_cm_usage_reasoning_tokens(exported_spans: InMemorySpanExporter) -> None:
+    with start_as_current_generation("chat") as gen:
+        gen.set_usage(output_tokens=900, reasoning_output_tokens=700)
+    attrs = exported_spans.get_finished_spans()[0].attributes
+    assert attrs["gen_ai.usage.reasoning.output_tokens"] == 700
+
+
+def test_cm_usage_reasoning_tokens_omitted_absent(exported_spans: InMemorySpanExporter) -> None:
+    with start_as_current_generation("chat") as gen:
+        gen.set_usage(input_tokens=10, output_tokens=5)
+    attrs = exported_spans.get_finished_spans()[0].attributes
+    assert "gen_ai.usage.reasoning.output_tokens" not in attrs
+
+
+def test_cm_usage_reasoning_tokens_zero_recorded(exported_spans: InMemorySpanExporter) -> None:
+    with start_as_current_generation("chat") as gen:
+        gen.set_usage(reasoning_output_tokens=0)
+    attrs = exported_spans.get_finished_spans()[0].attributes
+    assert attrs["gen_ai.usage.reasoning.output_tokens"] == 0
+
+
 def test_cm_finish_reasons_list(exported_spans: InMemorySpanExporter) -> None:
     with start_as_current_generation("chat") as gen:
         gen.set_finish_reasons(["stop", "length"])
