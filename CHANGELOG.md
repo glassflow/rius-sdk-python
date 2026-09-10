@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.14.0](https://github.com/glassflow/rius-sdk-python/compare/v0.13.0...v0.14.0) (2026-09-10)
+
+
+### Features
+
+* capture reasoning output tokens in set_usage ([#73](https://github.com/glassflow/rius-sdk-python/issues/73)) ([7244add](https://github.com/glassflow/rius-sdk-python/commit/7244add11ec4e49d321f5a2a90db44e5c90f33f1))
+* capture requested reasoning effort level ([#75](https://github.com/glassflow/rius-sdk-python/issues/75)) ([141d7c3](https://github.com/glassflow/rius-sdk-python/commit/141d7c3e580eff48af1bec5f4590f3cad0d7966f))
+
+
+### Bug Fixes
+
+* sum Anthropic cache tokens into the emitted input-token total ([#76](https://github.com/glassflow/rius-sdk-python/issues/76)) ([36795f9](https://github.com/glassflow/rius-sdk-python/commit/36795f97c05028612317c5262c97931adc9e16c2))
+
 ## [0.13.0](https://github.com/glassflow/rius-sdk-python/compare/v0.12.0...v0.13.0) (2026-09-10)
 
 
