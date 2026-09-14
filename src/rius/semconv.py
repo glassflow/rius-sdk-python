@@ -131,8 +131,30 @@ CONTENT_ATTRIBUTES = frozenset(
         # OpenLLMetry workflow/task spans carry full I/O here
         "traceloop.entity.input",
         "traceloop.entity.output",
+        # Every bundled OpenInference instrumentor emits tool definitions as
+        # llm.tools.{i}.tool.json_schema (pinned empirically 2026-09-14);
+        # covered by prefix below, bare key listed per the bare-key rule.
+        "llm.tools",
+        # The Vercel AI SDK's own telemetry keys survive the OpenInference
+        # transform untouched, and they carry the full prompt (messages AND
+        # tool definitions), response content, and tool-call I/O. Names, ids
+        # and models (ai.toolCall.name, ai.response.model, ...) are identity
+        # and stay.
+        "ai.prompt",
+        "ai.response.text",
+        "ai.response.object",
+        "ai.toolCall.args",
+        "ai.toolCall.result",
     }
 )
+
+# The request-parameters bag OpenInference instrumentors emit. Not wholly
+# content — sampling parameters are identity — but the litellm and langchain
+# instrumentations embed the request's tools/functions arrays inside it, so
+# masking redacts those members and keeps the rest (see masking.py).
+LLM_INVOCATION_PARAMETERS = "llm.invocation_parameters"
+# JSON members of LLM_INVOCATION_PARAMETERS that carry tool definitions.
+INVOCATION_PARAMETERS_CONTENT_MEMBERS = ("tools", "functions")
 
 # OpenInference/OpenLLMetry instrumentors flatten message content into indexed
 # keys (e.g. `llm.input_messages.0.message.content`), matched by prefix.
@@ -143,6 +165,8 @@ CONTENT_ATTRIBUTE_PREFIXES = (
     "gen_ai.completion.",
     "llm.prompts.",
     "llm.prompt_template.",
+    "llm.tools.",
+    "ai.prompt.",
 )
 
 # Indexed families where only the content leaf is sensitive (siblings like

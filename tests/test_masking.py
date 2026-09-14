@@ -1,3 +1,5 @@
+import json
+
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from rius import init
@@ -314,3 +316,96 @@ def test_capture_content_false_strips_tool_definitions() -> None:
     attrs = inner.get_finished_spans()[0].attributes
     assert "gen_ai.tool.definitions" not in attrs
     assert attrs["gen_ai.request.model"] == "gpt-4o"
+
+
+def test_capture_content_false_strips_wrapper_tool_and_vercel_content_keys() -> None:
+    # Pinned empirically against the bundled instrumentors (2026-09-14):
+    # every OpenInference path emits llm.tools.{i}.tool.json_schema, and the
+    # Vercel AI SDK path (TS) leaves raw ai.* keys carrying full messages,
+    # response text and tool definitions. All of it is content.
+    inner = InMemorySpanExporter()
+    client = init(span_exporter=inner, set_global=False, capture_content=False)
+    with client.get_tracer().start_as_current_span("chat") as span:
+        span.set_attribute("llm.tools.0.tool.json_schema", '{"name": "secret_tool"}')
+        span.set_attribute("llm.tools", '[{"name": "secret_tool"}]')
+        span.set_attribute("ai.prompt", '{"prompt": "secret"}')
+        span.set_attribute("ai.prompt.messages", '[{"role": "user", "content": "secret"}]')
+        span.set_attribute("ai.prompt.tools", '["secret schema"]')
+        span.set_attribute("ai.response.text", "secret answer")
+        span.set_attribute("ai.response.object", '{"secret": 1}')
+        span.set_attribute("ai.toolCall.args", '{"city": "secret"}')
+        span.set_attribute("ai.toolCall.result", '{"weather": "secret"}')
+        # identity stays: names, ids, models
+        span.set_attribute("ai.toolCall.name", "get_weather")
+        span.set_attribute("ai.response.model", "gpt-test")
+    client.flush()
+    attrs = inner.get_finished_spans()[0].attributes
+    for key in (
+        "llm.tools.0.tool.json_schema",
+        "llm.tools",
+        "ai.prompt",
+        "ai.prompt.messages",
+        "ai.prompt.tools",
+        "ai.response.text",
+        "ai.response.object",
+        "ai.toolCall.args",
+        "ai.toolCall.result",
+    ):
+        assert key not in attrs, key
+    assert attrs["ai.toolCall.name"] == "get_weather"
+    assert attrs["ai.response.model"] == "gpt-test"
+
+
+def test_invocation_parameters_tools_member_redacted_when_stripping() -> None:
+    # litellm and langchain (both SDKs' bundled instrumentations) embed the
+    # request tools array INSIDE llm.invocation_parameters; the direct
+    # openai/anthropic instrumentors do not. The key is not wholly content —
+    # sampling params are identity — so the tools/functions members are
+    # redacted and the rest survives.
+    inner = InMemorySpanExporter()
+    client = init(span_exporter=inner, set_global=False, capture_content=False)
+    with client.get_tracer().start_as_current_span("chat") as span:
+        span.set_attribute(
+            "llm.invocation_parameters",
+            '{"model": "gpt-test", "temperature": 0.2,'
+            ' "tools": [{"name": "secret_tool"}], "functions": [{"name": "legacy"}]}',
+        )
+    client.flush()
+    attrs = inner.get_finished_spans()[0].attributes
+    kept = json.loads(attrs["llm.invocation_parameters"])
+    assert kept == {"model": "gpt-test", "temperature": 0.2}
+
+
+def test_invocation_parameters_without_tools_untouched() -> None:
+    inner = InMemorySpanExporter()
+    client = init(span_exporter=inner, set_global=False, capture_content=False)
+    with client.get_tracer().start_as_current_span("chat") as span:
+        span.set_attribute("llm.invocation_parameters", '{"temperature": 0.1}')
+    client.flush()
+    attrs = inner.get_finished_spans()[0].attributes
+    assert attrs["llm.invocation_parameters"] == '{"temperature": 0.1}'
+
+
+def test_invocation_parameters_unparseable_dropped_when_stripping() -> None:
+    # Fail closed: an unreadable payload might hide tool definitions.
+    inner = InMemorySpanExporter()
+    client = init(span_exporter=inner, set_global=False, capture_content=False)
+    with client.get_tracer().start_as_current_span("chat") as span:
+        span.set_attribute("llm.invocation_parameters", "not json {")
+    client.flush()
+    assert "llm.invocation_parameters" not in inner.get_finished_spans()[0].attributes
+
+
+def test_invocation_parameters_tools_member_redacted_under_mask_too() -> None:
+    # A mask declares content sensitive just like capture_content=False does;
+    # tool definitions hiding inside a non-content key must not bypass it.
+    inner = InMemorySpanExporter()
+    client = init(span_exporter=inner, set_global=False, mask=lambda value: "[masked]")
+    with client.get_tracer().start_as_current_span("chat") as span:
+        span.set_attribute(
+            "llm.invocation_parameters",
+            '{"temperature": 0.2, "tools": [{"name": "secret_tool"}]}',
+        )
+    client.flush()
+    attrs = inner.get_finished_spans()[0].attributes
+    assert json.loads(attrs["llm.invocation_parameters"]) == {"temperature": 0.2}
