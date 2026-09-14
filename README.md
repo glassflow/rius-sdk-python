@@ -60,6 +60,14 @@ it is applied to every content attribute value at export, across our spans and a
 bundled third-party instrumentation. A mask that accepts a `key` keyword also
 receives the attribute key, for per-attribute decisions.
 
+Both controls cover the whole span, not just its attributes: event and link
+attributes, the `exception.message` / `exception.stacktrace` of a recorded
+exception, and the ERROR status description, since provider errors routinely
+echo the rejected request back. With `capture_content=False` those are
+stripped and the status code and `exception.type` are kept, so failures stay
+visible; with a `mask`, the mask runs over them (the status description is
+offered under `key="status.description"`).
+
 ```python
 rius.init(mask=lambda value: "[REDACTED]")   # redact all captured content
 rius.init(mask=lambda value, *, key: hash_pii(value) if "input" in key else value)
