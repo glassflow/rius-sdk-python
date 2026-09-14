@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.15.0](https://github.com/glassflow/rius-sdk-python/compare/v0.14.0...v0.15.0) (2026-09-14)
+
+
+### Features
+
+* record tool definitions in the generation API and pin instrumentor tool capture ([#77](https://github.com/glassflow/rius-sdk-python/issues/77)) ([a35373a](https://github.com/glassflow/rius-sdk-python/commit/a35373a67c6b028175bfc8ef26055421ecb1d5e7))
+* user() scope stamps user.id on every span in scope ([#80](https://github.com/glassflow/rius-sdk-python/issues/80)) ([01a15c9](https://github.com/glassflow/rius-sdk-python/commit/01a15c9d4432f682d3a286f27483af85258a6530))
+
+
+### Bug Fixes
+
+* **client:** SDK helpers follow the active client across shutdown() + init() ([#82](https://github.com/glassflow/rius-sdk-python/issues/82)) ([2ca1ea6](https://github.com/glassflow/rius-sdk-python/commit/2ca1ea6f0801d4b6965c6880d0e5bd0e5b0f6133))
+* **masking:** sanitize the status description and the GenAI tool-call keys ([#81](https://github.com/glassflow/rius-sdk-python/issues/81)) ([42e5c57](https://github.com/glassflow/rius-sdk-python/commit/42e5c574ad7c3970dd0bed109c242aaacb8ad4d1))
+* robustness edge cases from the 2026-09-14 review ([#87](https://github.com/glassflow/rius-sdk-python/issues/87)) ([90acd2c](https://github.com/glassflow/rius-sdk-python/commit/90acd2ce2be43b8c4fc9db2c4a1e42a571430657))
+* **serde:** 32 KB bound that stops encoding at the cap; identity at span start for observe and MCP ([#86](https://github.com/glassflow/rius-sdk-python/issues/86)) ([7f9c5dc](https://github.com/glassflow/rius-sdk-python/commit/7f9c5dccd59f5d89f1eb3b3fb5f4891f96cb9f9c))
+* strip tool definitions and Vercel ai.* content on every sanitized path ([#79](https://github.com/glassflow/rius-sdk-python/issues/79)) ([000bd53](https://github.com/glassflow/rius-sdk-python/commit/000bd53932c372e3587b3b83d886f0870e31c985))
+
 ## [0.14.0](https://github.com/glassflow/rius-sdk-python/compare/v0.13.0...v0.14.0) (2026-09-10)
 
 
