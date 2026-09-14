@@ -19,15 +19,13 @@ from collections.abc import Iterator
 from contextlib import contextmanager, nullcontext
 from typing import Any
 
-from opentelemetry import trace
 from opentelemetry.trace import Span
 
-from . import __version__
 from ._serde import serialize
+from ._tracer import sdk_tracer
 from .semconv import (
     INPUT_VALUE,
     OUTPUT_VALUE,
-    TRACER_NAME,
     USER_ID,
     SpanKind,
     kind_attributes,
@@ -127,9 +125,7 @@ def start_span(
     that has no children of its own. To attribute a whole request, including
     auto-instrumented spans, use the ``user()`` scope instead.
     """
-    span = trace.get_tracer(TRACER_NAME, __version__).start_span(
-        name, attributes=_creation_attributes(kind, user_id)
-    )
+    span = sdk_tracer().start_span(name, attributes=_creation_attributes(kind, user_id))
     observation = Observation(span)
     _configure(observation, kind, input)
     return observation
@@ -151,7 +147,7 @@ def start_as_current_span(
     ``user_id`` is sugar for wrapping the block in ``user(user_id)``: this span
     and every span opened inside the block carry ``user.id``.
     """
-    tracer = trace.get_tracer(TRACER_NAME, __version__)
+    tracer = sdk_tracer()
     with (
         user(user_id) if user_id is not None else nullcontext(),
         tracer.start_as_current_span(name, attributes=_creation_attributes(kind, user_id)) as span,

@@ -61,3 +61,45 @@ def test_enabled_global_init_sets_the_global_provider(
     )
     client = init(span_exporter=InMemorySpanExporter(), set_global=True)
     assert calls == [client._provider]
+
+
+# --- re-init must carry the SDK's own helpers along, not just instrumentors ---
+
+
+def _helper_spans(exporter: InMemorySpanExporter, client) -> set[str]:
+    from rius import observe, start_as_current_span, start_generation, start_span
+
+    @observe(name="decorated")
+    def decorated() -> None:
+        pass
+
+    start_span("manual").end()
+    with start_as_current_span("scoped"):
+        pass
+    start_generation("gen", model="m").end()
+    decorated()
+    client.flush()
+    return {s.name for s in exporter.get_finished_spans()}
+
+
+def test_helpers_follow_the_client_across_a_reinit() -> None:
+    first_exporter = InMemorySpanExporter()
+    first = init(span_exporter=first_exporter, set_global=True, instruments=[])
+    assert _helper_spans(first_exporter, first) == {"manual", "scoped", "gen", "decorated"}
+    first.shutdown()
+
+    second_exporter = InMemorySpanExporter()
+    second = init(span_exporter=second_exporter, set_global=True, instruments=[])
+    assert _helper_spans(second_exporter, second) == {"manual", "scoped", "gen", "decorated"}
+    assert first_exporter.get_finished_spans() and len(first_exporter.get_finished_spans()) == 4
+
+
+def test_helpers_use_the_global_provider_when_no_client_is_active(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    # Without any rius client the helpers must still produce spans through
+    # whatever provider the process has (conftest installs one), not crash.
+    from rius import start_span
+
+    start_span("no-client").end()
+    assert [s.name for s in exported_spans.get_finished_spans()] == ["no-client"]

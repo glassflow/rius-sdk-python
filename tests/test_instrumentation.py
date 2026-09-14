@@ -431,3 +431,30 @@ def test_anthropic_instrumentor_emits_tool_definitions_and_system_message() -> N
     finally:
         instrumentor.uninstrument()
         server.shutdown()
+
+
+def test_instrumentor_whose_import_raises_non_import_error_is_skipped(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A present-but-broken instrumentor package (pydantic or provider-SDK
+    major bumps raise AttributeError/TypeError at import) must not take down
+    init() with the default instruments=None."""
+    import importlib
+
+    real_import = importlib.import_module
+
+    def broken_import(name: str, package: str | None = None):  # type: ignore[no-untyped-def]
+        if name == "broken_instrumentation_pkg":
+            raise AttributeError("module 'pydantic' has no attribute 'v1'")
+        return real_import(name, package)
+
+    monkeypatch.setattr(instrumentation.importlib, "import_module", broken_import)
+    monkeypatch.setattr(
+        instrumentation,
+        "REGISTRY",
+        (InstrumentorSpec("broken", "broken_instrumentation_pkg", "BrokenInstrumentor"),),
+    )
+    with caplog.at_level("WARNING", logger="rius.instrumentation"):
+        client = init(span_exporter=InMemorySpanExporter(), set_global=True)
+    assert client is not None
+    assert any("broken" in r.message for r in caplog.records)

@@ -106,7 +106,20 @@ def enable_instrumentations(
             continue
         try:
             module = importlib.import_module(spec.module)
-        except ImportError:
+        except Exception as exc:
+            if not isinstance(exc, ImportError):
+                # The package is there but broke while importing (a pydantic
+                # or provider-SDK major bump, typically). Instrumentation is
+                # best-effort: with the default instruments=None this must
+                # not take down init(), and with an explicit request the
+                # user still gets told what happened.
+                logger.warning(
+                    "failed to import instrument %r (%s); skipping it",
+                    spec.name,
+                    spec.module,
+                    exc_info=True,
+                )
+                continue
             if instruments is not None:
                 # The fix differs by entry: an extra installs a third-party
                 # instrumentation, while the built-in MCP one needs the `mcp`

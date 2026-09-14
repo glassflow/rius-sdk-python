@@ -12,11 +12,10 @@ from collections.abc import Iterator
 from contextlib import contextmanager, nullcontext
 from typing import Any
 
-from opentelemetry import trace
 from opentelemetry.trace import Span
 
-from . import __version__
 from ._serde import serialize
+from ._tracer import sdk_tracer
 from .semconv import (
     GEN_AI_FIRST_TOKEN_EVENT,
     GEN_AI_INPUT_MESSAGES,
@@ -34,7 +33,6 @@ from .semconv import (
     GEN_AI_USAGE_INPUT_TOKENS,
     GEN_AI_USAGE_OUTPUT_TOKENS,
     GEN_AI_USAGE_REASONING_OUTPUT_TOKENS,
-    TRACER_NAME,
     USER_ID,
     SpanKind,
     kind_attributes,
@@ -358,7 +356,7 @@ def start_generation(
     Returns:
         A ``Generation`` handle; call ``.end()`` when the call completes.
     """
-    span = trace.get_tracer(TRACER_NAME, __version__).start_span(
+    span = sdk_tracer().start_span(
         name, attributes=_creation_attributes(model, provider, operation, user_id)
     )
     generation = Generation(span)
@@ -398,7 +396,7 @@ def start_as_current_generation(
         A ``Generation`` handle for recording messages, usage, and response
         metadata; the span ends when the block exits.
     """
-    tracer = trace.get_tracer(TRACER_NAME, __version__)
+    tracer = sdk_tracer()
     with (
         # user_id is sugar for user(user_id) around the block: children opened
         # inside inherit it through UserSpanProcessor, this span at creation.
