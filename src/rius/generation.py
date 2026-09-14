@@ -28,6 +28,7 @@ from .semconv import (
     GEN_AI_REQUEST_REASONING_LEVEL,
     GEN_AI_RESPONSE_FINISH_REASONS,
     GEN_AI_RESPONSE_MODEL,
+    GEN_AI_TOOL_DEFINITIONS,
     GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS,
     GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS,
     GEN_AI_USAGE_INPUT_TOKENS,
@@ -148,6 +149,21 @@ class Generation:
         """
         self._span.set_attribute(GEN_AI_OUTPUT_MESSAGES, _serialize_messages(messages, "assistant"))
 
+    def set_tool_definitions(self, tools: list[Any]) -> None:
+        """Record the request's tool/function definitions (``gen_ai.tool.definitions``).
+
+        Definitions are serialized verbatim, in whatever shape the provider
+        request used (OpenAI nests each tool under ``function``, Anthropic uses
+        top-level ``name``/``input_schema``) — no normalization, so what is
+        recorded is exactly what the model was shown. Definitions are content,
+        not identity: they are masked/stripped under ``capture_content=False``
+        like messages are.
+
+        Args:
+            tools: The tools/functions list passed to the provider, verbatim.
+        """
+        self._span.set_attribute(GEN_AI_TOOL_DEFINITIONS, serialize(tools))
+
     def set_response_model(self, response_model: str) -> None:
         """Record the model that produced the response (``gen_ai.response.model``).
 
@@ -266,6 +282,7 @@ def _configure(
     model_parameters: dict[str, Any] | None,
     operation: str,
     reasoning_level: str | None,
+    tools: list[Any] | None,
 ) -> None:
     span = generation._span
     set_span_kind(span, SpanKind.LLM)
@@ -280,6 +297,8 @@ def _configure(
         span.set_attribute(f"{GEN_AI_REQUEST_PREFIX}{key}", value)
     if reasoning_level is not None:
         span.set_attribute(GEN_AI_REQUEST_REASONING_LEVEL, reasoning_level)
+    if tools is not None:
+        generation.set_tool_definitions(tools)
     if input is not None:
         generation.set_input(input)
 
@@ -305,6 +324,7 @@ def start_generation(
     model_parameters: dict[str, Any] | None = None,
     operation: str = "chat",
     reasoning_level: str | None = None,
+    tools: list[Any] | None = None,
 ) -> Generation:
     """Create an LLM-kind span and return a ``Generation``. You MUST call ``.end()``.
 
@@ -323,6 +343,8 @@ def start_generation(
             (``gen_ai.request.reasoning.level``), e.g. OpenAI's
             ``reasoning.effort`` values. Provider-defined string, recorded
             verbatim.
+        tools: The request's tool/function definitions, recorded immediately
+            via ``set_tool_definitions`` (verbatim, any provider shape).
 
     Returns:
         A ``Generation`` handle; call ``.end()`` when the call completes.
@@ -339,6 +361,7 @@ def start_generation(
         model_parameters=model_parameters,
         operation=operation,
         reasoning_level=reasoning_level,
+        tools=tools,
     )
     return generation
 
@@ -353,6 +376,7 @@ def start_as_current_generation(
     model_parameters: dict[str, Any] | None = None,
     operation: str = "chat",
     reasoning_level: str | None = None,
+    tools: list[Any] | None = None,
 ) -> Iterator[Generation]:
     """Open an LLM-kind span as the current span and yield a ``Generation``; auto-ends.
 
@@ -377,5 +401,6 @@ def start_as_current_generation(
             model_parameters=model_parameters,
             operation=operation,
             reasoning_level=reasoning_level,
+            tools=tools,
         )
         yield generation

@@ -7,6 +7,7 @@ ours. `instruments=[...]` restricts, `instruments=[]` disables.
 
 from __future__ import annotations
 
+import json
 import sys
 import types
 from typing import Any
@@ -317,3 +318,116 @@ def test_extras_install_instrumentation_only_never_a_runtime_library() -> None:
             assert package not in builtin_libraries, (
                 f"extra {name!r} installs {package!r}, a library the SDK only instruments"
             )
+
+
+# --- tool-definition capture contract (RIUS-737 reads these keys) ---
+
+_TOOLS_OPENAI = [
+    {
+        "type": "function",
+        "function": {
+            "name": "get_weather",
+            "description": "Get weather",
+            "parameters": {"type": "object", "properties": {"city": {"type": "string"}}},
+        },
+    }
+]
+
+_TOOLS_ANTHROPIC = [
+    {
+        "name": "get_weather",
+        "description": "Get weather",
+        "input_schema": {"type": "object", "properties": {"city": {"type": "string"}}},
+    }
+]
+
+_ANTHROPIC_MESSAGE = {
+    "id": "msg_1",
+    "type": "message",
+    "role": "assistant",
+    "model": "claude-sonnet-5",
+    "content": [{"type": "text", "text": "Hello!"}],
+    "stop_reason": "end_turn",
+    "usage": {"input_tokens": 50, "output_tokens": 2},
+}
+
+
+@pytest.mark.integration
+def test_openai_instrumentor_emits_tool_definitions() -> None:
+    """Pins the attribute the backend reads tool definitions from.
+
+    OpenInference's OpenAI instrumentor emits one `llm.tools.{i}.tool.json_schema`
+    per tool. NOT `llm.invocation_parameters` — that carries only sampling
+    params (verified against openinference-instrumentation-openai 0.1.x); the
+    backend must read the indexed family.
+    """
+    openai = pytest.importorskip("openai")
+    oi = pytest.importorskip("openinference.instrumentation.openai")
+
+    instrumentor = oi.OpenAIInstrumentor()
+    if instrumentor.is_instrumented_by_opentelemetry:
+        instrumentor.uninstrument()
+
+    server = _start_json_server(_CHAT_COMPLETION)
+    inner = InMemorySpanExporter()
+    client = init(span_exporter=inner, set_global=False, instruments=["openai"])
+    try:
+        oai = openai.OpenAI(
+            api_key="test-key", base_url=f"http://127.0.0.1:{server.server_port}/v1"
+        )
+        oai.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "user", "content": "hi"}],
+            tools=_TOOLS_OPENAI,
+        )
+        client.flush()
+
+        (llm,) = inner.get_finished_spans()
+        assert llm.attributes is not None
+        recorded = json.loads(str(llm.attributes["llm.tools.0.tool.json_schema"]))
+        assert recorded == _TOOLS_OPENAI[0]
+    finally:
+        instrumentor.uninstrument()
+        server.shutdown()
+
+
+@pytest.mark.integration
+def test_anthropic_instrumentor_emits_tool_definitions_and_system_message() -> None:
+    """Same contract for Anthropic: `llm.tools.{i}.tool.json_schema` per tool.
+
+    Also pins that the request's `system` param surfaces as a role=system
+    input message — the segmentation the backend's context attribution
+    depends on.
+    """
+    anthropic = pytest.importorskip("anthropic")
+    oi = pytest.importorskip("openinference.instrumentation.anthropic")
+
+    instrumentor = oi.AnthropicInstrumentor()
+    if instrumentor.is_instrumented_by_opentelemetry:
+        instrumentor.uninstrument()
+
+    server = _start_json_server(_ANTHROPIC_MESSAGE)
+    inner = InMemorySpanExporter()
+    client = init(span_exporter=inner, set_global=False, instruments=["anthropic"])
+    try:
+        ac = anthropic.Anthropic(
+            api_key="test-key", base_url=f"http://127.0.0.1:{server.server_port}"
+        )
+        ac.messages.create(
+            model="claude-sonnet-5",
+            max_tokens=100,
+            system="be brief",
+            messages=[{"role": "user", "content": "hi"}],
+            tools=_TOOLS_ANTHROPIC,
+        )
+        client.flush()
+
+        (llm,) = inner.get_finished_spans()
+        assert llm.attributes is not None
+        recorded = json.loads(str(llm.attributes["llm.tools.0.tool.json_schema"]))
+        assert recorded == _TOOLS_ANTHROPIC[0]
+        assert llm.attributes["llm.input_messages.0.message.role"] == "system"
+        assert llm.attributes["llm.input_messages.0.message.content"] == "be brief"
+    finally:
+        instrumentor.uninstrument()
+        server.shutdown()
