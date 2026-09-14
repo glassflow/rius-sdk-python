@@ -264,7 +264,7 @@ class PendingSpanProcessor(SpanProcessor):
             self._scheduler.shutdown()
 
     def force_flush(self, timeout_millis: int = 30000) -> bool:
-        # Deliberately NOT a drop (deviation from the ticket's prose, kept to
+        # Deliberately NOT a drop, although dropping would be simpler:
         # its ACs): flush() happens mid-operation; killing scheduled pendings
         # here would silently disable liveness for spans that stay open. The
         # batch delegate flushes its own queue; not-yet-due pendings simply
