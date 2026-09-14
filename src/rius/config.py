@@ -7,6 +7,7 @@ variables > built-in defaults.
 from __future__ import annotations
 
 import logging
+import math
 import os
 from dataclasses import dataclass, field
 
@@ -79,9 +80,23 @@ def _env_float(name: str, deprecated_used: list[str], *, default: float) -> floa
     if raw is None:
         return default
     try:
-        return float(raw)
+        return _finite(name, float(raw), default)
     except ValueError:
         return default
+
+
+def _finite(name: str, value: float, default: float) -> float:
+    """``default`` for NaN and the infinities, which a min/max clamp lets through.
+
+    NaN compares false against both bounds, so ``min(max(nan, lo), hi)`` is
+    still NaN: ``Event.wait(nan)`` returns at once and the heartbeat spins,
+    and ``TraceIdRatioBased(nan)`` raises out of ``init()``. Non-finite means
+    "unset".
+    """
+    if math.isfinite(value):
+        return value
+    logger.warning("%s=%s is not a finite number; using %s", name, value, default)
+    return default
 
 
 @dataclass(frozen=True)
@@ -236,7 +251,7 @@ def resolve_config(
     resolved_sample_rate = _clamp_sample_rate(
         _env_float(ENV_SAMPLE_RATE, deprecated_used, default=1.0)
         if sample_rate is None
-        else sample_rate
+        else _finite("sample_rate", sample_rate, 1.0)
     )
     resolved_capture_content = (
         _env_bool(ENV_CAPTURE_CONTENT, deprecated_used, default=True)
@@ -250,7 +265,7 @@ def resolve_config(
     resolved_heartbeat_interval = _clamp_heartbeat_interval(
         _env_float(ENV_HEARTBEAT_INTERVAL, deprecated_used, default=DEFAULT_HEARTBEAT_INTERVAL)
         if heartbeat_interval is None
-        else heartbeat_interval
+        else _finite("heartbeat_interval", heartbeat_interval, DEFAULT_HEARTBEAT_INTERVAL)
     )
     resolved_agent_name = (
         agent_name or _getenv(ENV_AGENT_NAME, deprecated_used) or resolved_service_name
@@ -263,7 +278,7 @@ def resolve_config(
     resolved_partial_spans_delay = _clamp_partial_spans_delay(
         _env_float(ENV_PARTIAL_SPANS_DELAY, deprecated_used, default=0.0)
         if partial_spans_delay is None
-        else partial_spans_delay
+        else _finite("partial_spans_delay", partial_spans_delay, 0.0)
     )
     # os.getenv directly, not _getenv: this variable is new, so there is no
     # deprecated GLASSFLOW_ spelling to fall back to.

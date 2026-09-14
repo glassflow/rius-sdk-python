@@ -96,20 +96,33 @@ def observe(
                 set_span_kind(span, kind)
                 _set_input(span, args, kwargs)
                 agen = fn(*args, **kwargs)
+                # A transparent proxy: send() and throw() from the caller reach
+                # the inner generator, and closing the wrapper closes it, so
+                # its finally blocks run now rather than at garbage collection.
+                pending: tuple[str, Any] = ("send", None)
                 try:
                     while True:
                         token = otel_context.attach(trace.set_span_in_context(span))
                         try:
-                            item = await agen.__anext__()
+                            if pending[0] == "send":
+                                item = await agen.asend(pending[1])
+                            else:
+                                item = await agen.athrow(pending[1])
                         except StopAsyncIteration:
                             break
                         finally:
                             otel_context.detach(token)
-                        yield item
+                        try:
+                            pending = ("send", (yield item))
+                        except GeneratorExit:
+                            raise
+                        except BaseException as thrown:  # the caller's athrow()
+                            pending = ("throw", thrown)
                 except Exception as exc:
                     _record_exception(span, exc)
                     raise
                 finally:
+                    await agen.aclose()
                     span.end()
 
             return async_gen_wrapper
@@ -144,20 +157,30 @@ def observe(
                 set_span_kind(span, kind)
                 _set_input(span, args, kwargs)
                 gen = fn(*args, **kwargs)
+                pending: tuple[str, Any] = ("send", None)
                 try:
                     while True:
                         token = otel_context.attach(trace.set_span_in_context(span))
                         try:
-                            item = next(gen)
+                            if pending[0] == "send":
+                                item = gen.send(pending[1])
+                            else:
+                                item = gen.throw(pending[1])
                         except StopIteration:
                             break
                         finally:
                             otel_context.detach(token)
-                        yield item
+                        try:
+                            pending = ("send", (yield item))
+                        except GeneratorExit:
+                            raise
+                        except BaseException as thrown:  # the caller's throw()
+                            pending = ("throw", thrown)
                 except Exception as exc:
                     _record_exception(span, exc)
                     raise
                 finally:
+                    gen.close()
                     span.end()
 
             return gen_wrapper

@@ -130,20 +130,26 @@ class PendingScheduler:
             self._snapshots.pop(key, None)
 
     def pop_due(self) -> None:
-        """Emit every snapshot whose deadline has passed (thread and tests)."""
-        due: list[ReadableSpan] = []
+        """Emit every snapshot whose deadline has passed (thread and tests).
+
+        Emission happens UNDER the lock. Popping first and emitting after
+        release left a window in which the span could end: its ``cancel()``
+        then found nothing, the final span entered the batch queue, and the
+        pending followed it, so the finished row was overwritten by a
+        pending=true zero-duration one. Emit is a queue append, so holding
+        the lock across it costs nothing measurable.
+        """
         with self._cond:
             now = self._clock()
             while self._heap and self._heap[0][0] <= now:
                 _, _, key = heapq.heappop(self._heap)
                 snapshot = self._snapshots.pop(key, None)
-                if snapshot is not None:  # None = cancelled, discard lazily
-                    due.append(snapshot)
-        for snapshot in due:
-            try:
-                self._emit_fn(snapshot)
-            except Exception:  # noqa: BLE001 - never propagate into the SDK
-                logger.debug("pending snapshot emission failed", exc_info=True)
+                if snapshot is None:  # cancelled, discarded lazily
+                    continue
+                try:
+                    self._emit_fn(snapshot)
+                except Exception:  # noqa: BLE001 - never propagate into the SDK
+                    logger.debug("pending snapshot emission failed", exc_info=True)
 
     def shutdown(self) -> None:
         """Drop everything not yet due: the final spans are being flushed at
