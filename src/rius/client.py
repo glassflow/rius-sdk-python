@@ -15,7 +15,7 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, SpanExporter
 from opentelemetry.sdk.trace.sampling import ParentBased, TraceIdRatioBased
 
-from . import __version__
+from . import __version__, _tracer
 from .config import DEFAULT_ENDPOINT, GlassflowConfig, resolve_config
 from .export_health import (
     ExportOutcomeExporter,
@@ -141,6 +141,7 @@ class GlassflowClient:
         with _lock:
             if _current_client is self:
                 _current_client = None
+        _tracer.withdraw(self._provider)
 
 
 def init(
@@ -389,10 +390,15 @@ def _do_init(
         if trace.get_tracer_provider() is not provider:
             logger.warning(
                 "could not register the rius tracer provider as the OpenTelemetry "
-                "global (another provider is already set); spans from @observe and "
-                "rius.get_tracer() will keep using the pre-existing provider. Use "
-                "the returned client's get_tracer() for scoped tracing."
+                "global (another provider is already set, or a previous init() "
+                "claimed it). rius' own helpers (@observe, start_span, generations) "
+                "follow this client regardless; third-party code using "
+                "opentelemetry.trace.get_tracer() keeps the pre-existing provider."
             )
+    if set_global:
+        # The helpers follow the active client, not the write-once OTel global,
+        # so a shutdown()+init() cycle moves them to the new pipeline too.
+        _tracer.publish(provider)
 
     # Instrumentors are process-global singletons: auto-enable only for a global
     # init; a scoped client must opt in explicitly via `instruments=[...]`.
@@ -431,7 +437,17 @@ def _do_init(
 
 
 def get_tracer(name: str = TRACER_NAME) -> trace.Tracer:
-    """Return a tracer from the globally configured provider."""
+    """Return a tracer bound to the active global client's provider.
+
+    Falls back to the OpenTelemetry global provider when no global ``init()``
+    is active, so it is safe to call before or without ``init()``.
+    """
+    if name == TRACER_NAME:
+        return _tracer.sdk_tracer()
+    with _lock:
+        client = _current_client
+    if client is not None and not client._is_shutdown:
+        return client._provider.get_tracer(name, __version__)
     return trace.get_tracer(name, __version__)
 
 

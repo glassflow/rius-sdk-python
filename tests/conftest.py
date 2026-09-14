@@ -47,8 +47,10 @@ def _no_ambient_heartbeat(monkeypatch: pytest.MonkeyPatch) -> None:
 def _reset_rius_lifecycle() -> "Iterator[None]":
     """Clear module-level init()/instrumentation state between tests."""
     yield
+    from rius import _tracer
     from rius import client as client_module
     from rius import instrumentation as instrumentation_module
 
     client_module._current_client = None
+    _tracer._active = None
     instrumentation_module._ENABLED.clear()
