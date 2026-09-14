@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.1](https://github.com/glassflow/rius-sdk-python/compare/v0.15.0...v0.15.1) (2026-09-14)
+
+
+### Bug Fixes
+
+* **masking:** metadata.&lt;key&gt; is content whenever &lt;key&gt; is ([#89](https://github.com/glassflow/rius-sdk-python/issues/89)) ([99a0f41](https://github.com/glassflow/rius-sdk-python/commit/99a0f41f301f140a5324ed68900c21d5082b103d))
+
 ## [0.15.0](https://github.com/glassflow/rius-sdk-python/compare/v0.14.0...v0.15.0) (2026-09-14)
 
 
