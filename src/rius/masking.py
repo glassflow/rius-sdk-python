@@ -81,12 +81,23 @@ def _redact_invocation_parameters(value: Any) -> str | None:
     return serialize(parameters)
 
 
+# The namespace the OpenInference Vercel transform mirrors untranslated
+# attributes into. A content key comes through twice there, and the mirrored
+# copy is content exactly when the original is; the TypeScript SDK's sentinel
+# test found metadata.gen_ai.system_instructions carrying the system prompt
+# past capture_content=False. Mirrored here for parity: the transform is a
+# TypeScript package today, but the rule costs nothing and the wire is shared.
+_METADATA_PREFIX = "metadata."
+
+
 def _is_content_key(key: str) -> bool:
-    return (
+    if (
         key in CONTENT_ATTRIBUTES
         or key.startswith(CONTENT_ATTRIBUTE_PREFIXES)
         or key.endswith(CONTENT_ATTRIBUTE_SUFFIXES)
-    )
+    ):
+        return True
+    return key.startswith(_METADATA_PREFIX) and _is_content_key(key[len(_METADATA_PREFIX) :])
 
 
 # record_exception() writes the provider's error string, and providers echo

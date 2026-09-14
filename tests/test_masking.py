@@ -485,3 +485,29 @@ def test_capture_content_false_strips_genai_tool_call_and_system_keys() -> None:
         assert key not in attrs, key
     assert attrs["gen_ai.tool.name"] == "get_weather"  # identity stays
     assert attrs["gen_ai.tool.call.id"] == "call_1"
+
+
+# --- metadata.* mirrors: the OpenInference Vercel transform copies attributes
+#     it does not translate under metadata.<original key> ---
+
+
+def test_metadata_mirror_of_a_content_key_is_content() -> None:
+    from rius.masking import _is_content_key
+
+    assert _is_content_key("metadata.gen_ai.system_instructions")
+    assert _is_content_key("metadata.gen_ai.input.messages")
+    assert _is_content_key("metadata.llm.input_messages.0.message.content")
+    assert not _is_content_key("metadata.gen_ai.tool.name")
+    assert not _is_content_key("metadata.ai.model.id")
+
+
+def test_capture_content_false_strips_metadata_mirrors() -> None:
+    inner = InMemorySpanExporter()
+    client = init(span_exporter=inner, set_global=False, capture_content=False)
+    with client.get_tracer().start_as_current_span("op") as span:
+        span.set_attribute("metadata.gen_ai.system_instructions", "SECRET")
+        span.set_attribute("metadata.gen_ai.tool.name", "get_weather")
+    client.flush()
+    attrs = inner.get_finished_spans()[0].attributes
+    assert "metadata.gen_ai.system_instructions" not in attrs
+    assert attrs["metadata.gen_ai.tool.name"] == "get_weather"
