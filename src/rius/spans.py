@@ -29,7 +29,6 @@ from .semconv import (
     USER_ID,
     SpanKind,
     kind_attributes,
-    set_span_kind,
 )
 from .user import user
 
@@ -91,8 +90,9 @@ class Observation:
         self._span.end()
 
 
-def _configure(observation: Observation, kind: SpanKind, input: Any) -> None:
-    set_span_kind(observation._span, kind)
+def _configure(observation: Observation, input: Any) -> None:
+    # Kind (and user id) are already on the span from _creation_attributes;
+    # writing them again cost a locked BoundedAttributes update per span.
     if input is not None:
         observation.set_input(input)
 
@@ -126,7 +126,7 @@ def start_span(
     """
     span = sdk_tracer().start_span(name, attributes=_creation_attributes(kind, user_id))
     observation = Observation(span)
-    _configure(observation, kind, input)
+    _configure(observation, input)
     return observation
 
 
@@ -152,5 +152,5 @@ def start_as_current_span(
         tracer.start_as_current_span(name, attributes=_creation_attributes(kind, user_id)) as span,
     ):
         observation = Observation(span)
-        _configure(observation, kind, input)
+        _configure(observation, input)
         yield observation

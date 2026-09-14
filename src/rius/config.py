@@ -192,9 +192,11 @@ def resolve_config(
     """Resolve SDK configuration from arguments, environment, then defaults.
 
     Explicit arguments win over ``RIUS_*`` environment variables, which win
-    over built-in defaults. ``sample_rate`` is clamped to ``[0.0, 1.0]`` with
-    a warning; boolean environment variables accept ``1``/``true``/``yes``/
-    ``on`` (case-insensitive).
+    over built-in defaults. ``sample_rate`` (``[0.0, 1.0]``),
+    ``heartbeat_interval`` (``[5, 300]``) and ``partial_spans_delay``
+    (``[0, 60]``) are clamped with a warning, and a NaN or infinite value for
+    any of them means "unset"; boolean environment variables accept
+    ``1``/``true``/``yes``/``on`` (case-insensitive).
 
     Args:
         endpoint: Base OTLP endpoint (``RIUS_ENDPOINT``).

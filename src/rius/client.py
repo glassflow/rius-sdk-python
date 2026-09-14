@@ -140,6 +140,10 @@ class GlassflowClient:
         global _current_client
         if self._heartbeat is not None:
             self._heartbeat.stop()
+        if self._connectivity_thread is not None:
+            # Daemon thread; give an in-flight probe a moment to log its
+            # verdict before the pipeline it describes goes away.
+            self._connectivity_thread.join(timeout=0.5)
         self._provider.shutdown()
         self._is_shutdown = True
         with _lock:
@@ -175,8 +179,11 @@ def init(
     """Initialize the SDK: build a tracer provider that exports OTLP traces.
 
     Calling ``init()`` again while a global client is active logs a warning and
-    returns the existing client unchanged (the OpenTelemetry global tracer
-    provider is write-once); call ``shutdown()`` on it first to reconfigure.
+    returns the existing client unchanged; call ``shutdown()`` on it first to
+    reconfigure. After that the SDK's own helpers (``start_span``, ``observe``,
+    the generation helpers) follow the new client, as do the bundled
+    instrumentors. Third-party code that took a tracer from the OpenTelemetry
+    global keeps the first provider, because that global is write-once.
 
     Args:
         endpoint: Base OTLP endpoint. Traces are sent to ``<endpoint>/v1/traces``.
@@ -239,9 +246,8 @@ def init(
     with _lock:
         if set_global and _current_client is not None and not _current_client._is_shutdown:
             logger.warning(
-                "rius.init() was already called; keeping the existing configuration "
-                "(the OpenTelemetry global tracer provider is write-once). Call .shutdown() "
-                "on the existing client first if you need to reconfigure."
+                "rius.init() was already called; keeping the existing configuration. "
+                "Call .shutdown() on the existing client first if you need to reconfigure."
             )
             return _current_client
         return _do_init(

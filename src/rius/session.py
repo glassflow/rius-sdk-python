@@ -25,11 +25,10 @@ from __future__ import annotations
 import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Any
 
 from opentelemetry import context as otel_context
-from opentelemetry.sdk.trace import Span, SpanProcessor
 
+from ._stamp import ContextStampProcessor
 from .semconv import SESSION_ID
 
 _SESSION_KEY = otel_context.create_key("rius-session-id")
@@ -66,7 +65,7 @@ def session(session_id: str | None = None) -> Iterator[str]:
         otel_context.detach(token)
 
 
-class SessionSpanProcessor(SpanProcessor):
+class SessionSpanProcessor(ContextStampProcessor):
     """Stamps ``session.id`` on every span at start.
 
     The active ``session()`` scope wins; otherwise ``default_session_id``
@@ -76,19 +75,4 @@ class SessionSpanProcessor(SpanProcessor):
     """
 
     def __init__(self, default_session_id: str | None = None) -> None:
-        self._default = default_session_id
-
-    def on_start(self, span: Span, parent_context: otel_context.Context | None = None) -> None:
-        value = otel_context.get_value(_SESSION_KEY, context=parent_context)
-        session_id = value if isinstance(value, str) else self._default
-        if session_id is not None:
-            span.set_attribute(SESSION_ID, session_id)
-
-    def on_end(self, span: Any) -> None:  # pragma: no cover - nothing to do
-        pass
-
-    def shutdown(self) -> None:  # pragma: no cover - nothing to hold
-        pass
-
-    def force_flush(self, timeout_millis: int = 30000) -> bool:  # pragma: no cover
-        return True
+        super().__init__(_SESSION_KEY, SESSION_ID, default_session_id)
