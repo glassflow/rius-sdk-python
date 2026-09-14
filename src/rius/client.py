@@ -29,6 +29,7 @@ from .masking import MaskingSpanExporter
 from .pending import PendingSpanProcessor
 from .semconv import SERVICE_INSTANCE_ID, TRACER_NAME
 from .session import SessionSpanProcessor
+from .user import UserSpanProcessor
 from .workspace import ExporterFactory, RoutingSpanExporter, WorkspaceSpanProcessor
 
 logger = logging.getLogger(__name__)
@@ -372,6 +373,7 @@ def _do_init(
         # which destination the snapshot itself goes to) must be stamped
         # first to ride it.
         provider.add_span_processor(SessionSpanProcessor(config.session_id))
+        provider.add_span_processor(UserSpanProcessor())
         if routing is not None:
             provider.add_span_processor(WorkspaceSpanProcessor())
         if config.partial_spans:

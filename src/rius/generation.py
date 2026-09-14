@@ -9,7 +9,7 @@ spans are therefore readable by any gen_ai-compatible consumer.
 from __future__ import annotations
 
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from typing import Any
 
 from opentelemetry import trace
@@ -35,10 +35,12 @@ from .semconv import (
     GEN_AI_USAGE_OUTPUT_TOKENS,
     GEN_AI_USAGE_REASONING_OUTPUT_TOKENS,
     TRACER_NAME,
+    USER_ID,
     SpanKind,
     kind_attributes,
     set_span_kind,
 )
+from .user import user
 
 Messages = str | list[Any]
 
@@ -303,7 +305,9 @@ def _configure(
         generation.set_input(input)
 
 
-def _creation_attributes(model: str | None, provider: str | None, operation: str) -> dict[str, str]:
+def _creation_attributes(
+    model: str | None, provider: str | None, operation: str, user_id: str | None = None
+) -> dict[str, str]:
     """Identity attributes for an LLM span at CREATION (pending snapshots
     are built at on_start; anything set later is invisible to them)."""
     attributes = kind_attributes(SpanKind.LLM)
@@ -312,6 +316,8 @@ def _creation_attributes(model: str | None, provider: str | None, operation: str
         attributes[GEN_AI_REQUEST_MODEL] = model
     if provider is not None:
         attributes[GEN_AI_PROVIDER_NAME] = provider
+    if user_id is not None:
+        attributes[USER_ID] = user_id
     return attributes
 
 
@@ -325,6 +331,7 @@ def start_generation(
     operation: str = "chat",
     reasoning_level: str | None = None,
     tools: list[Any] | None = None,
+    user_id: str | None = None,
 ) -> Generation:
     """Create an LLM-kind span and return a ``Generation``. You MUST call ``.end()``.
 
@@ -345,12 +352,14 @@ def start_generation(
             verbatim.
         tools: The request's tool/function definitions, recorded immediately
             via ``set_tool_definitions`` (verbatim, any provider shape).
+        user_id: End-user identity (``user.id``) stamped on this span. Sugar
+            for a single call; to attribute a whole request use ``user()``.
 
     Returns:
         A ``Generation`` handle; call ``.end()`` when the call completes.
     """
     span = trace.get_tracer(TRACER_NAME, __version__).start_span(
-        name, attributes=_creation_attributes(model, provider, operation)
+        name, attributes=_creation_attributes(model, provider, operation, user_id)
     )
     generation = Generation(span)
     _configure(
@@ -377,6 +386,7 @@ def start_as_current_generation(
     operation: str = "chat",
     reasoning_level: str | None = None,
     tools: list[Any] | None = None,
+    user_id: str | None = None,
 ) -> Iterator[Generation]:
     """Open an LLM-kind span as the current span and yield a ``Generation``; auto-ends.
 
@@ -389,9 +399,14 @@ def start_as_current_generation(
         metadata; the span ends when the block exits.
     """
     tracer = trace.get_tracer(TRACER_NAME, __version__)
-    with tracer.start_as_current_span(
-        name, attributes=_creation_attributes(model, provider, operation)
-    ) as span:
+    with (
+        # user_id is sugar for user(user_id) around the block: children opened
+        # inside inherit it through UserSpanProcessor, this span at creation.
+        user(user_id) if user_id is not None else nullcontext(),
+        tracer.start_as_current_span(
+            name, attributes=_creation_attributes(model, provider, operation, user_id)
+        ) as span,
+    ):
         generation = Generation(span)
         _configure(
             generation,

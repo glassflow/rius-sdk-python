@@ -10,6 +10,7 @@ from .observe import observe
 from .semconv import SpanKind
 from .session import session
 from .spans import Observation, start_as_current_span, start_span
+from .user import user
 from .workspace import workspace
 
 __all__ = [
@@ -31,5 +32,6 @@ __all__ = [
     "start_as_current_span",
     "start_generation",
     "start_span",
+    "user",
     "workspace",
 ]
