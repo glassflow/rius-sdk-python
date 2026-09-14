@@ -273,6 +273,18 @@ class Generation:
         self._span.end()
 
 
+_PRIMITIVES = (str, bool, int, float)
+
+
+def _attribute_value(value: Any) -> Any:
+    """A value OTel will store: primitives and primitive sequences as-is, else JSON."""
+    if isinstance(value, _PRIMITIVES):
+        return value
+    if isinstance(value, (list, tuple)) and all(isinstance(v, _PRIMITIVES) for v in value):
+        return list(value)
+    return serialize(value)
+
+
 def _configure(
     generation: Generation,
     *,
@@ -294,7 +306,13 @@ def _configure(
         span.set_attribute(GEN_AI_PROVIDER_NAME, provider)
         generation._provider = provider
     for key, value in (model_parameters or {}).items():
-        span.set_attribute(f"{GEN_AI_REQUEST_PREFIX}{key}", value)
+        # OTel accepts primitives and homogeneous primitive sequences; anything
+        # else (response_format dicts, nested tool choices) was dropped with a
+        # warning from the OTel logger and never reached the span. None is
+        # "not set", not a value.
+        if value is None:
+            continue
+        span.set_attribute(f"{GEN_AI_REQUEST_PREFIX}{key}", _attribute_value(value))
     if reasoning_level is not None:
         span.set_attribute(GEN_AI_REQUEST_REASONING_LEVEL, reasoning_level)
     if tools is not None:

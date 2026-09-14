@@ -97,6 +97,10 @@ class GlassflowClient:
         (an empty dict opts in with no static routes). Spans started inside
         ``rius.workspace(alias)`` are then exported with ``api_key``.
         """
+        if self.config.disabled:
+            # The kill switch builds no pipeline, so there is nothing to route
+            # to; a call site that works when enabled must not throw here.
+            return
         if self._routing is None:
             raise RuntimeError(
                 "workspace routing is not enabled: pass workspaces={...} to init() "
