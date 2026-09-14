@@ -19,7 +19,7 @@ from opentelemetry.trace import Status, StatusCode
 
 from ._serde import serialize
 from ._tracer import sdk_tracer
-from .semconv import INPUT_VALUE, OUTPUT_VALUE, SpanKind, set_span_kind
+from .semconv import INPUT_VALUE, OUTPUT_VALUE, SpanKind, kind_attributes
 
 F = TypeVar("F", bound=Callable[..., Any])
 
@@ -92,8 +92,7 @@ def observe(
             @functools.wraps(fn)
             async def async_gen_wrapper(*args: Any, **kwargs: Any) -> Any:
                 tracer = sdk_tracer()
-                span = tracer.start_span(span_name)
-                set_span_kind(span, kind)
+                span = tracer.start_span(span_name, attributes=kind_attributes(kind))
                 _set_input(span, args, kwargs)
                 agen = fn(*args, **kwargs)
                 try:
@@ -120,9 +119,11 @@ def observe(
             async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
                 tracer = sdk_tracer()
                 with tracer.start_as_current_span(
-                    span_name, record_exception=False, set_status_on_exception=False
+                    span_name,
+                    attributes=kind_attributes(kind),
+                    record_exception=False,
+                    set_status_on_exception=False,
                 ) as span:
-                    set_span_kind(span, kind)
                     _set_input(span, args, kwargs)
                     try:
                         result = await fn(*args, **kwargs)
@@ -140,8 +141,7 @@ def observe(
             @functools.wraps(fn)
             def gen_wrapper(*args: Any, **kwargs: Any) -> Any:
                 tracer = sdk_tracer()
-                span = tracer.start_span(span_name)
-                set_span_kind(span, kind)
+                span = tracer.start_span(span_name, attributes=kind_attributes(kind))
                 _set_input(span, args, kwargs)
                 gen = fn(*args, **kwargs)
                 try:
@@ -166,9 +166,11 @@ def observe(
         def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
             tracer = sdk_tracer()
             with tracer.start_as_current_span(
-                span_name, record_exception=False, set_status_on_exception=False
+                span_name,
+                attributes=kind_attributes(kind),
+                record_exception=False,
+                set_status_on_exception=False,
             ) as span:
-                set_span_kind(span, kind)
                 _set_input(span, args, kwargs)
                 try:
                     result = fn(*args, **kwargs)

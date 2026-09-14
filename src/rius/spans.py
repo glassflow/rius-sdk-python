@@ -39,8 +39,7 @@ class Observation:
 
     Wraps an OpenTelemetry span and exposes the annotation surface for generic
     (non-LLM) spans: input, output, and arbitrary attributes. Inputs and
-    outputs are serialized to JSON (with a ``repr`` fallback) and truncated at
-    8192 characters.
+    outputs are serialized to JSON (with a ``repr`` fallback) and truncated at 32 KB.
     """
 
     def __init__(self, span: Span) -> None:
