@@ -409,3 +409,79 @@ def test_invocation_parameters_tools_member_redacted_under_mask_too() -> None:
     client.flush()
     attrs = inner.get_finished_spans()[0].attributes
     assert json.loads(attrs["llm.invocation_parameters"]) == {"temperature": 0.2}
+
+
+# --- span status: provider errors echo the rejected request into the message ---
+
+
+def _error_span_exported(**init_kwargs):
+    from opentelemetry.trace import Status, StatusCode
+
+    inner = InMemorySpanExporter()
+    client = init(span_exporter=inner, set_global=False, **init_kwargs)
+    with client.get_tracer().start_as_current_span("op") as span:
+        span.set_status(Status(StatusCode.ERROR, "400: messages=[{'content':'SSN 123-45-6789'}]"))
+    client.flush()
+    return inner.get_finished_spans()[0]
+
+
+def test_capture_content_false_drops_status_description_keeps_code() -> None:
+    from opentelemetry.trace import StatusCode
+
+    span = _error_span_exported(capture_content=False)
+    assert span.status.status_code == StatusCode.ERROR
+    assert not span.status.description
+
+
+def test_mask_runs_over_status_description() -> None:
+    from opentelemetry.trace import StatusCode
+
+    span = _error_span_exported(mask=lambda _v: "***")
+    assert span.status.status_code == StatusCode.ERROR
+    assert span.status.description == "***"
+
+
+def test_status_description_untouched_without_sanitization() -> None:
+    span = _error_span_exported()
+    assert "SSN 123-45-6789" in (span.status.description or "")
+
+
+def test_status_sanitization_does_not_mutate_the_span_other_processors_see() -> None:
+    from opentelemetry.trace import Status, StatusCode
+
+    inner = InMemorySpanExporter()
+    client = init(span_exporter=inner, set_global=False, capture_content=False)
+    with client.get_tracer().start_as_current_span("op") as span:
+        span.set_status(Status(StatusCode.ERROR, "secret"))
+        live = span
+    client.flush()
+    assert live.status.description == "secret"  # original untouched
+    assert not inner.get_finished_spans()[0].status.description
+
+
+# --- GenAI semconv tool-call / system-instruction keys, and OpenInference TOOL keys ---
+
+
+def test_capture_content_false_strips_genai_tool_call_and_system_keys() -> None:
+    inner = InMemorySpanExporter()
+    client = init(span_exporter=inner, set_global=False, capture_content=False)
+    with client.get_tracer().start_as_current_span("op") as span:
+        span.set_attribute("gen_ai.system_instructions", "SECRET SYSTEM PROMPT")
+        span.set_attribute("gen_ai.tool.call.arguments", '{"city":"Berlin"}')
+        span.set_attribute("gen_ai.tool.call.result", '{"temp":21}')
+        span.set_attribute("tool.description", "Looks up weather; internal URL http://x")
+        span.set_attribute("tool.parameters", '{"type":"object"}')
+        span.set_attribute("gen_ai.tool.name", "get_weather")
+        span.set_attribute("gen_ai.tool.call.id", "call_1")
+    client.flush()
+    attrs = inner.get_finished_spans()[0].attributes
+    for key in (
+        "gen_ai.system_instructions",
+        "gen_ai.tool.call.arguments",
+        "gen_ai.tool.call.result",
+        "tool.description",
+        "tool.parameters",
+    ):
+        assert key not in attrs, key
+    assert attrs["gen_ai.tool.name"] == "get_weather"  # identity stays
+    assert attrs["gen_ai.tool.call.id"] == "call_1"

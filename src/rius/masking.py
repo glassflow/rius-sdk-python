@@ -25,7 +25,7 @@ from typing import Any
 
 from opentelemetry.sdk.trace import Event, ReadableSpan
 from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
-from opentelemetry.trace import Link
+from opentelemetry.trace import Link, Status
 
 from ._serde import serialize
 from .semconv import (
@@ -96,6 +96,10 @@ def _is_content_key(key: str) -> bool:
 # TypeScript SDK).
 _EXCEPTION_EVENT_NAME = "exception"
 _EXCEPTION_CONTENT_KEYS = frozenset({"exception.message", "exception.stacktrace"})
+# The status description is the same string once more: observe()/MCP write
+# str(exc) into it, and providers echo the rejected request. Not an attribute,
+# so it needs its own pass; this is the key= a mask sees for it.
+_STATUS_DESCRIPTION_KEY = "status.description"
 
 
 class MaskingSpanExporter(SpanExporter):
@@ -125,7 +129,13 @@ class MaskingSpanExporter(SpanExporter):
         new_attributes = self._sanitize_mapping(span.attributes)
         new_events = self._sanitize_events(span.events)
         new_links = self._sanitize_links(span.links)
-        if new_attributes is None and new_events is None and new_links is None:
+        new_status = self._sanitize_status(span.status)
+        if (
+            new_attributes is None
+            and new_events is None
+            and new_links is None
+            and new_status is None
+        ):
             return span
         sanitized = copy.copy(span)
         if new_attributes is not None:
@@ -134,7 +144,35 @@ class MaskingSpanExporter(SpanExporter):
             sanitized._events = new_events
         if new_links is not None:
             sanitized._links = new_links
+        if new_status is not None:
+            sanitized._status = new_status
         return sanitized
+
+    def _sanitize_status(self, status: Status | None) -> Status | None:
+        """Status with its description dropped or masked, or None when unchanged.
+
+        The code always survives: a failure stays visible and classifiable
+        with content capture off, the same policy as ``exception.type``.
+        """
+        if status is None or not status.description:
+            return None
+        if not self._capture_content:
+            return Status(status.status_code)
+        assert self._mask is not None  # guarded in export()
+        try:
+            if self._mask_accepts_key:
+                raw = self._mask(status.description, key=_STATUS_DESCRIPTION_KEY)
+            else:
+                raw = self._mask(status.description)
+            masked = self._safe_value(raw)
+        except Exception:
+            masked = None
+            logger.warning(
+                "mask callable raised for the status description; value dropped", exc_info=True
+            )
+        if masked is None:
+            return Status(status.status_code)
+        return Status(status.status_code, str(masked))
 
     def _sanitize_events(self, events: Sequence[Event]) -> tuple[Event, ...] | None:
         if not events:
