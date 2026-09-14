@@ -268,3 +268,42 @@ def test_complete_result_carries_no_result_type_attribute() -> None:
     span = _record_on_fresh_span(_V2Result(structured_content={"ok": True}))
     assert span.attributes is not None
     assert "mcp.result_type" not in span.attributes
+
+
+def test_tool_span_carries_kind_and_name_at_start() -> None:
+    """Pending snapshots are built at on_start; the tool span used to set its
+    kind and gen_ai.tool.name afterwards, so its snapshots were unclassifiable."""
+    from opentelemetry.sdk.trace import SpanProcessor
+
+    seen: dict[str, dict[str, Any]] = {}
+
+    class Recorder(SpanProcessor):
+        def on_start(self, span, parent_context=None) -> None:  # noqa: ANN001
+            seen[span.name] = dict(span.attributes or {})
+
+    inner = InMemorySpanExporter()
+    client = init(span_exporter=inner, set_global=False, instruments=["mcp"])
+    client._provider.add_span_processor(Recorder())
+
+    async def scenario() -> Any:
+        server = _make_server()
+        async with _connected_session(server) as session:
+            return await session.call_tool("add", {"a": 1, "b": 2})
+
+    asyncio.run(scenario())
+    attrs = seen["execute_tool add"]
+    assert attrs["openinference.span.kind"] == "TOOL"
+    assert attrs["gen_ai.operation.name"] == "execute_tool"
+    assert attrs["gen_ai.tool.name"] == "add"
+
+
+def test_single_text_result_is_bounded() -> None:
+    from types import SimpleNamespace
+
+    from rius._serde import MAX_ATTR_CHARS, TRUNCATION_MARKER
+    from rius.instrumentation_mcp import _serialize_result
+
+    result = SimpleNamespace(content=[SimpleNamespace(text="x" * 200_000)])
+    text = _serialize_result(result)
+    assert text.endswith(TRUNCATION_MARKER)
+    assert len(text) == MAX_ATTR_CHARS + len(TRUNCATION_MARKER)
