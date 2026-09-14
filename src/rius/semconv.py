@@ -56,6 +56,10 @@ GEN_AI_INPUT_MESSAGES = "gen_ai.input.messages"
 GEN_AI_OUTPUT_MESSAGES = "gen_ai.output.messages"
 GEN_AI_RESPONSE_FINISH_REASONS = "gen_ai.response.finish_reasons"
 GEN_AI_TOOL_NAME = "gen_ai.tool.name"
+# The request's tool/function definitions, serialized verbatim (provider
+# shapes differ; the backend reads names and sizes from either). Content,
+# not identity — listed in CONTENT_ATTRIBUTES below.
+GEN_AI_TOOL_DEFINITIONS = "gen_ai.tool.definitions"
 # MCP spec 2026-07-28: a tools/call round can end with an interim
 # "input_required" result (MRTR) instead of a final one. Set ONLY on interim
 # rounds; the key follows the mcp SDK's own `mcp.*` attribute namespace.
@@ -111,7 +115,7 @@ CONTENT_ATTRIBUTES = frozenset(
         # sometimes credentials or internal URLs in parameter defaults.
         # gen_ai.tool.name stays: it is identity, not content.
         "gen_ai.tool.description",
-        "gen_ai.tool.definitions",
+        GEN_AI_TOOL_DEFINITIONS,
         # common third-party content keys (bundled instrumentation)
         "gen_ai.prompt",
         "gen_ai.completion",

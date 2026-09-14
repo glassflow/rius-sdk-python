@@ -411,3 +411,51 @@ def test_record_first_token_on_manual_generation(exported_spans: InMemorySpanExp
     gen.end()
     span = exported_spans.get_finished_spans()[0]
     assert len(_first_token_events(span)) == 1
+
+
+# --- tool definitions ---
+
+
+def test_cm_tools_kwarg_records_definitions_verbatim(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    tools = [
+        {
+            "type": "function",
+            "function": {
+                "name": "get_weather",
+                "parameters": {"type": "object", "properties": {"city": {"type": "string"}}},
+            },
+        }
+    ]
+    with start_as_current_generation("chat", tools=tools):
+        pass
+    attrs = exported_spans.get_finished_spans()[0].attributes
+    assert json.loads(attrs["gen_ai.tool.definitions"]) == tools
+
+
+def test_set_tool_definitions_accepts_anthropic_shape(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    # Verbatim on purpose: provider tool formats differ (OpenAI nests under
+    # "function", Anthropic uses top-level name/input_schema) and the backend
+    # reads names and sizes from either shape.
+    tools = [
+        {
+            "name": "search_kb",
+            "description": "Search the knowledge base",
+            "input_schema": {"type": "object", "properties": {"q": {"type": "string"}}},
+        }
+    ]
+    gen = start_generation("chat", model="claude-sonnet-5", provider="anthropic")
+    gen.set_tool_definitions(tools)
+    gen.end()
+    attrs = exported_spans.get_finished_spans()[0].attributes
+    assert json.loads(attrs["gen_ai.tool.definitions"]) == tools
+
+
+def test_tools_omitted_attribute_absent(exported_spans: InMemorySpanExporter) -> None:
+    with start_as_current_generation("chat"):
+        pass
+    attrs = exported_spans.get_finished_spans()[0].attributes
+    assert "gen_ai.tool.definitions" not in attrs

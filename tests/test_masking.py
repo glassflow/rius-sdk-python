@@ -300,3 +300,17 @@ def test_mask_redacts_tool_definition_content() -> None:
     assert attrs["gen_ai.tool.definitions"] == "***"
     assert attrs["gen_ai.tool.description"] == "***"
     assert attrs["gen_ai.tool.name"] == "q"
+
+
+def test_capture_content_false_strips_tool_definitions() -> None:
+    # The exact key the generation API's tools capture emits: definitions are
+    # content (they embed prompt engineering, sometimes secrets in defaults).
+    inner = InMemorySpanExporter()
+    client = init(span_exporter=inner, set_global=False, capture_content=False)
+    with client.get_tracer().start_as_current_span("chat") as span:
+        span.set_attribute("gen_ai.tool.definitions", '[{"name": "secret_tool"}]')
+        span.set_attribute("gen_ai.request.model", "gpt-4o")
+    client.flush()
+    attrs = inner.get_finished_spans()[0].attributes
+    assert "gen_ai.tool.definitions" not in attrs
+    assert attrs["gen_ai.request.model"] == "gpt-4o"
