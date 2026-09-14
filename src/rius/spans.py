@@ -16,7 +16,7 @@ equivalents.
 from __future__ import annotations
 
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from typing import Any
 
 from opentelemetry import trace
@@ -28,10 +28,12 @@ from .semconv import (
     INPUT_VALUE,
     OUTPUT_VALUE,
     TRACER_NAME,
+    USER_ID,
     SpanKind,
     kind_attributes,
     set_span_kind,
 )
+from .user import user
 
 
 class Observation:
@@ -98,16 +100,35 @@ def _configure(observation: Observation, kind: SpanKind, input: Any) -> None:
         observation.set_input(input)
 
 
-def start_span(name: str, *, kind: SpanKind = SpanKind.CHAIN, input: Any = None) -> Observation:
+def _creation_attributes(kind: SpanKind, user_id: str | None) -> dict[str, str]:
+    # Identity at CREATION so pending snapshots (on_start) carry it; the
+    # user id is set here as well as via the user() scope so it reaches the
+    # span even on a provider without UserSpanProcessor installed.
+    attributes = dict(kind_attributes(kind))
+    if user_id is not None:
+        attributes[USER_ID] = user_id
+    return attributes
+
+
+def start_span(
+    name: str,
+    *,
+    kind: SpanKind = SpanKind.CHAIN,
+    input: Any = None,
+    user_id: str | None = None,
+) -> Observation:
     """Create a span and return an ``Observation``. You MUST call ``.end()``.
 
     The span is parented to the current span at creation, but is not set as the
     current span and does not auto-record exceptions. Use ``start_as_current_span``
     for block-scoped tracing.
+
+    ``user_id`` stamps ``user.id`` on this span only; it is sugar for a span
+    that has no children of its own. To attribute a whole request, including
+    auto-instrumented spans, use the ``user()`` scope instead.
     """
-    # kind at CREATION so pending snapshots (on_start) can classify the span
     span = trace.get_tracer(TRACER_NAME, __version__).start_span(
-        name, attributes=kind_attributes(kind)
+        name, attributes=_creation_attributes(kind, user_id)
     )
     observation = Observation(span)
     _configure(observation, kind, input)
@@ -120,14 +141,21 @@ def start_as_current_span(
     *,
     kind: SpanKind = SpanKind.CHAIN,
     input: Any = None,
+    user_id: str | None = None,
 ) -> Iterator[Observation]:
     """Open a span as the current span and yield an ``Observation``; auto-ends.
 
     Exceptions raised in the block are recorded and set the span status to ERROR
     (OpenTelemetry's ``start_as_current_span`` default), then re-raised.
+
+    ``user_id`` is sugar for wrapping the block in ``user(user_id)``: this span
+    and every span opened inside the block carry ``user.id``.
     """
     tracer = trace.get_tracer(TRACER_NAME, __version__)
-    with tracer.start_as_current_span(name, attributes=kind_attributes(kind)) as span:
+    with (
+        user(user_id) if user_id is not None else nullcontext(),
+        tracer.start_as_current_span(name, attributes=_creation_attributes(kind, user_id)) as span,
+    ):
         observation = Observation(span)
         _configure(observation, kind, input)
         yield observation
