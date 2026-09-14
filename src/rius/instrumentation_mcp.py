@@ -23,7 +23,7 @@ from opentelemetry import trace
 from opentelemetry.trace import Status, StatusCode
 
 from . import __version__
-from ._serde import serialize
+from ._serde import serialize, truncate
 from .semconv import (
     GEN_AI_TOOL_NAME,
     INPUT_VALUE,
@@ -31,7 +31,7 @@ from .semconv import (
     OUTPUT_VALUE,
     TRACER_NAME,
     SpanKind,
-    set_span_kind,
+    kind_attributes,
 )
 
 # mcp 2.x (spec 2026-07-28) renamed CallToolResult's fields to snake_case and
@@ -50,7 +50,10 @@ def _serialize_result(result: Any) -> str:
     if content is not None:
         texts = [block.text for block in content if getattr(block, "text", None) is not None]
         if texts:
-            return texts[0] if len(texts) == 1 else serialize(texts)
+            # A lone text block is recorded raw (it usually IS the answer),
+            # but bounded like every other attribute: tool results are the
+            # payloads most likely to be huge.
+            return truncate(texts[0]) if len(texts) == 1 else serialize(texts)
     return serialize(result)
 
 
@@ -107,13 +110,14 @@ class MCPInstrumentor:
             tracer = cls._tracer
             if tracer is None:  # uninstrumented mid-flight; fall through
                 return await original(session, name, arguments, *args, **kw)
+            # Kind and tool name at CREATION: pending snapshots are built at
+            # on_start, so anything set afterwards never reaches them.
             with tracer.start_as_current_span(
                 f"execute_tool {name}",
+                attributes={**kind_attributes(SpanKind.TOOL), GEN_AI_TOOL_NAME: name},
                 record_exception=False,
                 set_status_on_exception=False,
             ) as span:
-                set_span_kind(span, SpanKind.TOOL)
-                span.set_attribute(GEN_AI_TOOL_NAME, name)
                 if arguments is not None:
                     span.set_attribute(INPUT_VALUE, serialize(arguments))
                 try:

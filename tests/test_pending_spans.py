@@ -163,3 +163,29 @@ def test_sdk_helpers_expose_identity_attributes_at_span_start() -> None:
     assert genny["gen_ai.operation.name"] == "chat"
     assert genny["gen_ai.request.model"] == "gpt-4o"
     assert genny["gen_ai.provider.name"] == "openai"
+
+
+def test_observe_exposes_kind_at_span_start() -> None:
+    """@observe used to set its kind AFTER start_span, so its pending
+    snapshots had no openinference.span.kind and the live view could not
+    classify them."""
+    from opentelemetry import trace as otel_trace
+
+    import rius
+
+    recorder = _StartAttributeRecorder()
+    otel_trace.get_tracer_provider().add_span_processor(recorder)  # type: ignore[attr-defined]
+
+    @rius.observe(name="observed-tool", kind=rius.SpanKind.TOOL)
+    def tool() -> None:
+        pass
+
+    @rius.observe(name="observed-gen")
+    def gen():  # noqa: ANN202
+        yield 1
+
+    tool()
+    list(gen())
+    assert recorder.seen["observed-tool"]["openinference.span.kind"] == "TOOL"
+    assert recorder.seen["observed-tool"]["gen_ai.operation.name"] == "execute_tool"
+    assert recorder.seen["observed-gen"]["openinference.span.kind"] == "CHAIN"
