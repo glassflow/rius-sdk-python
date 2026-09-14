@@ -36,7 +36,6 @@ from .semconv import (
     USER_ID,
     SpanKind,
     kind_attributes,
-    set_span_kind,
 )
 from .user import user
 
@@ -297,13 +296,10 @@ def _configure(
     tools: list[Any] | None,
 ) -> None:
     span = generation._span
-    set_span_kind(span, SpanKind.LLM)
-    if operation != "chat":  # set_span_kind already stamped the default
-        span.set_attribute(GEN_AI_OPERATION_NAME, operation)
-    if model is not None:
-        span.set_attribute(GEN_AI_REQUEST_MODEL, model)
+    # Kind, operation, model and provider are already on the span from
+    # _creation_attributes; each set_attribute here was a second locked write
+    # of the same value (the review counted up to five per generation).
     if provider is not None:
-        span.set_attribute(GEN_AI_PROVIDER_NAME, provider)
         generation._provider = provider
     for key, value in (model_parameters or {}).items():
         # OTel accepts primitives and homogeneous primitive sequences; anything

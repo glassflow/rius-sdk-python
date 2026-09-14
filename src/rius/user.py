@@ -27,11 +27,10 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Any
 
 from opentelemetry import context as otel_context
-from opentelemetry.sdk.trace import Span, SpanProcessor
 
+from ._stamp import ContextStampProcessor
 from .semconv import USER_ID
 
 _USER_KEY = otel_context.create_key("rius-user-id")
@@ -61,23 +60,12 @@ def user(user_id: str) -> Iterator[str]:
         otel_context.detach(token)
 
 
-class UserSpanProcessor(SpanProcessor):
+class UserSpanProcessor(ContextStampProcessor):
     """Stamps ``user.id`` on every span started inside a ``user()`` scope.
 
     Outside any scope the attribute is not set; there is no default to fall
     back to, by design (see the module docstring).
     """
 
-    def on_start(self, span: Span, parent_context: otel_context.Context | None = None) -> None:
-        value = otel_context.get_value(_USER_KEY, context=parent_context)
-        if isinstance(value, str):
-            span.set_attribute(USER_ID, value)
-
-    def on_end(self, span: Any) -> None:  # pragma: no cover - nothing to do
-        pass
-
-    def shutdown(self) -> None:  # pragma: no cover - nothing to hold
-        pass
-
-    def force_flush(self, timeout_millis: int = 30000) -> bool:  # pragma: no cover
-        return True
+    def __init__(self) -> None:
+        super().__init__(_USER_KEY, USER_ID)
