@@ -33,6 +33,9 @@ is not obtainable from here. The negotiated protocol version is: mcp 2.x
 sessions expose it as ``protocol_version`` (set by initialize, discover or
 adopt); mcp 1.x validates it in ``initialize()`` and drops it, so on that
 major ``initialize`` is wrapped too, only to remember the value per session.
+That 1.x path is order-dependent by nature: a session initialized BEFORE
+``rius.init()`` installed the wrap never gets the attribute (its tool calls
+are still traced). 2.x reads the session's own state and is order-independent.
 """
 
 from __future__ import annotations
