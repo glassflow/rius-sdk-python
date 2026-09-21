@@ -295,6 +295,142 @@ def test_tool_span_carries_kind_and_name_at_start() -> None:
     assert attrs["openinference.span.kind"] == "TOOL"
     assert attrs["gen_ai.operation.name"] == "execute_tool"
     assert attrs["gen_ai.tool.name"] == "add"
+    assert attrs["mcp.method.name"] == "tools/call"
+
+
+# --- OTel MCP semantic conventions --------------------------------------------
+# The client-side tools/call span must be identifiable AS an MCP call: a local
+# @observe(kind=TOOL) tool produces the same kind, name and I/O shape, so only
+# the `mcp.*` attributes separate the two downstream.
+
+
+def test_mcp_call_carries_the_mcp_method_marker() -> None:
+    spans, _result = _run_tool_call("add", {"a": 2, "b": 3})
+    (tool_span,) = [s for s in spans if s.name == "execute_tool add"]
+    attrs = tool_span.attributes
+    assert attrs is not None
+    assert attrs["mcp.method.name"] == "tools/call"
+    assert attrs["gen_ai.operation.name"] == "execute_tool"
+
+
+def test_error_result_span_still_carries_the_mcp_method_marker() -> None:
+    spans, _result = _run_tool_call("boom", None)
+    (tool_span,) = [s for s in spans if s.name == "execute_tool boom"]
+    assert not tool_span.status.is_ok
+    assert tool_span.attributes is not None
+    assert tool_span.attributes["mcp.method.name"] == "tools/call"
+
+
+def test_negotiated_protocol_version_is_recorded() -> None:
+    from mcp.types import LATEST_PROTOCOL_VERSION
+
+    spans, _result = _run_tool_call("add", {"a": 1, "b": 1})
+    (tool_span,) = [s for s in spans if s.name == "execute_tool add"]
+    assert tool_span.attributes is not None
+    # the in-memory server and the client share one library, so the version
+    # the handshake negotiates is that library's latest
+    assert tool_span.attributes["mcp.protocol.version"] == LATEST_PROTOCOL_VERSION
+
+
+def test_protocol_version_prefers_the_sessions_own_property() -> None:
+    """mcp 2.x sessions expose `protocol_version`, set by whichever of
+    initialize(), discover() or adopt() ran — and Client prefers discover, so a
+    wrap on initialize alone never fires there (the ci mcp-v2 job caught this).
+    The remembered-from-initialize value is the 1.x fallback only."""
+    from rius.instrumentation_mcp import MCPInstrumentor, _session_protocol_version
+
+    class Session:  # weakref-able stand-in; a real session is too
+        protocol_version: str | None = None
+
+    modern = Session()
+    modern.protocol_version = "2026-07-28"
+    assert _session_protocol_version(modern) == "2026-07-28"
+
+    legacy = Session()  # 1.x: no property, initialize wrap remembered it
+    MCPInstrumentor._protocol_versions[legacy] = "2025-06-18"
+    assert _session_protocol_version(legacy) == "2025-06-18"
+
+    assert _session_protocol_version(Session()) is None
+
+
+def test_pending_snapshot_keeps_the_mcp_identity_attributes() -> None:
+    """The MCP marker is identity, not content: a still-running MCP call must be
+    distinguishable from a local tool in the live view, which is the one place
+    setting it at creation pays off. Read the EXPORTED snapshot, not the raw
+    span — the pending allowlist runs between the two."""
+    from rius.instrumentation_mcp import _call_attributes
+    from rius.semconv import GLASSFLOW_SPAN_PENDING, PENDING_IDENTITY_ATTRIBUTES
+
+    assert "mcp.method.name" in PENDING_IDENTITY_ATTRIBUTES
+    assert "mcp.protocol.version" in PENDING_IDENTITY_ATTRIBUTES
+
+    inner = InMemorySpanExporter()
+    client = init(span_exporter=inner, set_global=False, partial_spans=True)
+    span = client.get_tracer().start_span(
+        "execute_tool search",
+        attributes={
+            **_call_attributes("search", protocol_version="2026-07-28"),
+            "input.value": "x",
+        },
+    )
+    client.flush()  # the snapshot is exported while the span is still open
+    pending = [s for s in inner.get_finished_spans() if s.attributes.get(GLASSFLOW_SPAN_PENDING)]
+    span.end()
+    assert pending, "expected a pending snapshot"
+    attrs = pending[0].attributes
+    assert attrs is not None
+    assert attrs["mcp.method.name"] == "tools/call"
+    assert attrs["mcp.protocol.version"] == "2026-07-28"
+    assert "input.value" not in attrs  # the allowlist still strips content
+
+
+def test_mcp_span_is_an_otel_client_span() -> None:
+    """The OTel SpanKind FIELD, not our openinference.span.kind attribute: both
+    the MCP and the GenAI execute-tool conventions want CLIENT for a remote
+    tool, and the two kinds are orthogonal — TOOL stays as the taxonomy."""
+    from opentelemetry.trace import SpanKind as OtelSpanKind
+
+    spans, _result = _run_tool_call("add", {"a": 1, "b": 1})
+    (tool_span,) = [s for s in spans if s.name == "execute_tool add"]
+    assert tool_span.kind == OtelSpanKind.CLIENT
+    assert tool_span.attributes is not None
+    assert tool_span.attributes["openinference.span.kind"] == "TOOL"
+
+
+def test_local_tool_span_carries_no_mcp_marker(exported_spans: InMemorySpanExporter) -> None:
+    from rius import SpanKind, observe
+
+    @observe(kind=SpanKind.TOOL)
+    def local_tool() -> int:
+        return 1
+
+    local_tool()
+    (span,) = exported_spans.get_finished_spans()
+    assert span.attributes is not None
+    assert span.attributes["openinference.span.kind"] == "TOOL"
+    assert "mcp.method.name" not in span.attributes
+
+
+def test_interim_input_required_round_keeps_the_mcp_marker() -> None:
+    """MRTR interim rounds used to be marked only by mcp.result_type; the
+    method marker must be there too, or the round is invisible to MCP rollups."""
+    from rius.instrumentation_mcp import _call_attributes
+
+    inner = InMemorySpanExporter()
+    client = init(span_exporter=inner, set_global=False)
+    span = client.get_tracer().start_span(
+        "execute_tool fake", attributes=_call_attributes("fake", protocol_version=None)
+    )
+    from rius.instrumentation_mcp import _record_result
+
+    _record_result(span, _V2InputRequired())
+    span.end()
+    client.flush()
+    (finished,) = inner.get_finished_spans()
+    assert finished.attributes is not None
+    assert finished.attributes["mcp.result_type"] == "input_required"
+    assert finished.attributes["mcp.method.name"] == "tools/call"
+    assert "mcp.protocol.version" not in finished.attributes
 
 
 def test_single_text_result_is_bounded() -> None:
