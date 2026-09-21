@@ -96,7 +96,7 @@ def observe(
             @functools.wraps(fn)
             async def async_gen_wrapper(*args: Any, **kwargs: Any) -> Any:
                 tracer = sdk_tracer()
-                span = tracer.start_span(span_name, attributes=kind_attributes(kind))
+                span = tracer.start_span(span_name, attributes=kind_attributes(kind, span_name))
                 _set_input(span, args, kwargs)
                 agen = fn(*args, **kwargs)
                 # A transparent proxy: send() and throw() from the caller reach
@@ -137,7 +137,7 @@ def observe(
                 tracer = sdk_tracer()
                 with tracer.start_as_current_span(
                     span_name,
-                    attributes=kind_attributes(kind),
+                    attributes=kind_attributes(kind, span_name),
                     record_exception=False,
                     set_status_on_exception=False,
                 ) as span:
@@ -158,7 +158,7 @@ def observe(
             @functools.wraps(fn)
             def gen_wrapper(*args: Any, **kwargs: Any) -> Any:
                 tracer = sdk_tracer()
-                span = tracer.start_span(span_name, attributes=kind_attributes(kind))
+                span = tracer.start_span(span_name, attributes=kind_attributes(kind, span_name))
                 _set_input(span, args, kwargs)
                 gen = fn(*args, **kwargs)
                 pending: tuple[str, Any] = ("send", None)
@@ -194,7 +194,7 @@ def observe(
             tracer = sdk_tracer()
             with tracer.start_as_current_span(
                 span_name,
-                attributes=kind_attributes(kind),
+                attributes=kind_attributes(kind, span_name),
                 record_exception=False,
                 set_status_on_exception=False,
             ) as span:

@@ -189,3 +189,57 @@ def test_observe_exposes_kind_at_span_start() -> None:
     assert recorder.seen["observed-tool"]["openinference.span.kind"] == "TOOL"
     assert recorder.seen["observed-tool"]["gen_ai.operation.name"] == "execute_tool"
     assert recorder.seen["observed-gen"]["openinference.span.kind"] == "CHAIN"
+
+
+def test_pending_snapshot_of_local_tool_span_carries_gen_ai_tool_name() -> None:
+    """A still-running local tool must be identifiable by name in the live
+    view, so the name has to be on the span at creation; read the EXPORTED
+    snapshot because the pending allowlist runs between span and wire."""
+    from rius import _tracer
+    from rius.semconv import SpanKind
+    from rius.spans import start_span
+
+    client, exporter = _memory_client(partial_spans=True)
+    # Route the SDK helpers to this scoped client (the lifecycle fixture
+    # withdraws it again after the test).
+    _tracer.publish(client._provider)
+    span = start_span("weather", kind=SpanKind.TOOL, input={"city": "Berlin"})
+    client.flush()  # the snapshot is exported while the span is still open
+    pending, _ = _split(exporter.get_finished_spans())
+    span.end()
+    assert pending, "expected a pending snapshot"
+    attrs = pending[0].attributes
+    assert attrs["gen_ai.tool.name"] == "weather"
+    assert attrs["gen_ai.operation.name"] == "execute_tool"
+    assert "input.value" not in attrs  # the allowlist still strips content
+
+
+def test_creation_identity_keys_are_pending_allowlisted() -> None:
+    """PENDING_IDENTITY_ATTRIBUTES is an allowlist, so an identity key added to
+    a creation-attribute builder without an allowlist update is silently
+    dropped from pending snapshots (this is how the MCP marker went missing
+    once). Every key the SDK itself sets at span creation must pass it."""
+    from rius.generation import _creation_attributes as generation_attributes
+    from rius.instrumentation_mcp import _call_attributes
+    from rius.semconv import (
+        PENDING_IDENTITY_ATTRIBUTES,
+        PENDING_IDENTITY_PREFIXES,
+        SpanKind,
+        kind_attributes,
+    )
+    from rius.spans import _creation_attributes as span_attributes
+
+    builders: dict[str, dict[str, str]] = {
+        f"kind_attributes({kind.name})": kind_attributes(kind, "tool-name") for kind in SpanKind
+    }
+    builders["spans"] = span_attributes("weather", SpanKind.TOOL, user_id="u")
+    builders["generation"] = generation_attributes(
+        model="m", provider="p", operation="chat", user_id="u"
+    )
+    builders["mcp"] = _call_attributes("search", protocol_version="2026-07-28")
+
+    for builder, attributes in builders.items():
+        for key in attributes:
+            assert key in PENDING_IDENTITY_ATTRIBUTES or key.startswith(
+                PENDING_IDENTITY_PREFIXES
+            ), f"{builder} sets {key!r} at creation but it is not pending-allowlisted"

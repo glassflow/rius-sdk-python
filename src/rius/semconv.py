@@ -268,17 +268,24 @@ _OPERATION_BY_KIND: dict[SpanKind, str] = {
 }
 
 
-def kind_attributes(kind: SpanKind) -> dict[str, str]:
+def kind_attributes(kind: SpanKind, name: str | None = None) -> dict[str, str]:
     """Identity attributes for a span of ``kind``, for setting at CREATION.
 
     Pending snapshots (pending.py) are built at ``on_start``, so taxonomy set
     via ``set_attribute`` afterwards is invisible to them; passing these at
     span creation is what makes a pending span classifiable.
+
+    ``name`` is the span name. The GenAI execute-tool convention requires
+    ``gen_ai.tool.name``, and for a local tool the span name IS the tool
+    name, so a TOOL span with a name gets it here rather than relying on
+    every caller to remember.
     """
     attributes = {OPENINFERENCE_SPAN_KIND: kind.value}
     operation = _OPERATION_BY_KIND.get(kind)
     if operation is not None:
         attributes[GEN_AI_OPERATION_NAME] = operation
+    if kind is SpanKind.TOOL and name is not None:
+        attributes[GEN_AI_TOOL_NAME] = name
     return attributes
 
 
