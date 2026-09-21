@@ -332,6 +332,27 @@ def test_negotiated_protocol_version_is_recorded() -> None:
     assert tool_span.attributes["mcp.protocol.version"] == LATEST_PROTOCOL_VERSION
 
 
+def test_protocol_version_prefers_the_sessions_own_property() -> None:
+    """mcp 2.x sessions expose `protocol_version`, set by whichever of
+    initialize(), discover() or adopt() ran — and Client prefers discover, so a
+    wrap on initialize alone never fires there (the ci mcp-v2 job caught this).
+    The remembered-from-initialize value is the 1.x fallback only."""
+    from rius.instrumentation_mcp import MCPInstrumentor, _session_protocol_version
+
+    class Session:  # weakref-able stand-in; a real session is too
+        protocol_version: str | None = None
+
+    modern = Session()
+    modern.protocol_version = "2026-07-28"
+    assert _session_protocol_version(modern) == "2026-07-28"
+
+    legacy = Session()  # 1.x: no property, initialize wrap remembered it
+    MCPInstrumentor._protocol_versions[legacy] = "2025-06-18"
+    assert _session_protocol_version(legacy) == "2025-06-18"
+
+    assert _session_protocol_version(Session()) is None
+
+
 def test_local_tool_span_carries_no_mcp_marker(exported_spans: InMemorySpanExporter) -> None:
     from rius import SpanKind, observe
 

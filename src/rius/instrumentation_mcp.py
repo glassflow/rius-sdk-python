@@ -23,10 +23,11 @@ waterfall and saved search. The ``mcp.*`` attributes carry the protocol-level
 truth alongside.
 
 ``ClientSession`` is built from a bare stream pair and keeps nothing about its
-connection — not the transport, not the server address, and not even the
-protocol version its own ``initialize()`` negotiates (it validates the value
-and drops it). So ``initialize`` is wrapped too, only to remember the
-negotiated version per session; server identity is not obtainable from here.
+connection — not the transport and not the server address, so server identity
+is not obtainable from here. The negotiated protocol version is: mcp 2.x
+sessions expose it as ``protocol_version`` (set by initialize, discover or
+adopt); mcp 1.x validates it in ``initialize()`` and drops it, so on that
+major ``initialize`` is wrapped too, only to remember the value per session.
 """
 
 from __future__ import annotations
@@ -124,6 +125,21 @@ def _negotiated_version(init_result: Any) -> str | None:
     return version if isinstance(version, str) else None
 
 
+def _session_protocol_version(session: Any) -> str | None:
+    """The protocol version this session negotiated, on either mcp major.
+
+    mcp 2.x sessions expose ``protocol_version``, set by whichever of
+    ``initialize()``, ``discover()`` or ``adopt()`` ran — and ``Client``
+    prefers ``discover``, so the ``initialize`` wrap below never fires on that
+    path. mcp 1.x has no such property and drops the value after validating
+    it, so there the wrap is the only source.
+    """
+    version = getattr(session, "protocol_version", None)
+    if isinstance(version, str):
+        return version
+    return MCPInstrumentor._protocol_versions.get(session)
+
+
 class MCPInstrumentor:
     """Duck-types the OTel instrumentor interface (instrument/uninstrument)."""
 
@@ -172,7 +188,7 @@ class MCPInstrumentor:
             with tracer.start_as_current_span(
                 f"execute_tool {name}",
                 attributes=_call_attributes(
-                    name, protocol_version=cls._protocol_versions.get(session)
+                    name, protocol_version=_session_protocol_version(session)
                 ),
                 record_exception=False,
                 set_status_on_exception=False,
