@@ -1,5 +1,6 @@
 import pytest
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.trace import SpanKind as OtelSpanKind
 from opentelemetry.trace import StatusCode
 
 from rius import start_as_current_span, start_span
@@ -112,3 +113,33 @@ def test_cm_chain_kind_has_no_gen_ai_tool_name(exported_spans: InMemorySpanExpor
     with start_as_current_span("step"):
         pass
     assert "gen_ai.tool.name" not in exported_spans.get_finished_spans()[0].attributes
+
+
+# --- the OTel SpanKind FIELD, derived from the taxonomy ---
+
+
+@pytest.mark.parametrize(
+    ("kind", "expected"),
+    [
+        (SpanKind.LLM, OtelSpanKind.CLIENT),
+        (SpanKind.EMBEDDING, OtelSpanKind.CLIENT),
+        (SpanKind.RETRIEVER, OtelSpanKind.CLIENT),
+        (SpanKind.TOOL, OtelSpanKind.INTERNAL),
+        (SpanKind.AGENT, OtelSpanKind.INTERNAL),
+        (SpanKind.CHAIN, OtelSpanKind.INTERNAL),
+    ],
+)
+def test_otel_kind_field_follows_taxonomy(
+    exported_spans: InMemorySpanExporter, kind: SpanKind, expected: OtelSpanKind
+) -> None:
+    start_span("manual", kind=kind).end()
+    with start_as_current_span("scoped", kind=kind):
+        pass
+    kinds = {s.name: s.kind for s in exported_spans.get_finished_spans()}
+    assert kinds == {"manual": expected, "scoped": expected}
+
+
+def test_default_chain_span_is_internal(exported_spans: InMemorySpanExporter) -> None:
+    with start_as_current_span("step"):
+        pass
+    assert exported_spans.get_finished_spans()[0].kind is OtelSpanKind.INTERNAL

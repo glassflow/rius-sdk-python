@@ -5,6 +5,7 @@ from typing import Any
 import pytest
 from opentelemetry.sdk.trace import Event, ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.trace import SpanKind as OtelSpanKind
 from opentelemetry.trace import StatusCode
 
 from rius import start_as_current_generation, start_generation
@@ -567,3 +568,15 @@ def test_cm_success_sets_no_error_type(exported_spans: InMemorySpanExporter) -> 
     with start_as_current_generation("chat"):
         pass
     assert "error.type" not in exported_spans.get_finished_spans()[0].attributes
+
+
+# --- the OTel SpanKind FIELD ---
+
+
+def test_generation_spans_are_client_kind(exported_spans: InMemorySpanExporter) -> None:
+    """Inference calls a remote model: the GenAI inference convention says CLIENT."""
+    start_generation("manual").end()
+    with start_as_current_generation("scoped"):
+        pass
+    kinds = {s.name: s.kind for s in exported_spans.get_finished_spans()}
+    assert kinds == {"manual": OtelSpanKind.CLIENT, "scoped": OtelSpanKind.CLIENT}

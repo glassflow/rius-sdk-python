@@ -4,6 +4,7 @@ from collections.abc import Iterator
 import pytest
 from opentelemetry import trace
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.trace import SpanKind as OtelSpanKind
 from opentelemetry.trace import StatusCode
 
 from rius import observe
@@ -307,3 +308,64 @@ def test_tool_kind_sets_gen_ai_tool_name_on_generators(
 def test_non_tool_kind_has_no_gen_ai_tool_name(exported_spans: InMemorySpanExporter) -> None:
     add(1, 1)
     assert "gen_ai.tool.name" not in exported_spans.get_finished_spans()[0].attributes
+
+
+# --- the OTel SpanKind FIELD, derived from the taxonomy ---
+
+
+@pytest.mark.parametrize(
+    ("kind", "expected"),
+    [
+        (SpanKind.LLM, OtelSpanKind.CLIENT),
+        (SpanKind.EMBEDDING, OtelSpanKind.CLIENT),
+        (SpanKind.RETRIEVER, OtelSpanKind.CLIENT),
+        (SpanKind.TOOL, OtelSpanKind.INTERNAL),
+        (SpanKind.AGENT, OtelSpanKind.INTERNAL),
+        (SpanKind.CHAIN, OtelSpanKind.INTERNAL),
+    ],
+)
+def test_otel_kind_field_follows_taxonomy_on_sync_path(
+    exported_spans: InMemorySpanExporter, kind: SpanKind, expected: OtelSpanKind
+) -> None:
+    @observe(kind=kind)
+    def step() -> None:
+        pass
+
+    step()
+    span = exported_spans.get_finished_spans()[0]
+    assert span.kind is expected
+    assert span.attributes["openinference.span.kind"] == kind.value
+
+
+def test_otel_kind_field_follows_taxonomy_on_async_path(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    @observe(kind=SpanKind.RETRIEVER)
+    async def search() -> None:
+        pass
+
+    asyncio.run(search())
+    assert exported_spans.get_finished_spans()[0].kind is OtelSpanKind.CLIENT
+
+
+def test_otel_kind_field_follows_taxonomy_on_generator_paths(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    @observe(kind=SpanKind.EMBEDDING)
+    def embed():
+        yield 1
+
+    @observe(kind=SpanKind.EMBEDDING)
+    async def aembed():
+        yield 1
+
+    async def drain() -> None:
+        async for _ in aembed():
+            pass
+
+    list(embed())
+    asyncio.run(drain())
+    assert [s.kind for s in exported_spans.get_finished_spans()] == [
+        OtelSpanKind.CLIENT,
+        OtelSpanKind.CLIENT,
+    ]

@@ -31,6 +31,7 @@ from .semconv import (
     USER_ID,
     SpanKind,
     kind_attributes,
+    otel_span_kind,
 )
 from .user import user
 
@@ -126,7 +127,9 @@ def start_span(
     that has no children of its own. To attribute a whole request, including
     auto-instrumented spans, use the ``user()`` scope instead.
     """
-    span = sdk_tracer().start_span(name, attributes=_creation_attributes(name, kind, user_id))
+    span = sdk_tracer().start_span(
+        name, kind=otel_span_kind(kind), attributes=_creation_attributes(name, kind, user_id)
+    )
     observation = Observation(span)
     _configure(observation, input)
     return observation
@@ -152,7 +155,7 @@ def start_as_current_span(
     with (
         user(user_id) if user_id is not None else nullcontext(),
         tracer.start_as_current_span(
-            name, attributes=_creation_attributes(name, kind, user_id)
+            name, kind=otel_span_kind(kind), attributes=_creation_attributes(name, kind, user_id)
         ) as span,
     ):
         observation = Observation(span)
