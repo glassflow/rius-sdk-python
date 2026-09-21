@@ -73,6 +73,11 @@ MCP_METHOD_NAME = "mcp.method.name"
 MCP_METHOD_TOOLS_CALL = "tools/call"
 # The version the initialize handshake negotiated — not the one we asked for.
 MCP_PROTOCOL_VERSION = "mcp.protocol.version"
+# OTel general error.type: on an MCP tools/call it is "tool_error" when the
+# result carries isError (the tool ran and reported failure), else the
+# exception class when the call itself raised.
+ERROR_TYPE = "error.type"
+ERROR_TYPE_TOOL_ERROR = "tool_error"
 # MCP spec 2026-07-28: a tools/call round can end with an interim
 # "input_required" result (MRTR) instead of a final one. Set ONLY on interim
 # rounds. NOT an OTel semconv attribute, unlike the two above: the key
