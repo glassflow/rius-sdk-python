@@ -75,7 +75,9 @@ MCP_METHOD_TOOLS_CALL = "tools/call"
 MCP_PROTOCOL_VERSION = "mcp.protocol.version"
 # MCP spec 2026-07-28: a tools/call round can end with an interim
 # "input_required" result (MRTR) instead of a final one. Set ONLY on interim
-# rounds; the key follows the mcp SDK's own `mcp.*` attribute namespace.
+# rounds. NOT an OTel semconv attribute, unlike the two above: the key
+# borrows the mcp SDK's own `mcp.*` spelling for its result-type field, and
+# no convention defines it. Kept as-is because the backend reads it.
 MCP_RESULT_TYPE = "mcp.result_type"
 GEN_AI_REQUEST_PREFIX = "gen_ai.request."
 
