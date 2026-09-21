@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.17.0](https://github.com/glassflow/rius-sdk-python/compare/v0.16.0...v0.17.0) (2026-09-21)
+
+
+### Features
+
+* emit gen_ai.response.time_to_first_chunk alongside the first-token event ([#100](https://github.com/glassflow/rius-sdk-python/issues/100)) ([a185320](https://github.com/glassflow/rius-sdk-python/commit/a185320f2705b492e255099465ecedc56b12ca21))
+* set gen_ai.tool.name on local tool spans ([#97](https://github.com/glassflow/rius-sdk-python/issues/97)) ([31595c3](https://github.com/glassflow/rius-sdk-python/commit/31595c3ac81153f6644b418a2c4d13fdb8ace818))
+* set the OTel SpanKind field from the span taxonomy ([#99](https://github.com/glassflow/rius-sdk-python/issues/99)) ([e203d56](https://github.com/glassflow/rius-sdk-python/commit/e203d56041a3d41f72ed2b6b7bf78a590bb8ca3b))
+
+
+### Bug Fixes
+
+* set error.type on inference and generic spans ([#98](https://github.com/glassflow/rius-sdk-python/issues/98)) ([680f3e0](https://github.com/glassflow/rius-sdk-python/commit/680f3e03751ee6275dc8961911c86e12856d9ccf))
+
 ## [0.16.0](https://github.com/glassflow/rius-sdk-python/compare/v0.15.1...v0.16.0) (2026-09-21)
 
 
