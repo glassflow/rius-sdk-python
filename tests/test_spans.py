@@ -74,3 +74,19 @@ def test_manual_span_is_not_current(exported_spans: InMemorySpanExporter) -> Non
     obs.end()
     spans = {s.name: s for s in exported_spans.get_finished_spans()}
     assert spans["inner"].parent is None  # manual span is not activated as current
+
+
+# --- error.type ---
+
+
+def test_cm_exception_sets_error_type(exported_spans: InMemorySpanExporter) -> None:
+    with pytest.raises(ValueError, match="boom"), start_as_current_span("op"):
+        raise ValueError("boom")
+    attrs = exported_spans.get_finished_spans()[0].attributes
+    assert attrs["error.type"] == "ValueError"
+
+
+def test_cm_success_sets_no_error_type(exported_spans: InMemorySpanExporter) -> None:
+    with start_as_current_span("op"):
+        pass
+    assert "error.type" not in exported_spans.get_finished_spans()[0].attributes

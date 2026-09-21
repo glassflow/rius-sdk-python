@@ -17,9 +17,10 @@ from opentelemetry import context as otel_context
 from opentelemetry import trace
 from opentelemetry.trace import Status, StatusCode
 
+from ._errors import error_type
 from ._serde import serialize
 from ._tracer import sdk_tracer
-from .semconv import INPUT_VALUE, OUTPUT_VALUE, SpanKind, kind_attributes
+from .semconv import ERROR_TYPE, INPUT_VALUE, OUTPUT_VALUE, SpanKind, kind_attributes
 
 F = TypeVar("F", bound=Callable[..., Any])
 
@@ -31,6 +32,9 @@ def _serialize_inputs(args: tuple[Any, ...], kwargs: dict[str, Any]) -> str:
 def _record_exception(span: trace.Span, exc: BaseException) -> None:
     span.record_exception(exc)
     span.set_status(Status(StatusCode.ERROR, str(exc)))
+    # Conditionally Required by the GenAI conventions on a span that ends in
+    # an error; the class only, so it stays low-cardinality and content-free.
+    span.set_attribute(ERROR_TYPE, error_type(exc))
 
 
 @overload

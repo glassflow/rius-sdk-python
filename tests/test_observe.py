@@ -194,3 +194,60 @@ def test_generator_body_spans_still_nest_under_generator_span(
     gen_span = spans[next(n for n in spans if n.endswith("stream"))]
     assert spans["inner-work"].parent is not None
     assert spans["inner-work"].parent.span_id == gen_span.context.span_id
+
+
+# --- error.type ---
+# GenAI semconv: error.type is Conditionally Required on every span that ends
+# in an error; the class only (low cardinality), never the message.
+
+
+def test_sync_exception_sets_error_type(exported_spans: InMemorySpanExporter) -> None:
+    with pytest.raises(ValueError, match="nope"):
+        boom()
+    attrs = exported_spans.get_finished_spans()[0].attributes
+    assert attrs["error.type"] == "ValueError"
+
+
+def test_async_exception_sets_error_type(exported_spans: InMemorySpanExporter) -> None:
+    @observe
+    async def async_boom() -> None:
+        raise KeyError("missing")
+
+    with pytest.raises(KeyError):
+        asyncio.run(async_boom())
+    attrs = exported_spans.get_finished_spans()[0].attributes
+    assert attrs["error.type"] == "KeyError"
+
+
+def test_generator_exception_sets_error_type(exported_spans: InMemorySpanExporter) -> None:
+    @observe
+    def gen_boom():
+        yield 1
+        raise ValueError("mid-stream")
+
+    with pytest.raises(ValueError, match="mid-stream"):
+        list(gen_boom())
+    attrs = exported_spans.get_finished_spans()[0].attributes
+    assert attrs["error.type"] == "ValueError"
+
+
+def test_error_type_is_module_qualified_for_user_exceptions(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    class ToolBroke(RuntimeError):
+        pass
+
+    @observe
+    def custom_boom() -> None:
+        raise ToolBroke("details that must not leak into error.type")
+
+    with pytest.raises(ToolBroke):
+        custom_boom()
+    attrs = exported_spans.get_finished_spans()[0].attributes
+    assert attrs["error.type"] == f"{ToolBroke.__module__}.{ToolBroke.__qualname__}"
+    assert "details" not in attrs["error.type"]
+
+
+def test_success_sets_no_error_type(exported_spans: InMemorySpanExporter) -> None:
+    add(1, 2)
+    assert "error.type" not in exported_spans.get_finished_spans()[0].attributes

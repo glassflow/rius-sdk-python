@@ -2,8 +2,10 @@ import json
 import time
 from typing import Any
 
+import pytest
 from opentelemetry.sdk.trace import Event, ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.trace import StatusCode
 
 from rius import start_as_current_generation, start_generation
 from rius.generation import Generation
@@ -532,3 +534,36 @@ def test_tools_omitted_attribute_absent(exported_spans: InMemorySpanExporter) ->
         pass
     attrs = exported_spans.get_finished_spans()[0].attributes
     assert "gen_ai.tool.definitions" not in attrs
+
+
+# --- error.type ---
+# GenAI semconv: error.type is Conditionally Required on inference spans that
+# end in an error; the class only (low cardinality), never the message.
+
+
+def test_cm_exception_sets_error_type(exported_spans: InMemorySpanExporter) -> None:
+    with pytest.raises(ValueError, match="boom"), start_as_current_generation("chat"):
+        raise ValueError("boom")
+    span = exported_spans.get_finished_spans()[0]
+    assert span.status.status_code == StatusCode.ERROR
+    assert any(e.name == "exception" for e in span.events)
+    assert span.attributes["error.type"] == "ValueError"
+
+
+def test_cm_error_type_is_module_qualified_for_user_exceptions(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    class ProviderDown(RuntimeError):
+        pass
+
+    with pytest.raises(ProviderDown), start_as_current_generation("chat"):
+        raise ProviderDown()
+    attrs = exported_spans.get_finished_spans()[0].attributes
+    assert attrs["error.type"] == f"{ProviderDown.__module__}.{ProviderDown.__qualname__}"
+    assert "boom" not in attrs["error.type"]
+
+
+def test_cm_success_sets_no_error_type(exported_spans: InMemorySpanExporter) -> None:
+    with start_as_current_generation("chat"):
+        pass
+    assert "error.type" not in exported_spans.get_finished_spans()[0].attributes

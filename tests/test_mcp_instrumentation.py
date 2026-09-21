@@ -453,7 +453,7 @@ def test_successful_result_sets_no_error_type() -> None:
 
 
 def test_error_type_is_the_qualified_exception_class() -> None:
-    from rius.instrumentation_mcp import _error_type
+    from rius._errors import error_type as _error_type
 
     class Custom(RuntimeError):
         pass
@@ -465,7 +465,7 @@ def test_error_type_is_the_qualified_exception_class() -> None:
 def test_exception_path_sets_error_type() -> None:
     from mcp import ClientSession
 
-    from rius.instrumentation_mcp import _error_type
+    from rius._errors import error_type as _error_type
 
     inner = InMemorySpanExporter()
     client = init(span_exporter=inner, set_global=False, instruments=["mcp"])
