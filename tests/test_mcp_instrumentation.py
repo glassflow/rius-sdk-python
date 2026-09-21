@@ -353,6 +353,37 @@ def test_protocol_version_prefers_the_sessions_own_property() -> None:
     assert _session_protocol_version(Session()) is None
 
 
+def test_pending_snapshot_keeps_the_mcp_identity_attributes() -> None:
+    """The MCP marker is identity, not content: a still-running MCP call must be
+    distinguishable from a local tool in the live view, which is the one place
+    setting it at creation pays off. Read the EXPORTED snapshot, not the raw
+    span — the pending allowlist runs between the two."""
+    from rius.instrumentation_mcp import _call_attributes
+    from rius.semconv import GLASSFLOW_SPAN_PENDING, PENDING_IDENTITY_ATTRIBUTES
+
+    assert "mcp.method.name" in PENDING_IDENTITY_ATTRIBUTES
+    assert "mcp.protocol.version" in PENDING_IDENTITY_ATTRIBUTES
+
+    inner = InMemorySpanExporter()
+    client = init(span_exporter=inner, set_global=False, partial_spans=True)
+    span = client.get_tracer().start_span(
+        "execute_tool search",
+        attributes={
+            **_call_attributes("search", protocol_version="2026-07-28"),
+            "input.value": "x",
+        },
+    )
+    client.flush()  # the snapshot is exported while the span is still open
+    pending = [s for s in inner.get_finished_spans() if s.attributes.get(GLASSFLOW_SPAN_PENDING)]
+    span.end()
+    assert pending, "expected a pending snapshot"
+    attrs = pending[0].attributes
+    assert attrs is not None
+    assert attrs["mcp.method.name"] == "tools/call"
+    assert attrs["mcp.protocol.version"] == "2026-07-28"
+    assert "input.value" not in attrs  # the allowlist still strips content
+
+
 def test_local_tool_span_carries_no_mcp_marker(exported_spans: InMemorySpanExporter) -> None:
     from rius import SpanKind, observe
 

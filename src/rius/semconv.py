@@ -105,6 +105,11 @@ PENDING_IDENTITY_ATTRIBUTES = frozenset(
         GEN_AI_OPERATION_NAME,
         GEN_AI_PROVIDER_NAME,
         GEN_AI_TOOL_NAME,
+        # Protocol identity, not content: a still-running MCP call must be
+        # distinguishable from a local tool in the live view — the one place
+        # setting the marker at creation pays off.
+        MCP_METHOD_NAME,
+        MCP_PROTOCOL_VERSION,
         # Identity, not content: a pending span must be groupable into its
         # session while still running, that is the live view's whole point.
         SESSION_ID,
