@@ -90,3 +90,25 @@ def test_cm_success_sets_no_error_type(exported_spans: InMemorySpanExporter) -> 
     with start_as_current_span("op"):
         pass
     assert "error.type" not in exported_spans.get_finished_spans()[0].attributes
+
+
+# --- gen_ai.tool.name: Required on execute_tool spans by the GenAI convention ---
+
+
+def test_cm_tool_kind_sets_gen_ai_tool_name(exported_spans: InMemorySpanExporter) -> None:
+    with start_as_current_span("weather", kind=SpanKind.TOOL):
+        pass
+    attrs = exported_spans.get_finished_spans()[0].attributes
+    assert attrs["gen_ai.tool.name"] == "weather"
+
+
+def test_manual_tool_kind_sets_gen_ai_tool_name(exported_spans: InMemorySpanExporter) -> None:
+    start_span("weather", kind=SpanKind.TOOL).end()
+    attrs = exported_spans.get_finished_spans()[0].attributes
+    assert attrs["gen_ai.tool.name"] == "weather"
+
+
+def test_cm_chain_kind_has_no_gen_ai_tool_name(exported_spans: InMemorySpanExporter) -> None:
+    with start_as_current_span("step"):
+        pass
+    assert "gen_ai.tool.name" not in exported_spans.get_finished_spans()[0].attributes

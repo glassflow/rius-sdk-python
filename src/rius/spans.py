@@ -99,11 +99,11 @@ def _configure(observation: Observation, input: Any) -> None:
         observation.set_input(input)
 
 
-def _creation_attributes(kind: SpanKind, user_id: str | None) -> dict[str, str]:
+def _creation_attributes(name: str, kind: SpanKind, user_id: str | None) -> dict[str, str]:
     # Identity at CREATION so pending snapshots (on_start) carry it; the
     # user id is set here as well as via the user() scope so it reaches the
     # span even on a provider without UserSpanProcessor installed.
-    attributes = dict(kind_attributes(kind))
+    attributes = dict(kind_attributes(kind, name))
     if user_id is not None:
         attributes[USER_ID] = user_id
     return attributes
@@ -126,7 +126,7 @@ def start_span(
     that has no children of its own. To attribute a whole request, including
     auto-instrumented spans, use the ``user()`` scope instead.
     """
-    span = sdk_tracer().start_span(name, attributes=_creation_attributes(kind, user_id))
+    span = sdk_tracer().start_span(name, attributes=_creation_attributes(name, kind, user_id))
     observation = Observation(span)
     _configure(observation, input)
     return observation
@@ -151,7 +151,9 @@ def start_as_current_span(
     tracer = sdk_tracer()
     with (
         user(user_id) if user_id is not None else nullcontext(),
-        tracer.start_as_current_span(name, attributes=_creation_attributes(kind, user_id)) as span,
+        tracer.start_as_current_span(
+            name, attributes=_creation_attributes(name, kind, user_id)
+        ) as span,
     ):
         observation = Observation(span)
         _configure(observation, input)

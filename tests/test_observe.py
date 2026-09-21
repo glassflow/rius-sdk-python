@@ -251,3 +251,59 @@ def test_error_type_is_module_qualified_for_user_exceptions(
 def test_success_sets_no_error_type(exported_spans: InMemorySpanExporter) -> None:
     add(1, 2)
     assert "error.type" not in exported_spans.get_finished_spans()[0].attributes
+
+
+def test_tool_kind_sets_gen_ai_tool_name_from_custom_name(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    @observe(name="search-docs", kind=SpanKind.TOOL)
+    def search(q: str) -> str:
+        return "result"
+
+    search("hi")
+    attrs = exported_spans.get_finished_spans()[0].attributes
+    assert attrs["gen_ai.tool.name"] == "search-docs"
+
+
+def test_tool_kind_sets_gen_ai_tool_name_from_qualname(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    @observe(kind=SpanKind.TOOL)
+    def lookup(q: str) -> str:
+        return "result"
+
+    lookup("hi")
+    span = exported_spans.get_finished_spans()[0]
+    assert span.attributes["gen_ai.tool.name"] == span.name
+    assert span.name.endswith("lookup")
+
+
+def test_tool_kind_sets_gen_ai_tool_name_on_generators(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    @observe(kind=SpanKind.TOOL)
+    def stream():  # noqa: ANN202
+        yield 1
+
+    @observe(kind=SpanKind.TOOL)
+    async def astream():  # noqa: ANN202
+        yield 1
+
+    @observe(kind=SpanKind.TOOL)
+    async def acall() -> int:
+        return 1
+
+    async def drive() -> None:
+        async for _ in astream():
+            pass
+        await acall()
+
+    list(stream())
+    asyncio.run(drive())
+    for span in exported_spans.get_finished_spans():
+        assert span.attributes["gen_ai.tool.name"] == span.name
+
+
+def test_non_tool_kind_has_no_gen_ai_tool_name(exported_spans: InMemorySpanExporter) -> None:
+    add(1, 1)
+    assert "gen_ai.tool.name" not in exported_spans.get_finished_spans()[0].attributes

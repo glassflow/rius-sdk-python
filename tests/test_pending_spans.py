@@ -189,3 +189,26 @@ def test_observe_exposes_kind_at_span_start() -> None:
     assert recorder.seen["observed-tool"]["openinference.span.kind"] == "TOOL"
     assert recorder.seen["observed-tool"]["gen_ai.operation.name"] == "execute_tool"
     assert recorder.seen["observed-gen"]["openinference.span.kind"] == "CHAIN"
+
+
+def test_pending_snapshot_of_local_tool_span_carries_gen_ai_tool_name() -> None:
+    """A still-running local tool must be identifiable by name in the live
+    view, so the name has to be on the span at creation; read the EXPORTED
+    snapshot because the pending allowlist runs between span and wire."""
+    from rius import _tracer
+    from rius.semconv import SpanKind
+    from rius.spans import start_span
+
+    client, exporter = _memory_client(partial_spans=True)
+    # Route the SDK helpers to this scoped client (the lifecycle fixture
+    # withdraws it again after the test).
+    _tracer.publish(client._provider)
+    span = start_span("weather", kind=SpanKind.TOOL, input={"city": "Berlin"})
+    client.flush()  # the snapshot is exported while the span is still open
+    pending, _ = _split(exporter.get_finished_spans())
+    span.end()
+    assert pending, "expected a pending snapshot"
+    attrs = pending[0].attributes
+    assert attrs["gen_ai.tool.name"] == "weather"
+    assert attrs["gen_ai.operation.name"] == "execute_tool"
+    assert "input.value" not in attrs  # the allowlist still strips content
