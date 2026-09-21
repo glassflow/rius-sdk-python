@@ -1,9 +1,12 @@
 import json
+import time
+from typing import Any
 
 from opentelemetry.sdk.trace import Event, ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from rius import start_as_current_generation, start_generation
+from rius.generation import Generation
 
 # --- context manager: start_as_current_generation ---
 
@@ -411,6 +414,76 @@ def test_record_first_token_on_manual_generation(exported_spans: InMemorySpanExp
     gen.end()
     span = exported_spans.get_finished_spans()[0]
     assert len(_first_token_events(span)) == 1
+
+
+def test_record_first_token_sets_time_to_first_chunk_and_stream(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    with start_as_current_generation("chat") as gen:
+        time.sleep(0.01)
+        gen.record_first_token()
+    span = exported_spans.get_finished_spans()[0]
+    ttfc = span.attributes["gen_ai.response.time_to_first_chunk"]
+    assert isinstance(ttfc, float)
+    assert ttfc > 0
+    assert span.attributes["gen_ai.request.stream"] is True
+    assert len(_first_token_events(span)) == 1  # the event is kept, not replaced
+
+
+def test_time_to_first_chunk_matches_event_offset(exported_spans: InMemorySpanExporter) -> None:
+    with start_as_current_generation("chat") as gen:
+        time.sleep(0.02)
+        gen.record_first_token()
+    span = exported_spans.get_finished_spans()[0]
+    (event,) = _first_token_events(span)
+    from_event = (event.timestamp - span.start_time) / 1e9
+    assert abs(span.attributes["gen_ai.response.time_to_first_chunk"] - from_event) < 0.005
+
+
+def test_second_record_first_token_does_not_change_time_to_first_chunk(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    with start_as_current_generation("chat") as gen:
+        gen.record_first_token()
+        first = gen._span.attributes["gen_ai.response.time_to_first_chunk"]  # type: ignore[attr-defined]
+        time.sleep(0.02)
+        gen.record_first_token()
+    span = exported_spans.get_finished_spans()[0]
+    assert span.attributes["gen_ai.response.time_to_first_chunk"] == first
+
+
+def test_generation_without_first_token_has_no_stream_attributes(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    with start_as_current_generation("chat"):
+        pass
+    span = exported_spans.get_finished_spans()[0]
+    assert _first_token_events(span) == []
+    assert "gen_ai.response.time_to_first_chunk" not in span.attributes
+    assert "gen_ai.request.stream" not in span.attributes
+
+
+def test_record_first_token_on_span_without_start_time_skips_attribute() -> None:
+    class _Recording:
+        def __init__(self) -> None:
+            self.events: list[str] = []
+            self.attributes: dict[str, Any] = {}
+
+        def is_recording(self) -> bool:
+            return True
+
+        def add_event(self, name: str, timestamp: int | None = None) -> None:
+            self.events.append(name)
+
+        def set_attribute(self, key: str, value: Any) -> None:
+            self.attributes[key] = value
+
+    span = _Recording()
+    gen = Generation(span)  # type: ignore[arg-type]
+    gen.record_first_token()  # must not raise
+    assert span.events == ["gen_ai.first_token"]
+    assert "gen_ai.response.time_to_first_chunk" not in span.attributes
+    assert span.attributes["gen_ai.request.stream"] is True
 
 
 # --- tool definitions ---

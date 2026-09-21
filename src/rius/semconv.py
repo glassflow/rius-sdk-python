@@ -50,6 +50,14 @@ GEN_AI_PROVIDER_NAME = "gen_ai.provider.name"
 GEN_AI_REQUEST_MODEL = "gen_ai.request.model"
 GEN_AI_REQUEST_REASONING_LEVEL = "gen_ai.request.reasoning.level"
 GEN_AI_RESPONSE_MODEL = "gen_ai.response.model"
+# Streaming, per the GenAI inference-span conventions: gen_ai.request.stream
+# (boolean, Conditionally Required when streaming) and
+# gen_ai.response.time_to_first_chunk (double, seconds, "measured from request
+# issuance", Recommended for streaming requests). Both are set by
+# record_first_token: a first chunk arriving is what proves the request
+# streamed, and the SDK has no earlier hook for it.
+GEN_AI_REQUEST_STREAM = "gen_ai.request.stream"
+GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK = "gen_ai.response.time_to_first_chunk"
 GEN_AI_USAGE_INPUT_TOKENS = "gen_ai.usage.input_tokens"
 GEN_AI_USAGE_OUTPUT_TOKENS = "gen_ai.usage.output_tokens"
 GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS = "gen_ai.usage.cache_read.input_tokens"
@@ -87,10 +95,14 @@ MCP_RESULT_TYPE = "mcp.result_type"
 GEN_AI_REQUEST_PREFIX = "gen_ai.request."
 
 # --- Span event names ---
-# First streamed token/chunk arrived: the TTFT anchor (event time minus span
-# start). No client-side semconv exists for this yet (OTel only standardizes
-# the server-side gen_ai.server.time_to_first_token metric); this follows the
-# gen_ai.* naming style, precedent Langfuse's completion_start_time.
+# First streamed token/chunk arrived: the exact timestamp the backend reads to
+# derive TTFT (event time minus span start). The GenAI conventions express the
+# same signal as the derived span attribute
+# gen_ai.response.time_to_first_chunk (see above), which record_first_token
+# emits alongside this event; the event stays because it is what the backend
+# keys on, and an absolute timestamp is not recoverable from the duration
+# once the span is stored. The name follows the gen_ai.* style (precedent
+# Langfuse's completion_start_time); no convention defines an event for this.
 GEN_AI_FIRST_TOKEN_EVENT = "gen_ai.first_token"
 
 # --- Pending (partial) spans ---

@@ -8,6 +8,7 @@ spans are therefore readable by any gen_ai-compatible consumer.
 
 from __future__ import annotations
 
+import time
 from collections.abc import Iterator
 from contextlib import contextmanager, nullcontext
 from typing import Any
@@ -25,8 +26,10 @@ from .semconv import (
     GEN_AI_REQUEST_MODEL,
     GEN_AI_REQUEST_PREFIX,
     GEN_AI_REQUEST_REASONING_LEVEL,
+    GEN_AI_REQUEST_STREAM,
     GEN_AI_RESPONSE_FINISH_REASONS,
     GEN_AI_RESPONSE_MODEL,
+    GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK,
     GEN_AI_TOOL_DEFINITIONS,
     GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS,
     GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS,
@@ -228,17 +231,29 @@ class Generation:
             self._span.set_attribute(GEN_AI_USAGE_REASONING_OUTPUT_TOKENS, reasoning_output_tokens)
 
     def record_first_token(self) -> None:
-        """Mark the arrival of the first streamed token (``gen_ai.first_token`` event).
+        """Mark the arrival of the first streamed token.
 
-        Call from a streaming loop when the first content chunk arrives; the
-        backend derives time-to-first-token as the event time minus the span
-        start. Idempotent: only the first call records; safe to call
-        unconditionally per chunk. A no-op after ``end()``.
+        Call from a streaming loop when the first content chunk arrives. Records
+        the ``gen_ai.first_token`` event (the timestamp the backend derives
+        time-to-first-token from) and, per the GenAI conventions, the derived
+        ``gen_ai.response.time_to_first_chunk`` (seconds since span start) plus
+        ``gen_ai.request.stream = True``: a first chunk arriving is what tells
+        the SDK the request streamed. Idempotent: only the first call records;
+        safe to call unconditionally per chunk. A no-op after ``end()``.
         """
         if self._first_token_recorded or not self._span.is_recording():
             return
-        self._span.add_event(GEN_AI_FIRST_TOKEN_EVENT)
+        now_ns = time.time_ns()
+        self._span.add_event(GEN_AI_FIRST_TOKEN_EVENT, timestamp=now_ns)
         self._first_token_recorded = True
+        self._span.set_attribute(GEN_AI_REQUEST_STREAM, True)
+        # Only the SDK span knows its start; a non-SDK Span (or one whose
+        # start_time is unset) keeps the event and skips the derived value.
+        start_ns = getattr(self._span, "start_time", None)
+        if isinstance(start_ns, int):
+            self._span.set_attribute(
+                GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK, max(now_ns - start_ns, 0) / 1e9
+            )
 
     def set_finish_reasons(self, reasons: str | list[str]) -> None:
         """Record why generation stopped (``gen_ai.response.finish_reasons``).
