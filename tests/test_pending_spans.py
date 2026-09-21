@@ -212,3 +212,34 @@ def test_pending_snapshot_of_local_tool_span_carries_gen_ai_tool_name() -> None:
     assert attrs["gen_ai.tool.name"] == "weather"
     assert attrs["gen_ai.operation.name"] == "execute_tool"
     assert "input.value" not in attrs  # the allowlist still strips content
+
+
+def test_creation_identity_keys_are_pending_allowlisted() -> None:
+    """PENDING_IDENTITY_ATTRIBUTES is an allowlist, so an identity key added to
+    a creation-attribute builder without an allowlist update is silently
+    dropped from pending snapshots (this is how the MCP marker went missing
+    once). Every key the SDK itself sets at span creation must pass it."""
+    from rius.generation import _creation_attributes as generation_attributes
+    from rius.instrumentation_mcp import _call_attributes
+    from rius.semconv import (
+        PENDING_IDENTITY_ATTRIBUTES,
+        PENDING_IDENTITY_PREFIXES,
+        SpanKind,
+        kind_attributes,
+    )
+    from rius.spans import _creation_attributes as span_attributes
+
+    builders: dict[str, dict[str, str]] = {
+        f"kind_attributes({kind.name})": kind_attributes(kind, "tool-name") for kind in SpanKind
+    }
+    builders["spans"] = span_attributes("weather", SpanKind.TOOL, user_id="u")
+    builders["generation"] = generation_attributes(
+        model="m", provider="p", operation="chat", user_id="u"
+    )
+    builders["mcp"] = _call_attributes("search", protocol_version="2026-07-28")
+
+    for builder, attributes in builders.items():
+        for key in attributes:
+            assert key in PENDING_IDENTITY_ATTRIBUTES or key.startswith(
+                PENDING_IDENTITY_PREFIXES
+            ), f"{builder} sets {key!r} at creation but it is not pending-allowlisted"
