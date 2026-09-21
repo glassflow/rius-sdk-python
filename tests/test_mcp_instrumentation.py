@@ -433,6 +433,55 @@ def test_interim_input_required_round_keeps_the_mcp_marker() -> None:
     assert "mcp.protocol.version" not in finished.attributes
 
 
+# --- error.type ---------------------------------------------------------------
+# MCP semconv: "When CallToolResult is returned with isError set to true,
+# error.type SHOULD be set to tool_error"; on an exception it is the exception
+# class, spelled the way the span's own exception event spells exception.type.
+
+
+def test_error_result_sets_error_type_tool_error() -> None:
+    for result in (_V2Result(is_error=True), _V1Result(isError=True)):
+        span = _record_on_fresh_span(result)
+        assert span.attributes is not None
+        assert span.attributes["error.type"] == "tool_error"
+
+
+def test_successful_result_sets_no_error_type() -> None:
+    span = _record_on_fresh_span(_V2Result(structured_content={"ok": True}))
+    assert span.attributes is not None
+    assert "error.type" not in span.attributes
+
+
+def test_error_type_is_the_qualified_exception_class() -> None:
+    from rius.instrumentation_mcp import _error_type
+
+    class Custom(RuntimeError):
+        pass
+
+    assert _error_type(ValueError("x")) == "ValueError"  # builtins stay bare
+    assert _error_type(Custom()) == f"{Custom.__module__}.{Custom.__qualname__}"
+
+
+def test_exception_path_sets_error_type() -> None:
+    from mcp import ClientSession
+
+    from rius.instrumentation_mcp import _error_type
+
+    inner = InMemorySpanExporter()
+    client = init(span_exporter=inner, set_global=False, instruments=["mcp"])
+
+    class NotASession:  # the real call_tool raises on it; whatever it raises is the type
+        pass
+
+    with pytest.raises(Exception) as excinfo:
+        asyncio.run(ClientSession.call_tool(NotASession(), "x", None))  # type: ignore[arg-type]
+    client.flush()
+    (span,) = [s for s in inner.get_finished_spans() if s.name == "execute_tool x"]
+    assert not span.status.is_ok
+    assert span.attributes is not None
+    assert span.attributes["error.type"] == _error_type(excinfo.value)
+
+
 def test_single_text_result_is_bounded() -> None:
     from types import SimpleNamespace
 

@@ -51,6 +51,8 @@ from opentelemetry.trace import Status, StatusCode
 from . import __version__
 from ._serde import serialize, truncate
 from .semconv import (
+    ERROR_TYPE,
+    ERROR_TYPE_TOOL_ERROR,
     GEN_AI_TOOL_NAME,
     INPUT_VALUE,
     MCP_METHOD_NAME,
@@ -106,6 +108,17 @@ def _record_result(span: Any, result: Any) -> None:
     span.set_attribute(OUTPUT_VALUE, _serialize_result(result))
     if _result_is_error(result):
         span.set_status(Status(StatusCode.ERROR, "tool returned an error result"))
+        span.set_attribute(ERROR_TYPE, ERROR_TYPE_TOOL_ERROR)
+
+
+def _error_type(exc: BaseException) -> str:
+    """``error.type`` for a raised exception: the class, module-qualified
+    unless it is a builtin — the same spelling the span's exception event
+    uses for ``exception.type``, so the two never disagree on one span."""
+    cls = type(exc)
+    if cls.__module__ in ("builtins", "__main__"):
+        return cls.__qualname__
+    return f"{cls.__module__}.{cls.__qualname__}"
 
 
 def _call_attributes(name: str, *, protocol_version: str | None) -> dict[str, str]:
@@ -212,6 +225,7 @@ class MCPInstrumentor:
                 except Exception as exc:
                     span.record_exception(exc)
                     span.set_status(Status(StatusCode.ERROR, str(exc)))
+                    span.set_attribute(ERROR_TYPE, _error_type(exc))
                     raise
                 _record_result(span, result)
                 return result
