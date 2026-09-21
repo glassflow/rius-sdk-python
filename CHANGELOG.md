@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.16.0](https://github.com/glassflow/rius-sdk-python/compare/v0.15.1...v0.16.0) (2026-09-21)
+
+
+### Features
+
+* bring MCP client spans onto the OTel MCP semantic conventions ([#92](https://github.com/glassflow/rius-sdk-python/issues/92)) ([8e8dd05](https://github.com/glassflow/rius-sdk-python/commit/8e8dd0571079a80e5f5dfd16fd9793bd491d9172))
+
+
+### Bug Fixes
+
+* set error.type on MCP tool-call spans ([#95](https://github.com/glassflow/rius-sdk-python/issues/95)) ([4c9f8d6](https://github.com/glassflow/rius-sdk-python/commit/4c9f8d61e21d7fba7a242850e24a84ce242ef947))
+
+
+### Documentation
+
+* mark mcp.result_type as non-semconv and note the mcp 1.x ordering caveat ([#94](https://github.com/glassflow/rius-sdk-python/issues/94)) ([054cc80](https://github.com/glassflow/rius-sdk-python/commit/054cc800bf3679ffae088d9b979ba43be5b77ce8))
+* the GenAI execute-tool span says INTERNAL; CLIENT is the MCP-side call ([#96](https://github.com/glassflow/rius-sdk-python/issues/96)) ([659bf71](https://github.com/glassflow/rius-sdk-python/commit/659bf71870fa4db9065087812e88153bdc37174a))
+
 ## [0.15.1](https://github.com/glassflow/rius-sdk-python/compare/v0.15.0...v0.15.1) (2026-09-14)
 
 
