@@ -17,10 +17,13 @@ The span also carries the OTel MCP semantic conventions (``mcp.method.name``,
 ``@observe(kind=TOOL)`` tool produces an otherwise identical span. How the
 span composes the two conventions it sits under:
 
-- The OTel ``SpanKind`` field is ``CLIENT``, as both the MCP convention and
-  the GenAI execute-tool convention want for a remote tool. That field is
-  orthogonal to ``openinference.span.kind=TOOL``, which is our product
-  taxonomy attribute and stays.
+- The OTel ``SpanKind`` field is ``CLIENT``, the MCP client-span value. The
+  two conventions disagree here: the GenAI execute-tool span says INTERNAL,
+  the MCP client span says CLIENT. CLIENT wins because the call crosses a
+  process boundary and the MCP convention is the more specific one; a local
+  ``@observe(kind=TOOL)`` tool stays INTERNAL. That field is orthogonal to
+  ``openinference.span.kind=TOOL``, our product taxonomy attribute, which
+  stays.
 - The name is the GenAI execute-tool one, ``execute_tool {tool}``, not the
   MCP ``tools/call {tool}``. The MCP convention resolves that collision by
   consolidation: when a tool-execution span already exists, MCP
