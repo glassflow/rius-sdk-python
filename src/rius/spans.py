@@ -21,9 +21,11 @@ from typing import Any
 
 from opentelemetry.trace import Span
 
+from ._errors import error_type
 from ._serde import serialize
 from ._tracer import sdk_tracer
 from .semconv import (
+    ERROR_TYPE,
     INPUT_VALUE,
     OUTPUT_VALUE,
     USER_ID,
@@ -153,4 +155,13 @@ def start_as_current_span(
     ):
         observation = Observation(span)
         _configure(observation, input)
-        yield observation
+        try:
+            yield observation
+        except BaseException as exc:
+            # The OTel context manager above records the exception event and
+            # ERROR status as the block unwinds; error.type is the one thing
+            # it does not set, and the GenAI conventions require it on a span
+            # that ends in an error. Set it before re-raising so the event and
+            # this attribute land on the same span.
+            span.set_attribute(ERROR_TYPE, error_type(exc))
+            raise
