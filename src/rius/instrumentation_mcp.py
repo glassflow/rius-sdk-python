@@ -11,11 +11,28 @@ top-level import of ``mcp`` below makes an environment without the package look
 Tool arguments/results are recorded as ``input.value`` / ``output.value``, so
 they are covered by the same ``mask`` / ``capture_content`` controls as all
 other content.
+
+The span also carries the OTel MCP semantic conventions (``mcp.method.name``,
+``mcp.protocol.version``), so it is identifiable AS an MCP call — a local
+``@observe(kind=TOOL)`` tool produces an otherwise identical span. Two
+deliberate divergences from that convention, which wants ``SpanKind.CLIENT``
+and the name ``tools/call {tool}``: the span stays in our TOOL family, because
+the kind taxonomy is the product-level classification the UI groups on, and
+the name stays ``execute_tool {tool}``, because renaming is visible in every
+waterfall and saved search. The ``mcp.*`` attributes carry the protocol-level
+truth alongside.
+
+``ClientSession`` is built from a bare stream pair and keeps nothing about its
+connection — not the transport, not the server address, and not even the
+protocol version its own ``initialize()`` negotiates (it validates the value
+and drops it). So ``initialize`` is wrapped too, only to remember the
+negotiated version per session; server identity is not obtainable from here.
 """
 
 from __future__ import annotations
 
 import functools
+import weakref
 from typing import Any
 
 from mcp import ClientSession  # ImportError => registry treats "mcp" as not installed
@@ -27,6 +44,9 @@ from ._serde import serialize, truncate
 from .semconv import (
     GEN_AI_TOOL_NAME,
     INPUT_VALUE,
+    MCP_METHOD_NAME,
+    MCP_METHOD_TOOLS_CALL,
+    MCP_PROTOCOL_VERSION,
     MCP_RESULT_TYPE,
     OUTPUT_VALUE,
     TRACER_NAME,
@@ -79,12 +99,41 @@ def _record_result(span: Any, result: Any) -> None:
         span.set_status(Status(StatusCode.ERROR, "tool returned an error result"))
 
 
+def _call_attributes(name: str, *, protocol_version: str | None) -> dict[str, str]:
+    """Every identity attribute of a tools/call span, for setting at CREATION.
+
+    Pending snapshots are built at ``on_start``, so anything set afterwards
+    never reaches them — that includes the MCP marker, which an interim MRTR
+    round must carry as much as a final one.
+    """
+    attributes = {
+        **kind_attributes(SpanKind.TOOL),
+        GEN_AI_TOOL_NAME: name,
+        MCP_METHOD_NAME: MCP_METHOD_TOOLS_CALL,
+    }
+    if protocol_version is not None:
+        attributes[MCP_PROTOCOL_VERSION] = protocol_version
+    return attributes
+
+
+def _negotiated_version(init_result: Any) -> str | None:
+    """The protocol version an InitializeResult carries, on either mcp major."""
+    version = getattr(init_result, "protocolVersion", None)
+    if version is None:
+        version = getattr(init_result, "protocol_version", None)  # mcp 2.x spelling
+    return version if isinstance(version, str) else None
+
+
 class MCPInstrumentor:
     """Duck-types the OTel instrumentor interface (instrument/uninstrument)."""
 
     _instrumented = False
     _original_call_tool: Any = None
+    _original_initialize: Any = None
     _tracer: trace.Tracer | None = None
+    # Negotiated protocol version per live session. Weak keys: the session
+    # owns its lifetime, and this must never keep one alive.
+    _protocol_versions: weakref.WeakKeyDictionary[Any, str] = weakref.WeakKeyDictionary()
 
     @property
     def is_instrumented_by_opentelemetry(self) -> bool:
@@ -98,6 +147,16 @@ class MCPInstrumentor:
         cls._tracer = provider.get_tracer(TRACER_NAME, __version__)
         original = ClientSession.call_tool
         cls._original_call_tool = original
+        original_initialize = ClientSession.initialize
+        cls._original_initialize = original_initialize
+
+        @functools.wraps(original_initialize)
+        async def instrumented_initialize(session: ClientSession, *args: Any, **kw: Any) -> Any:
+            result = await original_initialize(session, *args, **kw)
+            version = _negotiated_version(result)
+            if version is not None:
+                cls._protocol_versions[session] = version
+            return result
 
         @functools.wraps(original)
         async def instrumented_call_tool(
@@ -110,11 +169,11 @@ class MCPInstrumentor:
             tracer = cls._tracer
             if tracer is None:  # uninstrumented mid-flight; fall through
                 return await original(session, name, arguments, *args, **kw)
-            # Kind and tool name at CREATION: pending snapshots are built at
-            # on_start, so anything set afterwards never reaches them.
             with tracer.start_as_current_span(
                 f"execute_tool {name}",
-                attributes={**kind_attributes(SpanKind.TOOL), GEN_AI_TOOL_NAME: name},
+                attributes=_call_attributes(
+                    name, protocol_version=cls._protocol_versions.get(session)
+                ),
                 record_exception=False,
                 set_status_on_exception=False,
             ) as span:
@@ -130,6 +189,7 @@ class MCPInstrumentor:
                 return result
 
         setattr(ClientSession, "call_tool", instrumented_call_tool)  # noqa: B010
+        setattr(ClientSession, "initialize", instrumented_initialize)  # noqa: B010
         cls._instrumented = True
 
     def uninstrument(self) -> None:
@@ -137,6 +197,9 @@ class MCPInstrumentor:
         if not cls._instrumented:
             return
         ClientSession.call_tool = cls._original_call_tool  # type: ignore[method-assign]
+        ClientSession.initialize = cls._original_initialize  # type: ignore[method-assign]
         cls._original_call_tool = None
+        cls._original_initialize = None
+        cls._protocol_versions.clear()
         cls._tracer = None
         cls._instrumented = False

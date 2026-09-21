@@ -65,6 +65,14 @@ GEN_AI_TOOL_NAME = "gen_ai.tool.name"
 # shapes differ; the backend reads names and sizes from either). Content,
 # not identity — listed in CONTENT_ATTRIBUTES below.
 GEN_AI_TOOL_DEFINITIONS = "gen_ai.tool.definitions"
+# OTel MCP semantic conventions (semantic-conventions-genai, Development
+# stability). mcp.method.name is the REQUIRED attribute of an MCP client span
+# and the marker everything downstream keys on: a local TOOL span has the same
+# kind, name and I/O shape, so this is what tells the two apart.
+MCP_METHOD_NAME = "mcp.method.name"
+MCP_METHOD_TOOLS_CALL = "tools/call"
+# The version the initialize handshake negotiated — not the one we asked for.
+MCP_PROTOCOL_VERSION = "mcp.protocol.version"
 # MCP spec 2026-07-28: a tools/call round can end with an interim
 # "input_required" result (MRTR) instead of a final one. Set ONLY on interim
 # rounds; the key follows the mcp SDK's own `mcp.*` attribute namespace.
