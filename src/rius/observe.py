@@ -20,7 +20,14 @@ from opentelemetry.trace import Status, StatusCode
 from ._errors import error_type
 from ._serde import serialize
 from ._tracer import sdk_tracer
-from .semconv import ERROR_TYPE, INPUT_VALUE, OUTPUT_VALUE, SpanKind, kind_attributes
+from .semconv import (
+    ERROR_TYPE,
+    INPUT_VALUE,
+    OUTPUT_VALUE,
+    SpanKind,
+    kind_attributes,
+    otel_span_kind,
+)
 
 F = TypeVar("F", bound=Callable[..., Any])
 
@@ -96,7 +103,11 @@ def observe(
             @functools.wraps(fn)
             async def async_gen_wrapper(*args: Any, **kwargs: Any) -> Any:
                 tracer = sdk_tracer()
-                span = tracer.start_span(span_name, attributes=kind_attributes(kind, span_name))
+                span = tracer.start_span(
+                    span_name,
+                    kind=otel_span_kind(kind),
+                    attributes=kind_attributes(kind, span_name),
+                )
                 _set_input(span, args, kwargs)
                 agen = fn(*args, **kwargs)
                 # A transparent proxy: send() and throw() from the caller reach
@@ -137,6 +148,7 @@ def observe(
                 tracer = sdk_tracer()
                 with tracer.start_as_current_span(
                     span_name,
+                    kind=otel_span_kind(kind),
                     attributes=kind_attributes(kind, span_name),
                     record_exception=False,
                     set_status_on_exception=False,
@@ -158,7 +170,11 @@ def observe(
             @functools.wraps(fn)
             def gen_wrapper(*args: Any, **kwargs: Any) -> Any:
                 tracer = sdk_tracer()
-                span = tracer.start_span(span_name, attributes=kind_attributes(kind, span_name))
+                span = tracer.start_span(
+                    span_name,
+                    kind=otel_span_kind(kind),
+                    attributes=kind_attributes(kind, span_name),
+                )
                 _set_input(span, args, kwargs)
                 gen = fn(*args, **kwargs)
                 pending: tuple[str, Any] = ("send", None)
@@ -194,6 +210,7 @@ def observe(
             tracer = sdk_tracer()
             with tracer.start_as_current_span(
                 span_name,
+                kind=otel_span_kind(kind),
                 attributes=kind_attributes(kind, span_name),
                 record_exception=False,
                 set_status_on_exception=False,

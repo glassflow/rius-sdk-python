@@ -10,6 +10,7 @@ from __future__ import annotations
 from enum import Enum
 
 from opentelemetry.trace import Span
+from opentelemetry.trace import SpanKind as OtelSpanKind
 
 # Instrumentation scope name (stamped on every span as otel.scope.name).
 # Deliberately still "glassflow" after the Rius rebrand: the value
@@ -266,6 +267,36 @@ _OPERATION_BY_KIND: dict[SpanKind, str] = {
     SpanKind.EMBEDDING: "embeddings",
     SpanKind.AGENT: "invoke_agent",
 }
+
+
+# SpanKind (our taxonomy ATTRIBUTE) -> the OpenTelemetry SpanKind FIELD, set
+# centrally at span creation. The GenAI conventions decide the field per
+# operation: inference, embeddings and retrieval call out of the process
+# (CLIENT); execute_tool is INTERNAL; invoke_agent is CLIENT only for a hosted
+# agent. Hence:
+# - LLM / EMBEDDING / RETRIEVER -> CLIENT: a remote model or index is called.
+# - TOOL -> INTERNAL: a bare TOOL span is an in-process function, and the
+#   execute-tool convention says INTERNAL. The MCP wrapper overrides this to
+#   CLIENT at its own call site because a tools/call crosses a process
+#   boundary and the MCP client convention says CLIENT.
+# - AGENT -> INTERNAL: `@observe(kind=AGENT)` wraps an in-process agent, the
+#   convention's INTERNAL case; a hosted agent would need a call-site override.
+# - CHAIN -> INTERNAL: a workflow step by definition.
+# Nothing in the backend groups on this field (it reads the attributes), so
+# the mapping is free to follow the conventions exactly.
+_OTEL_KIND_BY_KIND: dict[SpanKind, OtelSpanKind] = {
+    SpanKind.LLM: OtelSpanKind.CLIENT,
+    SpanKind.EMBEDDING: OtelSpanKind.CLIENT,
+    SpanKind.RETRIEVER: OtelSpanKind.CLIENT,
+    SpanKind.TOOL: OtelSpanKind.INTERNAL,
+    SpanKind.AGENT: OtelSpanKind.INTERNAL,
+    SpanKind.CHAIN: OtelSpanKind.INTERNAL,
+}
+
+
+def otel_span_kind(kind: SpanKind) -> OtelSpanKind:
+    """The OpenTelemetry ``SpanKind`` field a span of taxonomy ``kind`` should carry."""
+    return _OTEL_KIND_BY_KIND[kind]
 
 
 def kind_attributes(kind: SpanKind, name: str | None = None) -> dict[str, str]:

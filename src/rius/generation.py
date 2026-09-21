@@ -41,6 +41,7 @@ from .semconv import (
     USER_ID,
     SpanKind,
     kind_attributes,
+    otel_span_kind,
 )
 from .user import user
 
@@ -388,7 +389,9 @@ def start_generation(
         A ``Generation`` handle; call ``.end()`` when the call completes.
     """
     span = sdk_tracer().start_span(
-        name, attributes=_creation_attributes(model, provider, operation, user_id)
+        name,
+        kind=otel_span_kind(SpanKind.LLM),
+        attributes=_creation_attributes(model, provider, operation, user_id),
     )
     generation = Generation(span)
     _configure(
@@ -433,7 +436,9 @@ def start_as_current_generation(
         # inside inherit it through UserSpanProcessor, this span at creation.
         user(user_id) if user_id is not None else nullcontext(),
         tracer.start_as_current_span(
-            name, attributes=_creation_attributes(model, provider, operation, user_id)
+            name,
+            kind=otel_span_kind(SpanKind.LLM),
+            attributes=_creation_attributes(model, provider, operation, user_id),
         ) as span,
     ):
         generation = Generation(span)
