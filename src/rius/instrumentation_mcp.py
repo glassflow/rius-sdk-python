@@ -14,13 +14,18 @@ other content.
 
 The span also carries the OTel MCP semantic conventions (``mcp.method.name``,
 ``mcp.protocol.version``), so it is identifiable AS an MCP call — a local
-``@observe(kind=TOOL)`` tool produces an otherwise identical span. Two
-deliberate divergences from that convention, which wants ``SpanKind.CLIENT``
-and the name ``tools/call {tool}``: the span stays in our TOOL family, because
-the kind taxonomy is the product-level classification the UI groups on, and
-the name stays ``execute_tool {tool}``, because renaming is visible in every
-waterfall and saved search. The ``mcp.*`` attributes carry the protocol-level
-truth alongside.
+``@observe(kind=TOOL)`` tool produces an otherwise identical span. How the
+span composes the two conventions it sits under:
+
+- The OTel ``SpanKind`` field is ``CLIENT``, as both the MCP convention and
+  the GenAI execute-tool convention want for a remote tool. That field is
+  orthogonal to ``openinference.span.kind=TOOL``, which is our product
+  taxonomy attribute and stays.
+- The name is the GenAI execute-tool one, ``execute_tool {tool}``, not the
+  MCP ``tools/call {tool}``. The MCP convention resolves that collision by
+  consolidation: when a tool-execution span already exists, MCP
+  instrumentation SHOULD NOT open a second span and SHOULD add its
+  attributes to the existing one — which is exactly this span.
 
 ``ClientSession`` is built from a bare stream pair and keeps nothing about its
 connection — not the transport and not the server address, so server identity
@@ -187,6 +192,10 @@ class MCPInstrumentor:
                 return await original(session, name, arguments, *args, **kw)
             with tracer.start_as_current_span(
                 f"execute_tool {name}",
+                # The OTel SpanKind FIELD (orthogonal to our openinference
+                # taxonomy attribute): a remote tool call is CLIENT under both
+                # the MCP and the GenAI execute-tool conventions.
+                kind=trace.SpanKind.CLIENT,
                 attributes=_call_attributes(
                     name, protocol_version=_session_protocol_version(session)
                 ),

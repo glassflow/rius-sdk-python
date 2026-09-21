@@ -384,6 +384,19 @@ def test_pending_snapshot_keeps_the_mcp_identity_attributes() -> None:
     assert "input.value" not in attrs  # the allowlist still strips content
 
 
+def test_mcp_span_is_an_otel_client_span() -> None:
+    """The OTel SpanKind FIELD, not our openinference.span.kind attribute: both
+    the MCP and the GenAI execute-tool conventions want CLIENT for a remote
+    tool, and the two kinds are orthogonal — TOOL stays as the taxonomy."""
+    from opentelemetry.trace import SpanKind as OtelSpanKind
+
+    spans, _result = _run_tool_call("add", {"a": 1, "b": 1})
+    (tool_span,) = [s for s in spans if s.name == "execute_tool add"]
+    assert tool_span.kind == OtelSpanKind.CLIENT
+    assert tool_span.attributes is not None
+    assert tool_span.attributes["openinference.span.kind"] == "TOOL"
+
+
 def test_local_tool_span_carries_no_mcp_marker(exported_spans: InMemorySpanExporter) -> None:
     from rius import SpanKind, observe
 
