@@ -110,13 +110,21 @@ def _normalize_message(message: Any, default_role: str) -> dict[str, Any]:
     return {"role": role, "parts": parts}
 
 
+def normalize_messages(messages: Messages, default_role: str) -> list[dict[str, Any]]:
+    """Normalize to the spec message-array shape (a list of ``{"role", "parts"}``).
+
+    A bare string becomes a single message with ``default_role``. This is the
+    one place messages are normalized: the content attribute and the context
+    sizes are both derived from its result.
+    """
+    if isinstance(messages, str):
+        return [_normalize_message(messages, default_role)]
+    return [_normalize_message(message, default_role) for message in messages]
+
+
 def _serialize_messages(messages: Messages, default_role: str) -> str:
     """Serialize to the spec message-array shape (JSON string attribute)."""
-    if isinstance(messages, str):
-        normalized = [_normalize_message(messages, default_role)]
-    else:
-        normalized = [_normalize_message(message, default_role) for message in messages]
-    return serialize(normalized)
+    return serialize(normalize_messages(messages, default_role))
 
 
 class Generation:
