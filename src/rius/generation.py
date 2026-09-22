@@ -141,10 +141,13 @@ class Generation:
         # set_usage. A bare Generation(span) has no provider and never sums.
         self._provider: str | None = None
         # The latest normalized messages and tools, kept so rius.context.sizes
-        # can be recomputed from all three whenever any one of them changes.
+        # can be computed from all three once, when the span ends.
         self._input: list[dict[str, Any]] | None = None
         self._output: list[dict[str, Any]] | None = None
         self._tools: list[Any] | None = None
+        # Every generation span carries the attribute: this seed stands in for
+        # a span that is ended through the raw OTel handle instead of end().
+        self._span.set_attribute(RIUS_CONTEXT_SIZES, context_sizes(None, None, None))
 
     def set_input(self, messages: Messages) -> None:
         """Record the request messages (``gen_ai.input.messages``).
@@ -155,7 +158,6 @@ class Generation:
         """
         self._input = normalize_messages(messages, "user")
         self._span.set_attribute(GEN_AI_INPUT_MESSAGES, serialize(self._input))
-        self._set_context_sizes()
 
     def set_output(self, messages: Messages) -> None:
         """Record the response messages (``gen_ai.output.messages``).
@@ -166,7 +168,6 @@ class Generation:
         """
         self._output = normalize_messages(messages, "assistant")
         self._span.set_attribute(GEN_AI_OUTPUT_MESSAGES, serialize(self._output))
-        self._set_context_sizes()
 
     def set_tool_definitions(self, tools: list[Any]) -> None:
         """Record the request's tool/function definitions (``gen_ai.tool.definitions``).
@@ -183,13 +184,17 @@ class Generation:
         """
         self._tools = tools
         self._span.set_attribute(GEN_AI_TOOL_DEFINITIONS, serialize(tools))
-        self._set_context_sizes()
 
     def _set_context_sizes(self) -> None:
-        # Recomputed on every content write so the attribute is current when
-        # the span ends without needing an end hook; last write wins. It is
-        # derived from the normalized messages BEFORE serialize() truncates
-        # them, which is what makes it trustworthy when the content is not.
+        # Computed once, as the span ends (from end() and from the scoped
+        # form's exit), rather than on every content write: a generation with
+        # tools, input and output would otherwise pay for it three times, and
+        # only the last result matters. Derived from the normalized messages
+        # BEFORE serialize() truncated them, which is what makes it
+        # trustworthy when the content is not. A no-op on a span that already
+        # ended (set_attribute on a non-recording span is dropped by OTel).
+        if self._input is None and self._output is None and self._tools is None:
+            return  # the constructor's seed already says "no content"
         self._span.set_attribute(
             RIUS_CONTEXT_SIZES, context_sizes(self._tools, self._input, self._output)
         )
@@ -312,6 +317,7 @@ class Generation:
         Required for generations created with ``start_generation``; spans from
         ``start_as_current_generation`` end automatically when the block exits.
         """
+        self._set_context_sizes()
         self._span.end()
 
 
@@ -358,10 +364,6 @@ def _configure(
         generation.set_tool_definitions(tools)
     if input is not None:
         generation.set_input(input)
-    if tools is None and input is None:
-        # Every generation span carries the attribute, even one whose content
-        # is only set later (or never); the setters above already wrote it.
-        generation._set_context_sizes()
 
 
 def _creation_attributes(
@@ -491,3 +493,7 @@ def start_as_current_generation(
             # so the event and this attribute land on the same span.
             span.set_attribute(ERROR_TYPE, error_type(exc))
             raise
+        finally:
+            # Still inside the OTel context manager, so the span is recording:
+            # the one place the context sizes are computed for the scoped form.
+            generation._set_context_sizes()

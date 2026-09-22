@@ -605,10 +605,8 @@ def test_context_sizes_combine_input_output_and_tools(
 ) -> None:
     tools = [{"type": "function", "function": {"name": "lookup", "parameters": {}}}]
     with start_as_current_generation("chat", input=[{"role": "system", "content": "abc"}]) as gen:
-        assert _sizes_of_live(gen) == {
-            "version": 1,
-            "input_messages": [{"role": "system", "parts": [{"type": "text", "bytes": 3}]}],
-        }
+        # Computed once, at span end: while the block runs only the seed is set.
+        assert _sizes_of_live(gen) == {"version": 1}
         gen.set_output(
             [
                 {
@@ -665,8 +663,9 @@ def test_context_sizes_survive_capture_content_false() -> None:
 
     inner = InMemorySpanExporter()
     client = init(span_exporter=inner, set_global=False, capture_content=False)
-    with client.get_tracer().start_as_current_span("chat") as span:
-        Generation(span).set_input("secret prompt")
+    gen = Generation(client.get_tracer().start_span("chat"))
+    gen.set_input("secret prompt")
+    gen.end()
     client.flush()
     attrs = inner.get_finished_spans()[0].attributes
     assert attrs is not None
@@ -682,8 +681,9 @@ def test_context_sizes_describe_unmasked_text() -> None:
 
     inner = InMemorySpanExporter()
     client = init(span_exporter=inner, set_global=False, mask=lambda _v: "***")
-    with client.get_tracer().start_as_current_span("chat") as span:
-        Generation(span).set_input("a much longer secret prompt")
+    gen = Generation(client.get_tracer().start_span("chat"))
+    gen.set_input("a much longer secret prompt")
+    gen.end()
     client.flush()
     attrs = inner.get_finished_spans()[0].attributes
     assert attrs is not None
