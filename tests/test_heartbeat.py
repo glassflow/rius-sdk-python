@@ -32,7 +32,6 @@ def test_heartbeat_enabled_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
     # The conftest guard forces heartbeat off suite-wide (network safety);
     # clear it here to observe the real default.
     monkeypatch.delenv("RIUS_HEARTBEAT", raising=False)
-    monkeypatch.delenv("RIUS_HEARTBEAT", raising=False)
     assert resolve_config().heartbeat is True
 
 
@@ -262,7 +261,6 @@ def test_open_traces_flow_into_payloads() -> None:
 
 
 def test_heartbeat_on_by_default_starts_thread(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("RIUS_HEARTBEAT", raising=False)
     monkeypatch.delenv("RIUS_HEARTBEAT", raising=False)
     sent: list[dict[str, Any]] = []
     client = init(
