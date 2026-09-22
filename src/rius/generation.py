@@ -15,6 +15,7 @@ from typing import Any
 
 from opentelemetry.trace import Span
 
+from ._context_sizes import context_sizes
 from ._errors import error_type
 from ._serde import serialize
 from ._tracer import sdk_tracer
@@ -38,6 +39,7 @@ from .semconv import (
     GEN_AI_USAGE_INPUT_TOKENS,
     GEN_AI_USAGE_OUTPUT_TOKENS,
     GEN_AI_USAGE_REASONING_OUTPUT_TOKENS,
+    RIUS_CONTEXT_SIZES,
     USER_ID,
     SpanKind,
     kind_attributes,
@@ -110,13 +112,16 @@ def _normalize_message(message: Any, default_role: str) -> dict[str, Any]:
     return {"role": role, "parts": parts}
 
 
-def _serialize_messages(messages: Messages, default_role: str) -> str:
-    """Serialize to the spec message-array shape (JSON string attribute)."""
+def normalize_messages(messages: Messages, default_role: str) -> list[dict[str, Any]]:
+    """Normalize to the spec message-array shape (a list of ``{"role", "parts"}``).
+
+    A bare string becomes a single message with ``default_role``. This is the
+    one place messages are normalized: the content attribute and the context
+    sizes are both derived from its result.
+    """
     if isinstance(messages, str):
-        normalized = [_normalize_message(messages, default_role)]
-    else:
-        normalized = [_normalize_message(message, default_role) for message in messages]
-    return serialize(normalized)
+        return [_normalize_message(messages, default_role)]
+    return [_normalize_message(message, default_role) for message in messages]
 
 
 class Generation:
@@ -135,6 +140,14 @@ class Generation:
         # Set by _configure; drives the Anthropic input-token summing in
         # set_usage. A bare Generation(span) has no provider and never sums.
         self._provider: str | None = None
+        # The latest normalized messages and tools, kept so rius.context.sizes
+        # can be computed from all three once, when the span ends.
+        self._input: list[dict[str, Any]] | None = None
+        self._output: list[dict[str, Any]] | None = None
+        self._tools: list[Any] | None = None
+        # Every generation span carries the attribute: this seed stands in for
+        # a span that is ended through the raw OTel handle instead of end().
+        self._span.set_attribute(RIUS_CONTEXT_SIZES, context_sizes(None, None, None))
 
     def set_input(self, messages: Messages) -> None:
         """Record the request messages (``gen_ai.input.messages``).
@@ -143,7 +156,8 @@ class Generation:
             messages: A string or list of messages in any supported format;
                 bare strings default to the ``user`` role.
         """
-        self._span.set_attribute(GEN_AI_INPUT_MESSAGES, _serialize_messages(messages, "user"))
+        self._input = normalize_messages(messages, "user")
+        self._span.set_attribute(GEN_AI_INPUT_MESSAGES, serialize(self._input))
 
     def set_output(self, messages: Messages) -> None:
         """Record the response messages (``gen_ai.output.messages``).
@@ -152,7 +166,8 @@ class Generation:
             messages: A string or list of messages in any supported format;
                 bare strings default to the ``assistant`` role.
         """
-        self._span.set_attribute(GEN_AI_OUTPUT_MESSAGES, _serialize_messages(messages, "assistant"))
+        self._output = normalize_messages(messages, "assistant")
+        self._span.set_attribute(GEN_AI_OUTPUT_MESSAGES, serialize(self._output))
 
     def set_tool_definitions(self, tools: list[Any]) -> None:
         """Record the request's tool/function definitions (``gen_ai.tool.definitions``).
@@ -167,7 +182,22 @@ class Generation:
         Args:
             tools: The tools/functions list passed to the provider, verbatim.
         """
+        self._tools = tools
         self._span.set_attribute(GEN_AI_TOOL_DEFINITIONS, serialize(tools))
+
+    def _set_context_sizes(self) -> None:
+        # Computed once, as the span ends (from end() and from the scoped
+        # form's exit), rather than on every content write: a generation with
+        # tools, input and output would otherwise pay for it three times, and
+        # only the last result matters. Derived from the normalized messages
+        # BEFORE serialize() truncated them, which is what makes it
+        # trustworthy when the content is not. A no-op on a span that already
+        # ended (set_attribute on a non-recording span is dropped by OTel).
+        if self._input is None and self._output is None and self._tools is None:
+            return  # the constructor's seed already says "no content"
+        self._span.set_attribute(
+            RIUS_CONTEXT_SIZES, context_sizes(self._tools, self._input, self._output)
+        )
 
     def set_response_model(self, response_model: str) -> None:
         """Record the model that produced the response (``gen_ai.response.model``).
@@ -287,6 +317,7 @@ class Generation:
         Required for generations created with ``start_generation``; spans from
         ``start_as_current_generation`` end automatically when the block exits.
         """
+        self._set_context_sizes()
         self._span.end()
 
 
@@ -462,3 +493,7 @@ def start_as_current_generation(
             # so the event and this attribute land on the same span.
             span.set_attribute(ERROR_TYPE, error_type(exc))
             raise
+        finally:
+            # Still inside the OTel context manager, so the span is recording:
+            # the one place the context sizes are computed for the scoped form.
+            generation._set_context_sizes()

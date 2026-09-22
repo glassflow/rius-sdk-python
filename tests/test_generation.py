@@ -580,3 +580,131 @@ def test_generation_spans_are_client_kind(exported_spans: InMemorySpanExporter) 
         pass
     kinds = {s.name: s.kind for s in exported_spans.get_finished_spans()}
     assert kinds == {"manual": OtelSpanKind.CLIENT, "scoped": OtelSpanKind.CLIENT}
+
+
+# --- rius.context.sizes ---
+
+
+def _sizes_of(span: ReadableSpan) -> dict[str, Any]:
+    assert span.attributes is not None
+    decoded: dict[str, Any] = json.loads(str(span.attributes["rius.context.sizes"]))
+    return decoded
+
+
+def test_every_generation_span_carries_context_sizes(exported_spans: InMemorySpanExporter) -> None:
+    with start_as_current_generation("chat"):
+        pass
+    gen = start_generation("chat2")
+    gen.end()
+    for span in exported_spans.get_finished_spans():
+        assert _sizes_of(span) == {"version": 1}
+
+
+def test_context_sizes_combine_input_output_and_tools(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    tools = [{"type": "function", "function": {"name": "lookup", "parameters": {}}}]
+    with start_as_current_generation("chat", input=[{"role": "system", "content": "abc"}]) as gen:
+        # Computed once, at span end: while the block runs only the seed is set.
+        assert _sizes_of_live(gen) == {"version": 1}
+        gen.set_output(
+            [
+                {
+                    "role": "assistant",
+                    "content": "ok",
+                    "tool_calls": [{"id": "c1", "function": {"name": "lookup", "arguments": "{}"}}],
+                }
+            ]
+        )
+        gen.set_tool_definitions(tools)
+    sizes = _sizes_of(exported_spans.get_finished_spans()[0])
+    call_part = {"type": "tool_call", "id": "c1", "name": "lookup", "arguments": "{}"}
+    call_bytes = len(json.dumps(call_part, separators=(",", ":")).encode())
+    tool_bytes = len(json.dumps(tools[0], separators=(",", ":")).encode())
+    assert sizes == {
+        "version": 1,
+        "tool_definitions": [{"name": "lookup", "bytes": tool_bytes}],
+        "input_messages": [{"role": "system", "parts": [{"type": "text", "bytes": 3}]}],
+        "output_messages": [
+            {
+                "role": "assistant",
+                "parts": [
+                    {"type": "text", "bytes": 2},
+                    {"type": "tool_call", "tool": "lookup", "bytes": call_bytes},
+                ],
+            }
+        ],
+    }
+
+
+def _sizes_of_live(gen: Generation) -> dict[str, Any]:
+    attributes = getattr(gen._span, "attributes", None)
+    assert attributes is not None
+    decoded: dict[str, Any] = json.loads(str(attributes["rius.context.sizes"]))
+    return decoded
+
+
+def test_context_sizes_are_the_full_size_when_content_is_truncated(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    text = "é" * 40_000  # 40 K chars, 80 K bytes: well past the 32 K content cap
+    with start_as_current_generation("chat") as gen:
+        gen.set_output(text)
+    attrs = exported_spans.get_finished_spans()[0].attributes
+    assert attrs is not None
+    assert str(attrs["gen_ai.output.messages"]).endswith("…(truncated)")
+    assert _sizes_of(exported_spans.get_finished_spans()[0])["output_messages"] == [
+        {"role": "assistant", "parts": [{"type": "text", "bytes": 80_000}]}
+    ]
+
+
+def test_context_sizes_survive_capture_content_false() -> None:
+    from rius import init
+
+    inner = InMemorySpanExporter()
+    client = init(span_exporter=inner, set_global=False, capture_content=False)
+    gen = Generation(client.get_tracer().start_span("chat"))
+    gen.set_input("secret prompt")
+    gen.end()
+    client.flush()
+    attrs = inner.get_finished_spans()[0].attributes
+    assert attrs is not None
+    assert "gen_ai.input.messages" not in attrs
+    assert json.loads(str(attrs["rius.context.sizes"])) == {
+        "version": 1,
+        "input_messages": [{"role": "user", "parts": [{"type": "text", "bytes": 13}]}],
+    }
+
+
+def test_context_sizes_describe_unmasked_text() -> None:
+    from rius import init
+
+    inner = InMemorySpanExporter()
+    client = init(span_exporter=inner, set_global=False, mask=lambda _v: "***")
+    gen = Generation(client.get_tracer().start_span("chat"))
+    gen.set_input("a much longer secret prompt")
+    gen.end()
+    client.flush()
+    attrs = inner.get_finished_spans()[0].attributes
+    assert attrs is not None
+    assert attrs["gen_ai.input.messages"] == "***"
+    assert json.loads(str(attrs["rius.context.sizes"])) == {
+        "version": 1,
+        "input_messages": [{"role": "user", "parts": [{"type": "text", "bytes": 27}]}],
+    }
+
+
+def test_context_sizes_do_not_change_the_message_attributes(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    messages = [{"role": "user", "content": [{"type": "text", "text": "hi"}]}]
+    with start_as_current_generation("chat", input=messages) as gen:
+        gen.set_output("yo")
+    attrs = exported_spans.get_finished_spans()[0].attributes
+    assert attrs is not None
+    assert json.loads(str(attrs["gen_ai.input.messages"])) == [
+        {"role": "user", "parts": [{"type": "text", "content": "hi"}]}
+    ]
+    assert json.loads(str(attrs["gen_ai.output.messages"])) == [
+        {"role": "assistant", "parts": [{"type": "text", "content": "yo"}]}
+    ]

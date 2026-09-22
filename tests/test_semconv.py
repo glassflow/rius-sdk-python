@@ -61,3 +61,11 @@ def test_otel_span_kind_follows_the_genai_conventions(
 def test_every_taxonomy_kind_has_an_otel_kind() -> None:
     for kind in SpanKind:
         assert isinstance(otel_span_kind(kind), OtelSpanKind)
+
+
+def test_context_sizes_is_not_content_and_not_pending_identity() -> None:
+    from rius.semconv import CONTENT_ATTRIBUTES, PENDING_IDENTITY_ATTRIBUTES, RIUS_CONTEXT_SIZES
+
+    assert RIUS_CONTEXT_SIZES == "rius.context.sizes"
+    assert RIUS_CONTEXT_SIZES not in CONTENT_ATTRIBUTES
+    assert RIUS_CONTEXT_SIZES not in PENDING_IDENTITY_ATTRIBUTES

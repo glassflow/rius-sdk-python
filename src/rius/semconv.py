@@ -94,6 +94,19 @@ ERROR_TYPE_TOOL_ERROR = "tool_error"
 # no convention defines it. Kept as-is because the backend reads it.
 MCP_RESULT_TYPE = "mcp.result_type"
 GEN_AI_REQUEST_PREFIX = "gen_ai.request."
+# Per-part byte sizes of a generation's context, as compact JSON with
+# readable keys: tool_definitions (name, bytes), input_messages and
+# output_messages (literal role, parts typed text / tool_call /
+# tool_call_response with bytes and tool name), cache_marker, and a folded
+# summary of older input; see _context_sizes.py for the full shape.
+# A Rius vendor attribute, NOT a convention:
+# the backend reads it to attribute gen_ai.usage.input_tokens across the
+# context, and no convention describes context composition. Deliberately
+# absent from CONTENT_ATTRIBUTES (it is sizes, not content, and must survive
+# masking and capture_content=False — that is its whole point when the
+# messages are truncated or stripped) and from PENDING_IDENTITY_ATTRIBUTES
+# (content is unknown at span start, so a pending snapshot never has it).
+RIUS_CONTEXT_SIZES = "rius.context.sizes"
 
 # --- Span event names ---
 # First streamed token/chunk arrived: the exact timestamp the backend reads to
