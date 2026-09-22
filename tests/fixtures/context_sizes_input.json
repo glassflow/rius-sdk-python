@@ -1,0 +1,22 @@
+{
+  "tools": [
+    {"type": "function", "function": {"name": "query_clickhouse", "description": "Run a read-only SQL query.", "parameters": {"type": "object", "properties": {"sql": {"type": "string"}}, "required": ["sql"]}}},
+    {"name": "get_pipeline_status", "description": "Fetch pipeline status.", "input_schema": {"type": "object", "properties": {"pipeline_id": {"type": "string"}}}},
+    {"type": "web_search_20250305", "max_uses": 3}
+  ],
+  "input": [
+    {"role": "system", "content": "You are the on-call assistant. Quote column names in backticks."},
+    {"role": "user", "content": "Pipeline 7f3c2a10 stopped writing rows. Kafka lag is climbing. 状態を確認して 🚨"},
+    {"role": "assistant", "content": "Checking the pipeline status first.", "tool_calls": [{"id": "call_1", "type": "function", "function": {"name": "get_pipeline_status", "arguments": "{\"pipeline_id\": \"7f3c2a10\"}"}}]},
+    {"role": "tool", "tool_call_id": "call_1", "content": "{\"state\": \"Running\", \"sink\": {\"rows_last_5m\": 0}}"},
+    {"role": "assistant", "content": [{"type": "text", "text": "It says Running but nothing flows."}], "tool_calls": [{"id": "call_2", "type": "function", "function": {"name": "undefined_tool", "arguments": "{\"q\": 1}"}}]},
+    {"role": "tool", "tool_call_id": "call_2", "content": "no such tool"},
+    {"role": "tool", "content": "orphan result with no call id"},
+    {"role": "user", "content": [{"type": "text", "text": "Here is the dashboard"}, {"type": "image_url", "image_url": {"url": "data:image/png;base64,AAAA"}}]},
+    {"role": "user", "parts": [{"type": "text", "content": "Is this data loss?", "cache_control": {"type": "ephemeral"}}]},
+    {"role": "user", "parts": [{"type": "text", "content": "Should we page someone?"}]}
+  ],
+  "output": [
+    {"role": "assistant", "content": "Yes: DATA-LOSS. Page sev2."}
+  ]
+}

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import pathlib
 from typing import Any
 
 from rius._context_sizes import (
@@ -440,3 +441,24 @@ def test_never_raises_on_garbage_shapes() -> None:
     sizes = json.loads(raw)
     assert sizes["v"] == 1
     assert len(sizes["t"]) == 3
+
+
+# --- cross-SDK parity ---
+
+_FIXTURES = pathlib.Path(__file__).parent / "fixtures"
+
+
+def test_parity_fixture_matches_expected_output() -> None:
+    # The same input fixture is run through the TypeScript SDK; both must
+    # produce this exact string. On a first run the expected file is written
+    # so it can be committed and diffed against the other SDK's result.
+    fixture = json.loads((_FIXTURES / "context_sizes_input.json").read_text(encoding="utf-8"))
+    result = context_sizes(
+        fixture["tools"],
+        normalize_messages(fixture["input"], "user"),
+        normalize_messages(fixture["output"], "assistant"),
+    )
+    expected_path = _FIXTURES / "context_sizes_expected.json"
+    if not expected_path.exists():
+        expected_path.write_text(result + "\n", encoding="utf-8")
+    assert result == expected_path.read_text(encoding="utf-8").rstrip("\n")
