@@ -15,6 +15,7 @@ from typing import Any
 
 from opentelemetry.trace import Span
 
+from ._context_sizes import context_sizes
 from ._errors import error_type
 from ._serde import serialize
 from ._tracer import sdk_tracer
@@ -38,6 +39,7 @@ from .semconv import (
     GEN_AI_USAGE_INPUT_TOKENS,
     GEN_AI_USAGE_OUTPUT_TOKENS,
     GEN_AI_USAGE_REASONING_OUTPUT_TOKENS,
+    RIUS_CONTEXT_SIZES,
     USER_ID,
     SpanKind,
     kind_attributes,
@@ -122,11 +124,6 @@ def normalize_messages(messages: Messages, default_role: str) -> list[dict[str, 
     return [_normalize_message(message, default_role) for message in messages]
 
 
-def _serialize_messages(messages: Messages, default_role: str) -> str:
-    """Serialize to the spec message-array shape (JSON string attribute)."""
-    return serialize(normalize_messages(messages, default_role))
-
-
 class Generation:
     """Handle for recording gen_ai attributes on an LLM span.
 
@@ -143,6 +140,11 @@ class Generation:
         # Set by _configure; drives the Anthropic input-token summing in
         # set_usage. A bare Generation(span) has no provider and never sums.
         self._provider: str | None = None
+        # The latest normalized messages and tools, kept so rius.context.sizes
+        # can be recomputed from all three whenever any one of them changes.
+        self._input: list[dict[str, Any]] | None = None
+        self._output: list[dict[str, Any]] | None = None
+        self._tools: list[Any] | None = None
 
     def set_input(self, messages: Messages) -> None:
         """Record the request messages (``gen_ai.input.messages``).
@@ -151,7 +153,9 @@ class Generation:
             messages: A string or list of messages in any supported format;
                 bare strings default to the ``user`` role.
         """
-        self._span.set_attribute(GEN_AI_INPUT_MESSAGES, _serialize_messages(messages, "user"))
+        self._input = normalize_messages(messages, "user")
+        self._span.set_attribute(GEN_AI_INPUT_MESSAGES, serialize(self._input))
+        self._set_context_sizes()
 
     def set_output(self, messages: Messages) -> None:
         """Record the response messages (``gen_ai.output.messages``).
@@ -160,7 +164,9 @@ class Generation:
             messages: A string or list of messages in any supported format;
                 bare strings default to the ``assistant`` role.
         """
-        self._span.set_attribute(GEN_AI_OUTPUT_MESSAGES, _serialize_messages(messages, "assistant"))
+        self._output = normalize_messages(messages, "assistant")
+        self._span.set_attribute(GEN_AI_OUTPUT_MESSAGES, serialize(self._output))
+        self._set_context_sizes()
 
     def set_tool_definitions(self, tools: list[Any]) -> None:
         """Record the request's tool/function definitions (``gen_ai.tool.definitions``).
@@ -175,7 +181,18 @@ class Generation:
         Args:
             tools: The tools/functions list passed to the provider, verbatim.
         """
+        self._tools = tools
         self._span.set_attribute(GEN_AI_TOOL_DEFINITIONS, serialize(tools))
+        self._set_context_sizes()
+
+    def _set_context_sizes(self) -> None:
+        # Recomputed on every content write so the attribute is current when
+        # the span ends without needing an end hook; last write wins. It is
+        # derived from the normalized messages BEFORE serialize() truncates
+        # them, which is what makes it trustworthy when the content is not.
+        self._span.set_attribute(
+            RIUS_CONTEXT_SIZES, context_sizes(self._tools, self._input, self._output)
+        )
 
     def set_response_model(self, response_model: str) -> None:
         """Record the model that produced the response (``gen_ai.response.model``).
@@ -341,6 +358,10 @@ def _configure(
         generation.set_tool_definitions(tools)
     if input is not None:
         generation.set_input(input)
+    if tools is None and input is None:
+        # Every generation span carries the attribute, even one whose content
+        # is only set later (or never); the setters above already wrote it.
+        generation._set_context_sizes()
 
 
 def _creation_attributes(
