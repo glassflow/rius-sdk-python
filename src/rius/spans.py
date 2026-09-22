@@ -141,13 +141,18 @@ def _creation_attributes(
     name: str,
     kind: SpanKind,
     user_id: str | None,
+    tool_name: str | None = None,
     data_source_id: str | None = None,
     top_k: int | None = None,
 ) -> dict[str, str | int]:
     # Identity at CREATION so pending snapshots (on_start) carry it; the
     # user id is set here as well as via the user() scope so it reaches the
     # span even on a provider without UserSpanProcessor installed.
-    attributes: dict[str, str | int] = dict(kind_attributes(kind, name, data_source_id, top_k))
+    # The tool name falls back to the span name, which is all a caller of this
+    # surface gives us; an explicit one keeps the two independent.
+    attributes: dict[str, str | int] = dict(
+        kind_attributes(kind, tool_name or name, data_source_id, top_k)
+    )
     if user_id is not None:
         attributes[USER_ID] = user_id
     return attributes
@@ -159,6 +164,7 @@ def start_span(
     kind: SpanKind = SpanKind.CHAIN,
     input: Any = None,
     user_id: str | None = None,
+    tool_name: str | None = None,
     data_source_id: str | None = None,
     top_k: int | None = None,
 ) -> Observation:
@@ -172,6 +178,10 @@ def start_span(
     that has no children of its own. To attribute a whole request, including
     auto-instrumented spans, use the ``user()`` scope instead.
 
+    ``tool_name`` sets ``gen_ai.tool.name`` on a ``TOOL`` span; it defaults to
+    the span name, and exists so a span name that is not the bare tool name
+    does not become one.
+
     ``data_source_id`` names the index, collection or knowledge base a
     ``RETRIEVER`` span searched (``gen_ai.data_source.id``), and ``top_k`` how
     many documents it asked for (``gen_ai.retrieval.top_k``). Both are set at
@@ -182,7 +192,7 @@ def start_span(
     span = sdk_tracer().start_span(
         name,
         kind=otel_span_kind(kind),
-        attributes=_creation_attributes(name, kind, user_id, data_source_id, top_k),
+        attributes=_creation_attributes(name, kind, user_id, tool_name, data_source_id, top_k),
     )
     observation = Observation(span)
     _configure(observation, input)
@@ -196,6 +206,7 @@ def start_as_current_span(
     kind: SpanKind = SpanKind.CHAIN,
     input: Any = None,
     user_id: str | None = None,
+    tool_name: str | None = None,
     data_source_id: str | None = None,
     top_k: int | None = None,
 ) -> Iterator[Observation]:
@@ -206,6 +217,10 @@ def start_as_current_span(
 
     ``user_id`` is sugar for wrapping the block in ``user(user_id)``: this span
     and every span opened inside the block carry ``user.id``.
+
+    ``tool_name`` sets ``gen_ai.tool.name`` on a ``TOOL`` span; it defaults to
+    the span name, and exists so a span name that is not the bare tool name
+    does not become one.
 
     ``data_source_id`` names the index, collection or knowledge base a
     ``RETRIEVER`` span searched (``gen_ai.data_source.id``), and ``top_k`` how
@@ -220,7 +235,7 @@ def start_as_current_span(
         tracer.start_as_current_span(
             name,
             kind=otel_span_kind(kind),
-            attributes=_creation_attributes(name, kind, user_id, data_source_id, top_k),
+            attributes=_creation_attributes(name, kind, user_id, tool_name, data_source_id, top_k),
         ) as span,
     ):
         observation = Observation(span)

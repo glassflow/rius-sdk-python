@@ -111,6 +111,24 @@ def test_manual_tool_kind_sets_gen_ai_tool_name(exported_spans: InMemorySpanExpo
     assert attrs["gen_ai.tool.name"] == "weather"
 
 
+def test_cm_explicit_tool_name_wins_over_the_span_name(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    with start_as_current_span("execute_tool weather", kind=SpanKind.TOOL, tool_name="weather"):
+        pass
+    span = exported_spans.get_finished_spans()[0]
+    assert span.name == "execute_tool weather"
+    assert span.attributes["gen_ai.tool.name"] == "weather"
+
+
+def test_manual_explicit_tool_name_wins_over_the_span_name(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    start_span("execute_tool weather", kind=SpanKind.TOOL, tool_name="weather").end()
+    span = exported_spans.get_finished_spans()[0]
+    assert span.attributes["gen_ai.tool.name"] == "weather"
+
+
 def test_cm_chain_kind_has_no_gen_ai_tool_name(exported_spans: InMemorySpanExporter) -> None:
     with start_as_current_span("step"):
         pass

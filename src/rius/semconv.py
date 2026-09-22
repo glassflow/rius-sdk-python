@@ -350,7 +350,7 @@ def otel_span_kind(kind: SpanKind) -> OtelSpanKind:
 
 def kind_attributes(
     kind: SpanKind,
-    name: str | None = None,
+    tool_name: str | None = None,
     data_source_id: str | None = None,
     top_k: int | None = None,
 ) -> dict[str, str | int]:
@@ -360,10 +360,12 @@ def kind_attributes(
     via ``set_attribute`` afterwards is invisible to them; passing these at
     span creation is what makes a pending span classifiable.
 
-    ``name`` is the span name. The GenAI execute-tool convention requires
-    ``gen_ai.tool.name``, and for a local tool the span name IS the tool
-    name, so a TOOL span with a name gets it here rather than relying on
-    every caller to remember.
+    ``tool_name`` is the tool's own name, which the GenAI execute-tool
+    convention requires as ``gen_ai.tool.name`` on a TOOL span. It is
+    deliberately NOT the span name: the two coincide today but stop
+    coinciding as soon as span names carry an operation prefix, and the tool
+    name feeds the MCP detection predicate, the tool-loop analysis and the
+    tool-arguments fingerprint, none of which tolerate a prefix.
 
     ``data_source_id`` is the index or collection a RETRIEVER span searched
     (``gen_ai.data_source.id``), and ``top_k`` how many documents it asked
@@ -375,8 +377,8 @@ def kind_attributes(
     operation = _OPERATION_BY_KIND.get(kind)
     if operation is not None:
         attributes[GEN_AI_OPERATION_NAME] = operation
-    if kind is SpanKind.TOOL and name is not None:
-        attributes[GEN_AI_TOOL_NAME] = name
+    if kind is SpanKind.TOOL and tool_name is not None:
+        attributes[GEN_AI_TOOL_NAME] = tool_name
     if kind is SpanKind.RETRIEVER:
         if data_source_id is not None:
             attributes[GEN_AI_DATA_SOURCE_ID] = data_source_id

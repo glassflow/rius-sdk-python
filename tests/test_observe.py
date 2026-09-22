@@ -254,16 +254,50 @@ def test_success_sets_no_error_type(exported_spans: InMemorySpanExporter) -> Non
     assert "error.type" not in exported_spans.get_finished_spans()[0].attributes
 
 
-def test_tool_kind_sets_gen_ai_tool_name_from_custom_name(
+def test_tool_kind_takes_the_tool_name_from_its_own_argument(
     exported_spans: InMemorySpanExporter,
 ) -> None:
-    @observe(name="search-docs", kind=SpanKind.TOOL)
+    @observe(name="search-docs", kind=SpanKind.TOOL, tool_name="search")
     def search(q: str) -> str:
         return "result"
 
     search("hi")
     attrs = exported_spans.get_finished_spans()[0].attributes
-    assert attrs["gen_ai.tool.name"] == "search-docs"
+    assert attrs["gen_ai.tool.name"] == "search"
+
+
+def test_renaming_the_span_does_not_rename_the_tool(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    """The span name and the tool name are independent inputs."""
+
+    @observe(name="search-docs", kind=SpanKind.TOOL)
+    def search(q: str) -> str:
+        return "result"
+
+    search("hi")
+    span = exported_spans.get_finished_spans()[0]
+    assert span.name == "search-docs"
+    assert span.attributes["gen_ai.tool.name"].endswith("search")
+
+
+def test_tool_name_never_carries_the_operation_prefix(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    """A spec-form span name must not leak its operation into the tool name.
+
+    The tool name feeds the MCP detection predicate, the tool-loop analysis
+    and the tool-arguments fingerprint, none of which tolerate a prefix.
+    """
+
+    @observe(name="execute_tool get_weather", kind=SpanKind.TOOL, tool_name="get_weather")
+    def weather(city: str) -> str:
+        return "sunny"
+
+    weather("Berlin")
+    span = exported_spans.get_finished_spans()[0]
+    assert span.name == "execute_tool get_weather"
+    assert span.attributes["gen_ai.tool.name"] == "get_weather"
 
 
 def test_tool_kind_sets_gen_ai_tool_name_from_qualname(

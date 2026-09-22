@@ -45,6 +45,7 @@ def observe(
     capture_input: bool = ...,
     capture_output: bool = ...,
     kind: SpanKind = ...,
+    tool_name: str | None = ...,
     data_source_id: str | None = ...,
     top_k: int | None = ...,
 ) -> Callable[[F], F]: ...
@@ -57,6 +58,7 @@ def observe(
     capture_input: bool = True,
     capture_output: bool = True,
     kind: SpanKind = SpanKind.CHAIN,
+    tool_name: str | None = None,
     data_source_id: str | None = None,
     top_k: int | None = None,
 ) -> Any:
@@ -74,6 +76,10 @@ def observe(
         capture_input: Record call arguments as JSON in ``input.value``.
         capture_output: Record the return value as JSON in ``output.value``.
         kind: Span taxonomy (``openinference.span.kind``); default ``CHAIN``.
+        tool_name: The tool's own name (``gen_ai.tool.name``), used only when
+            ``kind`` is ``TOOL``. Defaults to the function's ``__qualname__``.
+            Separate from ``name`` on purpose: the span name may carry an
+            operation prefix, and the tool name must not.
         data_source_id: The index, collection or knowledge base a ``RETRIEVER``
             span searched (``gen_ai.data_source.id``). Ignored for other kinds.
         top_k: How many documents the retrieval asked for
@@ -87,6 +93,9 @@ def observe(
 
     def decorate(fn: Callable[..., Any]) -> Callable[..., Any]:
         span_name = name or fn.__qualname__
+        # The tool's identity is the function it wraps, not what the span is
+        # called: a caller who renames the span keeps the tool name intact.
+        span_tool_name = tool_name or fn.__qualname__
 
         def _set_input(span: trace.Span, args: tuple[Any, ...], kwargs: dict[str, Any]) -> None:
             if capture_input:
@@ -106,7 +115,7 @@ def observe(
                 span = tracer.start_span(
                     span_name,
                     kind=otel_span_kind(kind),
-                    attributes=kind_attributes(kind, span_name, data_source_id, top_k),
+                    attributes=kind_attributes(kind, span_tool_name, data_source_id, top_k),
                 )
                 _set_input(span, args, kwargs)
                 agen = fn(*args, **kwargs)
@@ -149,7 +158,7 @@ def observe(
                 with tracer.start_as_current_span(
                     span_name,
                     kind=otel_span_kind(kind),
-                    attributes=kind_attributes(kind, span_name, data_source_id, top_k),
+                    attributes=kind_attributes(kind, span_tool_name, data_source_id, top_k),
                     record_exception=False,
                     set_status_on_exception=False,
                 ) as span:
@@ -173,7 +182,7 @@ def observe(
                 span = tracer.start_span(
                     span_name,
                     kind=otel_span_kind(kind),
-                    attributes=kind_attributes(kind, span_name, data_source_id, top_k),
+                    attributes=kind_attributes(kind, span_tool_name, data_source_id, top_k),
                 )
                 _set_input(span, args, kwargs)
                 gen = fn(*args, **kwargs)
@@ -211,7 +220,7 @@ def observe(
             with tracer.start_as_current_span(
                 span_name,
                 kind=otel_span_kind(kind),
-                attributes=kind_attributes(kind, span_name, data_source_id, top_k),
+                attributes=kind_attributes(kind, span_tool_name, data_source_id, top_k),
                 record_exception=False,
                 set_status_on_exception=False,
             ) as span:
