@@ -15,13 +15,11 @@ from typing import Any, TypeVar, overload
 
 from opentelemetry import context as otel_context
 from opentelemetry import trace
-from opentelemetry.trace import Status, StatusCode
 
-from ._errors import error_type
+from ._errors import record_error
 from ._serde import serialize
 from ._tracer import sdk_tracer
 from .semconv import (
-    ERROR_TYPE,
     INPUT_VALUE,
     OUTPUT_VALUE,
     SpanKind,
@@ -34,14 +32,6 @@ F = TypeVar("F", bound=Callable[..., Any])
 
 def _serialize_inputs(args: tuple[Any, ...], kwargs: dict[str, Any]) -> str:
     return serialize({"args": args, "kwargs": kwargs})
-
-
-def _record_exception(span: trace.Span, exc: BaseException) -> None:
-    span.record_exception(exc)
-    span.set_status(Status(StatusCode.ERROR, str(exc)))
-    # Conditionally Required by the GenAI conventions on a span that ends in
-    # an error; the class only, so it stays low-cardinality and content-free.
-    span.set_attribute(ERROR_TYPE, error_type(exc))
 
 
 @overload
@@ -133,7 +123,7 @@ def observe(
                         except BaseException as thrown:  # the caller's athrow()
                             pending = ("throw", thrown)
                 except Exception as exc:
-                    _record_exception(span, exc)
+                    record_error(span, exc)
                     raise
                 finally:
                     await agen.aclose()
@@ -157,7 +147,7 @@ def observe(
                     try:
                         result = await fn(*args, **kwargs)
                     except Exception as exc:
-                        _record_exception(span, exc)
+                        record_error(span, exc)
                         raise
                     _set_output(span, result)
                     return result
@@ -197,7 +187,7 @@ def observe(
                         except BaseException as thrown:  # the caller's throw()
                             pending = ("throw", thrown)
                 except Exception as exc:
-                    _record_exception(span, exc)
+                    record_error(span, exc)
                     raise
                 finally:
                     gen.close()
@@ -219,7 +209,7 @@ def observe(
                 try:
                     result = fn(*args, **kwargs)
                 except Exception as exc:
-                    _record_exception(span, exc)
+                    record_error(span, exc)
                     raise
                 _set_output(span, result)
                 return result

@@ -16,7 +16,7 @@ from typing import Any
 from opentelemetry.trace import Span
 
 from ._context_sizes import context_sizes
-from ._errors import error_type
+from ._errors import error_type, record_error
 from ._serde import serialize
 from ._tracer import sdk_tracer
 from .semconv import (
@@ -310,6 +310,21 @@ class Generation:
             self.set_input(input)
         if output is not None:
             self.set_output(output)
+
+    def record_exception(self, exc: BaseException) -> None:
+        """Record a failure on this span: event, ERROR status and ``error.type``.
+
+        ``start_generation`` does not auto-record exceptions, so a manual
+        handle has to be told. Recording the failure through the underlying
+        span object instead leaves ``error.type`` unset, and the span then
+        groups differently from every other error span the SDK emits.
+
+        Args:
+            exc: The exception that ended the call. ``error.type`` is set to
+                its class, module-qualified unless it is a builtin, which is
+                the same spelling the exception event uses.
+        """
+        record_error(self._span, exc)
 
     def end(self) -> None:
         """End the underlying span.
