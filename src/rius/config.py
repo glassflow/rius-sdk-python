@@ -16,11 +16,11 @@ logger = logging.getLogger(__name__)
 DEFAULT_ENDPOINT = "https://ingest.eu.console.rius-glassflow.com"
 DEFAULT_SERVICE_NAME = "unknown_service"
 
-# RIUS_* is the canonical prefix; GLASSFLOW_* is read as a deprecated
-# fallback (product rename). Only the env names changed: wire contracts
-# like the tracer scope and glassflow.span.pending keep their names.
+# RIUS_* is the only prefix read. The pre-rename GLASSFLOW_* spellings were
+# accepted as a deprecated fallback (with a warning) through the 0.x releases
+# and dropped in the same major bump that moved the wire-visible vendor names
+# (tracer scope, rius.span.pending) to the product name.
 ENV_PREFIX = "RIUS_"
-DEPRECATED_ENV_PREFIX = "GLASSFLOW_"
 
 ENV_ENDPOINT = "RIUS_ENDPOINT"
 ENV_API_KEY = "RIUS_API_KEY"
@@ -50,33 +50,15 @@ PARTIAL_SPANS_DELAY_MAX = 60.0
 _TRUENESS = frozenset({"1", "true", "yes", "on"})
 
 
-def _getenv(name: str, deprecated_used: list[str]) -> str | None:
-    """Read ``name``, falling back to its deprecated ``GLASSFLOW_*`` spelling.
-
-    A fallback hit is recorded in ``deprecated_used`` so ``resolve_config``
-    can emit one consolidated deprecation warning instead of one per
-    variable. When both spellings are set the ``RIUS_*`` one wins and no
-    deprecation is recorded; that caller has already migrated.
-    """
-    value = os.getenv(name)
-    if value is not None:
-        return value
-    suffix = name.removeprefix(ENV_PREFIX)
-    value = os.getenv(DEPRECATED_ENV_PREFIX + suffix)
-    if value is not None:
-        deprecated_used.append(suffix)
-    return value
-
-
-def _env_bool(name: str, deprecated_used: list[str], *, default: bool) -> bool:
-    raw = _getenv(name, deprecated_used)
+def _env_bool(name: str, *, default: bool) -> bool:
+    raw = os.getenv(name)
     if raw is None:
         return default
     return raw.strip().lower() in _TRUENESS
 
 
-def _env_float(name: str, deprecated_used: list[str], *, default: float) -> float:
-    raw = _getenv(name, deprecated_used)
+def _env_float(name: str, *, default: float) -> float:
+    raw = os.getenv(name)
     if raw is None:
         return default
     try:
@@ -241,61 +223,35 @@ def resolve_config(
     Returns:
         The resolved, immutable ``GlassflowConfig``.
     """
-    deprecated_used: list[str] = []
-    resolved_endpoint = endpoint or _getenv(ENV_ENDPOINT, deprecated_used) or DEFAULT_ENDPOINT
-    resolved_api_key = api_key if api_key is not None else _getenv(ENV_API_KEY, deprecated_used)
-    resolved_service_name = (
-        service_name or _getenv(ENV_SERVICE_NAME, deprecated_used) or DEFAULT_SERVICE_NAME
-    )
-    resolved_disabled = (
-        _env_bool(ENV_DISABLED, deprecated_used, default=False) if disabled is None else disabled
-    )
+    resolved_endpoint = endpoint or os.getenv(ENV_ENDPOINT) or DEFAULT_ENDPOINT
+    resolved_api_key = api_key if api_key is not None else os.getenv(ENV_API_KEY)
+    resolved_service_name = service_name or os.getenv(ENV_SERVICE_NAME) or DEFAULT_SERVICE_NAME
+    resolved_disabled = _env_bool(ENV_DISABLED, default=False) if disabled is None else disabled
     resolved_sample_rate = _clamp_sample_rate(
-        _env_float(ENV_SAMPLE_RATE, deprecated_used, default=1.0)
+        _env_float(ENV_SAMPLE_RATE, default=1.0)
         if sample_rate is None
         else _finite("sample_rate", sample_rate, 1.0)
     )
     resolved_capture_content = (
-        _env_bool(ENV_CAPTURE_CONTENT, deprecated_used, default=True)
-        if capture_content is None
-        else capture_content
+        _env_bool(ENV_CAPTURE_CONTENT, default=True) if capture_content is None else capture_content
     )
 
-    resolved_heartbeat = (
-        _env_bool(ENV_HEARTBEAT, deprecated_used, default=True) if heartbeat is None else heartbeat
-    )
+    resolved_heartbeat = _env_bool(ENV_HEARTBEAT, default=True) if heartbeat is None else heartbeat
     resolved_heartbeat_interval = _clamp_heartbeat_interval(
-        _env_float(ENV_HEARTBEAT_INTERVAL, deprecated_used, default=DEFAULT_HEARTBEAT_INTERVAL)
+        _env_float(ENV_HEARTBEAT_INTERVAL, default=DEFAULT_HEARTBEAT_INTERVAL)
         if heartbeat_interval is None
         else _finite("heartbeat_interval", heartbeat_interval, DEFAULT_HEARTBEAT_INTERVAL)
     )
-    resolved_agent_name = (
-        agent_name or _getenv(ENV_AGENT_NAME, deprecated_used) or resolved_service_name
-    )
+    resolved_agent_name = agent_name or os.getenv(ENV_AGENT_NAME) or resolved_service_name
     resolved_partial_spans = (
-        _env_bool(ENV_PARTIAL_SPANS, deprecated_used, default=False)
-        if partial_spans is None
-        else partial_spans
+        _env_bool(ENV_PARTIAL_SPANS, default=False) if partial_spans is None else partial_spans
     )
     resolved_partial_spans_delay = _clamp_partial_spans_delay(
-        _env_float(ENV_PARTIAL_SPANS_DELAY, deprecated_used, default=0.0)
+        _env_float(ENV_PARTIAL_SPANS_DELAY, default=0.0)
         if partial_spans_delay is None
         else _finite("partial_spans_delay", partial_spans_delay, 0.0)
     )
-    # os.getenv directly, not _getenv: this variable is new, so there is no
-    # deprecated GLASSFLOW_ spelling to fall back to.
     resolved_session_id = session_id or os.getenv(ENV_SESSION_ID) or None
-
-    if deprecated_used:
-        renames = ", ".join(
-            f"{DEPRECATED_ENV_PREFIX}{s} -> {ENV_PREFIX}{s}" for s in deprecated_used
-        )
-        logger.warning(
-            "deprecated GLASSFLOW_-prefixed environment variable(s) in use: %s. "
-            "They keep working for now and will be removed in a future release; "
-            "rename them to the RIUS_ prefix.",
-            renames,
-        )
 
     resolved_headers = dict(headers or {})
     has_auth = any(key.lower() == "authorization" for key in resolved_headers)

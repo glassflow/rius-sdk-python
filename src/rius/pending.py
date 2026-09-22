@@ -13,7 +13,7 @@ Wire contract:
 - Same trace_id, span_id, parent, name, and start timestamp as the final
   span; ``end_time == start_time`` (OTLP cannot represent an unfinished
   span, so the snapshot is an ended zero-duration span with a marker).
-- The ``glassflow.span.pending`` marker attribute (see ``semconv.py`` for
+- The ``rius.span.pending`` marker attribute (see ``semconv.py`` for
   why a vendor-namespaced key is unavoidable here).
 - Identity/taxonomy attributes only (``PENDING_IDENTITY_ATTRIBUTES`` /
   ``_PREFIXES``); NEVER content, whatever instrumentation set it.
@@ -46,9 +46,9 @@ from opentelemetry.sdk.trace import ReadableSpan, Span, SpanProcessor
 from opentelemetry.trace import Status, StatusCode
 
 from .semconv import (
-    GLASSFLOW_SPAN_PENDING,
     PENDING_IDENTITY_ATTRIBUTES,
     PENDING_IDENTITY_PREFIXES,
+    RIUS_SPAN_PENDING,
 )
 
 logger = logging.getLogger(__name__)
@@ -234,7 +234,7 @@ class PendingSpanProcessor(SpanProcessor):
     @staticmethod
     def _snapshot(span: Span) -> ReadableSpan:
         attributes = _identity_attributes(span.attributes)
-        attributes[GLASSFLOW_SPAN_PENDING] = True
+        attributes[RIUS_SPAN_PENDING] = True
         return ReadableSpan(
             name=span.name,
             context=span.get_span_context(),

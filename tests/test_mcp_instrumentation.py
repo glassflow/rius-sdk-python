@@ -359,7 +359,7 @@ def test_pending_snapshot_keeps_the_mcp_identity_attributes() -> None:
     setting it at creation pays off. Read the EXPORTED snapshot, not the raw
     span — the pending allowlist runs between the two."""
     from rius.instrumentation_mcp import _call_attributes
-    from rius.semconv import GLASSFLOW_SPAN_PENDING, PENDING_IDENTITY_ATTRIBUTES
+    from rius.semconv import PENDING_IDENTITY_ATTRIBUTES, RIUS_SPAN_PENDING
 
     assert "mcp.method.name" in PENDING_IDENTITY_ATTRIBUTES
     assert "mcp.protocol.version" in PENDING_IDENTITY_ATTRIBUTES
@@ -374,7 +374,7 @@ def test_pending_snapshot_keeps_the_mcp_identity_attributes() -> None:
         },
     )
     client.flush()  # the snapshot is exported while the span is still open
-    pending = [s for s in inner.get_finished_spans() if s.attributes.get(GLASSFLOW_SPAN_PENDING)]
+    pending = [s for s in inner.get_finished_spans() if s.attributes.get(RIUS_SPAN_PENDING)]
     span.end()
     assert pending, "expected a pending snapshot"
     attrs = pending[0].attributes

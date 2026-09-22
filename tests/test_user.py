@@ -12,7 +12,7 @@ from __future__ import annotations
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from rius import init, session, user
-from rius.semconv import GLASSFLOW_SPAN_PENDING, PENDING_IDENTITY_ATTRIBUTES, SESSION_ID, USER_ID
+from rius.semconv import PENDING_IDENTITY_ATTRIBUTES, RIUS_SPAN_PENDING, SESSION_ID, USER_ID
 
 
 def _memory_client(**kwargs: object):
@@ -124,7 +124,7 @@ def test_pending_snapshot_carries_the_user_id() -> None:
     with user("u-p"), client.get_tracer().start_as_current_span("op"):
         client.flush()  # pending snapshot exported while the span is open
     client.flush()
-    pending = [s for s in exporter.get_finished_spans() if s.attributes.get(GLASSFLOW_SPAN_PENDING)]
+    pending = [s for s in exporter.get_finished_spans() if s.attributes.get(RIUS_SPAN_PENDING)]
     assert pending, "expected a pending snapshot"
     assert pending[0].attributes[USER_ID] == "u-p"
 

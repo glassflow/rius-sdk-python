@@ -16,7 +16,7 @@ from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from rius import init, workspace
-from rius.semconv import GLASSFLOW_SPAN_PENDING, PENDING_IDENTITY_ATTRIBUTES, WORKSPACE_ROUTE
+from rius.semconv import PENDING_IDENTITY_ATTRIBUTES, RIUS_SPAN_PENDING, WORKSPACE_ROUTE
 
 
 def _routed_client(**kwargs: object):
@@ -242,6 +242,6 @@ def test_pending_snapshot_routes_with_the_scope() -> None:
         pending = per_key["key-acme"].get_finished_spans()
         assert len(pending) == 1
         assert pending[0].attributes is not None
-        assert pending[0].attributes.get(GLASSFLOW_SPAN_PENDING) is True
+        assert pending[0].attributes.get(RIUS_SPAN_PENDING) is True
         assert WORKSPACE_ROUTE not in pending[0].attributes
     client.flush()
