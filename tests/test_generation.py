@@ -597,7 +597,7 @@ def test_every_generation_span_carries_context_sizes(exported_spans: InMemorySpa
     gen = start_generation("chat2")
     gen.end()
     for span in exported_spans.get_finished_spans():
-        assert _sizes_of(span) == {"v": 1}
+        assert _sizes_of(span) == {"version": 1}
 
 
 def test_context_sizes_combine_input_output_and_tools(
@@ -605,7 +605,10 @@ def test_context_sizes_combine_input_output_and_tools(
 ) -> None:
     tools = [{"type": "function", "function": {"name": "lookup", "parameters": {}}}]
     with start_as_current_generation("chat", input=[{"role": "system", "content": "abc"}]) as gen:
-        assert _sizes_of_live(gen) == {"v": 1, "i": [["s", 3]]}
+        assert _sizes_of_live(gen) == {
+            "version": 1,
+            "input_messages": [{"role": "system", "parts": [{"type": "text", "bytes": 3}]}],
+        }
         gen.set_output(
             [
                 {
@@ -621,10 +624,18 @@ def test_context_sizes_combine_input_output_and_tools(
     call_bytes = len(json.dumps(call_part, separators=(",", ":")).encode())
     tool_bytes = len(json.dumps(tools[0], separators=(",", ":")).encode())
     assert sizes == {
-        "v": 1,
-        "t": [["lookup", tool_bytes]],
-        "i": [["s", 3]],
-        "o": [["a", 2, ["c", 0, call_bytes]]],
+        "version": 1,
+        "tool_definitions": [{"name": "lookup", "bytes": tool_bytes}],
+        "input_messages": [{"role": "system", "parts": [{"type": "text", "bytes": 3}]}],
+        "output_messages": [
+            {
+                "role": "assistant",
+                "parts": [
+                    {"type": "text", "bytes": 2},
+                    {"type": "tool_call", "tool": "lookup", "bytes": call_bytes},
+                ],
+            }
+        ],
     }
 
 
@@ -644,7 +655,9 @@ def test_context_sizes_are_the_full_size_when_content_is_truncated(
     attrs = exported_spans.get_finished_spans()[0].attributes
     assert attrs is not None
     assert str(attrs["gen_ai.output.messages"]).endswith("…(truncated)")
-    assert _sizes_of(exported_spans.get_finished_spans()[0])["o"] == [["a", 80_000]]
+    assert _sizes_of(exported_spans.get_finished_spans()[0])["output_messages"] == [
+        {"role": "assistant", "parts": [{"type": "text", "bytes": 80_000}]}
+    ]
 
 
 def test_context_sizes_survive_capture_content_false() -> None:
@@ -658,7 +671,10 @@ def test_context_sizes_survive_capture_content_false() -> None:
     attrs = inner.get_finished_spans()[0].attributes
     assert attrs is not None
     assert "gen_ai.input.messages" not in attrs
-    assert json.loads(str(attrs["rius.context.sizes"])) == {"v": 1, "i": [["u", 13]]}
+    assert json.loads(str(attrs["rius.context.sizes"])) == {
+        "version": 1,
+        "input_messages": [{"role": "user", "parts": [{"type": "text", "bytes": 13}]}],
+    }
 
 
 def test_context_sizes_describe_unmasked_text() -> None:
@@ -672,7 +688,10 @@ def test_context_sizes_describe_unmasked_text() -> None:
     attrs = inner.get_finished_spans()[0].attributes
     assert attrs is not None
     assert attrs["gen_ai.input.messages"] == "***"
-    assert json.loads(str(attrs["rius.context.sizes"])) == {"v": 1, "i": [["u", 27]]}
+    assert json.loads(str(attrs["rius.context.sizes"])) == {
+        "version": 1,
+        "input_messages": [{"role": "user", "parts": [{"type": "text", "bytes": 27}]}],
+    }
 
 
 def test_context_sizes_do_not_change_the_message_attributes(

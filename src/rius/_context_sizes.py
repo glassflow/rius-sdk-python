@@ -13,19 +13,36 @@ attribution stays correct when the messages themselves do not reach the
 backend in full. The wire shape is shared with the TypeScript SDK; both must
 produce byte-identical strings for the same input (see the parity fixture).
 
-Wire shape, version 1 (only the present keys, in this order)::
+Wire shape, version 1 (only the present keys, in this order; compact JSON,
+readable through its keys rather than whitespace)::
 
-    {"v": 1,
-     "t": [[name | null, bytes], ...],            # tool definitions
-     "i": [[role, part, ...], ...],               # input messages
-     "o": [[role, part, ...], ...],               # output messages
-     "c": <index into i of the last cached message>,
-     "f": {"n", "s", "u", "a", "t", "m"}}         # folded older input
+    {
+        "version": 1,
+        "tool_definitions": [{"name": str | null, "bytes": int}, ...],
+        "input_messages": [{"role": str, "parts": [part, ...]}, ...],
+        "output_messages": [{"role": str, "parts": [part, ...]}, ...],
+        "cache_marker": int,
+        "folded": {
+            "messages": int,
+            "system_bytes": int,
+            "user_bytes": int,
+            "assistant_bytes": int,
+            "tools": [{"tool": str | null, "bytes": int}, ...],
+            "multimodal_parts": int,
+        },
+    }
 
-A part is a bare integer (text bytes), ``["c", tool, bytes]`` (tool call),
-``["r", tool, bytes]`` (tool call response) or ``["m", type]`` (any other
-part type, unsized). ``tool`` is an index into ``t`` when the name matches
-a definition, else the name, else ``null``.
+``cache_marker`` is the index, into the original input list, of the last
+message with a non-null ``cache_control`` part. ``folded`` summarizes the
+input messages older than the detail window (the last ``DETAIL_WINDOW``
+messages keep per-part detail); the window halves while the whole string
+exceeds ``MAX_SIZES_BYTES``, and the attribute is never truncated.
+
+A part is ``{"type": "text", "bytes"}``, ``{"type": "tool_call", "tool",
+"bytes"}``, ``{"type": "tool_call_response", "tool", "bytes"}`` or, for any
+other part type, ``{"type": <type>}`` with no size. Roles are the literal
+role strings of the normalized messages; ``tool`` is the tool NAME (resolved
+through the call id for responses), ``null`` when unknown.
 
 This function runs on the user's request path, so it never raises: any
 unexpected shape yields a best-effort entry instead.
@@ -40,16 +57,10 @@ DETAIL_WINDOW = 50
 MAX_SIZES_BYTES = 8192
 SIZES_VERSION = 1
 
-_ROLE_CODES = {
-    "system": "s",
-    "developer": "s",
-    "user": "u",
-    "assistant": "a",
-    "tool": "t",
-    "function": "t",
-}
-
-ToolRef = int | str | None
+# Text bytes of folded messages are bucketed by role: system-side, assistant
+# and everything else (user, tool results, unknown roles) as user-side.
+_SYSTEM_ROLES = ("system", "developer")
+_ASSISTANT_ROLES = ("assistant",)
 
 
 def _dumps(value: Any) -> str:
@@ -82,11 +93,9 @@ def _tool_name(tool: Any) -> str | None:
     return name_value if isinstance(name_value, str) else None
 
 
-def _role_code(message: Any) -> str:
+def _role(message: Any) -> str:
     role = message.get("role") if isinstance(message, dict) else None
-    if isinstance(role, str):
-        return _ROLE_CODES.get(role, role)
-    return str(role)
+    return role if isinstance(role, str) else str(role)
 
 
 def _parts(message: Any) -> list[Any]:
@@ -105,48 +114,42 @@ def _part_type(part: Any) -> str:
     return "unknown"
 
 
-class _Resolver:
-    """Resolves tool names to ``t`` indexes and tool-call ids to tool names."""
+def _call_names(*message_lists: list[Any] | None) -> dict[str, str | None]:
+    """Tool-call id -> tool name over every message, first occurrence wins.
 
-    def __init__(self, tools: list[Any] | None, *message_lists: list[Any] | None) -> None:
-        self._index_by_name: dict[str, int] = {}
-        for index, tool in enumerate(tools or ()):
-            name = _tool_name(tool)
-            if name is not None:
-                self._index_by_name.setdefault(name, index)
-        # Response parts only carry the call id; the name comes from the call
-        # part with that id, wherever it is (input first, then output).
-        self._name_by_call_id: dict[str, Any] = {}
-        for messages in message_lists:
-            for message in messages or ():
-                for part in _parts(message):
-                    if _part_type(part) == "tool_call" and isinstance(part.get("id"), str):
-                        self._name_by_call_id.setdefault(part["id"], part.get("name"))
-
-    def ref(self, name: Any) -> ToolRef:
-        if isinstance(name, str):
-            return self._index_by_name.get(name, name)
-        return None
-
-    def ref_for_call_id(self, call_id: Any) -> ToolRef:
-        if isinstance(call_id, str):
-            return self.ref(self._name_by_call_id.get(call_id))
-        return None
+    Response parts only carry the call id; the name comes from the call part
+    with that id, wherever it is (input first, then output).
+    """
+    names: dict[str, str | None] = {}
+    for messages in message_lists:
+        for message in messages or ():
+            for part in _parts(message):
+                if _part_type(part) == "tool_call" and isinstance(part.get("id"), str):
+                    name = part.get("name")
+                    names.setdefault(part["id"], name if isinstance(name, str) else None)
+    return names
 
 
-def _part_entry(part: Any, resolver: _Resolver) -> Any:
+def _part_entry(part: Any, call_names: dict[str, str | None]) -> dict[str, Any]:
     part_type = _part_type(part)
     if part_type == "text":
-        return _text_bytes(part.get("content"))
+        return {"type": "text", "bytes": _text_bytes(part.get("content"))}
     if part_type == "tool_call":
-        return ["c", resolver.ref(part.get("name")), _canonical_bytes(part)]
+        name = part.get("name")
+        tool = name if isinstance(name, str) else None
+        return {"type": "tool_call", "tool": tool, "bytes": _canonical_bytes(part)}
     if part_type == "tool_call_response":
-        return ["r", resolver.ref_for_call_id(part.get("id")), _canonical_bytes(part)]
-    return ["m", part_type]
+        call_id = part.get("id")
+        tool = call_names.get(call_id) if isinstance(call_id, str) else None
+        return {"type": "tool_call_response", "tool": tool, "bytes": _canonical_bytes(part)}
+    return {"type": part_type}
 
 
-def _message_entry(message: Any, resolver: _Resolver) -> list[Any]:
-    return [_role_code(message), *(_part_entry(part, resolver) for part in _parts(message))]
+def _message_entry(message: Any, call_names: dict[str, str | None]) -> dict[str, Any]:
+    return {
+        "role": _role(message),
+        "parts": [_part_entry(part, call_names) for part in _parts(message)],
+    }
 
 
 def _has_cache_marker(message: Any) -> bool:
@@ -155,58 +158,61 @@ def _has_cache_marker(message: Any) -> bool:
     )
 
 
-def _fold(entries: list[list[Any]]) -> dict[str, Any]:
+def _fold(entries: list[dict[str, Any]]) -> dict[str, Any]:
     """Aggregate message entries that fall outside the detail window."""
-    text: dict[str, int] = {"s": 0, "u": 0, "a": 0}
-    tool_bytes: dict[ToolRef, int] = {}
-    media = 0
+    text = {"system_bytes": 0, "user_bytes": 0, "assistant_bytes": 0}
+    tool_bytes: dict[str | None, int] = {}
+    multimodal = 0
     for entry in entries:
-        role = entry[0]
-        # Only system and assistant text is tracked separately; every other
-        # role (user, tool results, uncoded roles) counts as user-side text.
-        bucket = role if role in ("s", "a") else "u"
-        for part in entry[1:]:
-            if isinstance(part, int):
-                text[bucket] += part
-            elif part[0] in ("c", "r"):
-                tool_bytes[part[1]] = tool_bytes.get(part[1], 0) + part[2]
+        role = entry["role"]
+        if role in _SYSTEM_ROLES:
+            bucket = "system_bytes"
+        elif role in _ASSISTANT_ROLES:
+            bucket = "assistant_bytes"
+        else:
+            bucket = "user_bytes"
+        for part in entry["parts"]:
+            if part["type"] == "text":
+                text[bucket] += part["bytes"]
+            elif part["type"] in ("tool_call", "tool_call_response"):
+                tool_bytes[part["tool"]] = tool_bytes.get(part["tool"], 0) + part["bytes"]
             else:
-                media += 1
-    folded: dict[str, Any] = {"n": len(entries)}
-    for key in ("s", "u", "a"):
+                multimodal += 1
+    folded: dict[str, Any] = {"messages": len(entries)}
+    for key in ("system_bytes", "user_bytes", "assistant_bytes"):
         if text[key]:
             folded[key] = text[key]
     if tool_bytes:
-        folded["t"] = [[ref, size] for ref, size in tool_bytes.items()]
-    if media:
-        folded["m"] = media
+        folded["tools"] = [{"tool": tool, "bytes": size} for tool, size in tool_bytes.items()]
+    if multimodal:
+        folded["multimodal_parts"] = multimodal
     return folded
 
 
 def _compose(
-    tool_entries: list[list[Any]] | None,
-    input_entries: list[list[Any]] | None,
-    output_entries: list[list[Any]] | None,
-    cache_index: int | None,
+    tool_entries: list[dict[str, Any]] | None,
+    input_entries: list[dict[str, Any]] | None,
+    output_entries: list[dict[str, Any]] | None,
+    cache_marker: int | None,
     window: int,
 ) -> str:
-    sizes: dict[str, Any] = {"v": SIZES_VERSION}
+    sizes: dict[str, Any] = {"version": SIZES_VERSION}
     if tool_entries is not None:
-        sizes["t"] = tool_entries
+        sizes["tool_definitions"] = tool_entries
     folded: dict[str, Any] | None = None
     if input_entries is not None:
         if len(input_entries) > window:
             cut = len(input_entries) - window
             folded = _fold(input_entries[:cut])
-            sizes["i"] = input_entries[cut:]
+            sizes["input_messages"] = input_entries[cut:]
         else:
-            sizes["i"] = input_entries
+            sizes["input_messages"] = input_entries
     if output_entries is not None:
-        sizes["o"] = output_entries
-    if cache_index is not None:
-        sizes["c"] = cache_index
+        sizes["output_messages"] = output_entries
+    if cache_marker is not None:
+        sizes["cache_marker"] = cache_marker
     if folded is not None:
-        sizes["f"] = folded
+        sizes["folded"] = folded
     return _dumps(sizes)
 
 
@@ -219,21 +225,23 @@ def _context_sizes(
         input_messages = None
     if not isinstance(output_messages, list):
         output_messages = None
-    resolver = _Resolver(tools, input_messages, output_messages)
+    call_names = _call_names(input_messages, output_messages)
 
     tool_entries = None
     if tools is not None:
-        tool_entries = [[_tool_name(tool), _canonical_bytes(tool)] for tool in tools]
+        tool_entries = [
+            {"name": _tool_name(tool), "bytes": _canonical_bytes(tool)} for tool in tools
+        ]
     input_entries = None
-    cache_index = None
+    cache_marker = None
     if input_messages is not None:
-        input_entries = [_message_entry(message, resolver) for message in input_messages]
+        input_entries = [_message_entry(message, call_names) for message in input_messages]
         for index, message in enumerate(input_messages):
             if _has_cache_marker(message):
-                cache_index = index
+                cache_marker = index
     output_entries = None
     if output_messages is not None:
-        output_entries = [_message_entry(message, resolver) for message in output_messages]
+        output_entries = [_message_entry(message, call_names) for message in output_messages]
 
     # Detail is kept for the last DETAIL_WINDOW input messages; older ones are
     # folded into one summary. If the result still exceeds the byte cap the
@@ -241,7 +249,7 @@ def _context_sizes(
     # itself is never cut mid-JSON.
     window = DETAIL_WINDOW
     while True:
-        result = _compose(tool_entries, input_entries, output_entries, cache_index, window)
+        result = _compose(tool_entries, input_entries, output_entries, cache_marker, window)
         if window == 0 or len(result.encode()) <= MAX_SIZES_BYTES:
             return result
         window //= 2
@@ -267,4 +275,4 @@ def context_sizes(
     try:
         return _context_sizes(tools, input_messages, output_messages)
     except Exception:
-        return _dumps({"v": SIZES_VERSION})
+        return _dumps({"version": SIZES_VERSION})

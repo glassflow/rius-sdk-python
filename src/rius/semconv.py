@@ -94,9 +94,12 @@ ERROR_TYPE_TOOL_ERROR = "tool_error"
 # no convention defines it. Kept as-is because the backend reads it.
 MCP_RESULT_TYPE = "mcp.result_type"
 GEN_AI_REQUEST_PREFIX = "gen_ai.request."
-# Per-part byte sizes of a generation's context (tool definitions, each input
-# and output message part, cache-marker position), compact JSON; see
-# _context_sizes.py for the shape. A Rius vendor attribute, NOT a convention:
+# Per-part byte sizes of a generation's context, as compact JSON with
+# readable keys: tool_definitions (name, bytes), input_messages and
+# output_messages (literal role, parts typed text / tool_call /
+# tool_call_response with bytes and tool name), cache_marker, and a folded
+# summary of older input; see _context_sizes.py for the full shape.
+# A Rius vendor attribute, NOT a convention:
 # the backend reads it to attribute gen_ai.usage.input_tokens across the
 # context, and no convention describes context composition. Deliberately
 # absent from CONTENT_ATTRIBUTES (it is sizes, not content, and must survive
