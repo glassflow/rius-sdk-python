@@ -115,6 +115,40 @@ def test_cm_chain_kind_has_no_gen_ai_tool_name(exported_spans: InMemorySpanExpor
     assert "gen_ai.tool.name" not in exported_spans.get_finished_spans()[0].attributes
 
 
+# --- RETRIEVER: gen_ai.operation.name and gen_ai.data_source.id ---
+
+
+def test_cm_retriever_carries_both_taxonomy_keys(exported_spans: InMemorySpanExporter) -> None:
+    with start_as_current_span("search", kind=SpanKind.RETRIEVER, data_source_id="docs-index"):
+        pass
+    attrs = exported_spans.get_finished_spans()[0].attributes
+    assert attrs["openinference.span.kind"] == "RETRIEVER"
+    assert attrs["gen_ai.operation.name"] == "retrieval"
+    assert attrs["gen_ai.data_source.id"] == "docs-index"
+
+
+def test_manual_retriever_carries_the_data_source(exported_spans: InMemorySpanExporter) -> None:
+    start_span("search", kind=SpanKind.RETRIEVER, data_source_id="docs-index").end()
+    attrs = exported_spans.get_finished_spans()[0].attributes
+    assert attrs["gen_ai.data_source.id"] == "docs-index"
+
+
+def test_retriever_without_a_data_source_omits_the_key(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    with start_as_current_span("search", kind=SpanKind.RETRIEVER):
+        pass
+    attrs = exported_spans.get_finished_spans()[0].attributes
+    assert attrs["gen_ai.operation.name"] == "retrieval"
+    assert "gen_ai.data_source.id" not in attrs
+
+
+def test_chain_has_no_operation_name(exported_spans: InMemorySpanExporter) -> None:
+    with start_as_current_span("step"):
+        pass
+    assert "gen_ai.operation.name" not in exported_spans.get_finished_spans()[0].attributes
+
+
 # --- the OTel SpanKind FIELD, derived from the taxonomy ---
 
 

@@ -152,12 +152,19 @@ def test_sdk_helpers_expose_identity_attributes_at_span_start() -> None:
     recorder = _StartAttributeRecorder()
     otel_trace.get_tracer_provider().add_span_processor(recorder)  # type: ignore[attr-defined]
 
-    with rius.start_as_current_span("kindly", kind=rius.SpanKind.RETRIEVER):
+    with rius.start_as_current_span(
+        "kindly", kind=rius.SpanKind.RETRIEVER, data_source_id="docs-index"
+    ):
         pass
     with rius.start_as_current_generation("genny", model="gpt-4o", provider="openai"):
         pass
 
-    assert recorder.seen["kindly"]["openinference.span.kind"] == "RETRIEVER"
+    kindly = recorder.seen["kindly"]
+    assert kindly["openinference.span.kind"] == "RETRIEVER"
+    assert kindly["gen_ai.operation.name"] == "retrieval"
+    # The data source composes the span name, so a pending retrieval that
+    # never finishes is still attributable to the index it was searching.
+    assert kindly["gen_ai.data_source.id"] == "docs-index"
     genny = recorder.seen["genny"]
     assert genny["openinference.span.kind"] == "LLM"
     assert genny["gen_ai.operation.name"] == "chat"

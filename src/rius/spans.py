@@ -100,11 +100,13 @@ def _configure(observation: Observation, input: Any) -> None:
         observation.set_input(input)
 
 
-def _creation_attributes(name: str, kind: SpanKind, user_id: str | None) -> dict[str, str]:
+def _creation_attributes(
+    name: str, kind: SpanKind, user_id: str | None, data_source_id: str | None = None
+) -> dict[str, str]:
     # Identity at CREATION so pending snapshots (on_start) carry it; the
     # user id is set here as well as via the user() scope so it reaches the
     # span even on a provider without UserSpanProcessor installed.
-    attributes = dict(kind_attributes(kind, name))
+    attributes = dict(kind_attributes(kind, name, data_source_id))
     if user_id is not None:
         attributes[USER_ID] = user_id
     return attributes
@@ -116,6 +118,7 @@ def start_span(
     kind: SpanKind = SpanKind.CHAIN,
     input: Any = None,
     user_id: str | None = None,
+    data_source_id: str | None = None,
 ) -> Observation:
     """Create a span and return an ``Observation``. You MUST call ``.end()``.
 
@@ -126,9 +129,15 @@ def start_span(
     ``user_id`` stamps ``user.id`` on this span only; it is sugar for a span
     that has no children of its own. To attribute a whole request, including
     auto-instrumented spans, use the ``user()`` scope instead.
+
+    ``data_source_id`` names the index, collection or knowledge base a
+    ``RETRIEVER`` span searched (``gen_ai.data_source.id``). Set at creation,
+    so a still-running retrieval is already attributable to its source.
     """
     span = sdk_tracer().start_span(
-        name, kind=otel_span_kind(kind), attributes=_creation_attributes(name, kind, user_id)
+        name,
+        kind=otel_span_kind(kind),
+        attributes=_creation_attributes(name, kind, user_id, data_source_id),
     )
     observation = Observation(span)
     _configure(observation, input)
@@ -142,6 +151,7 @@ def start_as_current_span(
     kind: SpanKind = SpanKind.CHAIN,
     input: Any = None,
     user_id: str | None = None,
+    data_source_id: str | None = None,
 ) -> Iterator[Observation]:
     """Open a span as the current span and yield an ``Observation``; auto-ends.
 
@@ -150,12 +160,18 @@ def start_as_current_span(
 
     ``user_id`` is sugar for wrapping the block in ``user(user_id)``: this span
     and every span opened inside the block carry ``user.id``.
+
+    ``data_source_id`` names the index, collection or knowledge base a
+    ``RETRIEVER`` span searched (``gen_ai.data_source.id``). Set at creation,
+    so a still-running retrieval is already attributable to its source.
     """
     tracer = sdk_tracer()
     with (
         user(user_id) if user_id is not None else nullcontext(),
         tracer.start_as_current_span(
-            name, kind=otel_span_kind(kind), attributes=_creation_attributes(name, kind, user_id)
+            name,
+            kind=otel_span_kind(kind),
+            attributes=_creation_attributes(name, kind, user_id, data_source_id),
         ) as span,
     ):
         observation = Observation(span)
