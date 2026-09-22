@@ -24,6 +24,12 @@ TRACER_NAME = "rius"
 # at init). The heartbeat payload's instance_id carries the SAME value, which
 # is what lets the backend join heartbeats to traces and count replicas.
 SERVICE_INSTANCE_ID = "service.instance.id"
+# The agent this process IS, stamped once on the resource so every span it
+# emits groups under the same name its heartbeats do. Without it the backend
+# falls through to service.name per span, and a process whose agent name
+# differs from its service name has its agents view and its trace list
+# disagreeing about what it is called.
+GEN_AI_AGENT_NAME = "gen_ai.agent.name"
 
 # --- Attribute keys ---
 # OpenInference

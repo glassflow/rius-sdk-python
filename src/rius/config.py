@@ -201,9 +201,10 @@ def resolve_config(
             (``RIUS_HEARTBEAT_INTERVAL``), clamped to ``[5, 300]``;
             the backend derives staleness from this, so the bounds are part
             of the wire contract.
-        agent_name: Identity heartbeats group under (``RIUS_AGENT_NAME``);
-            defaults to ``service_name`` so the agents view and the traces
-            view agree on what an "agent" is.
+        agent_name: Identity both heartbeats and spans group under
+            (``RIUS_AGENT_NAME``), stamped on the resource as
+            ``gen_ai.agent.name``; defaults to ``service_name`` so the agents
+            view and the traces view agree on what an "agent" is.
         partial_spans: Export a content-free pending snapshot of every
             sampled span at span START (``RIUS_PARTIAL_SPANS``), so
             in-flight work is visible and crashes leave a record. Off by
