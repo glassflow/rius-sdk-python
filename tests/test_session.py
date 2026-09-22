@@ -13,7 +13,7 @@ from concurrent.futures import ThreadPoolExecutor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from rius import init, session
-from rius.semconv import GLASSFLOW_SPAN_PENDING, PENDING_IDENTITY_ATTRIBUTES, SESSION_ID
+from rius.semconv import PENDING_IDENTITY_ATTRIBUTES, RIUS_SPAN_PENDING, SESSION_ID
 
 
 def _memory_client(**kwargs: object):
@@ -130,6 +130,6 @@ def test_pending_snapshot_carries_the_session_id() -> None:
     with session("sess-p"), client.get_tracer().start_as_current_span("op"):
         client.flush()  # pending snapshot exported while the span is open
     client.flush()
-    pending = [s for s in exporter.get_finished_spans() if s.attributes.get(GLASSFLOW_SPAN_PENDING)]
+    pending = [s for s in exporter.get_finished_spans() if s.attributes.get(RIUS_SPAN_PENDING)]
     assert pending, "expected a pending snapshot"
     assert pending[0].attributes[SESSION_ID] == "sess-p"

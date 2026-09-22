@@ -12,7 +12,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 
 from rius import init
 from rius.pending import PendingScheduler
-from rius.semconv import GLASSFLOW_SPAN_PENDING
+from rius.semconv import RIUS_SPAN_PENDING
 
 # --- config resolution -------------------------------------------------------
 
@@ -26,7 +26,7 @@ def test_delay_defaults_to_zero() -> None:
 def test_delay_env_var_and_clamp(monkeypatch) -> None:
     from rius.config import resolve_config
 
-    monkeypatch.setenv("GLASSFLOW_PARTIAL_SPANS_DELAY", "2.5")
+    monkeypatch.setenv("RIUS_PARTIAL_SPANS_DELAY", "2.5")
     assert resolve_config().partial_spans_delay == 2.5
     # explicit argument wins; out-of-range clamps instead of crashing
     assert resolve_config(partial_spans_delay=9999).partial_spans_delay == 60.0
@@ -127,7 +127,7 @@ def test_fast_span_produces_no_pending_on_the_wire() -> None:
     client.flush()
     spans = exporter.get_finished_spans()
     assert len(spans) == 1
-    assert GLASSFLOW_SPAN_PENDING not in spans[0].attributes
+    assert RIUS_SPAN_PENDING not in spans[0].attributes
 
 
 def test_delay_zero_keeps_immediate_emission() -> None:
@@ -135,7 +135,5 @@ def test_delay_zero_keeps_immediate_emission() -> None:
     with client.get_tracer().start_as_current_span("op"):
         pass
     client.flush()
-    markers = [
-        bool(s.attributes.get(GLASSFLOW_SPAN_PENDING)) for s in exporter.get_finished_spans()
-    ]
+    markers = [bool(s.attributes.get(RIUS_SPAN_PENDING)) for s in exporter.get_finished_spans()]
     assert sorted(markers) == [False, True]

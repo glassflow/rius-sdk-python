@@ -13,10 +13,11 @@ from opentelemetry.trace import Span
 from opentelemetry.trace import SpanKind as OtelSpanKind
 
 # Instrumentation scope name (stamped on every span as otel.scope.name).
-# Deliberately still "glassflow" after the Rius rebrand: the value
-# is wire-visible and the backend keys on it; renaming needs backend
-# coordination, tracked separately.
-TRACER_NAME = "glassflow"
+# "rius" since the vendor keys were normalized under the product name; it was
+# "glassflow" before. Wire-visible, but nothing in the backend keys on it: the
+# sink stores the scope name verbatim and no reader filters on it, so the two
+# values coexist in stored data without any special handling.
+TRACER_NAME = "rius"
 
 # --- Resource attribute keys ---
 # OTel standard identity of one process lifetime (one uuid per client, minted
@@ -122,11 +123,13 @@ GEN_AI_FIRST_TOKEN_EVENT = "gen_ai.first_token"
 # --- Pending (partial) spans ---
 # Marks the content-free snapshot exported at span START; the backend maps it
 # to Finished=0 and the real span replaces it at end. This key knowingly bends
-# the convention-native rule (no glassflow.* namespace): OpenTelemetry has NO
+# the convention-native rule (no vendor namespace): OpenTelemetry has NO
 # pending-span mechanism to align with (spec #3732/#4646, semconv #2133, all
 # open, none planned), and the only shipping precedent (Logfire's
-# logfire.span_type) is equally vendor-namespaced.
-GLASSFLOW_SPAN_PENDING = "glassflow.span.pending"
+# logfire.span_type) is equally vendor-namespaced. Spelled glassflow.span.pending
+# before the vendor keys moved under rius.*; the backend reads both spellings
+# for as long as pre-rename SDK versions are in the field.
+RIUS_SPAN_PENDING = "rius.span.pending"
 
 # Attributes allowed to ride a pending snapshot: identity/taxonomy known at
 # span start. An ALLOWLIST on purpose: content exclusion must hold for

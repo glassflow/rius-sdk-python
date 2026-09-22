@@ -11,7 +11,7 @@ from opentelemetry.sdk.trace import SpanProcessor as _SpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from rius import init
-from rius.semconv import GLASSFLOW_SPAN_PENDING
+from rius.semconv import RIUS_SPAN_PENDING
 
 
 def _memory_client(**kwargs: object):
@@ -27,8 +27,8 @@ def _memory_client(**kwargs: object):
 
 
 def _split(spans):
-    pending = [s for s in spans if s.attributes.get(GLASSFLOW_SPAN_PENDING)]
-    final = [s for s in spans if not s.attributes.get(GLASSFLOW_SPAN_PENDING)]
+    pending = [s for s in spans if s.attributes.get(RIUS_SPAN_PENDING)]
+    final = [s for s in spans if not s.attributes.get(RIUS_SPAN_PENDING)]
     return pending, final
 
 
@@ -39,7 +39,7 @@ def test_flag_off_by_default_behavior_unchanged() -> None:
     client.flush()
     spans = exporter.get_finished_spans()
     assert len(spans) == 1
-    assert GLASSFLOW_SPAN_PENDING not in spans[0].attributes
+    assert RIUS_SPAN_PENDING not in spans[0].attributes
 
 
 def test_pending_snapshot_mirrors_identity_of_final_span() -> None:
@@ -49,7 +49,7 @@ def test_pending_snapshot_mirrors_identity_of_final_span() -> None:
     client.flush()
     (pending,), (final,) = _split(exporter.get_finished_spans())
 
-    assert pending.attributes[GLASSFLOW_SPAN_PENDING] is True
+    assert pending.attributes[RIUS_SPAN_PENDING] is True
     # identical identity: the ClickHouse sort key must match for replacement
     assert pending.context.trace_id == final.context.trace_id
     assert pending.context.span_id == final.context.span_id
@@ -116,7 +116,7 @@ def test_disabled_kills_pendings_too() -> None:
 def test_env_var_enables_partial_spans(monkeypatch) -> None:
     from rius.config import resolve_config
 
-    monkeypatch.setenv("GLASSFLOW_PARTIAL_SPANS", "true")
+    monkeypatch.setenv("RIUS_PARTIAL_SPANS", "true")
     assert resolve_config().partial_spans is True
     # explicit argument wins over the environment
     assert resolve_config(partial_spans=False).partial_spans is False

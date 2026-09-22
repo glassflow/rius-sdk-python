@@ -32,7 +32,7 @@ def test_heartbeat_enabled_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
     # The conftest guard forces heartbeat off suite-wide (network safety);
     # clear it here to observe the real default.
     monkeypatch.delenv("RIUS_HEARTBEAT", raising=False)
-    monkeypatch.delenv("GLASSFLOW_HEARTBEAT", raising=False)
+    monkeypatch.delenv("RIUS_HEARTBEAT", raising=False)
     assert resolve_config().heartbeat is True
 
 
@@ -47,7 +47,7 @@ def test_heartbeat_enabled_via_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_heartbeat_argument_wins_over_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("GLASSFLOW_HEARTBEAT", "true")
+    monkeypatch.setenv("RIUS_HEARTBEAT", "true")
     assert resolve_config(heartbeat=False).heartbeat is False
 
 
@@ -56,7 +56,7 @@ def test_heartbeat_interval_default() -> None:
 
 
 def test_heartbeat_interval_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("GLASSFLOW_HEARTBEAT_INTERVAL", "30")
+    monkeypatch.setenv("RIUS_HEARTBEAT_INTERVAL", "30")
     assert resolve_config().heartbeat_interval == 30.0
 
 
@@ -76,7 +76,7 @@ def test_agent_name_defaults_to_service_name() -> None:
 
 
 def test_agent_name_override(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("GLASSFLOW_AGENT_NAME", "env-agent")
+    monkeypatch.setenv("RIUS_AGENT_NAME", "env-agent")
     assert resolve_config(service_name="svc").agent_name == "env-agent"
     assert resolve_config(service_name="svc", agent_name="arg-agent").agent_name == "arg-agent"
 
@@ -263,7 +263,7 @@ def test_open_traces_flow_into_payloads() -> None:
 
 def test_heartbeat_on_by_default_starts_thread(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("RIUS_HEARTBEAT", raising=False)
-    monkeypatch.delenv("GLASSFLOW_HEARTBEAT", raising=False)
+    monkeypatch.delenv("RIUS_HEARTBEAT", raising=False)
     sent: list[dict[str, Any]] = []
     client = init(
         set_global=False,

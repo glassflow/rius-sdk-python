@@ -18,7 +18,7 @@ from rius.config import DEFAULT_ENDPOINT
 
 @pytest.fixture(autouse=True)
 def _no_ambient_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
-    for var in ("RIUS_API_KEY", "RIUS_ENDPOINT", "GLASSFLOW_API_KEY", "GLASSFLOW_ENDPOINT"):
+    for var in ("RIUS_API_KEY", "RIUS_ENDPOINT"):
         monkeypatch.delenv(var, raising=False)
 
 
