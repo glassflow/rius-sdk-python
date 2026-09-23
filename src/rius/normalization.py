@@ -35,19 +35,29 @@ Contract, in both components:
   an allowlist.
 
 Always on, no opt-out. A fast path skips the whole pass when a span carries
-no key under any source namespace at all, which is every span we emit
-ourselves; on an empty table it short-circuits on the first check.
+no key under any source namespace at all; on an empty table it short-circuits
+on the first check. The shipped table claims ``gen_ai.`` as well as ``llm.``
+(the deprecated ``gen_ai.system`` is one of its sources), so our OWN spans no
+longer take that path — they walk the rules, match none of the sources, and
+``normalize`` returns None without copying anything. The pass is a handful of
+dict lookups; the copy, which is the part that costs, still only happens for
+a span that actually carries a source key.
 
-**The shipped table is deliberately empty**, and a rule is not a casual
-addition. Normalization is wired into ``init()`` unconditionally, so anything
-in ``DEFAULT_TABLE`` is live in every process on the next release — and a rule
-DELETES its source key, so a wrong mapping is unrecoverable: the original is
-gone and a wrongly-shaped value sits under a canonical key that the sink and
-console read as conventional. Half-migrating a concept is worse than not
-migrating it. A rule therefore belongs here only once the mapping is known to
-be both correct and total for that source; the per-instrumentation tables are
-their own tickets, and they are purely additive to this file. Rules used to
-exercise the machinery live in the tests, injected through ``table=``.
+A rule is not a casual addition. Normalization is wired into ``init()``
+unconditionally, so anything in ``DEFAULT_TABLE`` is live in every process on
+the next release — and a rule DELETES its source key, so a wrong mapping is
+unrecoverable: the original is gone and a wrongly-shaped value sits under a
+canonical key that the sink and console read as conventional. Half-migrating a
+concept is worse than not migrating it. A rule therefore belongs here only
+once the mapping is known to be both correct and TOTAL for that source — the
+canonical key can represent everything the source could hold. Where it is not,
+the source stays unmapped and rides through untouched, which costs nothing:
+the sink still sees it under its own name. The deliberate omissions are listed
+with their reasons at ``OPENINFERENCE_RULES`` below.
+
+The shipped table covers the OpenInference ``llm.*`` model-call and usage
+families (RIUS-921). Rules used to exercise the machinery itself live in the
+tests, injected through ``table=``.
 
 Not everything a dialect says is an attribute. OpenInference records the first
 streamed chunk as a span EVENT, so it cannot go through the rule table at all;
@@ -75,10 +85,30 @@ from opentelemetry import context as otel_context
 from opentelemetry.sdk.trace import Event, ReadableSpan, Span, SpanProcessor
 from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
 
+from ._serde import serialize
 from .semconv import (
     GEN_AI_FIRST_TOKEN_EVENT,
+    GEN_AI_PROVIDER_NAME,
+    GEN_AI_REQUEST_CHOICE_COUNT,
+    GEN_AI_REQUEST_FREQUENCY_PENALTY,
+    GEN_AI_REQUEST_MAX_TOKENS,
+    GEN_AI_REQUEST_MODEL,
+    GEN_AI_REQUEST_PRESENCE_PENALTY,
+    GEN_AI_REQUEST_SEED,
+    GEN_AI_REQUEST_STOP_SEQUENCES,
     GEN_AI_REQUEST_STREAM,
+    GEN_AI_REQUEST_TEMPERATURE,
+    GEN_AI_REQUEST_TOP_K,
+    GEN_AI_REQUEST_TOP_P,
+    GEN_AI_RESPONSE_MODEL,
     GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK,
+    GEN_AI_SYSTEM,
+    GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS,
+    GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS,
+    GEN_AI_USAGE_INPUT_TOKENS,
+    GEN_AI_USAGE_OUTPUT_TOKENS,
+    GEN_AI_USAGE_REASONING_OUTPUT_TOKENS,
+    LLM_INVOCATION_PARAMETERS,
 )
 
 logger = logging.getLogger(__name__)
@@ -148,6 +178,40 @@ class Rule:
         self.target = target
         self.convert = convert
 
+    def apply(self, values: list[Any]) -> Mapping[str, Any]:
+        """The canonical key(s) this rule produces from its present sources."""
+        return {self.target: self.convert(values)}
+
+
+class ExpandingRule:
+    """One source key that fans out over SEVERAL canonical keys.
+
+    For a source that is a bag rather than a value — ``llm.invocation_parameters``
+    is a JSON object whose members are separate facts. A plain :class:`Rule`
+    cannot express it: it has one target, and the generic delete would then
+    take the whole bag away for the sake of one member.
+
+    ``expand`` receives the raw source value and returns EVERYTHING the span
+    should carry in its place. That may include the source key itself, holding
+    the members no canonical key claimed — the only way to promote part of a
+    bag without dropping the rest. Returning the source key is the one exempt
+    from native-wins, since the rule is rewriting its own input rather than
+    competing with an instrumentation that already speaks the convention.
+    """
+
+    __slots__ = ("sources", "expand")
+
+    def __init__(self, source: str, expand: Callable[[Any], Mapping[str, Any]]) -> None:
+        self.sources: tuple[str, ...] = (source,)
+        self.expand = expand
+
+    def apply(self, values: list[Any]) -> Mapping[str, Any]:
+        return self.expand(values[0])
+
+
+#: A rule of either shape. Both expose ``sources`` and ``apply``.
+AnyRule = Rule | ExpandingRule
+
 
 def _namespace(key: str) -> str:
     """The fast-path prefix a source key belongs to (``llm.model_name`` → ``llm.``)."""
@@ -158,12 +222,12 @@ def _namespace(key: str) -> str:
 class NormalizationTable:
     """A set of :class:`Rule`\\ s, plus the fast path that skips them."""
 
-    def __init__(self, rules: Iterable[Rule]) -> None:
+    def __init__(self, rules: Iterable[AnyRule]) -> None:
         self._rules = tuple(rules)
         self._prefixes = tuple(sorted({_namespace(s) for r in self._rules for s in r.sources}))
 
     @property
-    def rules(self) -> tuple[Rule, ...]:
+    def rules(self) -> tuple[AnyRule, ...]:
         return self._rules
 
     @property
@@ -180,24 +244,28 @@ class NormalizationTable:
         """Canonical keys this table would add, without removing anything."""
         added: dict[str, Any] = {}
         for rule in self._rules:
-            if rule.target in attributes or rule.target in added:
-                continue
             present = [attributes[s] for s in rule.sources if s in attributes]
             if not present:
                 continue
             try:
-                value = rule.convert(present)
+                produced = rule.apply(present)
             except Exception:
                 # Fail safe: one bad converter must not cost the other rules
                 # or the span.
                 logger.warning(
-                    "normalization converter raised for %r; rule skipped",
-                    rule.target,
+                    "normalization rule raised for %r; rule skipped",
+                    rule.sources,
                     exc_info=True,
                 )
                 continue
-            if value is not SKIP and value is not None:
-                added[rule.target] = value
+            for key, value in produced.items():
+                if value is SKIP or value is None or key in added:
+                    continue
+                # Native wins — except for the rule's own source, which an
+                # ExpandingRule rewrites rather than competes with.
+                if key in attributes and key not in rule.sources:
+                    continue
+                added[key] = value
         return added
 
     def normalize(self, attributes: Mapping[str, Any] | None) -> dict[str, Any] | None:
@@ -359,5 +427,219 @@ class NormalizingSpanExporter(SpanExporter):
         self._inner.shutdown()
 
 
-#: **Deliberately empty.** See the module docstring before adding a rule.
-DEFAULT_TABLE = NormalizationTable([])
+# --- OpenInference (openai, anthropic, langchain, llama-index, litellm) -----
+#
+# Source spellings were read from the installed instrumentors, not from
+# memory; the evidence for each is in the comments below and in
+# tests/test_normalization_openinference.py.
+
+#: Provider spellings the GenAI registry writes differently from the source.
+#:
+#: Two dialects feed ``gen_ai.provider.name`` and both have values the registry
+#: renamed. The pairs come from the registry itself
+#: (``opentelemetry.semconv._incubating.attributes.gen_ai_attributes``), whose
+#: ``GenAiSystemValues`` members carry "Deprecated: Replaced by ``X``"
+#: docstrings, and whose ``GenAiProviderNameValues`` spells xAI ``x_ai`` and
+#: Mistral ``mistral_ai`` against OpenInference's ``xai`` / ``mistralai``.
+#:
+#: Only renames of the SAME provider are listed. OpenInference's ``azure``,
+#: ``aws`` and ``google`` are NOT translated: each covers several registry
+#: values (``azure.ai.openai`` vs ``azure.ai.inference``, ``aws.bedrock`` vs
+#: the rest of AWS, three ``gcp.*``), so a translation would be a guess.
+#: They pass through verbatim, which is allowed — the attribute's values are
+#: "well-known", not closed, and langchain already forwards any
+#: ``ls_provider`` string it is given (``_tracer.py:1076``).
+PROVIDER_NAME_ALIASES: Mapping[str, str] = {
+    # OpenInference enum values (openinference.semconv.trace)
+    "mistralai": "mistral_ai",
+    "xai": "x_ai",
+    # legacy gen_ai.system values
+    "vertex_ai": "gcp.vertex_ai",
+    "gemini": "gcp.gemini",
+    "az.ai.inference": "azure.ai.inference",
+    "az.ai.openai": "azure.ai.openai",
+}
+
+
+def provider_name(values: list[Any]) -> Any:
+    """The provider, under the registry's spelling where it differs."""
+    value = values[0]
+    if not isinstance(value, str):
+        return SKIP
+    return PROVIDER_NAME_ALIASES.get(value.strip().lower(), value)
+
+
+def _number(value: Any) -> Any:
+    """A double, or SKIP. Booleans are not numbers here."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return SKIP
+    return float(value)
+
+
+def _count(value: Any) -> Any:
+    """An int, or SKIP."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return SKIP
+    return int(value)
+
+
+def _text(value: Any) -> Any:
+    return value if isinstance(value, str) and value else SKIP
+
+
+def _flag(value: Any) -> Any:
+    return value if isinstance(value, bool) else SKIP
+
+
+def _text_sequence(value: Any) -> Any:
+    """A string list. A lone stop string is the one-element list of itself."""
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, (list, tuple)) and all(isinstance(v, str) for v in value):
+        return list(value)
+    return SKIP
+
+
+#: Members of ``llm.invocation_parameters`` that a ``gen_ai.request.*`` key
+#: represents TOTALLY, in precedence order (the first spelling to produce a
+#: target keeps it). Everything else stays in the blob: see
+#: :func:`openinference_invocation_parameters`.
+INVOCATION_PARAMETER_MEMBERS: tuple[tuple[str, str, Callable[[Any], Any]], ...] = (
+    # Every instrumentor but anthropic's keeps `model` in the bag, and it is
+    # the literal request field — unlike `llm.model_name`, see below.
+    ("model", GEN_AI_REQUEST_MODEL, _text),
+    ("temperature", GEN_AI_REQUEST_TEMPERATURE, _number),
+    ("top_p", GEN_AI_REQUEST_TOP_P, _number),
+    ("top_k", GEN_AI_REQUEST_TOP_K, _count),
+    ("max_tokens", GEN_AI_REQUEST_MAX_TOKENS, _count),
+    # OpenAI's replacement for max_tokens on the reasoning models: "an upper
+    # bound for the number of tokens that can be generated for a completion",
+    # which is what gen_ai.request.max_tokens means. Listed second so that a
+    # request carrying both keeps the one the provider would honour.
+    ("max_completion_tokens", GEN_AI_REQUEST_MAX_TOKENS, _count),
+    ("frequency_penalty", GEN_AI_REQUEST_FREQUENCY_PENALTY, _number),
+    ("presence_penalty", GEN_AI_REQUEST_PRESENCE_PENALTY, _number),
+    ("seed", GEN_AI_REQUEST_SEED, _count),
+    ("n", GEN_AI_REQUEST_CHOICE_COUNT, _count),
+    ("stop", GEN_AI_REQUEST_STOP_SEQUENCES, _text_sequence),
+    ("stop_sequences", GEN_AI_REQUEST_STOP_SEQUENCES, _text_sequence),
+    ("stream", GEN_AI_REQUEST_STREAM, _flag),
+)
+
+
+def openinference_invocation_parameters(raw: Any) -> Mapping[str, Any]:
+    """Promote the spec-defined members of the request bag; keep the rest.
+
+    The members left over go back under ``llm.invocation_parameters``, and
+    that is deliberate rather than a half-measure. The bag's membership is
+    open and provider-defined: litellm and langchain leave the request's
+    ``tools`` / ``functions`` arrays in it, which is why ``masking.py``
+    redacts those members THERE. Fanning unknown members out into keys of our
+    own would move content out from under that redaction, so a member is
+    promoted only when a canonical key represents it totally, and the bag
+    survives to carry everything else.
+
+    A member that produced a canonical key is removed from the bag even when
+    a native key beat it — at that point it is a duplicate, which is the same
+    reason a mapped source key is deleted.
+    """
+    if not isinstance(raw, str):
+        return {LLM_INVOCATION_PARAMETERS: raw}
+    try:
+        payload = json.loads(raw)
+    except ValueError:
+        # Unreadable is exactly when a pass-through is right: the caller's
+        # value is the only record of it.
+        return {LLM_INVOCATION_PARAMETERS: raw}
+    if not isinstance(payload, dict):
+        return {LLM_INVOCATION_PARAMETERS: raw}
+
+    produced: dict[str, Any] = {}
+    leftover = dict(payload)
+    for member, target, convert in INVOCATION_PARAMETER_MEMBERS:
+        if member not in leftover or target in produced:
+            continue
+        value = convert(leftover[member])
+        if value is SKIP:
+            # Wrong shape for the canonical key; leave it where it was.
+            continue
+        produced[target] = value
+        del leftover[member]
+    if not produced:
+        return {LLM_INVOCATION_PARAMETERS: raw}  # byte-identical
+    if leftover:
+        produced[LLM_INVOCATION_PARAMETERS] = serialize(leftover)
+    return produced
+
+
+#: The shipped rules. Order matters where two sources share a target: the
+#: first to produce it wins.
+#:
+#: DELIBERATE OMISSIONS — mappings that are not TOTAL, left unmapped so the
+#: source rides through under its own name:
+#:
+#: * ``llm.model_name``. Its meaning varies by instrumentor and, in langchain,
+#:   within one: openai sets it from the RESPONSE object
+#:   (``_response_attributes_extractor.py:96``), langchain prefers the
+#:   response's ``llm_output`` and falls back to the request metadata
+#:   (``_tracer.py:1085-1113``), anthropic writes the request model and then
+#:   overwrites it with the response model (``_wrappers.py:595``, ``:602``).
+#:   Neither ``gen_ai.request.model`` nor ``gen_ai.response.model`` can hold
+#:   all of that, and guessing would put a response model on a request key for
+#:   a call that never got a response. The request model is recovered from the
+#:   request bag's ``model`` member instead, which is unambiguous.
+#: * ``llm.system``. NOT the provider: OpenInference emits both, and for Azure
+#:   OpenAI they differ (``llm.provider`` = azure, ``llm.system`` = openai).
+#:   ``gen_ai.provider.name`` is the provider.
+#: * ``llm.token_count.total``. No canonical key: the conventions record input
+#:   and output and leave the sum to the reader.
+#: * ``llm.token_count.prompt_details.cache_input`` ("input tokens in the
+#:   prompt that were cached"). It overlaps cache_read and cache_write without
+#:   saying how, so neither canonical cache key can hold it.
+#: * ``llm.token_count.*_details.audio``. No canonical key.
+#: * ``llm.cost.*``. We deliberately do not put cost on the wire; the backend
+#:   prices from the token counts.
+#: * A SUM rule for the input tokens. Every bundled instrumentor already
+#:   reports ``llm.token_count.prompt`` INCLUSIVE of the cache counts —
+#:   anthropic ``_utils.py:29``, llama-index ``_callback.py:684``, langchain
+#:   ``_tracer.py:1154`` and its Bedrock heuristic at ``:1204``, litellm via
+#:   litellm's own Anthropic transformation (``chat/transformation.py:2358``),
+#:   and openai by the provider's definition of ``prompt_tokens``. Summing
+#:   again would double-count every cached token.
+OPENINFERENCE_RULES: tuple[AnyRule, ...] = (
+    # Provider. One rule, two spellings, first present wins: llm.provider is
+    # OpenInference's and the more specific (azure/aws/google rather than the
+    # product); gen_ai.system is the deprecated GenAI key, which we map here
+    # and never emit.
+    Rule(("llm.provider", GEN_AI_SYSTEM), GEN_AI_PROVIDER_NAME, provider_name),
+    # Model. Only the anthropic instrumentor emits this unambiguous pair
+    # (_wrappers.py:596, :603); see the omission note on llm.model_name.
+    Rule("llm.request.model_name", GEN_AI_REQUEST_MODEL, copy_value),
+    Rule("llm.response.model_name", GEN_AI_RESPONSE_MODEL, copy_value),
+    # Usage. to_int rather than copy: a count under a canonical key must be a
+    # count, and a converter that SKIPs is how a wrongly-shaped value stays
+    # off the wire.
+    Rule("llm.token_count.prompt", GEN_AI_USAGE_INPUT_TOKENS, to_int),
+    Rule("llm.token_count.completion", GEN_AI_USAGE_OUTPUT_TOKENS, to_int),
+    Rule(
+        "llm.token_count.prompt_details.cache_read",
+        GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS,
+        to_int,
+    ),
+    Rule(
+        "llm.token_count.prompt_details.cache_write",
+        GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS,
+        to_int,
+    ),
+    Rule(
+        "llm.token_count.completion_details.reasoning",
+        GEN_AI_USAGE_REASONING_OUTPUT_TOKENS,
+        to_int,
+    ),
+    # The request bag, last: the dedicated model rules above take precedence
+    # over its `model` member.
+    ExpandingRule(LLM_INVOCATION_PARAMETERS, openinference_invocation_parameters),
+)
+
+#: Live in every process. See the module docstring before adding a rule.
+DEFAULT_TABLE = NormalizationTable(OPENINFERENCE_RULES)

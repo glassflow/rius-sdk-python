@@ -361,29 +361,31 @@ def test_invocation_parameters_tools_member_redacted_when_stripping() -> None:
     # request tools array INSIDE llm.invocation_parameters; the direct
     # openai/anthropic instrumentors do not. The key is not wholly content —
     # sampling params are identity — so the tools/functions members are
-    # redacted and the rest survives.
+    # redacted and the rest survives. The surviving members here are ones
+    # normalization does NOT promote out of the bag (model and temperature
+    # become gen_ai.request.*), so this stays a test of masking alone.
     inner = InMemorySpanExporter()
     client = init(span_exporter=inner, set_global=False, capture_content=False)
     with client.get_tracer().start_as_current_span("chat") as span:
         span.set_attribute(
             "llm.invocation_parameters",
-            '{"model": "gpt-test", "temperature": 0.2,'
+            '{"tool_choice": "auto", "user": "u",'
             ' "tools": [{"name": "secret_tool"}], "functions": [{"name": "legacy"}]}',
         )
     client.flush()
     attrs = inner.get_finished_spans()[0].attributes
     kept = json.loads(attrs["llm.invocation_parameters"])
-    assert kept == {"model": "gpt-test", "temperature": 0.2}
+    assert kept == {"tool_choice": "auto", "user": "u"}
 
 
 def test_invocation_parameters_without_tools_untouched() -> None:
     inner = InMemorySpanExporter()
     client = init(span_exporter=inner, set_global=False, capture_content=False)
     with client.get_tracer().start_as_current_span("chat") as span:
-        span.set_attribute("llm.invocation_parameters", '{"temperature": 0.1}')
+        span.set_attribute("llm.invocation_parameters", '{"tool_choice": "none"}')
     client.flush()
     attrs = inner.get_finished_spans()[0].attributes
-    assert attrs["llm.invocation_parameters"] == '{"temperature": 0.1}'
+    assert attrs["llm.invocation_parameters"] == '{"tool_choice": "none"}'
 
 
 def test_invocation_parameters_unparseable_dropped_when_stripping() -> None:
@@ -404,11 +406,11 @@ def test_invocation_parameters_tools_member_redacted_under_mask_too() -> None:
     with client.get_tracer().start_as_current_span("chat") as span:
         span.set_attribute(
             "llm.invocation_parameters",
-            '{"temperature": 0.2, "tools": [{"name": "secret_tool"}]}',
+            '{"tool_choice": "auto", "tools": [{"name": "secret_tool"}]}',
         )
     client.flush()
     attrs = inner.get_finished_spans()[0].attributes
-    assert json.loads(attrs["llm.invocation_parameters"]) == {"temperature": 0.2}
+    assert json.loads(attrs["llm.invocation_parameters"]) == {"tool_choice": "auto"}
 
 
 # --- span status: provider errors echo the rejected request into the message ---
