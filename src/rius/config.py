@@ -25,6 +25,7 @@ ENV_PREFIX = "RIUS_"
 ENV_ENDPOINT = "RIUS_ENDPOINT"
 ENV_API_KEY = "RIUS_API_KEY"
 ENV_SERVICE_NAME = "RIUS_SERVICE_NAME"
+ENV_SERVICE_VERSION = "RIUS_SERVICE_VERSION"
 ENV_DISABLED = "RIUS_DISABLED"
 ENV_SAMPLE_RATE = "RIUS_SAMPLE_RATE"
 ENV_CAPTURE_CONTENT = "RIUS_CAPTURE_CONTENT"
@@ -92,6 +93,12 @@ class GlassflowConfig:
     endpoint: str
     api_key: str | None
     service_name: str
+    # None means the deployed version is unknown, and the resource then says
+    # nothing rather than something false. Deliberately not defaulted the way
+    # service_name is: DEFAULT_SERVICE_NAME exists because OTel requires a
+    # service.name, and _agent.py has to suppress that placeholder downstream
+    # precisely because a fake value groups every deployment together.
+    service_version: str | None = None
     headers: dict[str, str] = field(default_factory=dict)
     disabled: bool = False
     sample_rate: float = 1.0
@@ -160,6 +167,7 @@ def resolve_config(
     endpoint: str | None = None,
     api_key: str | None = None,
     service_name: str | None = None,
+    service_version: str | None = None,
     headers: dict[str, str] | None = None,
     disabled: bool | None = None,
     sample_rate: float | None = None,
@@ -186,6 +194,10 @@ def resolve_config(
             ``None`` sends no Authorization header.
         service_name: ``service.name`` resource attribute
             (``RIUS_SERVICE_NAME``).
+        service_version: ``service.version`` resource attribute
+            (``RIUS_SERVICE_VERSION``). Unset means unset: there is no
+            placeholder, and the attribute is then left off the resource
+            entirely, where ``OTEL_RESOURCE_ATTRIBUTES`` may still supply one.
         headers: Extra exporter headers; an explicit ``Authorization`` entry
             wins over ``api_key``.
         disabled: Kill switch (``RIUS_DISABLED``); spans are dropped
@@ -227,6 +239,7 @@ def resolve_config(
     resolved_endpoint = endpoint or os.getenv(ENV_ENDPOINT) or DEFAULT_ENDPOINT
     resolved_api_key = api_key if api_key is not None else os.getenv(ENV_API_KEY)
     resolved_service_name = service_name or os.getenv(ENV_SERVICE_NAME) or DEFAULT_SERVICE_NAME
+    resolved_service_version = service_version or os.getenv(ENV_SERVICE_VERSION) or None
     resolved_disabled = _env_bool(ENV_DISABLED, default=False) if disabled is None else disabled
     resolved_sample_rate = _clamp_sample_rate(
         _env_float(ENV_SAMPLE_RATE, default=1.0)
@@ -263,6 +276,7 @@ def resolve_config(
         endpoint=resolved_endpoint,
         api_key=resolved_api_key,
         service_name=resolved_service_name,
+        service_version=resolved_service_version,
         headers=resolved_headers,
         disabled=resolved_disabled,
         sample_rate=resolved_sample_rate,

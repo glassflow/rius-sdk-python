@@ -262,3 +262,87 @@ def test_compose_span_name_ignores_targets_from_another_kind() -> None:
         )
         == "execute_tool"
     )
+
+
+# --- the generation conformance keys: gen_ai.output.type / gen_ai.response.id ---
+
+
+def test_output_type_is_creation_identity_and_response_id_is_metadata() -> None:
+    """The requested output type is part of the request, so it is known before
+    the call and rides pending snapshots. The provider's completion id is not
+    knowable until the call returns, so it never reaches one. Neither is
+    content: both survive capture_content=False."""
+    from rius.semconv import (
+        CONTENT_ATTRIBUTES,
+        GEN_AI_OUTPUT_TYPE,
+        GEN_AI_RESPONSE_ID,
+        PENDING_IDENTITY_ATTRIBUTES,
+        PENDING_IDENTITY_PREFIXES,
+    )
+
+    assert GEN_AI_OUTPUT_TYPE == "gen_ai.output.type"
+    assert GEN_AI_RESPONSE_ID == "gen_ai.response.id"
+
+    # Neither key sits under gen_ai.request., so the prefix rule does not
+    # cover the output type; it needs its own allowlist entry.
+    assert not GEN_AI_OUTPUT_TYPE.startswith(PENDING_IDENTITY_PREFIXES)
+    assert GEN_AI_OUTPUT_TYPE in PENDING_IDENTITY_ATTRIBUTES
+    assert GEN_AI_RESPONSE_ID not in PENDING_IDENTITY_ATTRIBUTES
+
+    assert GEN_AI_OUTPUT_TYPE not in CONTENT_ATTRIBUTES
+    assert GEN_AI_RESPONSE_ID not in CONTENT_ATTRIBUTES
+
+
+# --- the tool conformance keys: gen_ai.tool.call.id / gen_ai.tool.type ---
+
+
+def test_tool_call_id_and_tool_type_are_set_only_on_tool_spans() -> None:
+    from rius.semconv import GEN_AI_TOOL_CALL_ID, GEN_AI_TOOL_TYPE, kind_attributes
+
+    assert GEN_AI_TOOL_CALL_ID == "gen_ai.tool.call.id"
+    assert GEN_AI_TOOL_TYPE == "gen_ai.tool.type"
+
+    attributes = kind_attributes(
+        SpanKind.TOOL, "get_weather", tool_call_id="call_1", tool_type="function"
+    )
+    assert attributes[GEN_AI_TOOL_CALL_ID] == "call_1"
+    assert attributes[GEN_AI_TOOL_TYPE] == "function"
+
+    # Never invented, and meaningless on every other kind — the same scoping
+    # gen_ai.tool.name and the agent keys already use.
+    assert GEN_AI_TOOL_CALL_ID not in kind_attributes(SpanKind.TOOL, "get_weather")
+    assert GEN_AI_TOOL_TYPE not in kind_attributes(SpanKind.TOOL, "get_weather")
+    for kind in (SpanKind.CHAIN, SpanKind.LLM, SpanKind.AGENT, SpanKind.RETRIEVER):
+        assert GEN_AI_TOOL_CALL_ID not in kind_attributes(kind, tool_call_id="call_1")
+        assert GEN_AI_TOOL_TYPE not in kind_attributes(kind, tool_type="function")
+
+
+def test_tool_call_id_and_tool_type_are_pending_identity_not_content() -> None:
+    """Both are caller-supplied at span creation, so a still-running tool call
+    is already attributable to the model's tool-call message in the live view."""
+    from rius.semconv import (
+        CONTENT_ATTRIBUTES,
+        GEN_AI_TOOL_CALL_ID,
+        GEN_AI_TOOL_TYPE,
+        PENDING_IDENTITY_ATTRIBUTES,
+    )
+
+    for key in (GEN_AI_TOOL_CALL_ID, GEN_AI_TOOL_TYPE):
+        assert key in PENDING_IDENTITY_ATTRIBUTES
+        assert key not in CONTENT_ATTRIBUTES
+
+
+def test_the_tool_identifiers_never_reach_the_span_name() -> None:
+    """A TOOL span is named after its tool, never after the call id or the
+    tool type: _NAME_TARGET_BY_KIND maps TOOL to gen_ai.tool.name alone."""
+    from rius.semconv import compose_span_name, kind_attributes
+
+    attributes = kind_attributes(
+        SpanKind.TOOL, "get_weather", tool_call_id="call_1", tool_type="function"
+    )
+    assert compose_span_name(SpanKind.TOOL, attributes) == "execute_tool get_weather"
+
+    # And a tool span with no tool name degrades to the bare operation rather
+    # than borrowing either identifier.
+    nameless = kind_attributes(SpanKind.TOOL, tool_call_id="call_1", tool_type="function")
+    assert compose_span_name(SpanKind.TOOL, nameless) == "execute_tool"

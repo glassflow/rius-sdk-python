@@ -249,6 +249,8 @@ def test_creation_identity_keys_are_pending_allowlisted() -> None:
             agent_name="planner",
             agent_id="ag_1",
             executing_agent_name="executor",
+            tool_call_id="call_1",
+            tool_type="function",
         )
         for kind in SpanKind
     }
@@ -257,7 +259,7 @@ def test_creation_identity_keys_are_pending_allowlisted() -> None:
         "plan", SpanKind.AGENT, "u", agent_name="planner", agent_id="ag_1"
     )[1]
     builders["generation"] = generation_attributes(
-        model="m", provider="p", operation="chat", user_id="u"
+        model="m", provider="p", operation="chat", user_id="u", output_type="json"
     )
     builders["mcp"] = _call_attributes("search", protocol_version="2026-07-28")
 
@@ -340,3 +342,28 @@ def test_pending_snapshot_of_a_tool_span_carries_the_executing_agent() -> None:
     tool_pending = [s for s in pending if s.name == "weather"]
     assert tool_pending, "expected a pending snapshot for the tool span"
     assert tool_pending[0].attributes["gen_ai.agent.name"] == "researcher"
+
+
+def test_pending_snapshot_keeps_the_request_shaped_conformance_keys() -> None:
+    """End-to-end counterpart to the structural allowlist check above: the
+    requested output modality and the tool call this execution answers are
+    both known at span start, so the live view already has them."""
+    from rius import _tracer, start_as_current_generation, start_as_current_span
+    from rius.semconv import SpanKind
+
+    client, exporter = _memory_client(partial_spans=True)
+    # Route the SDK helpers to this scoped client (the lifecycle fixture
+    # withdraws it again after the test).
+    _tracer.publish(client._provider)
+    with start_as_current_generation(model="gpt-4o", output_type="json"):
+        pass
+    with start_as_current_span(
+        kind=SpanKind.TOOL, tool_name="get_weather", tool_call_id="call_1", tool_type="function"
+    ):
+        pass
+    client.flush()
+    pending, _final = _split(exporter.get_finished_spans())
+    generation, tool = pending
+    assert generation.attributes["gen_ai.output.type"] == "json"
+    assert tool.attributes["gen_ai.tool.call.id"] == "call_1"
+    assert tool.attributes["gen_ai.tool.type"] == "function"

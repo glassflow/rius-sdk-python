@@ -154,6 +154,8 @@ def _creation(
     top_k: int | None = None,
     agent_name: str | None = None,
     agent_id: str | None = None,
+    tool_call_id: str | None = None,
+    tool_type: str | None = None,
 ) -> tuple[str, dict[str, str | int]]:
     """The span name and the identity attributes, resolved together.
 
@@ -184,6 +186,8 @@ def _creation(
             agent_name=resolved_agent_name,
             agent_id=agent_id,
             executing_agent_name=resolved_executing_agent,
+            tool_call_id=tool_call_id,
+            tool_type=tool_type,
         )
     )
     if user_id is not None:
@@ -202,6 +206,8 @@ def start_span(
     top_k: int | None = None,
     agent_name: str | None = None,
     agent_id: str | None = None,
+    tool_call_id: str | None = None,
+    tool_type: str | None = None,
 ) -> Observation:
     """Create a span and return an ``Observation``. You MUST call ``.end()``.
 
@@ -225,6 +231,15 @@ def start_span(
     ``tool_name`` sets ``gen_ai.tool.name`` on a ``TOOL`` span; it defaults to
     the span name, and exists so a span name that is not the bare tool name
     does not become one.
+
+    ``tool_call_id`` is the id the MODEL put on the tool-call message this
+    ``TOOL`` span answers (``gen_ai.tool.call.id``), which is what joins the
+    tool span back to the generation that requested it; ``tool_type`` is what
+    kind of tool ran (``gen_ai.tool.type``: ``"function"``, ``"extension"``,
+    ``"datastore"``, ...). Both are set at creation, so a still-running tool
+    call is already attributable, and neither is ever derived: only the caller
+    has seen the model's response, and neither changes the span name. Both are
+    ignored on every other kind.
 
     ``data_source_id`` names the index, collection or knowledge base a
     ``RETRIEVER`` span searched (``gen_ai.data_source.id``), and ``top_k`` how
@@ -257,6 +272,8 @@ def start_span(
         top_k=top_k,
         agent_name=agent_name,
         agent_id=agent_id,
+        tool_call_id=tool_call_id,
+        tool_type=tool_type,
     )
     span = sdk_tracer().start_span(
         span_name,
@@ -280,6 +297,8 @@ def start_as_current_span(
     top_k: int | None = None,
     agent_name: str | None = None,
     agent_id: str | None = None,
+    tool_call_id: str | None = None,
+    tool_type: str | None = None,
 ) -> Iterator[Observation]:
     """Open a span as the current span and yield an ``Observation``; auto-ends.
 
@@ -301,6 +320,15 @@ def start_as_current_span(
     ``tool_name`` sets ``gen_ai.tool.name`` on a ``TOOL`` span; it defaults to
     the span name, and exists so a span name that is not the bare tool name
     does not become one.
+
+    ``tool_call_id`` is the id the MODEL put on the tool-call message this
+    ``TOOL`` span answers (``gen_ai.tool.call.id``), which is what joins the
+    tool span back to the generation that requested it; ``tool_type`` is what
+    kind of tool ran (``gen_ai.tool.type``: ``"function"``, ``"extension"``,
+    ``"datastore"``, ...). Both are set at creation, so a still-running tool
+    call is already attributable, and neither is ever derived: only the caller
+    has seen the model's response, and neither changes the span name. Both are
+    ignored on every other kind.
 
     ``data_source_id`` names the index, collection or knowledge base a
     ``RETRIEVER`` span searched (``gen_ai.data_source.id``), and ``top_k`` how
@@ -334,6 +362,8 @@ def start_as_current_span(
         top_k=top_k,
         agent_name=agent_name,
         agent_id=agent_id,
+        tool_call_id=tool_call_id,
+        tool_type=tool_type,
     )
     with (
         user(user_id) if user_id is not None else nullcontext(),

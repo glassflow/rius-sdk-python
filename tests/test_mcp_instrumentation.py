@@ -548,3 +548,19 @@ def test_mcp_tool_span_falls_back_to_the_configured_agent_name() -> None:
     (tool_span,) = [s for s in inner.get_finished_spans() if s.name == "execute_tool add"]
     assert tool_span.attributes is not None
     assert tool_span.attributes["gen_ai.agent.name"] == "configured"
+
+
+def test_mcp_call_carries_no_tool_call_id_and_no_tool_type() -> None:
+    """A deliberate decline, not an omission. The tool call id identifies the
+    model's tool-call message, and the MCP client wrapper never sees that
+    message: it only sees the protocol exchange. Minting one from a JSON-RPC
+    request id or from the span id would look like the model's id and join to
+    nothing. The tool type is equally unavailable — the wrapper has the tool's
+    name, not its declaration. Both stay unset until a caller can supply them.
+    """
+    spans, _result = _run_tool_call("add", {"a": 2, "b": 3})
+    (tool_span,) = [s for s in spans if s.name == "execute_tool add"]
+    attrs = tool_span.attributes
+    assert attrs is not None
+    assert "gen_ai.tool.call.id" not in attrs
+    assert "gen_ai.tool.type" not in attrs

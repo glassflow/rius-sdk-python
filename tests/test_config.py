@@ -161,3 +161,19 @@ def test_pre_rename_glassflow_env_vars_are_ignored(
 def test_explicit_argument_beats_env_var(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("RIUS_API_KEY", "gf_new")
     assert resolve_config(api_key="gf_explicit").api_key == "gf_explicit"
+
+
+def test_service_version_resolves_from_the_argument_then_the_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("RIUS_SERVICE_VERSION", "1.0.0-env")
+    assert resolve_config(service_version="1.4.2").service_version == "1.4.2"
+    assert resolve_config().service_version == "1.0.0-env"
+
+
+def test_service_version_is_unset_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No placeholder: a fake default merges every deployment into one bucket,
+    which is the lesson unknown_service taught. Absence is the honest answer."""
+    monkeypatch.delenv("RIUS_SERVICE_VERSION", raising=False)
+    assert resolve_config().service_version is None
+    assert resolve_config(service_version="").service_version is None
