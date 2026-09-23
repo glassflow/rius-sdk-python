@@ -182,6 +182,9 @@ PENDING_IDENTITY_ATTRIBUTES = frozenset(
         GEN_AI_RETRIEVAL_TOP_K,
         # Which agent a span invokes is chosen by the caller before the work
         # starts, so a still-running agent is attributable in the live view.
+        # On a TOOL span the same key instead names the agent EXECUTING the
+        # call, known from the enclosing scope at creation for the same
+        # reason: which agent is stuck is the live view's first question.
         # Distinct from the resource key of the same name, which says which
         # PROCESS is running; this says which agent that process invoked here.
         GEN_AI_AGENT_NAME,
@@ -426,6 +429,7 @@ def kind_attributes(
     top_k: int | None = None,
     agent_name: str | None = None,
     agent_id: str | None = None,
+    executing_agent_name: str | None = None,
 ) -> dict[str, str | int]:
     """Identity attributes for a span of ``kind``, for setting at CREATION.
 
@@ -452,13 +456,30 @@ def kind_attributes(
     span name coincided historically, a function name is not an agent's
     identity, and guessing one mislabels every span beneath it. The caller
     supplies them, or the span helper falls back to the configured agent name.
+
+    ``executing_agent_name`` is a SEPARATE argument writing the SAME key,
+    ``gen_ai.agent.name``, on a TOOL span — where the conventions define it as
+    "the human-readable name of the agent executing the tool". One key, two
+    meanings, told apart by ``gen_ai.operation.name``: on ``invoke_agent`` it
+    is the agent being invoked, on ``execute_tool`` the agent doing the call.
+    Two arguments rather than one precisely so the two can never be fed from
+    the same source by accident; the TOOL one is never passed by a caller, it
+    is resolved from the enclosing agent scope (see ``_agent``). It does not
+    touch the span NAME: ``_NAME_TARGET_BY_KIND`` maps TOOL to
+    ``gen_ai.tool.name``, so a tool span stays ``execute_tool {tool}``.
     """
     attributes: dict[str, str | int] = {OPENINFERENCE_SPAN_KIND: kind.value}
     operation = _OPERATION_BY_KIND.get(kind)
     if operation is not None:
         attributes[GEN_AI_OPERATION_NAME] = operation
-    if kind is SpanKind.TOOL and tool_name is not None:
-        attributes[GEN_AI_TOOL_NAME] = tool_name
+    if kind is SpanKind.TOOL:
+        if tool_name is not None:
+            attributes[GEN_AI_TOOL_NAME] = tool_name
+        # The agent EXECUTING the tool — not one being invoked. See the
+        # docstring; the AGENT branch below writes the same key from the
+        # other, caller-supplied source.
+        if executing_agent_name is not None:
+            attributes[GEN_AI_AGENT_NAME] = executing_agent_name
     if kind is SpanKind.RETRIEVER:
         if data_source_id is not None:
             attributes[GEN_AI_DATA_SOURCE_ID] = data_source_id

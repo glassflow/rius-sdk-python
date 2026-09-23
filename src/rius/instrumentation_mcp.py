@@ -52,6 +52,7 @@ from opentelemetry import trace
 from opentelemetry.trace import Status, StatusCode
 
 from . import __version__
+from ._agent import executing_agent_name
 from ._errors import error_type
 from ._serde import serialize, truncate
 from .semconv import (
@@ -123,7 +124,11 @@ def _call_attributes(name: str, *, protocol_version: str | None) -> dict[str, st
     round must carry as much as a final one.
     """
     attributes = {
-        **kind_attributes(SpanKind.TOOL),
+        # executing_agent_name is gen_ai.agent.name in its EXECUTE-TOOL
+        # meaning: the agent that made this call, from the enclosing agent
+        # scope. A tools/call is an execute-tool span, so the conventions ask
+        # for it here exactly as they do on a local tool.
+        **kind_attributes(SpanKind.TOOL, executing_agent_name=executing_agent_name()),
         GEN_AI_TOOL_NAME: name,
         MCP_METHOD_NAME: MCP_METHOD_TOOLS_CALL,
     }

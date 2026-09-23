@@ -492,3 +492,59 @@ def test_single_text_result_is_bounded() -> None:
     text = _serialize_result(result)
     assert text.endswith(TRUNCATION_MARKER)
     assert len(text) == MAX_ATTR_CHARS + len(TRUNCATION_MARKER)
+
+
+def test_mcp_tool_span_carries_the_executing_agent_name() -> None:
+    """An MCP tools/call IS an execute-tool span, so ``gen_ai.agent.name``
+    is Conditionally Required on it too, and means the agent that made the
+    call — not one being invoked."""
+    inner = InMemorySpanExporter()
+    client = init(
+        span_exporter=inner,
+        set_global=False,
+        instruments=["mcp"],
+        service_name="svc",
+        agent_name="configured",
+    )
+
+    async def scenario() -> Any:
+        from rius import start_as_current_span
+        from rius.semconv import SpanKind
+
+        server = _make_server()
+        async with _connected_session(server) as session:
+            with start_as_current_span("plan", kind=SpanKind.AGENT, agent_name="researcher"):
+                return await session.call_tool("add", {"a": 2, "b": 3})
+
+    asyncio.run(scenario())
+    client.flush()
+    (tool_span,) = [s for s in inner.get_finished_spans() if s.name == "execute_tool add"]
+    assert tool_span.attributes is not None
+    assert tool_span.attributes["gen_ai.agent.name"] == "researcher"
+
+
+def test_mcp_tool_span_falls_back_to_the_configured_agent_name() -> None:
+    """With no enclosing agent scope, a single-agent process still knows who
+    made the call. A global init is what publishes that name, the same
+    condition the invoke-agent fallback has."""
+    inner = InMemorySpanExporter()
+    client = init(
+        span_exporter=inner,
+        instruments=["mcp"],
+        service_name="svc",
+        agent_name="configured",
+    )
+
+    async def scenario() -> Any:
+        server = _make_server()
+        async with _connected_session(server) as session:
+            return await session.call_tool("add", {"a": 2, "b": 3})
+
+    try:
+        asyncio.run(scenario())
+        client.flush()
+    finally:
+        client.shutdown()
+    (tool_span,) = [s for s in inner.get_finished_spans() if s.name == "execute_tool add"]
+    assert tool_span.attributes is not None
+    assert tool_span.attributes["gen_ai.agent.name"] == "configured"

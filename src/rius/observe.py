@@ -17,7 +17,13 @@ from typing import Any, TypeVar, overload
 from opentelemetry import context as otel_context
 from opentelemetry import trace
 
-from ._agent import resolve_agent_name
+from ._agent import (
+    context_with_executing_agent,
+    executing_agent_name,
+    executing_agent_scope,
+    invoked_agent_name,
+    resolve_agent_name,
+)
 from ._errors import record_error
 from ._serde import serialize
 from ._tracer import sdk_tracer
@@ -159,6 +165,11 @@ def observe(
             ``init()`` was given, and is never taken from the function or the
             span name: a function name is not an agent's identity. Ignored for
             other kinds.
+            A ``TOOL`` span carries ``gen_ai.agent.name`` too, and there it
+            means the agent EXECUTING the tool: the innermost enclosing
+            ``kind=AGENT`` scope, else the configured agent name. It is never
+            an argument — the executor is where the call happened, not
+            something a tool declares about itself.
         agent_id: The identifier of a HOSTED agent resource
             (``gen_ai.agent.id``), such as a Bedrock agent ARN. The
             conventions advise against recording a transient in-memory
@@ -182,6 +193,10 @@ def observe(
                 top_k=top_k,
                 agent_name=resolve_agent_name(agent_name, kind),
                 agent_id=agent_id,
+                # The other meaning of gen_ai.agent.name: on a TOOL span the
+                # agent DOING the call, read from the enclosing agent scope
+                # rather than from a decorator argument.
+                executing_agent_name=(executing_agent_name() if kind is SpanKind.TOOL else None),
             )
 
         def _creation() -> tuple[str, dict[str, str | int]]:
@@ -190,6 +205,14 @@ def observe(
             # value init() published rather than the one at import time.
             attributes = _kind_attributes()
             return _decorated_span_name(name, fn.__qualname__, kind, attributes), attributes
+
+        def _step_context(span: trace.Span, attributes: Mapping[str, str | int]) -> Any:
+            # The generator wrappers attach context per step instead of
+            # holding a with-block, so an AGENT generator scopes its executing
+            # name the same way, on the very same context object.
+            return context_with_executing_agent(
+                invoked_agent_name(kind, attributes), trace.set_span_in_context(span)
+            )
 
         def _set_input(span: trace.Span, args: tuple[Any, ...], kwargs: dict[str, Any]) -> None:
             if capture_input:
@@ -220,7 +243,7 @@ def observe(
                 pending: tuple[str, Any] = ("send", None)
                 try:
                     while True:
-                        token = otel_context.attach(trace.set_span_in_context(span))
+                        token = otel_context.attach(_step_context(span, attributes))
                         try:
                             if pending[0] == "send":
                                 item = await agen.asend(pending[1])
@@ -251,13 +274,18 @@ def observe(
             async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
                 tracer = sdk_tracer()
                 span_name, attributes = _creation()
-                with tracer.start_as_current_span(
-                    span_name,
-                    kind=otel_span_kind(kind),
-                    attributes=attributes,
-                    record_exception=False,
-                    set_status_on_exception=False,
-                ) as span:
+                with (
+                    # An @observe(kind=AGENT) body is the scope every TOOL
+                    # span inside it reads to say who executed it.
+                    executing_agent_scope(invoked_agent_name(kind, attributes)),
+                    tracer.start_as_current_span(
+                        span_name,
+                        kind=otel_span_kind(kind),
+                        attributes=attributes,
+                        record_exception=False,
+                        set_status_on_exception=False,
+                    ) as span,
+                ):
                     _set_input(span, args, kwargs)
                     try:
                         result = await fn(*args, **kwargs)
@@ -286,7 +314,7 @@ def observe(
                 pending: tuple[str, Any] = ("send", None)
                 try:
                     while True:
-                        token = otel_context.attach(trace.set_span_in_context(span))
+                        token = otel_context.attach(_step_context(span, attributes))
                         try:
                             if pending[0] == "send":
                                 item = gen.send(pending[1])
@@ -315,13 +343,18 @@ def observe(
         def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
             tracer = sdk_tracer()
             span_name, attributes = _creation()
-            with tracer.start_as_current_span(
-                span_name,
-                kind=otel_span_kind(kind),
-                attributes=attributes,
-                record_exception=False,
-                set_status_on_exception=False,
-            ) as span:
+            with (
+                # See the async wrapper: an AGENT body scopes its name over
+                # every tool span opened inside it.
+                executing_agent_scope(invoked_agent_name(kind, attributes)),
+                tracer.start_as_current_span(
+                    span_name,
+                    kind=otel_span_kind(kind),
+                    attributes=attributes,
+                    record_exception=False,
+                    set_status_on_exception=False,
+                ) as span,
+            ):
                 _set_input(span, args, kwargs)
                 try:
                     result = fn(*args, **kwargs)

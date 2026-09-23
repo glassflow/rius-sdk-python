@@ -21,7 +21,12 @@ from typing import Any
 
 from opentelemetry.trace import Span
 
-from ._agent import resolve_agent_name
+from ._agent import (
+    executing_agent_name,
+    executing_agent_scope,
+    invoked_agent_name,
+    resolve_agent_name,
+)
 from ._errors import error_type, record_error
 from ._serde import serialize
 from ._tracer import sdk_tracer
@@ -165,6 +170,11 @@ def _creation(
     # span has nothing to fall back to, and composes from the tool name alone.
     resolved_tool_name = tool_name if tool_name is not None else name
     resolved_agent_name = resolve_agent_name(agent_name, kind)
+    # The OTHER meaning of gen_ai.agent.name: on a TOOL span it is the agent
+    # DOING the call, taken from the enclosing agent scope rather than from
+    # any argument. Resolved only for TOOL, so no other kind pays for a
+    # context lookup it would discard.
+    resolved_executing_agent = executing_agent_name() if kind is SpanKind.TOOL else None
     attributes: dict[str, str | int] = dict(
         kind_attributes(
             kind,
@@ -173,6 +183,7 @@ def _creation(
             top_k=top_k,
             agent_name=resolved_agent_name,
             agent_id=agent_id,
+            executing_agent_name=resolved_executing_agent,
         )
     )
     if user_id is not None:
@@ -229,6 +240,13 @@ def start_span(
     ARN; the conventions advise against putting a transient in-memory instance
     id there, so an in-process agent leaves it unset. Both are ignored on
     every other kind.
+
+    A ``TOOL`` span carries ``gen_ai.agent.name`` too, and there it means the
+    agent EXECUTING the tool: the innermost enclosing agent scope, else the
+    configured agent name. This surface does not OPEN such a scope, because it
+    does not activate context at all — an agent span from ``start_span`` does
+    not lend its name to the tool spans that follow it, the same limitation
+    ``user_id`` has here. Use ``start_as_current_span`` for that.
     """
     span_name, attributes = _creation(
         name,
@@ -298,6 +316,13 @@ def start_as_current_span(
     ARN; the conventions advise against putting a transient in-memory instance
     id there, so an in-process agent leaves it unset. Both are ignored on
     every other kind.
+
+    A ``TOOL`` span carries ``gen_ai.agent.name`` too, and there it means the
+    agent EXECUTING the tool. An ``AGENT`` block opened here scopes its
+    resolved agent name over everything inside it, so every tool span in the
+    block — including MCP tool calls — names it as the executor; nested agent
+    blocks override outer ones. Without any enclosing block the configured
+    agent name applies, and a process that named nothing emits nothing.
     """
     tracer = sdk_tracer()
     span_name, attributes = _creation(
@@ -312,6 +337,11 @@ def start_as_current_span(
     )
     with (
         user(user_id) if user_id is not None else nullcontext(),
+        # An AGENT block is the scope every TOOL span inside it reads to say
+        # who executed it. Only this surface can open one: start_span does
+        # not activate context, so its agent spans do not scope their tools,
+        # the same limitation user_id has there.
+        executing_agent_scope(invoked_agent_name(kind, attributes)),
         tracer.start_as_current_span(
             span_name,
             kind=otel_span_kind(kind),
