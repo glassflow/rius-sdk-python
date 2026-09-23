@@ -132,8 +132,10 @@ def observe(
             ``init()`` was given, and is never taken from the function or the
             span name: a function name is not an agent's identity. Ignored for
             other kinds.
-        agent_id: The agent's stable identifier (``gen_ai.agent.id``), where
-            the caller has one. Never invented.
+        agent_id: The identifier of a HOSTED agent resource
+            (``gen_ai.agent.id``), such as a Bedrock agent ARN. The
+            conventions advise against recording a transient in-memory
+            instance id here, so an in-process agent leaves it unset.
 
     Returns:
         The wrapped function (or a decorator, when used parameterized).

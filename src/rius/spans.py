@@ -202,11 +202,13 @@ def start_span(
     source. What came back is recorded afterwards with
     ``Observation.set_retrieved_documents``.
 
-    ``agent_name`` names the agent an ``AGENT`` span invokes
-    (``gen_ai.agent.name``), with ``agent_id`` as its stable identifier where
-    one exists. Unset, the name falls back to the agent name ``init()`` was
-    given; it is never taken from the span name. Both are ignored on every
-    other kind.
+    ``agent_name`` names the agent an ``AGENT`` span INVOKES, which is what
+    ``gen_ai.agent.name`` means on an invoke-agent span. Unset, it falls back
+    to the agent name ``init()`` was given, and is never taken from the span
+    name. ``agent_id`` is for a HOSTED agent resource, such as a Bedrock agent
+    ARN; the conventions advise against putting a transient in-memory instance
+    id there, so an in-process agent leaves it unset. Both are ignored on
+    every other kind.
     """
     span = sdk_tracer().start_span(
         name,
@@ -259,11 +261,13 @@ def start_as_current_span(
     source. What came back is recorded afterwards with
     ``Observation.set_retrieved_documents``.
 
-    ``agent_name`` names the agent an ``AGENT`` span invokes
-    (``gen_ai.agent.name``), with ``agent_id`` as its stable identifier where
-    one exists. Unset, the name falls back to the agent name ``init()`` was
-    given; it is never taken from the span name. Both are ignored on every
-    other kind.
+    ``agent_name`` names the agent an ``AGENT`` span INVOKES, which is what
+    ``gen_ai.agent.name`` means on an invoke-agent span. Unset, it falls back
+    to the agent name ``init()`` was given, and is never taken from the span
+    name. ``agent_id`` is for a HOSTED agent resource, such as a Bedrock agent
+    ARN; the conventions advise against putting a transient in-memory instance
+    id there, so an in-process agent leaves it unset. Both are ignored on
+    every other kind.
     """
     tracer = sdk_tracer()
     with (
