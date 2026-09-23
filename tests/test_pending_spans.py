@@ -248,6 +248,7 @@ def test_creation_identity_keys_are_pending_allowlisted() -> None:
             top_k=5,
             agent_name="planner",
             agent_id="ag_1",
+            agent_version="7",
             executing_agent_name="executor",
             tool_call_id="call_1",
             tool_type="function",
@@ -256,7 +257,7 @@ def test_creation_identity_keys_are_pending_allowlisted() -> None:
     }
     builders["spans"] = span_creation("weather", SpanKind.TOOL, "u", tool_name="weather")[1]
     builders["spans(agent)"] = span_creation(
-        "plan", SpanKind.AGENT, "u", agent_name="planner", agent_id="ag_1"
+        "plan", SpanKind.AGENT, "u", agent_name="planner", agent_id="ag_1", agent_version="7"
     )[1]
     builders["generation"] = generation_attributes(
         model="m", provider="p", operation="chat", user_id="u", output_type="json"
@@ -367,3 +368,20 @@ def test_pending_snapshot_keeps_the_request_shaped_conformance_keys() -> None:
     assert generation.attributes["gen_ai.output.type"] == "json"
     assert tool.attributes["gen_ai.tool.call.id"] == "call_1"
     assert tool.attributes["gen_ai.tool.type"] == "function"
+
+
+def test_pending_snapshot_of_an_agent_span_carries_the_agent_version() -> None:
+    """Set at CREATION so the live view can tell which VERSION of an agent
+    definition is the one currently stuck."""
+    from rius import _tracer
+    from rius.semconv import SpanKind
+    from rius.spans import start_span
+
+    client, exporter = _memory_client(partial_spans=True)
+    _tracer.publish(client._provider)
+    span = start_span("plan", kind=SpanKind.AGENT, agent_name="researcher", agent_version="7")
+    client.flush()
+    pending, _ = _split(exporter.get_finished_spans())
+    span.end()
+    assert pending, "expected a pending snapshot"
+    assert pending[0].attributes["gen_ai.agent.version"] == "7"

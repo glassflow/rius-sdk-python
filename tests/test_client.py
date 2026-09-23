@@ -188,3 +188,74 @@ def test_otel_resource_attributes_still_supplies_the_version_when_nothing_else_d
         pass
     client.flush()
     assert exporter.get_finished_spans()[0].resource.attributes["service.version"] == "0.0.1-env"
+
+
+def _resource_of(exporter: InMemorySpanExporter) -> "dict[str, object]":
+    return dict(exporter.get_finished_spans()[0].resource.attributes)
+
+
+def _resource_with(**kwargs: object) -> "dict[str, object]":
+    client, exporter = _memory_client(**kwargs)
+    with client.get_tracer().start_as_current_span("op"):
+        pass
+    client.flush()
+    return _resource_of(exporter)
+
+
+def test_resource_carries_the_main_agent_identity() -> None:
+    """rius.main_agent.* says which agent this PROCESS is. gen_ai.agent.name
+    has no resource-level meaning in the conventions and on a span means the
+    agent being INVOKED, so the process-level question gets its own namespace."""
+    attrs = _resource_with(
+        agent_name="checkout-agent",
+        main_agent_id="ag_prod_7",
+        main_agent_description="Takes a cart to a paid order",
+        main_agent_version="7",
+    )
+    assert attrs["rius.main_agent.name"] == "checkout-agent"
+    assert attrs["rius.main_agent.id"] == "ag_prod_7"
+    assert attrs["rius.main_agent.description"] == "Takes a cart to a paid order"
+    assert attrs["rius.main_agent.version"] == "7"
+
+
+def test_the_main_agent_name_is_still_also_the_legacy_agent_name() -> None:
+    """ADDITIVE, never a swap: every deployment between this SDK release and
+    the sink release still has its agent identity read off gen_ai.agent.name.
+    Resource attributes ride once per OTLP batch, so the duplication is free."""
+    attrs = _resource_with(agent_name="checkout-agent")
+    assert attrs["gen_ai.agent.name"] == "checkout-agent"
+    assert attrs["rius.main_agent.name"] == attrs["gen_ai.agent.name"]
+
+
+def test_an_unnamed_process_emits_no_main_agent_name() -> None:
+    """The placeholder is suppressed at BOTH scopes, the same rule the span
+    helpers already apply: a process that named nothing claims no identity."""
+    client = init(span_exporter=(exporter := InMemorySpanExporter()), set_global=False)
+    with client.get_tracer().start_as_current_span("op"):
+        pass
+    client.flush()
+    attrs = _resource_of(exporter)
+    assert attrs["service.name"] == "unknown_service"
+    assert "rius.main_agent.name" not in attrs
+
+
+def test_unset_main_agent_attributes_are_absent_from_the_resource() -> None:
+    attrs = _resource_with(agent_name="checkout-agent")
+    for key in (
+        "rius.main_agent.id",
+        "rius.main_agent.description",
+        "rius.main_agent.version",
+    ):
+        assert key not in attrs
+
+
+def test_the_main_agent_version_and_the_service_version_are_independent() -> None:
+    """A service at 2.3.1 can run an agent definition at 7. Neither key is
+    ever derived from the other, in either direction."""
+    versioned_service = _resource_with(service_version="2.3.1")
+    assert versioned_service["service.version"] == "2.3.1"
+    assert "rius.main_agent.version" not in versioned_service
+
+    versioned_agent = _resource_with(main_agent_version="7")
+    assert versioned_agent["rius.main_agent.version"] == "7"
+    assert "service.version" not in versioned_agent

@@ -32,6 +32,9 @@ ENV_CAPTURE_CONTENT = "RIUS_CAPTURE_CONTENT"
 ENV_HEARTBEAT = "RIUS_HEARTBEAT"
 ENV_HEARTBEAT_INTERVAL = "RIUS_HEARTBEAT_INTERVAL"
 ENV_AGENT_NAME = "RIUS_AGENT_NAME"
+ENV_MAIN_AGENT_ID = "RIUS_MAIN_AGENT_ID"
+ENV_MAIN_AGENT_DESCRIPTION = "RIUS_MAIN_AGENT_DESCRIPTION"
+ENV_MAIN_AGENT_VERSION = "RIUS_MAIN_AGENT_VERSION"
 ENV_PARTIAL_SPANS = "RIUS_PARTIAL_SPANS"
 ENV_PARTIAL_SPANS_DELAY = "RIUS_PARTIAL_SPANS_DELAY"
 ENV_SESSION_ID = "RIUS_SESSION_ID"
@@ -106,6 +109,16 @@ class GlassflowConfig:
     heartbeat: bool = True
     heartbeat_interval: float = DEFAULT_HEARTBEAT_INTERVAL
     agent_name: str = DEFAULT_SERVICE_NAME
+    # The rest of the main agent's identity: the agent this PROCESS is. Only
+    # the name has an older counterpart (``agent_name``, above, which these
+    # deliberately reuse rather than duplicate); these three are new, and all
+    # three are None-means-unset with no placeholder, for the same reason
+    # service_version has none. main_agent_version is the version of the agent
+    # DEFINITION and is never derived from service_version: a service at 2.3.1
+    # can be running an agent definition at 7.
+    main_agent_id: str | None = None
+    main_agent_description: str | None = None
+    main_agent_version: str | None = None
     partial_spans: bool = False
     partial_spans_delay: float = 0.0
     # Process-wide session default; a `session()` scope overrides it. None
@@ -175,6 +188,9 @@ def resolve_config(
     heartbeat: bool | None = None,
     heartbeat_interval: float | None = None,
     agent_name: str | None = None,
+    main_agent_id: str | None = None,
+    main_agent_description: str | None = None,
+    main_agent_version: str | None = None,
     partial_spans: bool | None = None,
     partial_spans_delay: float | None = None,
     session_id: str | None = None,
@@ -216,7 +232,24 @@ def resolve_config(
         agent_name: Identity both heartbeats and spans group under
             (``RIUS_AGENT_NAME``), stamped on the resource as
             ``gen_ai.agent.name``; defaults to ``service_name`` so the agents
-            view and the traces view agree on what an "agent" is.
+            view and the traces view agree on what an "agent" is. Also
+            stamped as ``rius.main_agent.name``, under the same placeholder
+            suppression the span helpers apply.
+        main_agent_id: Stable identifier of the agent this process IS
+            (``RIUS_MAIN_AGENT_ID``), stamped as ``rius.main_agent.id``. It
+            must be STABLE across restarts and deployments — a transient
+            in-memory or process-local id must not be used, exactly as the
+            conventions say for ``gen_ai.agent.id``. Unset means unset;
+            there is no placeholder.
+        main_agent_description: What that agent does
+            (``RIUS_MAIN_AGENT_DESCRIPTION``), stamped as
+            ``rius.main_agent.description``. Unset means unset.
+        main_agent_version: Version of the agent DEFINITION — its prompt,
+            tools and policy (``RIUS_MAIN_AGENT_VERSION``), stamped as
+            ``rius.main_agent.version``. Deliberately NOT ``service.version``
+            and never derived from it: a service can sit at 2.3.1 while its
+            agent definition is at 7, and the two move independently. Unset
+            means unset.
         partial_spans: Export a content-free pending snapshot of every
             sampled span at span START (``RIUS_PARTIAL_SPANS``), so
             in-flight work is visible and crashes leave a record. Off by
@@ -257,6 +290,11 @@ def resolve_config(
         else _finite("heartbeat_interval", heartbeat_interval, DEFAULT_HEARTBEAT_INTERVAL)
     )
     resolved_agent_name = agent_name or os.getenv(ENV_AGENT_NAME) or resolved_service_name
+    resolved_main_agent_id = main_agent_id or os.getenv(ENV_MAIN_AGENT_ID) or None
+    resolved_main_agent_description = (
+        main_agent_description or os.getenv(ENV_MAIN_AGENT_DESCRIPTION) or None
+    )
+    resolved_main_agent_version = main_agent_version or os.getenv(ENV_MAIN_AGENT_VERSION) or None
     resolved_partial_spans = (
         _env_bool(ENV_PARTIAL_SPANS, default=False) if partial_spans is None else partial_spans
     )
@@ -284,6 +322,9 @@ def resolve_config(
         heartbeat=resolved_heartbeat,
         heartbeat_interval=resolved_heartbeat_interval,
         agent_name=resolved_agent_name,
+        main_agent_id=resolved_main_agent_id,
+        main_agent_description=resolved_main_agent_description,
+        main_agent_version=resolved_main_agent_version,
         partial_spans=resolved_partial_spans,
         partial_spans_delay=resolved_partial_spans_delay,
         session_id=resolved_session_id,

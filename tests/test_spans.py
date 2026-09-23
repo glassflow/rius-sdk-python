@@ -546,3 +546,41 @@ def test_the_tool_identifiers_do_not_change_the_span_name(
     ):
         pass
     assert exported_spans.get_finished_spans()[0].name == "execute_tool get_weather"
+
+
+def test_agent_kind_takes_an_optional_agent_version(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    """The version of the agent DEFINITION this span invoked. Taken verbatim:
+    the conventions' own examples are "1.0.0" and "2025-05-01", so there is no
+    format to validate."""
+    with start_as_current_span(
+        "plan", kind=SpanKind.AGENT, agent_name="p", agent_version="2025-05-01"
+    ):
+        pass
+    assert exported_spans.get_finished_spans()[0].attributes["gen_ai.agent.version"] == (
+        "2025-05-01"
+    )
+
+
+def test_agent_version_is_omitted_when_not_given(exported_spans: InMemorySpanExporter) -> None:
+    """Never derived from service.version or from the main agent's version:
+    different agent, different scope."""
+    span = start_span("plan", kind=SpanKind.AGENT, agent_name="planner")
+    span.end()
+    assert "gen_ai.agent.version" not in exported_spans.get_finished_spans()[0].attributes
+
+
+@pytest.mark.parametrize("kind", [SpanKind.CHAIN, SpanKind.TOOL, SpanKind.LLM, SpanKind.RETRIEVER])
+def test_agent_version_is_ignored_on_every_other_kind(
+    kind: SpanKind, exported_spans: InMemorySpanExporter
+) -> None:
+    with start_as_current_span("step", kind=kind, agent_version="1.0.0"):
+        pass
+    assert "gen_ai.agent.version" not in exported_spans.get_finished_spans()[0].attributes
+
+
+def test_manual_span_takes_the_agent_version_too(exported_spans: InMemorySpanExporter) -> None:
+    span = start_span("plan", kind=SpanKind.AGENT, agent_name="p", agent_version="7")
+    span.end()
+    assert exported_spans.get_finished_spans()[0].attributes["gen_ai.agent.version"] == "7"

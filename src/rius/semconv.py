@@ -47,6 +47,42 @@ GEN_AI_AGENT_NAME = "gen_ai.agent.name"
 # callers who do run hosted agents have nowhere else to put the id.
 GEN_AI_AGENT_ID = "gen_ai.agent.id"
 
+# The version of the agent an AGENT span INVOKED — the same callee
+# ``gen_ai.agent.name`` and ``gen_ai.agent.id`` describe on that span, never
+# the process's own version and never ``service.version``. Registry type is a
+# plain string and the conventions' own examples are "1.0.0" and "2025-05-01",
+# so the caller's value is taken verbatim: there is no format to validate.
+GEN_AI_AGENT_VERSION = "gen_ai.agent.version"
+
+# --- The MAIN agent: the agent this PROCESS is ---
+# Our own namespace, because the question is ours. ``gen_ai.agent.name`` has no
+# resource-level meaning in the conventions, and ON A SPAN it means the agent
+# being INVOKED — one key answering two different questions, told apart only by
+# which of a resource and a span you happen to be reading. These four keys say
+# "the process emitting this telemetry IS this agent", once per OTLP batch.
+#
+# ``gen_ai.agent.name`` stays on the resource alongside them, deliberately and
+# indefinitely: a swap would be a flag day, breaking agent identity for every
+# deployment running an SDK newer than the sink. Resource attributes ride once
+# per batch, not per span, so carrying both costs essentially nothing.
+#
+# Named so a future rename to ``gen_ai.main_agent.*`` is a prefix substitution,
+# should the conventions ever grow the concept.
+RIUS_MAIN_AGENT_NAME = "rius.main_agent.name"
+# The SAME stability constraint the conventions put on ``gen_ai.agent.id``,
+# adopted rather than loosened because we own the namespace: a transient
+# in-memory or process-local id here would mint a new "agent" every restart and
+# make the key useless for grouping. Taking the constraint now is what keeps
+# that future rename mechanical instead of a data-quality problem.
+RIUS_MAIN_AGENT_ID = "rius.main_agent.id"
+RIUS_MAIN_AGENT_DESCRIPTION = "rius.main_agent.description"
+# The version of the agent DEFINITION — its prompt, tools and policy — which is
+# deliberately NOT ``service.version``. A service can sit at 2.3.1 while its
+# agent definition is at 7, and the two move independently; deriving either
+# from the other produces confidently wrong data on every deployment where
+# they disagree, which is most of them.
+RIUS_MAIN_AGENT_VERSION = "rius.main_agent.version"
+
 # --- Attribute keys ---
 # OpenInference
 OPENINFERENCE_SPAN_KIND = "openinference.span.kind"
@@ -232,6 +268,10 @@ PENDING_IDENTITY_ATTRIBUTES = frozenset(
         # PROCESS is running; this says which agent that process invoked here.
         GEN_AI_AGENT_NAME,
         GEN_AI_AGENT_ID,
+        # Which VERSION of that agent definition was invoked. Chosen by the
+        # caller at creation like the other two, and the live view's follow-up
+        # question once it knows which agent is stuck.
+        GEN_AI_AGENT_VERSION,
         # Protocol identity, not content: a still-running MCP call must be
         # distinguishable from a local tool in the live view — the one place
         # setting the marker at creation pays off.
@@ -472,6 +512,7 @@ def kind_attributes(
     top_k: int | None = None,
     agent_name: str | None = None,
     agent_id: str | None = None,
+    agent_version: str | None = None,
     executing_agent_name: str | None = None,
     tool_call_id: str | None = None,
     tool_type: str | None = None,
@@ -501,6 +542,15 @@ def kind_attributes(
     span name coincided historically, a function name is not an agent's
     identity, and guessing one mislabels every span beneath it. The caller
     supplies them, or the span helper falls back to the configured agent name.
+
+    ``agent_version`` is ``gen_ai.agent.version``, the version of that SAME
+    invoked agent's definition. AGENT-only, caller-supplied, taken verbatim,
+    and never derived: not from ``service.version``, which versions the
+    deployed process, and not from the main agent's version, which versions
+    the agent this process IS rather than the one it just called. Different
+    agent, different scope; borrowing one for the other is confidently wrong
+    data. It does not touch the span NAME either — ``_NAME_TARGET_BY_KIND``
+    maps AGENT to ``gen_ai.agent.name`` alone.
 
     ``tool_call_id`` is ``gen_ai.tool.call.id``, the identifier the MODEL put
     on the tool-call message this execution answers, and ``tool_type`` is
@@ -547,6 +597,8 @@ def kind_attributes(
             attributes[GEN_AI_AGENT_NAME] = agent_name
         if agent_id is not None:
             attributes[GEN_AI_AGENT_ID] = agent_id
+        if agent_version is not None:
+            attributes[GEN_AI_AGENT_VERSION] = agent_version
     return attributes
 
 

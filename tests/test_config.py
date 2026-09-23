@@ -177,3 +177,44 @@ def test_service_version_is_unset_by_default(monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.delenv("RIUS_SERVICE_VERSION", raising=False)
     assert resolve_config().service_version is None
     assert resolve_config(service_version="").service_version is None
+
+
+def test_main_agent_identity_resolves_from_the_argument_then_the_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("RIUS_MAIN_AGENT_ID", "agent-env")
+    monkeypatch.setenv("RIUS_MAIN_AGENT_DESCRIPTION", "desc-env")
+    monkeypatch.setenv("RIUS_MAIN_AGENT_VERSION", "7-env")
+    assert resolve_config(main_agent_id="agent-arg").main_agent_id == "agent-arg"
+    assert resolve_config(main_agent_description="desc-arg").main_agent_description == "desc-arg"
+    assert resolve_config(main_agent_version="7-arg").main_agent_version == "7-arg"
+    config = resolve_config()
+    assert config.main_agent_id == "agent-env"
+    assert config.main_agent_description == "desc-env"
+    assert config.main_agent_version == "7-env"
+
+
+def test_main_agent_identity_is_unset_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No placeholder, ever: an absent id, description or version reads as
+    "not told", a fabricated one reads as a real (wrong) answer."""
+    for name in (
+        "RIUS_MAIN_AGENT_ID",
+        "RIUS_MAIN_AGENT_DESCRIPTION",
+        "RIUS_MAIN_AGENT_VERSION",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    config = resolve_config()
+    assert config.main_agent_id is None
+    assert config.main_agent_description is None
+    assert config.main_agent_version is None
+
+
+def test_the_agent_definition_version_is_not_the_service_version(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Two independent facts: a service can sit at 2.3.1 while its prompt,
+    tools and policy are at 7. Neither is ever derived from the other."""
+    monkeypatch.delenv("RIUS_SERVICE_VERSION", raising=False)
+    monkeypatch.delenv("RIUS_MAIN_AGENT_VERSION", raising=False)
+    assert resolve_config(service_version="2.3.1").main_agent_version is None
+    assert resolve_config(main_agent_version="7").service_version is None
