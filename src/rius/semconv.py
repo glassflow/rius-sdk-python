@@ -79,6 +79,17 @@ GEN_AI_TOOL_DEFINITIONS = "gen_ai.tool.definitions"
 # set at span creation: it is what a retriever span is named after and the
 # only thing that distinguishes two otherwise identical searches.
 GEN_AI_DATA_SOURCE_ID = "gen_ai.data_source.id"
+# How many documents the retriever was ASKED for, the spec's own framing
+# ("also known as k, limit, or max_num_results"). Identity: it is a property
+# of the request, known before the search runs, so it rides pending snapshots.
+GEN_AI_RETRIEVAL_TOP_K = "gen_ai.retrieval.top_k"
+# What the retriever RETURNED, as the conventions define it: a JSON array of
+# objects each with an optional `id` and an optional `score`. Identifiers and
+# relevance only, never document text, which is why the spec does not mark it
+# sensitive and why it is NOT on the content allowlist. It is metadata: known
+# only once the search has run, so it never reaches a pending snapshot, and
+# it survives capture_content=False because a document id is not content.
+GEN_AI_RETRIEVAL_DOCUMENTS = "gen_ai.retrieval.documents"
 # OTel MCP semantic conventions (semantic-conventions-genai, Development
 # stability). mcp.method.name is the REQUIRED attribute of an MCP client span
 # and the marker everything downstream keys on: a local TOOL span has the same
@@ -148,6 +159,11 @@ PENDING_IDENTITY_ATTRIBUTES = frozenset(
         # Which index a still-running retrieval is searching is identity, and
         # the live view has nothing else to tell two searches apart by.
         GEN_AI_DATA_SOURCE_ID,
+        # How many documents were asked for is a property of the request, so
+        # it is known before the search returns and belongs on the snapshot.
+        # Its counterpart, gen_ai.retrieval.documents, deliberately is not:
+        # what came back cannot be known while the span is still open.
+        GEN_AI_RETRIEVAL_TOP_K,
         # Protocol identity, not content: a still-running MCP call must be
         # distinguishable from a local tool in the live view — the one place
         # setting the marker at creation pays off.
@@ -327,8 +343,11 @@ def otel_span_kind(kind: SpanKind) -> OtelSpanKind:
 
 
 def kind_attributes(
-    kind: SpanKind, name: str | None = None, data_source_id: str | None = None
-) -> dict[str, str]:
+    kind: SpanKind,
+    name: str | None = None,
+    data_source_id: str | None = None,
+    top_k: int | None = None,
+) -> dict[str, str | int]:
     """Identity attributes for a span of ``kind``, for setting at CREATION.
 
     Pending snapshots (pending.py) are built at ``on_start``, so taxonomy set
@@ -341,17 +360,22 @@ def kind_attributes(
     every caller to remember.
 
     ``data_source_id`` is the index or collection a RETRIEVER span searched
-    (``gen_ai.data_source.id``); only the caller knows it, so it is an
-    argument rather than something derived.
+    (``gen_ai.data_source.id``), and ``top_k`` how many documents it asked
+    for (``gen_ai.retrieval.top_k``). Only the caller knows either, so both
+    are arguments rather than something derived. What the search RETURNED is
+    not here: it is unknown at creation, and set through the observation.
     """
-    attributes = {OPENINFERENCE_SPAN_KIND: kind.value}
+    attributes: dict[str, str | int] = {OPENINFERENCE_SPAN_KIND: kind.value}
     operation = _OPERATION_BY_KIND.get(kind)
     if operation is not None:
         attributes[GEN_AI_OPERATION_NAME] = operation
     if kind is SpanKind.TOOL and name is not None:
         attributes[GEN_AI_TOOL_NAME] = name
-    if kind is SpanKind.RETRIEVER and data_source_id is not None:
-        attributes[GEN_AI_DATA_SOURCE_ID] = data_source_id
+    if kind is SpanKind.RETRIEVER:
+        if data_source_id is not None:
+            attributes[GEN_AI_DATA_SOURCE_ID] = data_source_id
+        if top_k is not None:
+            attributes[GEN_AI_RETRIEVAL_TOP_K] = top_k
     return attributes
 
 

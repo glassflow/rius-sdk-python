@@ -153,7 +153,7 @@ def test_sdk_helpers_expose_identity_attributes_at_span_start() -> None:
     otel_trace.get_tracer_provider().add_span_processor(recorder)  # type: ignore[attr-defined]
 
     with rius.start_as_current_span(
-        "kindly", kind=rius.SpanKind.RETRIEVER, data_source_id="docs-index"
+        "kindly", kind=rius.SpanKind.RETRIEVER, data_source_id="docs-index", top_k=3
     ):
         pass
     with rius.start_as_current_generation("genny", model="gpt-4o", provider="openai"):
@@ -165,6 +165,10 @@ def test_sdk_helpers_expose_identity_attributes_at_span_start() -> None:
     # The data source composes the span name, so a pending retrieval that
     # never finishes is still attributable to the index it was searching.
     assert kindly["gen_ai.data_source.id"] == "docs-index"
+    # How many documents were asked for is equally a property of the request.
+    assert kindly["gen_ai.retrieval.top_k"] == 3
+    # What came back cannot be, and must not appear on a start-time snapshot.
+    assert "gen_ai.retrieval.documents" not in kindly
     genny = recorder.seen["genny"]
     assert genny["openinference.span.kind"] == "LLM"
     assert genny["gen_ai.operation.name"] == "chat"

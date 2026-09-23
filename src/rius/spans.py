@@ -26,6 +26,7 @@ from ._serde import serialize
 from ._tracer import sdk_tracer
 from .semconv import (
     ERROR_TYPE,
+    GEN_AI_RETRIEVAL_DOCUMENTS,
     INPUT_VALUE,
     OUTPUT_VALUE,
     USER_ID,
@@ -62,6 +63,27 @@ class Observation:
             value: Any value; serialized to JSON with a ``repr`` fallback.
         """
         self._span.set_attribute(OUTPUT_VALUE, serialize(value))
+
+    def set_retrieved_documents(self, documents: Any) -> None:
+        """Record what a retrieval returned (``gen_ai.retrieval.documents``).
+
+        The conventions define this as an array of objects, each carrying an
+        optional ``id`` and an optional ``score``. Identifiers and relevance,
+        never document text, which is why the spec does not mark it sensitive
+        and why it is not treated as content here: it survives
+        ``capture_content=False`` the way token counts do. Put the retrieved
+        text in :meth:`set_output` if you want it captured, and it will be
+        masked and stripped like every other content attribute.
+
+        Unlike the data source and ``top_k``, which describe the request and
+        are passed at span creation, this is only knowable once the search has
+        run, so it never reaches a pending snapshot.
+
+        Args:
+            documents: A sequence of ``{"id": ..., "score": ...}`` mappings;
+                serialized to JSON, since OTel attributes carry no structure.
+        """
+        self._span.set_attribute(GEN_AI_RETRIEVAL_DOCUMENTS, serialize(documents))
 
     def set_attribute(self, key: str, value: Any) -> None:
         """Set an arbitrary attribute on the underlying span.
@@ -101,12 +123,16 @@ def _configure(observation: Observation, input: Any) -> None:
 
 
 def _creation_attributes(
-    name: str, kind: SpanKind, user_id: str | None, data_source_id: str | None = None
-) -> dict[str, str]:
+    name: str,
+    kind: SpanKind,
+    user_id: str | None,
+    data_source_id: str | None = None,
+    top_k: int | None = None,
+) -> dict[str, str | int]:
     # Identity at CREATION so pending snapshots (on_start) carry it; the
     # user id is set here as well as via the user() scope so it reaches the
     # span even on a provider without UserSpanProcessor installed.
-    attributes = dict(kind_attributes(kind, name, data_source_id))
+    attributes: dict[str, str | int] = dict(kind_attributes(kind, name, data_source_id, top_k))
     if user_id is not None:
         attributes[USER_ID] = user_id
     return attributes
@@ -119,6 +145,7 @@ def start_span(
     input: Any = None,
     user_id: str | None = None,
     data_source_id: str | None = None,
+    top_k: int | None = None,
 ) -> Observation:
     """Create a span and return an ``Observation``. You MUST call ``.end()``.
 
@@ -131,13 +158,16 @@ def start_span(
     auto-instrumented spans, use the ``user()`` scope instead.
 
     ``data_source_id`` names the index, collection or knowledge base a
-    ``RETRIEVER`` span searched (``gen_ai.data_source.id``). Set at creation,
-    so a still-running retrieval is already attributable to its source.
+    ``RETRIEVER`` span searched (``gen_ai.data_source.id``), and ``top_k`` how
+    many documents it asked for (``gen_ai.retrieval.top_k``). Both are set at
+    creation, so a still-running retrieval is already attributable to its
+    source. What came back is recorded afterwards with
+    ``Observation.set_retrieved_documents``.
     """
     span = sdk_tracer().start_span(
         name,
         kind=otel_span_kind(kind),
-        attributes=_creation_attributes(name, kind, user_id, data_source_id),
+        attributes=_creation_attributes(name, kind, user_id, data_source_id, top_k),
     )
     observation = Observation(span)
     _configure(observation, input)
@@ -152,6 +182,7 @@ def start_as_current_span(
     input: Any = None,
     user_id: str | None = None,
     data_source_id: str | None = None,
+    top_k: int | None = None,
 ) -> Iterator[Observation]:
     """Open a span as the current span and yield an ``Observation``; auto-ends.
 
@@ -162,8 +193,11 @@ def start_as_current_span(
     and every span opened inside the block carry ``user.id``.
 
     ``data_source_id`` names the index, collection or knowledge base a
-    ``RETRIEVER`` span searched (``gen_ai.data_source.id``). Set at creation,
-    so a still-running retrieval is already attributable to its source.
+    ``RETRIEVER`` span searched (``gen_ai.data_source.id``), and ``top_k`` how
+    many documents it asked for (``gen_ai.retrieval.top_k``). Both are set at
+    creation, so a still-running retrieval is already attributable to its
+    source. What came back is recorded afterwards with
+    ``Observation.set_retrieved_documents``.
     """
     tracer = sdk_tracer()
     with (
@@ -171,7 +205,7 @@ def start_as_current_span(
         tracer.start_as_current_span(
             name,
             kind=otel_span_kind(kind),
-            attributes=_creation_attributes(name, kind, user_id, data_source_id),
+            attributes=_creation_attributes(name, kind, user_id, data_source_id, top_k),
         ) as span,
     ):
         observation = Observation(span)

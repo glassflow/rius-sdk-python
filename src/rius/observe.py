@@ -56,6 +56,7 @@ def observe(
     capture_output: bool = ...,
     kind: SpanKind = ...,
     data_source_id: str | None = ...,
+    top_k: int | None = ...,
 ) -> Callable[[F], F]: ...
 
 
@@ -67,6 +68,7 @@ def observe(
     capture_output: bool = True,
     kind: SpanKind = SpanKind.CHAIN,
     data_source_id: str | None = None,
+    top_k: int | None = None,
 ) -> Any:
     """Decorate a function so each call is traced as a span.
 
@@ -84,6 +86,10 @@ def observe(
         kind: Span taxonomy (``openinference.span.kind``); default ``CHAIN``.
         data_source_id: The index, collection or knowledge base a ``RETRIEVER``
             span searched (``gen_ai.data_source.id``). Ignored for other kinds.
+        top_k: How many documents the retrieval asked for
+            (``gen_ai.retrieval.top_k``). Ignored for other kinds. What came
+            back is not a decorator argument: it is only known once the
+            function returns, so record it from the return value instead.
 
     Returns:
         The wrapped function (or a decorator, when used parameterized).
@@ -110,7 +116,7 @@ def observe(
                 span = tracer.start_span(
                     span_name,
                     kind=otel_span_kind(kind),
-                    attributes=kind_attributes(kind, span_name, data_source_id),
+                    attributes=kind_attributes(kind, span_name, data_source_id, top_k),
                 )
                 _set_input(span, args, kwargs)
                 agen = fn(*args, **kwargs)
@@ -153,7 +159,7 @@ def observe(
                 with tracer.start_as_current_span(
                     span_name,
                     kind=otel_span_kind(kind),
-                    attributes=kind_attributes(kind, span_name, data_source_id),
+                    attributes=kind_attributes(kind, span_name, data_source_id, top_k),
                     record_exception=False,
                     set_status_on_exception=False,
                 ) as span:
@@ -177,7 +183,7 @@ def observe(
                 span = tracer.start_span(
                     span_name,
                     kind=otel_span_kind(kind),
-                    attributes=kind_attributes(kind, span_name, data_source_id),
+                    attributes=kind_attributes(kind, span_name, data_source_id, top_k),
                 )
                 _set_input(span, args, kwargs)
                 gen = fn(*args, **kwargs)
@@ -215,7 +221,7 @@ def observe(
             with tracer.start_as_current_span(
                 span_name,
                 kind=otel_span_kind(kind),
-                attributes=kind_attributes(kind, span_name, data_source_id),
+                attributes=kind_attributes(kind, span_name, data_source_id, top_k),
                 record_exception=False,
                 set_status_on_exception=False,
             ) as span:

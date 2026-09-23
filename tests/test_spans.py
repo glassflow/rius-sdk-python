@@ -1,3 +1,5 @@
+import json
+
 import pytest
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import SpanKind as OtelSpanKind
@@ -147,6 +149,35 @@ def test_chain_has_no_operation_name(exported_spans: InMemorySpanExporter) -> No
     with start_as_current_span("step"):
         pass
     assert "gen_ai.operation.name" not in exported_spans.get_finished_spans()[0].attributes
+
+
+# --- RETRIEVER: top_k describes the request, documents describe the result ---
+
+
+def test_retriever_carries_top_k_at_creation(exported_spans: InMemorySpanExporter) -> None:
+    with start_as_current_span("search", kind=SpanKind.RETRIEVER, top_k=5):
+        pass
+    assert exported_spans.get_finished_spans()[0].attributes["gen_ai.retrieval.top_k"] == 5
+
+
+def test_top_k_is_ignored_on_non_retriever_kinds(exported_spans: InMemorySpanExporter) -> None:
+    with start_as_current_span("step", kind=SpanKind.CHAIN, top_k=5):
+        pass
+    assert "gen_ai.retrieval.top_k" not in exported_spans.get_finished_spans()[0].attributes
+
+
+def test_retrieved_documents_are_recorded_as_json(exported_spans: InMemorySpanExporter) -> None:
+    obs = start_span("search", kind=SpanKind.RETRIEVER, data_source_id="docs", top_k=2)
+    obs.set_retrieved_documents([{"id": "doc-1", "score": 0.91}, {"id": "doc-2", "score": 0.4}])
+    obs.end()
+    attrs = exported_spans.get_finished_spans()[0].attributes
+    assert json.loads(attrs["gen_ai.retrieval.documents"]) == [
+        {"id": "doc-1", "score": 0.91},
+        {"id": "doc-2", "score": 0.4},
+    ]
+    # The request half stays alongside the result half.
+    assert attrs["gen_ai.data_source.id"] == "docs"
+    assert attrs["gen_ai.retrieval.top_k"] == 2
 
 
 # --- the OTel SpanKind FIELD, derived from the taxonomy ---

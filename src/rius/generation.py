@@ -368,7 +368,7 @@ def _configure(
 
 def _creation_attributes(
     model: str | None, provider: str | None, operation: str, user_id: str | None = None
-) -> dict[str, str]:
+) -> dict[str, str | int]:
     """Identity attributes for an LLM span at CREATION (pending snapshots
     are built at on_start; anything set later is invisible to them)."""
     attributes = kind_attributes(SpanKind.LLM)
