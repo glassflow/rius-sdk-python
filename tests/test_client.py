@@ -51,6 +51,56 @@ def test_resource_uses_distro_not_sdk_identity() -> None:
     assert resource_attrs["telemetry.distro.version"] == __version__
 
 
+def test_resource_carries_the_agent_name() -> None:
+    """Spans must group under the agent name their heartbeats use.
+
+    Without this the backend falls through to service.name per span, so a
+    process whose agent name differs has its agents view and its trace list
+    silently disagreeing.
+    """
+    client, exporter = _memory_client(agent_name="checkout-agent")
+    with client.get_tracer().start_as_current_span("op"):
+        pass
+    client.flush()
+    resource_attrs = exporter.get_finished_spans()[0].resource.attributes
+    assert resource_attrs["gen_ai.agent.name"] == "checkout-agent"
+    assert resource_attrs["service.name"] == "test-svc"
+
+
+def test_agent_name_defaults_to_the_service_name_on_the_resource() -> None:
+    """A process that sets no agent name is unchanged: the two values match."""
+    client, exporter = _memory_client()
+    with client.get_tracer().start_as_current_span("op"):
+        pass
+    client.flush()
+    resource_attrs = exporter.get_finished_spans()[0].resource.attributes
+    assert resource_attrs["gen_ai.agent.name"] == resource_attrs["service.name"] == "test-svc"
+
+
+def test_resource_and_heartbeat_agree_on_the_agent_name() -> None:
+    """The bug this closes: heartbeats grouped under the agent name while
+    every span fell through to the service name."""
+    pings: list[dict] = []
+    exporter = InMemorySpanExporter()
+    client = init(
+        span_exporter=exporter,
+        set_global=False,
+        service_name="test-svc",
+        agent_name="checkout-agent",
+        heartbeat=True,
+        heartbeat_interval=5,
+        heartbeat_transport=pings.append,
+    )
+    with client.get_tracer().start_as_current_span("op"):
+        pass
+    client.flush()
+    client.shutdown()
+
+    resource_attrs = exporter.get_finished_spans()[0].resource.attributes
+    assert pings, "expected at least the initial heartbeat"
+    assert {p["agent_name"] for p in pings} == {resource_attrs["gen_ai.agent.name"]}
+
+
 def test_disabled_does_not_export() -> None:
     exporter = InMemorySpanExporter()
     client = init(span_exporter=exporter, set_global=False, disabled=True)

@@ -27,7 +27,7 @@ from .heartbeat import HeartbeatSender, OpenRootSpanTracker
 from .instrumentation import enable_instrumentations
 from .masking import MaskingSpanExporter
 from .pending import PendingSpanProcessor
-from .semconv import SERVICE_INSTANCE_ID, TRACER_NAME
+from .semconv import GEN_AI_AGENT_NAME, SERVICE_INSTANCE_ID, TRACER_NAME
 from .session import SessionSpanProcessor
 from .user import UserSpanProcessor
 from .workspace import ExporterFactory, RoutingSpanExporter, WorkspaceSpanProcessor
@@ -214,7 +214,8 @@ def init(
             fork (e.g. in gunicorn's ``post_fork``).
         heartbeat_interval: Seconds between pings (default 15, clamped to
             ``[5, 300]``; the backend derives staleness from this).
-        agent_name: Identity heartbeats group under; defaults to
+        agent_name: Identity both heartbeats and spans group under, stamped
+            on the resource as ``gen_ai.agent.name``; defaults to
             ``service_name``.
         heartbeat_transport: Override the heartbeat HTTP transport
             (useful for testing, like ``span_exporter``).
@@ -329,6 +330,11 @@ def _do_init(
         {
             "service.name": config.service_name,
             SERVICE_INSTANCE_ID: instance_id,
+            # The same name the heartbeat sender reports. Config resolution
+            # already defaults it to the service name, so a process that sets
+            # only a service name is unchanged; one that sets both no longer
+            # has its spans grouped under a different name than its heartbeats.
+            GEN_AI_AGENT_NAME: config.agent_name,
             "telemetry.distro.name": "glassflow-rius",
             "telemetry.distro.version": __version__,
         }
