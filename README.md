@@ -41,7 +41,20 @@ with start_as_current_generation("chat", model="gpt-4o", input=messages) as gen:
 
 Each surface has a **manual** variant for lifetimes a `with` block can't express
 (streaming, callbacks): `start_span(...)` / `start_generation(...)` return a handle
-you `.update()` and must `.end()` yourself.
+you `.update()` and must `.end()` yourself. A manual handle does not auto-record
+exceptions, so report a failure with `.record_exception(exc)`, which records the
+exception event, sets the ERROR status and sets `error.type` together:
+
+```python
+gen = start_generation("chat", model="gpt-4o", input=messages)
+try:
+    reply = call_the_model(messages)
+except Exception as exc:
+    gen.record_exception(exc)
+    raise
+finally:
+    gen.end()
+```
 
 Configuration is resolved from explicit arguments first, then environment
 variables:
