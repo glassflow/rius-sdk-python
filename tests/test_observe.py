@@ -254,16 +254,99 @@ def test_success_sets_no_error_type(exported_spans: InMemorySpanExporter) -> Non
     assert "error.type" not in exported_spans.get_finished_spans()[0].attributes
 
 
-def test_tool_kind_sets_gen_ai_tool_name_from_custom_name(
+def test_tool_kind_takes_the_tool_name_from_its_own_argument(
     exported_spans: InMemorySpanExporter,
 ) -> None:
-    @observe(name="search-docs", kind=SpanKind.TOOL)
+    @observe(name="search-docs", kind=SpanKind.TOOL, tool_name="search")
     def search(q: str) -> str:
         return "result"
 
     search("hi")
     attrs = exported_spans.get_finished_spans()[0].attributes
-    assert attrs["gen_ai.tool.name"] == "search-docs"
+    assert attrs["gen_ai.tool.name"] == "search"
+
+
+def test_a_custom_name_still_names_the_tool_and_warns(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    """A custom name on a TOOL decorator names the tool, as it always has.
+
+    Every comparable decorator resolves tool identity as "explicit name, else
+    function name", so a caller who wrote ``name=`` is naming the tool, not
+    labelling the span. Dropping that would rename their tool on upgrade, and
+    ``gen_ai.tool.name`` is a Required metric dimension, so the rename would
+    split their series silently. The warning is what makes the coupling
+    visible without breaking them.
+    """
+
+    # The resolution happens once when the decorator is applied, not per call,
+    # so the warning fires at decoration time and costs nothing at run time.
+    with pytest.warns(DeprecationWarning, match="naming the tool as well as the span"):
+
+        @observe(name="search-docs", kind=SpanKind.TOOL)
+        def search(q: str) -> str:
+            return "result"
+
+    search("hi")
+    span = exported_spans.get_finished_spans()[0]
+    assert span.name == "search-docs"
+    assert span.attributes["gen_ai.tool.name"] == "search-docs"
+
+
+def test_an_explicit_tool_name_silences_the_warning(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    """Separating the two is the shape this converges on, so it must be quiet."""
+    import warnings
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", DeprecationWarning)
+
+        @observe(name="search-docs", kind=SpanKind.TOOL, tool_name="search")
+        def search(q: str) -> str:
+            return "result"
+
+    search("hi")
+    span = exported_spans.get_finished_spans()[0]
+    assert span.name == "search-docs"
+    assert span.attributes["gen_ai.tool.name"] == "search"
+
+
+def test_a_custom_name_on_a_non_tool_kind_does_not_warn(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    """Only TOOL spans carry a tool name, so only they can be ambiguous."""
+    import warnings
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", DeprecationWarning)
+
+        @observe(name="step-one", kind=SpanKind.CHAIN)
+        def step() -> str:
+            return "ok"
+
+    step()
+
+    assert "gen_ai.tool.name" not in exported_spans.get_finished_spans()[0].attributes
+
+
+def test_tool_name_never_carries_the_operation_prefix(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    """A spec-form span name must not leak its operation into the tool name.
+
+    The tool name feeds the MCP detection predicate, the tool-loop analysis
+    and the tool-arguments fingerprint, none of which tolerate a prefix.
+    """
+
+    @observe(name="execute_tool get_weather", kind=SpanKind.TOOL, tool_name="get_weather")
+    def weather(city: str) -> str:
+        return "sunny"
+
+    weather("Berlin")
+    span = exported_spans.get_finished_spans()[0]
+    assert span.name == "execute_tool get_weather"
+    assert span.attributes["gen_ai.tool.name"] == "get_weather"
 
 
 def test_tool_kind_sets_gen_ai_tool_name_from_qualname(

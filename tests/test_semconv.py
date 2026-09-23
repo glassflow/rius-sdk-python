@@ -120,6 +120,15 @@ def test_top_k_is_request_identity_and_documents_are_result_metadata() -> None:
     assert GEN_AI_RETRIEVAL_DOCUMENTS not in CONTENT_ATTRIBUTES
 
 
+def test_kind_attributes_takes_a_tool_name_not_a_span_name() -> None:
+    from rius.semconv import GEN_AI_TOOL_NAME, kind_attributes
+
+    assert kind_attributes(SpanKind.TOOL, "get_weather")[GEN_AI_TOOL_NAME] == "get_weather"
+    # Only TOOL spans carry it, and only when a tool name is given.
+    assert GEN_AI_TOOL_NAME not in kind_attributes(SpanKind.TOOL)
+    assert GEN_AI_TOOL_NAME not in kind_attributes(SpanKind.CHAIN, "get_weather")
+
+
 def test_context_sizes_is_not_content_and_not_pending_identity() -> None:
     from rius.semconv import CONTENT_ATTRIBUTES, PENDING_IDENTITY_ATTRIBUTES, RIUS_CONTEXT_SIZES
 

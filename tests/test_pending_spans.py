@@ -243,7 +243,7 @@ def test_creation_identity_keys_are_pending_allowlisted() -> None:
     builders: dict[str, dict[str, str]] = {
         f"kind_attributes({kind.name})": kind_attributes(kind, "tool-name") for kind in SpanKind
     }
-    builders["spans"] = span_attributes("weather", SpanKind.TOOL, user_id="u")
+    builders["spans"] = span_attributes("weather", SpanKind.TOOL, "u", "weather")
     builders["generation"] = generation_attributes(
         model="m", provider="p", operation="chat", user_id="u"
     )
