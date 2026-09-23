@@ -404,6 +404,19 @@ PENDING_IDENTITY_ATTRIBUTES = frozenset(
 # treated alike here as well as in CONTENT_ATTRIBUTES.
 PENDING_IDENTITY_PREFIXES = (GEN_AI_REQUEST_PREFIX, RIUS_REQUEST_PREFIX)
 
+# Parameter names that carry TOOL DEFINITIONS rather than a sampling knob.
+# Named here once and consumed by three places, so the routes to the same
+# definitions cannot drift apart:
+#   - as JSON members of llm.invocation_parameters, redacted member-by-member
+#     (litellm and langchain embed the request's tools array in that bag);
+#   - as gen_ai.request.<member>, and
+#   - as rius.request.<member>, when a caller passes `tools=` through
+#     model_parameters and it reaches either namespace.
+# Tool definitions are content in the same sense messages are — see
+# GEN_AI_TOOL_DEFINITIONS below and semconv-genai#431 — and which of the three
+# routes they arrived by cannot be what decides whether they are protected.
+INVOCATION_PARAMETERS_CONTENT_MEMBERS = ("tools", "functions")
+
 # Attribute keys carrying user content, masked/stripped at export (see masking.py).
 CONTENT_ATTRIBUTES = frozenset(
     {
@@ -470,6 +483,21 @@ CONTENT_ATTRIBUTES = frozenset(
         "ai.schema",
         "ai.schema.description",
     }
+    # The NAMED EXCEPTION to the rule that request parameters export in clear
+    # (RIUS-917). That rule is right for scalar knobs — temperature, top_p,
+    # seed — and was written before a tools array could land in either
+    # request namespace. A caller passing
+    # model_parameters={"tools": [...]} would otherwise export proprietary
+    # prompt engineering verbatim with capture_content=False explicitly set,
+    # while the very same array is stripped when it arrives as
+    # gen_ai.tool.definitions or as a member of llm.invocation_parameters.
+    # Per-KEY, not per-namespace: the namespaces stay non-content wholesale,
+    # which is what keeps the RIUS-917 tie intact.
+    | {
+        f"{prefix}{member}"
+        for prefix in (GEN_AI_REQUEST_PREFIX, RIUS_REQUEST_PREFIX)
+        for member in INVOCATION_PARAMETERS_CONTENT_MEMBERS
+    }
 )
 
 # The request-parameters bag OpenInference instrumentors emit. Not wholly
@@ -477,8 +505,6 @@ CONTENT_ATTRIBUTES = frozenset(
 # instrumentations embed the request's tools/functions arrays inside it, so
 # masking redacts those members and keeps the rest (see masking.py).
 LLM_INVOCATION_PARAMETERS = "llm.invocation_parameters"
-# JSON members of LLM_INVOCATION_PARAMETERS that carry tool definitions.
-INVOCATION_PARAMETERS_CONTENT_MEMBERS = ("tools", "functions")
 
 # OpenInference/OpenLLMetry instrumentors flatten message content into indexed
 # keys (e.g. `llm.input_messages.0.message.content`), matched by prefix.

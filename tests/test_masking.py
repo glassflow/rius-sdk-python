@@ -525,3 +525,40 @@ def test_capture_content_false_keeps_both_request_namespaces() -> None:
     attrs = inner.get_finished_spans()[0].attributes
     assert attrs["gen_ai.request.temperature"] == 0.7
     assert attrs["rius.request.my_custom_knob"] == 3
+
+
+def test_capture_content_false_strips_tool_definitions_from_request_parameters() -> None:
+    """A tools array is content wherever it lands. Three routes reach the same
+    definitions — gen_ai.tool.definitions, the tools member inside
+    llm.invocation_parameters, and a `tools` model parameter — and they must
+    not disagree about whether capture_content=False protects them."""
+    inner = InMemorySpanExporter()
+    client = init(span_exporter=inner, set_global=False, capture_content=False)
+    with client.get_tracer().start_as_current_span("op") as span:
+        span.set_attribute("rius.request.tools", '[{"description": "SECRET"}]')
+        span.set_attribute("rius.request.functions", '[{"description": "SECRET"}]')
+        span.set_attribute("gen_ai.request.tools", '[{"description": "SECRET"}]')
+        span.set_attribute("gen_ai.request.functions", '[{"description": "SECRET"}]')
+        # The scalar knobs around them are identity and must survive.
+        span.set_attribute("gen_ai.request.temperature", 0.7)
+        span.set_attribute("rius.request.my_custom_knob", 3)
+    client.flush()
+    attrs = inner.get_finished_spans()[0].attributes
+    assert "rius.request.tools" not in attrs
+    assert "rius.request.functions" not in attrs
+    assert "gen_ai.request.tools" not in attrs
+    assert "gen_ai.request.functions" not in attrs
+    assert attrs["gen_ai.request.temperature"] == 0.7
+    assert attrs["rius.request.my_custom_knob"] == 3
+
+
+def test_mask_redacts_tool_definitions_from_request_parameters() -> None:
+    inner = InMemorySpanExporter()
+    client = init(span_exporter=inner, set_global=False, mask=lambda _v: "***")
+    with client.get_tracer().start_as_current_span("op") as span:
+        span.set_attribute("rius.request.tools", '[{"description": "SECRET"}]')
+        span.set_attribute("gen_ai.request.temperature", 0.7)
+    client.flush()
+    attrs = inner.get_finished_spans()[0].attributes
+    assert attrs["rius.request.tools"] == "***"
+    assert attrs["gen_ai.request.temperature"] == 0.7

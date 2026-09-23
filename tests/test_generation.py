@@ -923,3 +923,15 @@ def test_unrecognised_key_is_untouched_apart_from_the_prefix(
 ) -> None:
     attrs = _params(exported_spans, **{"Weird.Key-1": "x"})
     assert attrs["rius.request.Weird.Key-1"] == "x"
+
+
+def test_a_tools_model_parameter_lands_on_a_maskable_key(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    """`tools` is not spec-defined, so it lands in rius.request.* — and that
+    key must be one masking recognises as content (see test_masking.py)."""
+    from rius.semconv import CONTENT_ATTRIBUTES
+
+    attrs = _params(exported_spans, tools=[{"name": "get_weather"}])
+    assert "rius.request.tools" in attrs
+    assert "rius.request.tools" in CONTENT_ATTRIBUTES

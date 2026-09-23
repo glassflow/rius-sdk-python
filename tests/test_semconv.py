@@ -474,3 +474,20 @@ def test_recognised_parameters_map_only_onto_spec_defined_keys() -> None:
     for canonical in set(GEN_AI_REQUEST_PARAMETERS.values()):
         tail = canonical[len("gen_ai.request.") :]
         assert GEN_AI_REQUEST_PARAMETERS.get(tail) == canonical
+
+
+def test_tool_definition_members_are_content_in_both_request_namespaces() -> None:
+    """The named exception to the RIUS-917 blanket rule. The member list is
+    shared with llm.invocation_parameters redaction so the routes to the same
+    tool definitions cannot drift apart, and it applies symmetrically: a
+    caller can pass `tools` and reach either namespace."""
+    from rius.semconv import (
+        CONTENT_ATTRIBUTES,
+        GEN_AI_REQUEST_PREFIX,
+        INVOCATION_PARAMETERS_CONTENT_MEMBERS,
+        RIUS_REQUEST_PREFIX,
+    )
+
+    for member in INVOCATION_PARAMETERS_CONTENT_MEMBERS:
+        assert f"{GEN_AI_REQUEST_PREFIX}{member}" in CONTENT_ATTRIBUTES
+        assert f"{RIUS_REQUEST_PREFIX}{member}" in CONTENT_ATTRIBUTES

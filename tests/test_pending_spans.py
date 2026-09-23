@@ -7,6 +7,8 @@ identity/taxonomy attributes only, never content.
 
 from __future__ import annotations
 
+import json
+
 from opentelemetry.sdk.trace import SpanProcessor as _SpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
@@ -402,3 +404,26 @@ def test_pending_snapshot_carries_both_request_namespaces() -> None:
     attrs = pending[0].attributes
     assert attrs["gen_ai.request.temperature"] == 0.7
     assert attrs["rius.request.my_custom_knob"] == 3
+
+
+def test_pending_snapshot_does_not_leak_tool_definitions_from_request_parameters() -> None:
+    """rius.request.* rides pending snapshots by prefix, so a `tools` model
+    parameter reaches one. Masking runs at export and covers the pending path
+    too — the snapshot must not be the way tool definitions escape
+    capture_content=False."""
+    from rius import _tracer, start_generation
+
+    client, exporter = _memory_client(partial_spans=True, capture_content=False)
+    _tracer.publish(client._provider)
+    span = start_generation(
+        "chat",
+        model_parameters={"tools": [{"description": "SECRET"}], "temperature": 0.7},
+    )
+    client.flush()
+    pending, _ = _split(exporter.get_finished_spans())
+    span.end()
+    assert pending, "expected a pending snapshot"
+    attrs = pending[0].attributes
+    assert "rius.request.tools" not in attrs
+    assert "SECRET" not in json.dumps(dict(attrs))
+    assert attrs["gen_ai.request.temperature"] == 0.7
