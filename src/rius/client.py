@@ -26,6 +26,7 @@ from .export_health import (
 from .heartbeat import HeartbeatSender, OpenRootSpanTracker
 from .instrumentation import enable_instrumentations
 from .masking import MaskingSpanExporter
+from .normalization import NormalizingSpanExporter, NormalizingSpanProcessor
 from .pending import PendingSpanProcessor
 from .semconv import GEN_AI_AGENT_NAME, SERVICE_INSTANCE_ID, TRACER_NAME
 from .session import SessionSpanProcessor
@@ -380,6 +381,11 @@ def _do_init(
             exporter = MaskingSpanExporter(
                 exporter, capture_content=config.capture_content, mask=mask
             )
+        # OUTSIDE masking, so normalization runs FIRST and masking only has to
+        # recognise canonical content keys. Reversed, masking would strip
+        # llm.input_messages before it could be mapped and gen_ai.input.messages
+        # would arrive empty. Always on: the wire format is not optional.
+        exporter = NormalizingSpanExporter(exporter)
         # Outermost wrapper so it observes the outcome of the whole chain
         # (masking included); client.flush() reads it for honest delivery
         # reporting.
@@ -390,6 +396,10 @@ def _do_init(
         # span, so the session id (and the workspace route, which decides
         # which destination the snapshot itself goes to) must be stamped
         # first to ride it.
+        # Before the pending processor, like the identity stampers: start-time
+        # normalization is what lets a pending snapshot (built at on_start,
+        # from the identity allowlist) carry canonical keys.
+        provider.add_span_processor(NormalizingSpanProcessor())
         provider.add_span_processor(SessionSpanProcessor(config.session_id))
         provider.add_span_processor(UserSpanProcessor())
         if routing is not None:
