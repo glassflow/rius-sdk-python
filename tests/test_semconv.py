@@ -406,3 +406,88 @@ def test_the_main_agent_resource_keys_are_neither_span_identity_nor_content() ->
         assert key.startswith("rius.main_agent.")
         assert key not in PENDING_IDENTITY_ATTRIBUTES
         assert key not in CONTENT_ATTRIBUTES
+
+
+# --- request-parameter namespaces (RIUS-926) ---
+
+
+def test_rius_request_prefix_rides_pending_snapshots() -> None:
+    """Caller parameters are identity, set at creation, exactly like the
+    spec-defined ones; the live view must show them the same way."""
+    from rius.semconv import PENDING_IDENTITY_PREFIXES, RIUS_REQUEST_PREFIX
+
+    assert RIUS_REQUEST_PREFIX in PENDING_IDENTITY_PREFIXES
+
+
+def test_request_namespaces_are_tied_for_masking() -> None:
+    """RIUS-917: rius.request.* follows gen_ai.request.* exactly. Neither is
+    content today. If one is ever added to the allowlist, this fails and
+    makes the other's absence the explicit decision it has to be."""
+    from rius.semconv import (
+        CONTENT_ATTRIBUTE_PREFIXES,
+        CONTENT_ATTRIBUTES,
+        GEN_AI_REQUEST_PREFIX,
+        RIUS_REQUEST_PREFIX,
+    )
+
+    gen_ai_is_content = (
+        GEN_AI_REQUEST_PREFIX in CONTENT_ATTRIBUTE_PREFIXES
+        or GEN_AI_REQUEST_PREFIX.rstrip(".") in CONTENT_ATTRIBUTES
+    )
+    rius_is_content = (
+        RIUS_REQUEST_PREFIX in CONTENT_ATTRIBUTE_PREFIXES
+        or RIUS_REQUEST_PREFIX.rstrip(".") in CONTENT_ATTRIBUTES
+    )
+    assert gen_ai_is_content is rius_is_content, (
+        "gen_ai.request.* and rius.request.* must move together; "
+        "neither may join the content allowlist alone"
+    )
+    assert not gen_ai_is_content, "today neither namespace is content"
+
+
+def test_recognised_parameters_map_only_onto_spec_defined_keys() -> None:
+    """Every normalisation target must be an attribute the GenAI registry
+    actually defines. Pinned to open-telemetry/semantic-conventions-genai
+    at commit 8ffdf568e1b4391a99adb081db16e8102e36918e (2026-09-22),
+    model/gen-ai/registry.yaml; the repo cuts no releases."""
+    from rius.semconv import GEN_AI_REQUEST_PARAMETERS
+
+    spec_defined = {
+        "gen_ai.request.model",
+        "gen_ai.request.max_tokens",
+        "gen_ai.request.choice.count",
+        "gen_ai.request.temperature",
+        "gen_ai.request.top_p",
+        "gen_ai.request.top_k",
+        "gen_ai.request.stop_sequences",
+        "gen_ai.request.frequency_penalty",
+        "gen_ai.request.presence_penalty",
+        "gen_ai.request.encoding_formats",
+        "gen_ai.request.seed",
+        "gen_ai.request.stream",
+        "gen_ai.request.reasoning.level",
+        "gen_ai.request.previous_response.id",
+        "gen_ai.request.stream_cursor",
+    }
+    assert set(GEN_AI_REQUEST_PARAMETERS.values()) <= spec_defined
+    # Every canonical key is reachable under its own spelling.
+    for canonical in set(GEN_AI_REQUEST_PARAMETERS.values()):
+        tail = canonical[len("gen_ai.request.") :]
+        assert GEN_AI_REQUEST_PARAMETERS.get(tail) == canonical
+
+
+def test_tool_definition_members_are_content_in_both_request_namespaces() -> None:
+    """The named exception to the RIUS-917 blanket rule. The member list is
+    shared with llm.invocation_parameters redaction so the routes to the same
+    tool definitions cannot drift apart, and it applies symmetrically: a
+    caller can pass `tools` and reach either namespace."""
+    from rius.semconv import (
+        CONTENT_ATTRIBUTES,
+        GEN_AI_REQUEST_PREFIX,
+        INVOCATION_PARAMETERS_CONTENT_MEMBERS,
+        RIUS_REQUEST_PREFIX,
+    )
+
+    for member in INVOCATION_PARAMETERS_CONTENT_MEMBERS:
+        assert f"{GEN_AI_REQUEST_PREFIX}{member}" in CONTENT_ATTRIBUTES
+        assert f"{RIUS_REQUEST_PREFIX}{member}" in CONTENT_ATTRIBUTES
