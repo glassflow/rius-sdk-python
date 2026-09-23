@@ -163,3 +163,102 @@ def test_agent_identity_is_pending_allowlisted_and_not_content() -> None:
     for key in (GEN_AI_AGENT_NAME, GEN_AI_AGENT_ID):
         assert key in PENDING_IDENTITY_ATTRIBUTES
         assert key not in CONTENT_ATTRIBUTES
+
+
+# --- default span names: "{operation} {target}", per the GenAI conventions ---
+
+
+def test_compose_span_name_composes_the_operation_and_the_target() -> None:
+    """The conventions' SHOULD for every operation they define: the operation,
+    then the one identifier that says which model/tool/agent/index it hit."""
+    from rius.semconv import compose_span_name
+
+    cases = [
+        (SpanKind.LLM, {"gen_ai.operation.name": "chat", "gen_ai.request.model": "gpt-4o"}),
+        (
+            SpanKind.EMBEDDING,
+            {
+                "gen_ai.operation.name": "embeddings",
+                "gen_ai.request.model": "text-embedding-3-small",
+            },
+        ),
+        (
+            SpanKind.TOOL,
+            {"gen_ai.operation.name": "execute_tool", "gen_ai.tool.name": "get_weather"},
+        ),
+        (
+            SpanKind.AGENT,
+            {"gen_ai.operation.name": "invoke_agent", "gen_ai.agent.name": "planner"},
+        ),
+        (
+            SpanKind.RETRIEVER,
+            {"gen_ai.operation.name": "retrieval", "gen_ai.data_source.id": "kb"},
+        ),
+    ]
+    expected = [
+        "chat gpt-4o",
+        "embeddings text-embedding-3-small",
+        "execute_tool get_weather",
+        "invoke_agent planner",
+        "retrieval kb",
+    ]
+    assert [compose_span_name(kind, attrs) for kind, attrs in cases] == expected
+
+
+def test_compose_span_name_composes_from_what_the_span_actually_carries() -> None:
+    """Reading the creation attributes rather than the caller's arguments is
+    what makes the name and the attributes agree by construction. It is also
+    why an operation overridden per generation is picked up for free: the
+    override is already in the map."""
+    from rius.semconv import compose_span_name, kind_attributes
+
+    # Exactly the map kind_attributes builds, so this is the real input.
+    attributes = kind_attributes(SpanKind.TOOL, "get_weather")
+    assert compose_span_name(SpanKind.TOOL, attributes) == "execute_tool get_weather"
+
+    overridden = {"gen_ai.operation.name": "embeddings", "gen_ai.request.model": "m"}
+    assert compose_span_name(SpanKind.LLM, overridden) == "embeddings m"
+
+
+def test_compose_span_name_falls_back_to_the_bare_operation() -> None:
+    """The identifier is optional on every kind, so the name degrades to the
+    operation alone rather than to a name with a hole in it."""
+    from rius.semconv import compose_span_name
+
+    for kind, operation in (
+        (SpanKind.LLM, "chat"),
+        (SpanKind.EMBEDDING, "embeddings"),
+        (SpanKind.TOOL, "execute_tool"),
+        (SpanKind.AGENT, "invoke_agent"),
+        (SpanKind.RETRIEVER, "retrieval"),
+    ):
+        assert compose_span_name(kind, {"gen_ai.operation.name": operation}) == operation
+
+
+def test_compose_span_name_of_a_chain_is_the_degenerate_literal() -> None:
+    """CHAIN has no operation in the conventions and the manual helpers have
+    no function to borrow a qualname from, so the name is the bare literal."""
+    from rius.semconv import compose_span_name, kind_attributes
+
+    assert compose_span_name(SpanKind.CHAIN, kind_attributes(SpanKind.CHAIN)) == "chain"
+
+
+def test_compose_span_name_ignores_targets_from_another_kind() -> None:
+    """Each kind reads exactly one identifier; a tool name never leaks into an
+    agent's name, which is what makes the composed name a reliable filter."""
+    from rius.semconv import compose_span_name
+
+    assert (
+        compose_span_name(
+            SpanKind.AGENT,
+            {"gen_ai.operation.name": "invoke_agent", "gen_ai.tool.name": "get_weather"},
+        )
+        == "invoke_agent"
+    )
+    assert (
+        compose_span_name(
+            SpanKind.TOOL,
+            {"gen_ai.operation.name": "execute_tool", "gen_ai.agent.name": "planner"},
+        )
+        == "execute_tool"
+    )

@@ -358,8 +358,9 @@ def test_tool_kind_sets_gen_ai_tool_name_from_qualname(
 
     lookup("hi")
     span = exported_spans.get_finished_spans()[0]
-    assert span.attributes["gen_ai.tool.name"] == span.name
-    assert span.name.endswith("lookup")
+    assert span.attributes["gen_ai.tool.name"].endswith("lookup")
+    # The span name is the spec form; the tool name is the bare identity.
+    assert span.name == f"execute_tool {span.attributes['gen_ai.tool.name']}"
 
 
 def test_tool_kind_sets_gen_ai_tool_name_on_generators(
@@ -385,7 +386,7 @@ def test_tool_kind_sets_gen_ai_tool_name_on_generators(
     list(stream())
     asyncio.run(drive())
     for span in exported_spans.get_finished_spans():
-        assert span.attributes["gen_ai.tool.name"] == span.name
+        assert span.name == f"execute_tool {span.attributes['gen_ai.tool.name']}"
 
 
 def test_non_tool_kind_has_no_gen_ai_tool_name(exported_spans: InMemorySpanExporter) -> None:
@@ -474,3 +475,197 @@ def test_observe_agent_kind_does_not_name_the_agent_after_the_function(
 
     plan()
     assert "gen_ai.agent.name" not in exported_spans.get_finished_spans()[0].attributes
+
+
+# --- default span names: "{operation} {target}", except CHAIN ---
+
+
+@observe(kind=SpanKind.TOOL)
+def get_weather(city: str) -> str:
+    return "sunny"
+
+
+def test_observe_names_a_tool_span_after_the_operation_and_the_tool(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    """The composed name is built from the RESOLVED tool name, so the two
+    agree and the rendered string never becomes the tool's identity."""
+
+    get_weather("Berlin")
+    span = exported_spans.get_finished_spans()[0]
+    assert span.name == "execute_tool get_weather"
+    assert span.attributes["gen_ai.tool.name"] == "get_weather"
+
+
+def test_observe_composes_from_an_explicit_tool_name(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    import warnings
+
+    with warnings.catch_warnings():
+        # Composition must not introduce a second warning of its own.
+        warnings.simplefilter("error", DeprecationWarning)
+
+        @observe(kind=SpanKind.TOOL, tool_name="search")
+        def lookup(q: str) -> str:
+            return "result"
+
+    lookup("hi")
+    span = exported_spans.get_finished_spans()[0]
+    assert span.name == "execute_tool search"
+    assert span.attributes["gen_ai.tool.name"] == "search"
+
+
+def test_observe_keeps_the_qualname_for_chain_spans(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    """CHAIN has no operation, and here — unlike the manual helpers — there IS
+    a function to name the span after, so the qualname stays the default."""
+
+    @observe
+    def step() -> str:
+        return "ok"
+
+    step()
+    assert exported_spans.get_finished_spans()[0].name.endswith("step")
+
+
+def test_observe_names_an_agent_span_after_the_agent_it_invokes(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    @observe(kind=SpanKind.AGENT, agent_name="researcher")
+    def plan() -> str:
+        return "done"
+
+    plan()
+    assert exported_spans.get_finished_spans()[0].name == "invoke_agent researcher"
+
+
+def test_observe_agent_span_without_an_agent_name_is_the_bare_operation(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    @observe(kind=SpanKind.AGENT)
+    def plan() -> str:
+        return "done"
+
+    plan()
+    assert exported_spans.get_finished_spans()[0].name == "invoke_agent"
+
+
+def test_observe_agent_span_name_uses_the_configured_agent_name() -> None:
+    """Resolved per CALL, like the attribute: init() normally runs long after
+    the module defining the decorated function was imported."""
+    from rius import init
+
+    exporter = InMemorySpanExporter()
+
+    @observe(kind=SpanKind.AGENT)
+    def plan() -> str:
+        return "done"
+
+    client = init(
+        span_exporter=exporter, service_name="svc", agent_name="configured", instruments=[]
+    )
+    try:
+        plan()
+    finally:
+        client.shutdown()
+    span = exporter.get_finished_spans()[0]
+    assert span.name == "invoke_agent configured"
+    assert span.attributes["gen_ai.agent.name"] == "configured"
+
+
+def test_observe_names_a_retriever_span_after_the_data_source(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    @observe(kind=SpanKind.RETRIEVER, data_source_id="product-kb")
+    def search(q: str) -> list[str]:
+        return []
+
+    search("hi")
+    assert exported_spans.get_finished_spans()[0].name == "retrieval product-kb"
+
+
+def test_observe_retriever_without_a_data_source_is_the_bare_operation(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    @observe(kind=SpanKind.RETRIEVER)
+    def search(q: str) -> list[str]:
+        return []
+
+    search("hi")
+    assert exported_spans.get_finished_spans()[0].name == "retrieval"
+
+
+def test_observe_model_kinds_get_the_bare_operation(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    """The decorator takes no model, so an LLM or EMBEDDING function names
+    itself after its operation alone."""
+
+    @observe(kind=SpanKind.LLM)
+    def call() -> str:
+        return "hi"
+
+    @observe(kind=SpanKind.EMBEDDING)
+    def embed() -> list[float]:
+        return []
+
+    call()
+    embed()
+    assert [s.name for s in exported_spans.get_finished_spans()] == ["chat", "embeddings"]
+
+
+@pytest.mark.parametrize(
+    "kind",
+    [
+        SpanKind.CHAIN,
+        SpanKind.TOOL,
+        SpanKind.AGENT,
+        SpanKind.RETRIEVER,
+        SpanKind.LLM,
+        SpanKind.EMBEDDING,
+    ],
+)
+def test_an_explicit_name_still_wins_on_observe(
+    kind: SpanKind, exported_spans: InMemorySpanExporter
+) -> None:
+    @observe(name="my-step", kind=kind, tool_name="t", agent_name="a")
+    def step() -> None:
+        pass
+
+    step()
+    assert exported_spans.get_finished_spans()[0].name == "my-step"
+
+
+def test_observe_composes_names_on_every_wrapper_shape(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    """Four wrappers (sync, async, generator, async generator) each open their
+    own span, and all four must agree on the name."""
+
+    @observe(kind=SpanKind.TOOL, tool_name="t")
+    def sync_tool() -> None:
+        pass
+
+    @observe(kind=SpanKind.TOOL, tool_name="t")
+    async def async_tool() -> None:
+        pass
+
+    @observe(kind=SpanKind.TOOL, tool_name="t")
+    def gen_tool():  # noqa: ANN202
+        yield 1
+
+    @observe(kind=SpanKind.TOOL, tool_name="t")
+    async def agen_tool():  # noqa: ANN202
+        yield 1
+
+    async def drive() -> None:
+        await async_tool()
+        async for _ in agen_tool():
+            pass
+
+    sync_tool()
+    list(gen_tool())
+    asyncio.run(drive())
+    assert {s.name for s in exported_spans.get_finished_spans()} == {"execute_tool t"}

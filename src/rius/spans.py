@@ -32,6 +32,7 @@ from .semconv import (
     OUTPUT_VALUE,
     USER_ID,
     SpanKind,
+    compose_span_name,
     kind_attributes,
     otel_span_kind,
 )
@@ -138,8 +139,8 @@ def _configure(observation: Observation, input: Any) -> None:
         observation.set_input(input)
 
 
-def _creation_attributes(
-    name: str,
+def _creation(
+    name: str | None,
     kind: SpanKind,
     user_id: str | None,
     tool_name: str | None = None,
@@ -148,29 +149,39 @@ def _creation_attributes(
     top_k: int | None = None,
     agent_name: str | None = None,
     agent_id: str | None = None,
-) -> dict[str, str | int]:
+) -> tuple[str, dict[str, str | int]]:
+    """The span name and the identity attributes, resolved together.
+
+    One function because the two must agree: the name is composed from the
+    attribute map itself, so it cannot read an identifier the span does not
+    carry, and the rendered ``execute_tool x`` can never travel back into
+    ``gen_ai.tool.name``.
+    """
     # Identity at CREATION so pending snapshots (on_start) carry it; the
     # user id is set here as well as via the user() scope so it reaches the
     # span even on a provider without UserSpanProcessor installed.
     # The tool name falls back to the span name, which is all a caller of this
-    # surface gives us; an explicit one keeps the two independent.
+    # surface gives us; an explicit one keeps the two independent. An unnamed
+    # span has nothing to fall back to, and composes from the tool name alone.
+    resolved_tool_name = tool_name if tool_name is not None else name
+    resolved_agent_name = resolve_agent_name(agent_name, kind)
     attributes: dict[str, str | int] = dict(
         kind_attributes(
             kind,
-            tool_name or name,
+            resolved_tool_name,
             data_source_id=data_source_id,
             top_k=top_k,
-            agent_name=resolve_agent_name(agent_name, kind),
+            agent_name=resolved_agent_name,
             agent_id=agent_id,
         )
     )
     if user_id is not None:
         attributes[USER_ID] = user_id
-    return attributes
+    return (name if name is not None else compose_span_name(kind, attributes)), attributes
 
 
 def start_span(
-    name: str,
+    name: str | None = None,
     *,
     kind: SpanKind = SpanKind.CHAIN,
     input: Any = None,
@@ -186,6 +197,15 @@ def start_span(
     The span is parented to the current span at creation, but is not set as the
     current span and does not auto-record exceptions. Use ``start_as_current_span``
     for block-scoped tracing.
+
+    ``name`` is optional. Left out, the span is named the way the GenAI
+    conventions say it should be: the operation the kind maps to, followed by
+    what it acted on — ``execute_tool get_weather``, ``invoke_agent planner``,
+    ``retrieval product-kb`` — falling back to the bare operation when that
+    identifier is unknown. A ``CHAIN`` span is the one degenerate case: the
+    conventions define no operation for a generic step and this surface has no
+    function to borrow a qualname from, so an unnamed one is called ``chain``.
+    An explicit name always wins.
 
     ``user_id`` stamps ``user.id`` on this span only; it is sugar for a span
     that has no children of its own. To attribute a whole request, including
@@ -210,19 +230,20 @@ def start_span(
     id there, so an in-process agent leaves it unset. Both are ignored on
     every other kind.
     """
-    span = sdk_tracer().start_span(
+    span_name, attributes = _creation(
         name,
+        kind,
+        user_id,
+        tool_name,
+        data_source_id=data_source_id,
+        top_k=top_k,
+        agent_name=agent_name,
+        agent_id=agent_id,
+    )
+    span = sdk_tracer().start_span(
+        span_name,
         kind=otel_span_kind(kind),
-        attributes=_creation_attributes(
-            name,
-            kind,
-            user_id,
-            tool_name,
-            data_source_id=data_source_id,
-            top_k=top_k,
-            agent_name=agent_name,
-            agent_id=agent_id,
-        ),
+        attributes=attributes,
     )
     observation = Observation(span)
     _configure(observation, input)
@@ -231,7 +252,7 @@ def start_span(
 
 @contextmanager
 def start_as_current_span(
-    name: str,
+    name: str | None = None,
     *,
     kind: SpanKind = SpanKind.CHAIN,
     input: Any = None,
@@ -246,6 +267,15 @@ def start_as_current_span(
 
     Exceptions raised in the block are recorded and set the span status to ERROR
     (OpenTelemetry's ``start_as_current_span`` default), then re-raised.
+
+    ``name`` is optional. Left out, the span is named the way the GenAI
+    conventions say it should be: the operation the kind maps to, followed by
+    what it acted on — ``execute_tool get_weather``, ``invoke_agent planner``,
+    ``retrieval product-kb`` — falling back to the bare operation when that
+    identifier is unknown. A ``CHAIN`` span is the one degenerate case: the
+    conventions define no operation for a generic step and this surface has no
+    function to borrow a qualname from, so an unnamed one is called ``chain``.
+    An explicit name always wins.
 
     ``user_id`` is sugar for wrapping the block in ``user(user_id)``: this span
     and every span opened inside the block carry ``user.id``.
@@ -270,21 +300,22 @@ def start_as_current_span(
     every other kind.
     """
     tracer = sdk_tracer()
+    span_name, attributes = _creation(
+        name,
+        kind,
+        user_id,
+        tool_name,
+        data_source_id=data_source_id,
+        top_k=top_k,
+        agent_name=agent_name,
+        agent_id=agent_id,
+    )
     with (
         user(user_id) if user_id is not None else nullcontext(),
         tracer.start_as_current_span(
-            name,
+            span_name,
             kind=otel_span_kind(kind),
-            attributes=_creation_attributes(
-                name,
-                kind,
-                user_id,
-                tool_name,
-                data_source_id=data_source_id,
-                top_k=top_k,
-                agent_name=agent_name,
-                agent_id=agent_id,
-            ),
+            attributes=attributes,
         ) as span,
     ):
         observation = Observation(span)
