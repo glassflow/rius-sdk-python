@@ -385,3 +385,20 @@ def test_pending_snapshot_of_an_agent_span_carries_the_agent_version() -> None:
     span.end()
     assert pending, "expected a pending snapshot"
     assert pending[0].attributes["gen_ai.agent.version"] == "7"
+
+
+def test_pending_snapshot_carries_both_request_namespaces() -> None:
+    """Request parameters are chosen before the call runs, so the live view
+    must already show them — under either namespace."""
+    from rius import _tracer, start_generation
+
+    client, exporter = _memory_client(partial_spans=True)
+    _tracer.publish(client._provider)
+    span = start_generation("chat", model_parameters={"temperature": 0.7, "my_custom_knob": 3})
+    client.flush()
+    pending, _ = _split(exporter.get_finished_spans())
+    span.end()
+    assert pending, "expected a pending snapshot"
+    attrs = pending[0].attributes
+    assert attrs["gen_ai.request.temperature"] == 0.7
+    assert attrs["rius.request.my_custom_knob"] == 3

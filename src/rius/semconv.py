@@ -195,6 +195,115 @@ ERROR_TYPE_TOOL_ERROR = "tool_error"
 # no convention defines it. Kept as-is because the backend reads it.
 MCP_RESULT_TYPE = "mcp.result_type"
 GEN_AI_REQUEST_PREFIX = "gen_ai.request."
+# Where a request parameter the GenAI registry does NOT define goes. Our own
+# namespace rather than gen_ai.request.<key>, per OTel's naming guidance: an
+# existing semantic-convention namespace must not be used as a prefix for
+# application-specific attributes, because the convention is free to define
+# that exact key later and mean something else. The GenAI conventions offer
+# no catch-all of their own, so we own one. Settled in RIUS-917.
+#
+# Masking: rius.request.* follows gen_ai.request.* exactly. Today neither is
+# in CONTENT_ATTRIBUTES, so both export in clear. The TIE is the rule, not
+# the current value — if request parameters ever become maskable, both
+# namespaces change together, and neither may join the content allowlist
+# alone. test_request_namespaces_are_tied_for_masking pins it.
+RIUS_REQUEST_PREFIX = "rius.request."
+
+# Request parameters the GenAI conventions define, mapped from every spelling
+# we recognise to the canonical attribute key. Verified against
+# open-telemetry/semantic-conventions-genai at commit
+# 8ffdf568e1b4391a99adb081db16e8102e36918e (2026-09-22),
+# model/gen-ai/registry.yaml — the repo cuts no releases, so a commit is the
+# only citable pin. Each canonical key appears under its own bare spelling
+# plus the provider spellings that mean the SAME parameter; anything absent
+# here is a caller parameter and goes to RIUS_REQUEST_PREFIX verbatim.
+#
+# A provider spelling normalises to ONE key, the canonical one: the provider
+# spelling is not also emitted. Two keys for one parameter would make every
+# consumer de-duplicate, and the point of a convention is that there is one
+# place to look.
+GEN_AI_REQUEST_PARAMETERS: dict[str, str] = {
+    # model — the request's model; also settable via the `model=` argument.
+    "model": GEN_AI_REQUEST_MODEL,
+    # max_tokens — OpenAI Chat Completions `max_tokens`, its successor
+    # `max_completion_tokens`, the Responses API's `max_output_tokens`, and
+    # Google's `maxOutputTokens`.
+    "max_tokens": "gen_ai.request.max_tokens",
+    "maxTokens": "gen_ai.request.max_tokens",
+    "max_completion_tokens": "gen_ai.request.max_tokens",
+    "maxCompletionTokens": "gen_ai.request.max_tokens",
+    "max_output_tokens": "gen_ai.request.max_tokens",
+    "maxOutputTokens": "gen_ai.request.max_tokens",
+    # choice.count — "the target number of candidate completions to return":
+    # OpenAI `n`, Google `candidateCount`, Cohere `num_generations`.
+    "choice.count": "gen_ai.request.choice.count",
+    "n": "gen_ai.request.choice.count",
+    "candidate_count": "gen_ai.request.choice.count",
+    "candidateCount": "gen_ai.request.choice.count",
+    "num_generations": "gen_ai.request.choice.count",
+    "temperature": "gen_ai.request.temperature",
+    # top_p — Google `topP`, Cohere `p`.
+    "top_p": "gen_ai.request.top_p",
+    "topP": "gen_ai.request.top_p",
+    "p": "gen_ai.request.top_p",
+    # top_k — the registry's own note names Anthropic `top_k`, Cohere `k` and
+    # Google `topK`, and says OpenAI's `top_logprobs` MUST NOT be reported
+    # here (it shapes the response, not the sampling). So top_logprobs is
+    # deliberately absent and lands in rius.request.*.
+    "top_k": "gen_ai.request.top_k",
+    "topK": "gen_ai.request.top_k",
+    "k": "gen_ai.request.top_k",
+    # stop_sequences — OpenAI `stop`, Google `stopSequences`.
+    "stop_sequences": "gen_ai.request.stop_sequences",
+    "stopSequences": "gen_ai.request.stop_sequences",
+    "stop": "gen_ai.request.stop_sequences",
+    "frequency_penalty": "gen_ai.request.frequency_penalty",
+    "frequencyPenalty": "gen_ai.request.frequency_penalty",
+    "presence_penalty": "gen_ai.request.presence_penalty",
+    "presencePenalty": "gen_ai.request.presence_penalty",
+    # encoding_formats — plural in the registry; OpenAI's embeddings endpoint
+    # sends the singular `encoding_format`, and the registry's note says some
+    # systems call these "embedding types" (Cohere `embedding_types`).
+    "encoding_formats": "gen_ai.request.encoding_formats",
+    "encoding_format": "gen_ai.request.encoding_formats",
+    "encodingFormat": "gen_ai.request.encoding_formats",
+    "embedding_types": "gen_ai.request.encoding_formats",
+    "seed": "gen_ai.request.seed",
+    "stream": GEN_AI_REQUEST_STREAM,
+    # reasoning.level — "the exact string value sent to the provider";
+    # OpenAI sends it as `reasoning_effort`.
+    "reasoning.level": GEN_AI_REQUEST_REASONING_LEVEL,
+    "reasoning_level": GEN_AI_REQUEST_REASONING_LEVEL,
+    "reasoning_effort": GEN_AI_REQUEST_REASONING_LEVEL,
+    "reasoningEffort": GEN_AI_REQUEST_REASONING_LEVEL,
+    # previous_response.id — the registry names OpenAI's
+    # `previous_response_id` and Google's `previous_interaction_id`.
+    "previous_response.id": "gen_ai.request.previous_response.id",
+    "previous_response_id": "gen_ai.request.previous_response.id",
+    "previousResponseId": "gen_ai.request.previous_response.id",
+    "previous_interaction_id": "gen_ai.request.previous_response.id",
+    # stream_cursor — the registry names OpenAI's `starting_after` and
+    # Google's `last_event_id`.
+    "stream_cursor": "gen_ai.request.stream_cursor",
+    "starting_after": "gen_ai.request.stream_cursor",
+    "last_event_id": "gen_ai.request.stream_cursor",
+}
+
+
+def request_attribute_key(parameter: str) -> str:
+    """The attribute key one caller-supplied request parameter is recorded under.
+
+    A parameter the GenAI conventions define — under its canonical name or a
+    recognised provider spelling — normalises to its canonical
+    ``gen_ai.request.*`` key. Everything else keeps its key verbatim under
+    ``rius.request.``.
+    """
+    canonical = GEN_AI_REQUEST_PARAMETERS.get(parameter)
+    if canonical is not None:
+        return canonical
+    return f"{RIUS_REQUEST_PREFIX}{parameter}"
+
+
 # Per-part byte sizes of a generation's context, as compact JSON with
 # readable keys: tool_definitions (name, bytes), input_messages and
 # output_messages (literal role, parts typed text / tool_call /
@@ -288,8 +397,12 @@ PENDING_IDENTITY_ATTRIBUTES = frozenset(
         WORKSPACE_ROUTE,
     }
 )
-# gen_ai.request.* (model, temperature, ...) is identity, not content.
-PENDING_IDENTITY_PREFIXES = (GEN_AI_REQUEST_PREFIX,)
+# gen_ai.request.* (model, temperature, ...) is identity, not content, and so
+# is rius.request.* (the caller parameters the conventions do not define):
+# both are chosen before the call runs, so a live view of a still-running
+# generation must already show them. The two namespaces are deliberately
+# treated alike here as well as in CONTENT_ATTRIBUTES.
+PENDING_IDENTITY_PREFIXES = (GEN_AI_REQUEST_PREFIX, RIUS_REQUEST_PREFIX)
 
 # Attribute keys carrying user content, masked/stripped at export (see masking.py).
 CONTENT_ATTRIBUTES = frozenset(

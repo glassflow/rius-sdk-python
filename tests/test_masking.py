@@ -511,3 +511,17 @@ def test_capture_content_false_strips_metadata_mirrors() -> None:
     attrs = inner.get_finished_spans()[0].attributes
     assert "metadata.gen_ai.system_instructions" not in attrs
     assert attrs["metadata.gen_ai.tool.name"] == "get_weather"
+
+
+def test_capture_content_false_keeps_both_request_namespaces() -> None:
+    """RIUS-917: request parameters are not content. A caller parameter in
+    rius.request.* survives exactly as a spec one in gen_ai.request.* does."""
+    inner = InMemorySpanExporter()
+    client = init(span_exporter=inner, set_global=False, capture_content=False)
+    with client.get_tracer().start_as_current_span("op") as span:
+        span.set_attribute("gen_ai.request.temperature", 0.7)
+        span.set_attribute("rius.request.my_custom_knob", 3)
+    client.flush()
+    attrs = inner.get_finished_spans()[0].attributes
+    assert attrs["gen_ai.request.temperature"] == 0.7
+    assert attrs["rius.request.my_custom_knob"] == 3

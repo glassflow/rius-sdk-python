@@ -843,3 +843,83 @@ def test_neither_key_is_content() -> None:
     assert attrs["gen_ai.output.type"] == "json"
     assert attrs["gen_ai.response.id"] == "chatcmpl-123"
     assert "gen_ai.input.messages" not in attrs
+
+
+# --- model_parameters normalization (RIUS-926) ---
+
+
+def _params(exported_spans: InMemorySpanExporter, **parameters: Any) -> Any:
+    start_generation("chat", model_parameters=parameters).end()
+    return exported_spans.get_finished_spans()[0].attributes
+
+
+def test_spec_parameter_lands_under_gen_ai_request(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    attrs = _params(exported_spans, temperature=0.7)
+    assert attrs["gen_ai.request.temperature"] == 0.7
+
+
+def test_unrecognised_parameter_lands_under_rius_request(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    """Our own namespace, not gen_ai.request.<key>: OTel's naming guidance
+    forbids extending a semantic-convention namespace with application keys."""
+    attrs = _params(exported_spans, my_custom_knob=3)
+    assert attrs["rius.request.my_custom_knob"] == 3
+    assert "gen_ai.request.my_custom_knob" not in attrs
+
+
+def test_provider_spelling_lands_under_the_canonical_name_only(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    """A recognised provider spelling normalises to ONE key, the canonical
+    one; the provider spelling is not also emitted."""
+    attrs = _params(exported_spans, max_completion_tokens=256)
+    assert attrs["gen_ai.request.max_tokens"] == 256
+    assert "gen_ai.request.max_completion_tokens" not in attrs
+    assert "rius.request.max_completion_tokens" not in attrs
+
+
+def test_openai_stop_normalises_to_stop_sequences(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    attrs = _params(exported_spans, stop=["a", "b"])
+    assert attrs["gen_ai.request.stop_sequences"] == ("a", "b")
+    assert "gen_ai.request.stop" not in attrs
+
+
+def test_top_logprobs_is_not_top_k(exported_spans: InMemorySpanExporter) -> None:
+    """The spec's note on gen_ai.request.top_k says OpenAI's top_logprobs
+    MUST NOT be reported as top_k; it is not a sampling parameter."""
+    attrs = _params(exported_spans, top_logprobs=5)
+    assert attrs["rius.request.top_logprobs"] == 5
+    assert "gen_ai.request.top_k" not in attrs
+
+
+def test_nested_parameter_values_are_json_encoded(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    """OTel stores scalars and homogeneous scalar arrays only. Anything else
+    is JSON-encoded rather than dropped: a response_format the model was
+    actually sent is worth keeping, even as a string."""
+    attrs = _params(
+        exported_spans,
+        response_format={"type": "json_object"},
+        mixed=[1, "a"],
+    )
+    assert attrs["rius.request.response_format"] == '{"type": "json_object"}'
+    assert attrs["rius.request.mixed"] == '[1, "a"]'
+
+
+def test_none_valued_parameters_are_skipped(exported_spans: InMemorySpanExporter) -> None:
+    attrs = _params(exported_spans, temperature=None, seed=None)
+    assert "gen_ai.request.temperature" not in attrs
+    assert "gen_ai.request.seed" not in attrs
+
+
+def test_unrecognised_key_is_untouched_apart_from_the_prefix(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    attrs = _params(exported_spans, **{"Weird.Key-1": "x"})
+    assert attrs["rius.request.Weird.Key-1"] == "x"

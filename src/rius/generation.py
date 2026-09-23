@@ -28,7 +28,6 @@ from .semconv import (
     GEN_AI_OUTPUT_TYPE,
     GEN_AI_PROVIDER_NAME,
     GEN_AI_REQUEST_MODEL,
-    GEN_AI_REQUEST_PREFIX,
     GEN_AI_REQUEST_REASONING_LEVEL,
     GEN_AI_REQUEST_STREAM,
     GEN_AI_RESPONSE_FINISH_REASONS,
@@ -47,6 +46,7 @@ from .semconv import (
     compose_span_name,
     kind_attributes,
     otel_span_kind,
+    request_attribute_key,
 )
 from .user import user
 
@@ -357,41 +357,59 @@ _PRIMITIVES = (str, bool, int, float)
 
 
 def _attribute_value(value: Any) -> Any:
-    """A value OTel will store: primitives and primitive sequences as-is, else JSON."""
+    """A value OTel will store, else its JSON encoding.
+
+    OTel accepts a scalar or a HOMOGENEOUS scalar array and nothing else.
+    Anything else — a nested ``response_format`` dict, a heterogeneous list
+    like ``[1, "a"]``, a tool-choice object — is JSON-encoded rather than
+    dropped: the parameter really was sent to the model, and a string is a
+    worse answer than a typed scalar but a much better one than silence. (An
+    unencoded value of that shape does not merely arrive degraded; OTel
+    discards the attribute with a logger warning, so it never reaches the
+    span at all.) The cost is that the recorded type is not the sent type,
+    which is why only the awkward shapes pay it.
+
+    ``bool`` is separated from ``int`` deliberately: ``bool`` subclasses
+    ``int``, and ``[True, 1]`` is not a homogeneous array to OTel.
+    """
     if isinstance(value, _PRIMITIVES):
         return value
-    if isinstance(value, (list, tuple)) and all(isinstance(v, _PRIMITIVES) for v in value):
-        return list(value)
+    if isinstance(value, (list, tuple)):
+        types = {bool if isinstance(item, bool) else type(item) for item in value}
+        if types <= {str, bool, int, float} and len(types) <= 1:
+            return list(value)
     return serialize(value)
+
+
+def _request_attributes(model_parameters: dict[str, Any] | None) -> dict[str, Any]:
+    """Map caller request parameters onto the attribute keys they are recorded under.
+
+    Spec-defined parameters (including recognised provider spellings) land
+    under their canonical ``gen_ai.request.*`` key; everything else lands
+    under ``rius.request.<key>`` with the key otherwise untouched. ``None``
+    is "not set", not a value, and is skipped.
+    """
+    attributes: dict[str, Any] = {}
+    for key, value in (model_parameters or {}).items():
+        if value is None:
+            continue
+        attributes[request_attribute_key(key)] = _attribute_value(value)
+    return attributes
 
 
 def _configure(
     generation: Generation,
     *,
-    model: str | None,
     provider: str | None,
     input: Messages | None,
-    model_parameters: dict[str, Any] | None,
-    operation: str,
-    reasoning_level: str | None,
     tools: list[Any] | None,
 ) -> None:
-    span = generation._span
-    # Kind, operation, model and provider are already on the span from
-    # _creation_attributes; each set_attribute here was a second locked write
-    # of the same value (the review counted up to five per generation).
+    # Kind, operation, model, provider and the request parameters are already
+    # on the span from _creation_attributes; each set_attribute here was a
+    # second locked write of the same value (the review counted up to five
+    # per generation).
     if provider is not None:
         generation._provider = provider
-    for key, value in (model_parameters or {}).items():
-        # OTel accepts primitives and homogeneous primitive sequences; anything
-        # else (response_format dicts, nested tool choices) was dropped with a
-        # warning from the OTel logger and never reached the span. None is
-        # "not set", not a value.
-        if value is None:
-            continue
-        span.set_attribute(f"{GEN_AI_REQUEST_PREFIX}{key}", _attribute_value(value))
-    if reasoning_level is not None:
-        span.set_attribute(GEN_AI_REQUEST_REASONING_LEVEL, reasoning_level)
     if tools is not None:
         generation.set_tool_definitions(tools)
     if input is not None:
@@ -404,11 +422,22 @@ def _creation_attributes(
     operation: str,
     user_id: str | None = None,
     output_type: str | None = None,
-) -> dict[str, str | int]:
+    model_parameters: dict[str, Any] | None = None,
+    reasoning_level: str | None = None,
+) -> dict[str, Any]:
     """Identity attributes for an LLM span at CREATION (pending snapshots
     are built at on_start; anything set later is invisible to them)."""
-    attributes = kind_attributes(SpanKind.LLM)
+    attributes: dict[str, Any] = dict(kind_attributes(SpanKind.LLM))
     attributes[GEN_AI_OPERATION_NAME] = operation
+    # The request parameters go in FIRST so the dedicated arguments below win
+    # a collision: someone who passes both model="gpt-4o" and
+    # model_parameters={"model": ...} meant the explicit one, and the span
+    # name is composed from it. Set here rather than after the span exists
+    # because a pending snapshot is built from the CREATION attributes:
+    # a parameter written later is invisible to the live view.
+    attributes.update(_request_attributes(model_parameters))
+    if reasoning_level is not None:
+        attributes[GEN_AI_REQUEST_REASONING_LEVEL] = reasoning_level
     if model is not None:
         attributes[GEN_AI_REQUEST_MODEL] = model
     if provider is not None:
@@ -450,8 +479,15 @@ def start_generation(
         model: Requested model (``gen_ai.request.model``).
         provider: Provider name (``gen_ai.provider.name``), e.g. ``"openai"``.
         input: Request messages, recorded immediately via ``set_input``.
-        model_parameters: Request parameters, each recorded as
-            ``gen_ai.request.<key>``.
+        model_parameters: Request parameters, recorded at span creation so
+            they ride pending snapshots. A parameter the GenAI conventions
+            define — under its canonical name or a recognised provider
+            spelling, e.g. OpenAI's ``max_completion_tokens`` — is recorded
+            under its canonical ``gen_ai.request.*`` key and only that one.
+            Everything else is recorded under ``rius.request.<key>``, our own
+            namespace, with the key otherwise untouched. Values that are not
+            scalars or homogeneous scalar arrays are JSON-encoded; ``None``
+            means "not set" and is skipped.
         operation: Operation name (``gen_ai.operation.name``); default ``"chat"``.
         reasoning_level: Requested reasoning/thinking effort level
             (``gen_ai.request.reasoning.level``), e.g. OpenAI's
@@ -472,23 +508,16 @@ def start_generation(
     Returns:
         A ``Generation`` handle; call ``.end()`` when the call completes.
     """
-    attributes = _creation_attributes(model, provider, operation, user_id, output_type)
+    attributes = _creation_attributes(
+        model, provider, operation, user_id, output_type, model_parameters, reasoning_level
+    )
     span = sdk_tracer().start_span(
         name if name is not None else compose_span_name(SpanKind.LLM, attributes),
         kind=otel_span_kind(SpanKind.LLM),
         attributes=attributes,
     )
     generation = Generation(span)
-    _configure(
-        generation,
-        model=model,
-        provider=provider,
-        input=input,
-        model_parameters=model_parameters,
-        operation=operation,
-        reasoning_level=reasoning_level,
-        tools=tools,
-    )
+    _configure(generation, provider=provider, input=input, tools=tools)
     return generation
 
 
@@ -517,7 +546,9 @@ def start_as_current_generation(
         metadata; the span ends when the block exits.
     """
     tracer = sdk_tracer()
-    attributes = _creation_attributes(model, provider, operation, user_id, output_type)
+    attributes = _creation_attributes(
+        model, provider, operation, user_id, output_type, model_parameters, reasoning_level
+    )
     with (
         # user_id is sugar for user(user_id) around the block: children opened
         # inside inherit it through UserSpanProcessor, this span at creation.
@@ -529,16 +560,7 @@ def start_as_current_generation(
         ) as span,
     ):
         generation = Generation(span)
-        _configure(
-            generation,
-            model=model,
-            provider=provider,
-            input=input,
-            model_parameters=model_parameters,
-            operation=operation,
-            reasoning_level=reasoning_level,
-            tools=tools,
-        )
+        _configure(generation, provider=provider, input=input, tools=tools)
         try:
             yield generation
         except BaseException as exc:
