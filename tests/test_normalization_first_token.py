@@ -8,8 +8,10 @@ that can do it.
 
 from __future__ import annotations
 
+import inspect
 from typing import Any
 
+import pytest
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -188,3 +190,42 @@ def test_it_is_wired_into_init() -> None:
     assert [event.name for event in finished.events] == [GEN_AI_FIRST_TOKEN_EVENT]
     assert (finished.attributes or {})[GEN_AI_REQUEST_STREAM] is True
     assert (finished.attributes or {})[GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK] >= 0.0
+
+
+# --- the upstream guard -----------------------------------------------------
+#
+# The whole mapping hangs on one free-text English string that upstream has no
+# constant for and can reword in a patch release. These assert against the
+# INSTALLED instrumentor, not against our own constant — comparing our literal
+# to our literal would prove nothing. Both openinference instrumentors are in
+# the `dev` dependency group, so this runs on every ordinary `uv run pytest`
+# and turns a silent data gap into a build error on the next `uv lock`.
+
+
+def test_the_openai_instrumentor_still_emits_the_event_name_we_map() -> None:
+    openai_stream = pytest.importorskip("openinference.instrumentation.openai._stream")
+    source = inspect.getsource(openai_stream._Stream._process_chunk)
+    assert f'add_event("{OPENINFERENCE_FIRST_TOKEN_EVENT}")' in source, (
+        "openinference-instrumentation-openai no longer emits "
+        f"{OPENINFERENCE_FIRST_TOKEN_EVENT!r} from _Stream._process_chunk. The event was "
+        "renamed or moved upstream: read the new _process_chunk, update "
+        "OPENINFERENCE_FIRST_TOKEN_EVENT in rius/normalization.py, and check whether the "
+        "SHAPE changed too — we rely on the event carrying no attributes and no explicit "
+        "timestamp, so the SDK stamps it at chunk arrival."
+    )
+
+
+def test_the_anthropic_instrumentor_still_emits_no_first_token_event() -> None:
+    """Documented gap: Anthropic ships the add_event helper but never calls it.
+
+    If this fails, that is GOOD news — the signal now exists, and an
+    auto-instrumented Anthropic streaming span can be made indistinguishable
+    from a native one too. Check the name it uses and widen the mapping.
+    """
+    anthropic_stream = pytest.importorskip("openinference.instrumentation.anthropic._stream")
+    source = inspect.getsource(anthropic_stream)
+    assert "add_event" not in source, (
+        "openinference-instrumentation-anthropic now calls add_event from its stream "
+        "wrapper. If it is a first-token marker, add its name alongside "
+        "OPENINFERENCE_FIRST_TOKEN_EVENT in rius/normalization.py."
+    )
