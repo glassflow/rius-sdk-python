@@ -313,3 +313,36 @@ def test_explicit_agent_name_wins_over_the_configured_one() -> None:
     finally:
         client.shutdown()
     assert exporter.get_finished_spans()[0].attributes["gen_ai.agent.name"] == "researcher"
+
+
+def test_the_placeholder_service_name_is_not_an_agent_name() -> None:
+    """A process that named nothing has no agent name, and must not be given
+    one. Both the service name and the agent name resolve to the same
+    placeholder when nothing was configured, so emitting it would claim an
+    identity the caller never supplied."""
+    from rius import init
+
+    exporter = InMemorySpanExporter()
+    client = init(span_exporter=exporter, instruments=[])
+    try:
+        with start_as_current_span("plan", kind=SpanKind.AGENT):
+            pass
+    finally:
+        client.shutdown()
+    assert "gen_ai.agent.name" not in exporter.get_finished_spans()[0].attributes
+
+
+def test_an_explicit_agent_name_survives_an_unnamed_service() -> None:
+    """Suppressing the placeholder must not suppress a real name that happens
+    to arrive in a process with no service name."""
+    from rius import init
+
+    exporter = InMemorySpanExporter()
+    client = init(span_exporter=exporter, instruments=[])
+    try:
+        with start_as_current_span("plan", kind=SpanKind.AGENT, agent_name="researcher"):
+            pass
+    finally:
+        client.shutdown()
+    attrs = exporter.get_finished_spans()[0].attributes
+    assert attrs["gen_ai.agent.name"] == "researcher"
