@@ -11,7 +11,7 @@ from __future__ import annotations
 import functools
 import inspect
 import warnings
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import Any, TypeVar, overload
 
 from opentelemetry import context as otel_context
@@ -25,7 +25,7 @@ from .semconv import (
     INPUT_VALUE,
     OUTPUT_VALUE,
     SpanKind,
-    default_span_name,
+    compose_span_name,
     kind_attributes,
     otel_span_kind,
 )
@@ -71,35 +71,24 @@ def _resolve_tool_name(
 
 
 def _decorated_span_name(
-    name: str | None,
-    qualname: str,
-    kind: SpanKind,
-    *,
-    tool_name: str | None,
-    agent_name: str | None,
-    data_source_id: str | None,
+    name: str | None, qualname: str, kind: SpanKind, attributes: Mapping[str, str | int]
 ) -> str:
-    """The span name: explicit, else the spec form, else the function's qualname.
+    """The decorated function's span name: explicit, else composed.
 
-    CHAIN is the exception the manual span helpers cannot make: it has no
+    ``CHAIN`` is the exception the manual helpers cannot make. There is no
     operation to compose from, but here there IS a function, and its qualname
     labels a workflow step better than any literal could.
 
-    Composed from the RESOLVED tool name — the same value ``gen_ai.tool.name``
-    gets — so the two agree, so the rendered ``execute_tool x`` is never fed
-    back in as the tool's identity, and so no second deprecation warning is
-    raised on the way.
+    Composed from the span's own creation attributes, so the name can only
+    ever name something the span actually carries, the rendered
+    ``execute_tool x`` is never fed back in as the tool's identity, and no
+    second deprecation warning is raised on the way.
     """
     if name is not None:
         return name
     if kind is SpanKind.CHAIN:
         return qualname
-    return default_span_name(
-        kind,
-        tool_name=tool_name,
-        agent_name=agent_name,
-        data_source_id=data_source_id,
-    )
+    return compose_span_name(kind, attributes)
 
 
 @overload
@@ -182,25 +171,6 @@ def observe(
     def decorate(fn: Callable[..., Any]) -> Callable[..., Any]:
         span_tool_name = _resolve_tool_name(tool_name, name, fn.__qualname__, kind)
 
-        def _compose() -> str:
-            return _decorated_span_name(
-                name,
-                fn.__qualname__,
-                kind,
-                tool_name=span_tool_name,
-                agent_name=resolve_agent_name(agent_name, kind),
-                data_source_id=data_source_id,
-            )
-
-        # An AGENT span with no agent_name composes from the CONFIGURED agent
-        # name, which init() publishes after the module defining this function
-        # was imported, so that one combination resolves its name per CALL,
-        # exactly as its attributes do. Every other name is fixed here.
-        fixed_span_name = None if (name is None and kind is SpanKind.AGENT) else _compose()
-
-        def _span_name() -> str:
-            return fixed_span_name if fixed_span_name is not None else _compose()
-
         def _kind_attributes() -> dict[str, str | int]:
             # Resolved per CALL, not per decoration: init() usually runs after
             # the module defining the decorated function is imported, so the
@@ -213,6 +183,13 @@ def observe(
                 agent_name=resolve_agent_name(agent_name, kind),
                 agent_id=agent_id,
             )
+
+        def _creation() -> tuple[str, dict[str, str | int]]:
+            # Name and attributes from one resolution, per call, so an AGENT
+            # span naming itself after the configured agent name sees the
+            # value init() published rather than the one at import time.
+            attributes = _kind_attributes()
+            return _decorated_span_name(name, fn.__qualname__, kind, attributes), attributes
 
         def _set_input(span: trace.Span, args: tuple[Any, ...], kwargs: dict[str, Any]) -> None:
             if capture_input:
@@ -229,10 +206,11 @@ def observe(
             @functools.wraps(fn)
             async def async_gen_wrapper(*args: Any, **kwargs: Any) -> Any:
                 tracer = sdk_tracer()
+                span_name, attributes = _creation()
                 span = tracer.start_span(
-                    _span_name(),
+                    span_name,
                     kind=otel_span_kind(kind),
-                    attributes=_kind_attributes(),
+                    attributes=attributes,
                 )
                 _set_input(span, args, kwargs)
                 agen = fn(*args, **kwargs)
@@ -272,10 +250,11 @@ def observe(
             @functools.wraps(fn)
             async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
                 tracer = sdk_tracer()
+                span_name, attributes = _creation()
                 with tracer.start_as_current_span(
-                    _span_name(),
+                    span_name,
                     kind=otel_span_kind(kind),
-                    attributes=_kind_attributes(),
+                    attributes=attributes,
                     record_exception=False,
                     set_status_on_exception=False,
                 ) as span:
@@ -296,10 +275,11 @@ def observe(
             @functools.wraps(fn)
             def gen_wrapper(*args: Any, **kwargs: Any) -> Any:
                 tracer = sdk_tracer()
+                span_name, attributes = _creation()
                 span = tracer.start_span(
-                    _span_name(),
+                    span_name,
                     kind=otel_span_kind(kind),
-                    attributes=_kind_attributes(),
+                    attributes=attributes,
                 )
                 _set_input(span, args, kwargs)
                 gen = fn(*args, **kwargs)
@@ -334,10 +314,11 @@ def observe(
         @functools.wraps(fn)
         def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
             tracer = sdk_tracer()
+            span_name, attributes = _creation()
             with tracer.start_as_current_span(
-                _span_name(),
+                span_name,
                 kind=otel_span_kind(kind),
-                attributes=_kind_attributes(),
+                attributes=attributes,
                 record_exception=False,
                 set_status_on_exception=False,
             ) as span:

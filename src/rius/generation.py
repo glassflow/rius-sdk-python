@@ -42,7 +42,7 @@ from .semconv import (
     RIUS_CONTEXT_SIZES,
     USER_ID,
     SpanKind,
-    default_span_name,
+    compose_span_name,
     kind_attributes,
     otel_span_kind,
 )
@@ -440,12 +440,11 @@ def start_generation(
     Returns:
         A ``Generation`` handle; call ``.end()`` when the call completes.
     """
+    attributes = _creation_attributes(model, provider, operation, user_id)
     span = sdk_tracer().start_span(
-        name
-        if name is not None
-        else default_span_name(SpanKind.LLM, operation=operation, model=model),
+        name if name is not None else compose_span_name(SpanKind.LLM, attributes),
         kind=otel_span_kind(SpanKind.LLM),
-        attributes=_creation_attributes(model, provider, operation, user_id),
+        attributes=attributes,
     )
     generation = Generation(span)
     _configure(
@@ -485,16 +484,15 @@ def start_as_current_generation(
         metadata; the span ends when the block exits.
     """
     tracer = sdk_tracer()
+    attributes = _creation_attributes(model, provider, operation, user_id)
     with (
         # user_id is sugar for user(user_id) around the block: children opened
         # inside inherit it through UserSpanProcessor, this span at creation.
         user(user_id) if user_id is not None else nullcontext(),
         tracer.start_as_current_span(
-            name
-            if name is not None
-            else default_span_name(SpanKind.LLM, operation=operation, model=model),
+            name if name is not None else compose_span_name(SpanKind.LLM, attributes),
             kind=otel_span_kind(SpanKind.LLM),
-            attributes=_creation_attributes(model, provider, operation, user_id),
+            attributes=attributes,
         ) as span,
     ):
         generation = Generation(span)

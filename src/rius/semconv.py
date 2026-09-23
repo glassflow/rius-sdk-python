@@ -7,6 +7,7 @@ values (understood across the ecosystem); LLM specifics use OTel GenAI `gen_ai.*
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from enum import Enum
 
 from opentelemetry.trace import Span
@@ -370,50 +371,51 @@ def otel_span_kind(kind: SpanKind) -> OtelSpanKind:
 CHAIN_SPAN_NAME = "chain"
 
 
-def default_span_name(
-    kind: SpanKind,
-    *,
-    operation: str | None = None,
-    model: str | None = None,
-    tool_name: str | None = None,
-    agent_name: str | None = None,
-    data_source_id: str | None = None,
-) -> str:
+# Which attribute names the target, per kind. One key each, so a tool name can
+# never surface in an agent's name and the composed name stays a reliable
+# filter value. CHAIN is absent: it has no operation and so no composed name.
+_NAME_TARGET_BY_KIND: dict[SpanKind, str] = {
+    SpanKind.LLM: GEN_AI_REQUEST_MODEL,
+    SpanKind.EMBEDDING: GEN_AI_REQUEST_MODEL,
+    SpanKind.TOOL: GEN_AI_TOOL_NAME,
+    SpanKind.AGENT: GEN_AI_AGENT_NAME,
+    SpanKind.RETRIEVER: GEN_AI_DATA_SOURCE_ID,
+}
+
+
+def compose_span_name(kind: SpanKind, attributes: Mapping[str, str | int]) -> str:
     """The span name for a span of ``kind``: ``"{operation} {target}"``.
 
     The GenAI conventions give every operation they define a SHOULD-level span
-    name of the operation followed by the one identifier that says what it
-    acted on: ``chat gpt-4o``, ``embeddings text-embedding-3-small``,
+    name of the operation followed by the one identifier saying what it acted
+    on: ``chat gpt-4o``, ``embeddings text-embedding-3-small``,
     ``execute_tool get_weather``, ``invoke_agent planner``, ``retrieval kb``.
-    Each kind reads exactly ONE identifier, so a tool name can never surface
-    in an agent's name and the composed name stays a reliable filter value.
+
+    Composed from the span's OWN creation attributes rather than from the
+    caller's arguments, which is what makes the name and the attributes agree
+    by construction instead of by discipline. Three things follow for free: an
+    operation overridden per generation is picked up, because the override is
+    already in the map; an agent name that fell back to the configured one is
+    picked up for the same reason; and the rendered ``execute_tool x`` can
+    never become ``gen_ai.tool.name``, because this function only ever reads.
+    The TypeScript SDK composes the identical way, so the two cannot drift as
+    new identifiers are added.
+
+    The model read here is the REQUEST model, since that is the only one in
+    the creation attributes. A response model arriving later would make a
+    pending snapshot and its final span disagree on their name, and that
+    equality is part of the pending wire contract.
 
     The identifier is optional on every kind, and the name degrades to the
     bare operation rather than to a name with a hole in it. ``CHAIN`` has no
     operation at all and falls back to :data:`CHAIN_SPAN_NAME`.
-
-    ``operation`` overrides the operation the kind maps to, because a
-    generation's operation is a per-call argument: an embeddings request made
-    through the LLM helper must not be named a chat. ``model`` is the REQUEST
-    model, never the response model — the response model can arrive after the
-    span started, and a pending snapshot (built at ``on_start``) has to carry
-    the same name as the final span.
-
-    Callers pass the RESOLVED identifiers — the same values
-    :func:`kind_attributes` is given — so the name and the attributes agree,
-    and so the rendered string is never fed back in as an identity.
     """
-    resolved_operation = operation or _OPERATION_BY_KIND.get(kind)
-    if resolved_operation is None:
+    operation = attributes.get(GEN_AI_OPERATION_NAME)
+    if not isinstance(operation, str):
         return CHAIN_SPAN_NAME
-    target = {
-        SpanKind.LLM: model,
-        SpanKind.EMBEDDING: model,
-        SpanKind.TOOL: tool_name,
-        SpanKind.AGENT: agent_name,
-        SpanKind.RETRIEVER: data_source_id,
-    }.get(kind)
-    return f"{resolved_operation} {target}" if target else resolved_operation
+    target_key = _NAME_TARGET_BY_KIND.get(kind)
+    target = attributes.get(target_key) if target_key is not None else None
+    return f"{operation} {target}" if isinstance(target, str) and target else operation
 
 
 def kind_attributes(

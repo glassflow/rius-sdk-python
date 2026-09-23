@@ -32,7 +32,7 @@ from .semconv import (
     OUTPUT_VALUE,
     USER_ID,
     SpanKind,
-    default_span_name,
+    compose_span_name,
     kind_attributes,
     otel_span_kind,
 )
@@ -152,9 +152,9 @@ def _creation(
 ) -> tuple[str, dict[str, str | int]]:
     """The span name and the identity attributes, resolved together.
 
-    One function because the two must agree: the composed name is built from
-    the SAME resolved tool/agent name the attributes carry, and never the
-    other way round — the rendered ``execute_tool x`` must not become
+    One function because the two must agree: the name is composed from the
+    attribute map itself, so it cannot read an identifier the span does not
+    carry, and the rendered ``execute_tool x`` can never travel back into
     ``gen_ai.tool.name``.
     """
     # Identity at CREATION so pending snapshots (on_start) carry it; the
@@ -177,17 +177,7 @@ def _creation(
     )
     if user_id is not None:
         attributes[USER_ID] = user_id
-    span_name = (
-        name
-        if name is not None
-        else default_span_name(
-            kind,
-            tool_name=resolved_tool_name,
-            agent_name=resolved_agent_name,
-            data_source_id=data_source_id,
-        )
-    )
-    return span_name, attributes
+    return (name if name is not None else compose_span_name(kind, attributes)), attributes
 
 
 def start_span(
