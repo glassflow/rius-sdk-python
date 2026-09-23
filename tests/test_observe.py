@@ -452,3 +452,25 @@ def test_otel_kind_field_follows_taxonomy_on_generator_paths(
         OtelSpanKind.CLIENT,
         OtelSpanKind.CLIENT,
     ]
+
+
+def test_observe_agent_kind_takes_an_agent_name(exported_spans: InMemorySpanExporter) -> None:
+    @observe(kind=SpanKind.AGENT, agent_name="researcher")
+    def plan() -> str:
+        return "done"
+
+    plan()
+    attrs = exported_spans.get_finished_spans()[0].attributes
+    assert attrs["gen_ai.agent.name"] == "researcher"
+    assert attrs["gen_ai.operation.name"] == "invoke_agent"
+
+
+def test_observe_agent_kind_does_not_name_the_agent_after_the_function(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    @observe(kind=SpanKind.AGENT)
+    def plan() -> str:
+        return "done"
+
+    plan()
+    assert "gen_ai.agent.name" not in exported_spans.get_finished_spans()[0].attributes

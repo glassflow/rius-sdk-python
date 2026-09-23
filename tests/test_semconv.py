@@ -83,10 +83,10 @@ def test_data_source_id_is_set_only_on_retriever_spans() -> None:
     from rius.semconv import GEN_AI_DATA_SOURCE_ID, kind_attributes
 
     assert GEN_AI_DATA_SOURCE_ID == "gen_ai.data_source.id"
-    attributes = kind_attributes(SpanKind.RETRIEVER, None, "docs-index")
+    attributes = kind_attributes(SpanKind.RETRIEVER, data_source_id="docs-index")
     assert attributes[GEN_AI_DATA_SOURCE_ID] == "docs-index"
     assert GEN_AI_DATA_SOURCE_ID not in kind_attributes(SpanKind.RETRIEVER)
-    assert GEN_AI_DATA_SOURCE_ID not in kind_attributes(SpanKind.TOOL, None, "docs-index")
+    assert GEN_AI_DATA_SOURCE_ID not in kind_attributes(SpanKind.TOOL, data_source_id="docs-index")
 
 
 def test_data_source_id_is_pending_identity_not_content() -> None:
@@ -135,3 +135,31 @@ def test_context_sizes_is_not_content_and_not_pending_identity() -> None:
     assert RIUS_CONTEXT_SIZES == "rius.context.sizes"
     assert RIUS_CONTEXT_SIZES not in CONTENT_ATTRIBUTES
     assert RIUS_CONTEXT_SIZES not in PENDING_IDENTITY_ATTRIBUTES
+
+
+def test_kind_attributes_sets_the_agent_name_only_on_agent_spans() -> None:
+    from rius.semconv import GEN_AI_AGENT_ID, GEN_AI_AGENT_NAME, kind_attributes
+
+    attributes = kind_attributes(SpanKind.AGENT, agent_name="planner", agent_id="ag_1")
+    assert attributes[GEN_AI_AGENT_NAME] == "planner"
+    assert attributes[GEN_AI_AGENT_ID] == "ag_1"
+
+    # Never invented, and meaningless on every other kind.
+    assert GEN_AI_AGENT_NAME not in kind_attributes(SpanKind.AGENT)
+    assert GEN_AI_AGENT_NAME not in kind_attributes(SpanKind.CHAIN, agent_name="planner")
+    assert GEN_AI_AGENT_ID not in kind_attributes(SpanKind.LLM, agent_id="ag_1")
+
+
+def test_agent_identity_is_pending_allowlisted_and_not_content() -> None:
+    """Which agent a span invokes is known at start and is identity, so a
+    still-running agent must be attributable in the live view."""
+    from rius.semconv import (
+        CONTENT_ATTRIBUTES,
+        GEN_AI_AGENT_ID,
+        GEN_AI_AGENT_NAME,
+        PENDING_IDENTITY_ATTRIBUTES,
+    )
+
+    for key in (GEN_AI_AGENT_NAME, GEN_AI_AGENT_ID):
+        assert key in PENDING_IDENTITY_ATTRIBUTES
+        assert key not in CONTENT_ATTRIBUTES

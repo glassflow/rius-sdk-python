@@ -226,3 +226,123 @@ def test_default_chain_span_is_internal(exported_spans: InMemorySpanExporter) ->
     with start_as_current_span("step"):
         pass
     assert exported_spans.get_finished_spans()[0].kind is OtelSpanKind.INTERNAL
+
+
+# --- gen_ai.agent.name: Conditionally Required on invoke_agent spans ---
+
+
+def test_cm_agent_kind_takes_an_explicit_agent_name(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    with start_as_current_span("plan", kind=SpanKind.AGENT, agent_name="planner"):
+        pass
+    assert exported_spans.get_finished_spans()[0].attributes["gen_ai.agent.name"] == "planner"
+
+
+def test_manual_agent_kind_takes_an_explicit_agent_name(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    start_span("plan", kind=SpanKind.AGENT, agent_name="planner").end()
+    assert exported_spans.get_finished_spans()[0].attributes["gen_ai.agent.name"] == "planner"
+
+
+def test_agent_name_is_never_derived_from_the_span_name(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    """Unlike the tool name, which falls back to the span name for
+    compatibility, an agent name is never invented: a function name is not an
+    agent's identity, and a wrong name here mislabels a whole waterfall."""
+    with start_as_current_span("plan_the_trip", kind=SpanKind.AGENT):
+        pass
+    assert "gen_ai.agent.name" not in exported_spans.get_finished_spans()[0].attributes
+
+
+def test_only_agent_spans_carry_the_agent_name(exported_spans: InMemorySpanExporter) -> None:
+    """The key means "the agent this span invokes". On any other kind it would
+    read as "the agent that produced this span", which is the resource's job."""
+    with start_as_current_span("step", kind=SpanKind.CHAIN, agent_name="planner"):
+        pass
+    assert "gen_ai.agent.name" not in exported_spans.get_finished_spans()[0].attributes
+
+
+def test_agent_kind_takes_an_optional_agent_id(exported_spans: InMemorySpanExporter) -> None:
+    with start_as_current_span("plan", kind=SpanKind.AGENT, agent_name="p", agent_id="ag_1"):
+        pass
+    attrs = exported_spans.get_finished_spans()[0].attributes
+    assert attrs["gen_ai.agent.id"] == "ag_1"
+
+
+def test_agent_id_is_omitted_when_not_given(exported_spans: InMemorySpanExporter) -> None:
+    with start_as_current_span("plan", kind=SpanKind.AGENT, agent_name="planner"):
+        pass
+    assert "gen_ai.agent.id" not in exported_spans.get_finished_spans()[0].attributes
+
+
+def test_agent_name_falls_back_to_the_configured_agent_name() -> None:
+    """The conventions make the key Conditionally Required on invoke_agent
+    spans, and a single-agent process does know the answer, so the span says
+    it rather than leaving the reader to find the resource. Resource
+    attributes do not survive every collector pipeline; the span is
+    self-describing either way."""
+    from rius import init
+
+    exporter = InMemorySpanExporter()
+    client = init(
+        span_exporter=exporter, service_name="svc", agent_name="configured", instruments=[]
+    )
+    try:
+        with start_as_current_span("plan", kind=SpanKind.AGENT):
+            pass
+    finally:
+        client.shutdown()
+    assert exporter.get_finished_spans()[0].attributes["gen_ai.agent.name"] == "configured"
+
+
+def test_explicit_agent_name_wins_over_the_configured_one() -> None:
+    """The case the multi-agent product is built around: one process, several
+    agents, each invocation naming the agent it invokes."""
+    from rius import init
+
+    exporter = InMemorySpanExporter()
+    client = init(
+        span_exporter=exporter, service_name="svc", agent_name="configured", instruments=[]
+    )
+    try:
+        with start_as_current_span("plan", kind=SpanKind.AGENT, agent_name="researcher"):
+            pass
+    finally:
+        client.shutdown()
+    assert exporter.get_finished_spans()[0].attributes["gen_ai.agent.name"] == "researcher"
+
+
+def test_the_placeholder_service_name_is_not_an_agent_name() -> None:
+    """A process that named nothing has no agent name, and must not be given
+    one. Both the service name and the agent name resolve to the same
+    placeholder when nothing was configured, so emitting it would claim an
+    identity the caller never supplied."""
+    from rius import init
+
+    exporter = InMemorySpanExporter()
+    client = init(span_exporter=exporter, instruments=[])
+    try:
+        with start_as_current_span("plan", kind=SpanKind.AGENT):
+            pass
+    finally:
+        client.shutdown()
+    assert "gen_ai.agent.name" not in exporter.get_finished_spans()[0].attributes
+
+
+def test_an_explicit_agent_name_survives_an_unnamed_service() -> None:
+    """Suppressing the placeholder must not suppress a real name that happens
+    to arrive in a process with no service name."""
+    from rius import init
+
+    exporter = InMemorySpanExporter()
+    client = init(span_exporter=exporter, instruments=[])
+    try:
+        with start_as_current_span("plan", kind=SpanKind.AGENT, agent_name="researcher"):
+            pass
+    finally:
+        client.shutdown()
+    attrs = exporter.get_finished_spans()[0].attributes
+    assert attrs["gen_ai.agent.name"] == "researcher"
