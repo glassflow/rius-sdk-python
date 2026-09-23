@@ -149,10 +149,6 @@ GEN_AI_REQUEST_SEED = "gen_ai.request.seed"
 GEN_AI_REQUEST_STOP_SEQUENCES = "gen_ai.request.stop_sequences"
 # "The target number of candidate completions to return" — OpenAI's `n`.
 GEN_AI_REQUEST_CHOICE_COUNT = "gen_ai.request.choice.count"
-# The legacy GenAI provider key, deprecated in favour of gen_ai.provider.name
-# (the registry's own `GEN_AI_SYSTEM` docstring says "Replaced by
-# `gen_ai.provider.name`"). We MAP it and never emit it.
-GEN_AI_SYSTEM = "gen_ai.system"
 GEN_AI_USAGE_INPUT_TOKENS = "gen_ai.usage.input_tokens"
 GEN_AI_USAGE_OUTPUT_TOKENS = "gen_ai.usage.output_tokens"
 GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS = "gen_ai.usage.cache_read.input_tokens"

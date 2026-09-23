@@ -102,7 +102,6 @@ from .semconv import (
     GEN_AI_REQUEST_TOP_P,
     GEN_AI_RESPONSE_MODEL,
     GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK,
-    GEN_AI_SYSTEM,
     GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS,
     GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS,
     GEN_AI_USAGE_INPUT_TOKENS,
@@ -611,7 +610,11 @@ OPENINFERENCE_RULES: tuple[AnyRule, ...] = (
     # OpenInference's and the more specific (azure/aws/google rather than the
     # product); gen_ai.system is the deprecated GenAI key, which we map here
     # and never emit.
-    Rule(("llm.provider", GEN_AI_SYSTEM), GEN_AI_PROVIDER_NAME, provider_name),
+    # GEN_AI_SYSTEM is spelled here, not in semconv.py: that module is the
+    # set of keys we EMIT (and a CI check holds it against the upstream
+    # registry, which has dropped the deprecated name). This is a source
+    # spelling, like the llm.* ones.
+    Rule(("llm.provider", "gen_ai.system"), GEN_AI_PROVIDER_NAME, provider_name),
     # Model. Only the anthropic instrumentor emits this unambiguous pair
     # (_wrappers.py:596, :603); see the omission note on llm.model_name.
     Rule("llm.request.model_name", GEN_AI_REQUEST_MODEL, copy_value),
