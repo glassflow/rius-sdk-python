@@ -241,9 +241,20 @@ def test_creation_identity_keys_are_pending_allowlisted() -> None:
     from rius.spans import _creation_attributes as span_attributes
 
     builders: dict[str, dict[str, str]] = {
-        f"kind_attributes({kind.name})": kind_attributes(kind, "tool-name") for kind in SpanKind
+        f"kind_attributes({kind.name})": kind_attributes(
+            kind,
+            "tool-name",
+            data_source_id="docs",
+            top_k=5,
+            agent_name="planner",
+            agent_id="ag_1",
+        )
+        for kind in SpanKind
     }
-    builders["spans"] = span_attributes("weather", SpanKind.TOOL, "u", "weather")
+    builders["spans"] = span_attributes("weather", SpanKind.TOOL, "u", tool_name="weather")
+    builders["spans(agent)"] = span_attributes(
+        "plan", SpanKind.AGENT, "u", agent_name="planner", agent_id="ag_1"
+    )
     builders["generation"] = generation_attributes(
         model="m", provider="p", operation="chat", user_id="u"
     )
@@ -254,3 +265,23 @@ def test_creation_identity_keys_are_pending_allowlisted() -> None:
             assert key in PENDING_IDENTITY_ATTRIBUTES or key.startswith(
                 PENDING_IDENTITY_PREFIXES
             ), f"{builder} sets {key!r} at creation but it is not pending-allowlisted"
+
+
+def test_pending_snapshot_of_an_agent_span_carries_the_agent_name() -> None:
+    """The waterfall's live view must say which agent is running, not just
+    that some agent is."""
+    from rius import _tracer
+    from rius.semconv import SpanKind
+    from rius.spans import start_span
+
+    client, exporter = _memory_client(partial_spans=True)
+    _tracer.publish(client._provider)
+    span = start_span("plan", kind=SpanKind.AGENT, agent_name="researcher", agent_id="ag_1")
+    client.flush()
+    pending, _ = _split(exporter.get_finished_spans())
+    span.end()
+    assert pending, "expected a pending snapshot"
+    attrs = pending[0].attributes
+    assert attrs["gen_ai.agent.name"] == "researcher"
+    assert attrs["gen_ai.agent.id"] == "ag_1"
+    assert attrs["gen_ai.operation.name"] == "invoke_agent"

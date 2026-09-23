@@ -17,6 +17,7 @@ from typing import Any, TypeVar, overload
 from opentelemetry import context as otel_context
 from opentelemetry import trace
 
+from ._agent import resolve_agent_name
 from ._errors import record_error
 from ._serde import serialize
 from ._tracer import sdk_tracer
@@ -82,6 +83,8 @@ def observe(
     tool_name: str | None = ...,
     data_source_id: str | None = ...,
     top_k: int | None = ...,
+    agent_name: str | None = ...,
+    agent_id: str | None = ...,
 ) -> Callable[[F], F]: ...
 
 
@@ -95,6 +98,8 @@ def observe(
     tool_name: str | None = None,
     data_source_id: str | None = None,
     top_k: int | None = None,
+    agent_name: str | None = None,
+    agent_id: str | None = None,
 ) -> Any:
     """Decorate a function so each call is traced as a span.
 
@@ -122,6 +127,13 @@ def observe(
             (``gen_ai.retrieval.top_k``). Ignored for other kinds. What came
             back is not a decorator argument: it is only known once the
             function returns, so record it from the return value instead.
+        agent_name: The agent an ``AGENT`` span invokes
+            (``gen_ai.agent.name``). Unset, it falls back to the agent name
+            ``init()`` was given, and is never taken from the function or the
+            span name: a function name is not an agent's identity. Ignored for
+            other kinds.
+        agent_id: The agent's stable identifier (``gen_ai.agent.id``), where
+            the caller has one. Never invented.
 
     Returns:
         The wrapped function (or a decorator, when used parameterized).
@@ -130,6 +142,19 @@ def observe(
     def decorate(fn: Callable[..., Any]) -> Callable[..., Any]:
         span_name = name or fn.__qualname__
         span_tool_name = _resolve_tool_name(tool_name, name, fn.__qualname__, kind)
+
+        def _kind_attributes() -> dict[str, str | int]:
+            # Resolved per CALL, not per decoration: init() usually runs after
+            # the module defining the decorated function is imported, so the
+            # configured agent name is not yet published at decoration time.
+            return kind_attributes(
+                kind,
+                span_tool_name,
+                data_source_id=data_source_id,
+                top_k=top_k,
+                agent_name=resolve_agent_name(agent_name, kind),
+                agent_id=agent_id,
+            )
 
         def _set_input(span: trace.Span, args: tuple[Any, ...], kwargs: dict[str, Any]) -> None:
             if capture_input:
@@ -149,7 +174,7 @@ def observe(
                 span = tracer.start_span(
                     span_name,
                     kind=otel_span_kind(kind),
-                    attributes=kind_attributes(kind, span_tool_name, data_source_id, top_k),
+                    attributes=_kind_attributes(),
                 )
                 _set_input(span, args, kwargs)
                 agen = fn(*args, **kwargs)
@@ -192,7 +217,7 @@ def observe(
                 with tracer.start_as_current_span(
                     span_name,
                     kind=otel_span_kind(kind),
-                    attributes=kind_attributes(kind, span_tool_name, data_source_id, top_k),
+                    attributes=_kind_attributes(),
                     record_exception=False,
                     set_status_on_exception=False,
                 ) as span:
@@ -216,7 +241,7 @@ def observe(
                 span = tracer.start_span(
                     span_name,
                     kind=otel_span_kind(kind),
-                    attributes=kind_attributes(kind, span_tool_name, data_source_id, top_k),
+                    attributes=_kind_attributes(),
                 )
                 _set_input(span, args, kwargs)
                 gen = fn(*args, **kwargs)
@@ -254,7 +279,7 @@ def observe(
             with tracer.start_as_current_span(
                 span_name,
                 kind=otel_span_kind(kind),
-                attributes=kind_attributes(kind, span_tool_name, data_source_id, top_k),
+                attributes=_kind_attributes(),
                 record_exception=False,
                 set_status_on_exception=False,
             ) as span:

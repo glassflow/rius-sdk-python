@@ -15,7 +15,7 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, SpanExporter
 from opentelemetry.sdk.trace.sampling import ParentBased, TraceIdRatioBased
 
-from . import __version__, _tracer
+from . import __version__, _agent, _tracer
 from .config import DEFAULT_ENDPOINT, GlassflowConfig, resolve_config
 from .export_health import (
     ExportOutcomeExporter,
@@ -150,6 +150,7 @@ class GlassflowClient:
             if _current_client is self:
                 _current_client = None
         _tracer.withdraw(self._provider)
+        _agent.withdraw(self._provider)
 
 
 def init(
@@ -415,6 +416,8 @@ def _do_init(
         # The helpers follow the active client, not the write-once OTel global,
         # so a shutdown()+init() cycle moves them to the new pipeline too.
         _tracer.publish(provider)
+        # AGENT spans fall back to this when the caller names no agent.
+        _agent.publish(provider, config.agent_name)
 
     # Instrumentors are process-global singletons: auto-enable only for a global
     # init; a scoped client must opt in explicitly via `instruments=[...]`.

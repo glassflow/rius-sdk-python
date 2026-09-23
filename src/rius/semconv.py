@@ -31,6 +31,13 @@ SERVICE_INSTANCE_ID = "service.instance.id"
 # disagreeing about what it is called.
 GEN_AI_AGENT_NAME = "gen_ai.agent.name"
 
+# The agent's stable identifier, where the caller has one. Adopted alongside
+# the name rather than deferred: the conventions define it, it costs one
+# optional argument, and a name is not an identity — two deployments of the
+# same agent share a name, and a renamed agent keeps its id. Never invented;
+# there is no configured default for it the way there is for the name.
+GEN_AI_AGENT_ID = "gen_ai.agent.id"
+
 # --- Attribute keys ---
 # OpenInference
 OPENINFERENCE_SPAN_KIND = "openinference.span.kind"
@@ -170,6 +177,12 @@ PENDING_IDENTITY_ATTRIBUTES = frozenset(
         # Its counterpart, gen_ai.retrieval.documents, deliberately is not:
         # what came back cannot be known while the span is still open.
         GEN_AI_RETRIEVAL_TOP_K,
+        # Which agent a span invokes is chosen by the caller before the work
+        # starts, so a still-running agent is attributable in the live view.
+        # Distinct from the resource key of the same name, which says which
+        # PROCESS is running; this says which agent that process invoked here.
+        GEN_AI_AGENT_NAME,
+        GEN_AI_AGENT_ID,
         # Protocol identity, not content: a still-running MCP call must be
         # distinguishable from a local tool in the live view — the one place
         # setting the marker at creation pays off.
@@ -351,8 +364,11 @@ def otel_span_kind(kind: SpanKind) -> OtelSpanKind:
 def kind_attributes(
     kind: SpanKind,
     tool_name: str | None = None,
+    *,
     data_source_id: str | None = None,
     top_k: int | None = None,
+    agent_name: str | None = None,
+    agent_id: str | None = None,
 ) -> dict[str, str | int]:
     """Identity attributes for a span of ``kind``, for setting at CREATION.
 
@@ -372,6 +388,13 @@ def kind_attributes(
     for (``gen_ai.retrieval.top_k``). Only the caller knows either, so both
     are arguments rather than something derived. What the search RETURNED is
     not here: it is unknown at creation, and set through the observation.
+
+    ``agent_name`` and ``agent_id`` identify the agent an AGENT span invokes,
+    which the conventions make Conditionally Required on an invoke-agent span.
+    Neither is ever derived from the span name: unlike a tool, whose name and
+    span name coincided historically, a function name is not an agent's
+    identity, and guessing one mislabels every span beneath it. The caller
+    supplies them, or the span helper falls back to the configured agent name.
     """
     attributes: dict[str, str | int] = {OPENINFERENCE_SPAN_KIND: kind.value}
     operation = _OPERATION_BY_KIND.get(kind)
@@ -384,6 +407,11 @@ def kind_attributes(
             attributes[GEN_AI_DATA_SOURCE_ID] = data_source_id
         if top_k is not None:
             attributes[GEN_AI_RETRIEVAL_TOP_K] = top_k
+    if kind is SpanKind.AGENT:
+        if agent_name is not None:
+            attributes[GEN_AI_AGENT_NAME] = agent_name
+        if agent_id is not None:
+            attributes[GEN_AI_AGENT_ID] = agent_id
     return attributes
 
 

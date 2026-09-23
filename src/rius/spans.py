@@ -21,6 +21,7 @@ from typing import Any
 
 from opentelemetry.trace import Span
 
+from ._agent import resolve_agent_name
 from ._errors import error_type, record_error
 from ._serde import serialize
 from ._tracer import sdk_tracer
@@ -142,8 +143,11 @@ def _creation_attributes(
     kind: SpanKind,
     user_id: str | None,
     tool_name: str | None = None,
+    *,
     data_source_id: str | None = None,
     top_k: int | None = None,
+    agent_name: str | None = None,
+    agent_id: str | None = None,
 ) -> dict[str, str | int]:
     # Identity at CREATION so pending snapshots (on_start) carry it; the
     # user id is set here as well as via the user() scope so it reaches the
@@ -151,7 +155,14 @@ def _creation_attributes(
     # The tool name falls back to the span name, which is all a caller of this
     # surface gives us; an explicit one keeps the two independent.
     attributes: dict[str, str | int] = dict(
-        kind_attributes(kind, tool_name or name, data_source_id, top_k)
+        kind_attributes(
+            kind,
+            tool_name or name,
+            data_source_id=data_source_id,
+            top_k=top_k,
+            agent_name=resolve_agent_name(agent_name, kind),
+            agent_id=agent_id,
+        )
     )
     if user_id is not None:
         attributes[USER_ID] = user_id
@@ -167,6 +178,8 @@ def start_span(
     tool_name: str | None = None,
     data_source_id: str | None = None,
     top_k: int | None = None,
+    agent_name: str | None = None,
+    agent_id: str | None = None,
 ) -> Observation:
     """Create a span and return an ``Observation``. You MUST call ``.end()``.
 
@@ -188,11 +201,26 @@ def start_span(
     creation, so a still-running retrieval is already attributable to its
     source. What came back is recorded afterwards with
     ``Observation.set_retrieved_documents``.
+
+    ``agent_name`` names the agent an ``AGENT`` span invokes
+    (``gen_ai.agent.name``), with ``agent_id`` as its stable identifier where
+    one exists. Unset, the name falls back to the agent name ``init()`` was
+    given; it is never taken from the span name. Both are ignored on every
+    other kind.
     """
     span = sdk_tracer().start_span(
         name,
         kind=otel_span_kind(kind),
-        attributes=_creation_attributes(name, kind, user_id, tool_name, data_source_id, top_k),
+        attributes=_creation_attributes(
+            name,
+            kind,
+            user_id,
+            tool_name,
+            data_source_id=data_source_id,
+            top_k=top_k,
+            agent_name=agent_name,
+            agent_id=agent_id,
+        ),
     )
     observation = Observation(span)
     _configure(observation, input)
@@ -209,6 +237,8 @@ def start_as_current_span(
     tool_name: str | None = None,
     data_source_id: str | None = None,
     top_k: int | None = None,
+    agent_name: str | None = None,
+    agent_id: str | None = None,
 ) -> Iterator[Observation]:
     """Open a span as the current span and yield an ``Observation``; auto-ends.
 
@@ -228,6 +258,12 @@ def start_as_current_span(
     creation, so a still-running retrieval is already attributable to its
     source. What came back is recorded afterwards with
     ``Observation.set_retrieved_documents``.
+
+    ``agent_name`` names the agent an ``AGENT`` span invokes
+    (``gen_ai.agent.name``), with ``agent_id`` as its stable identifier where
+    one exists. Unset, the name falls back to the agent name ``init()`` was
+    given; it is never taken from the span name. Both are ignored on every
+    other kind.
     """
     tracer = sdk_tracer()
     with (
@@ -235,7 +271,16 @@ def start_as_current_span(
         tracer.start_as_current_span(
             name,
             kind=otel_span_kind(kind),
-            attributes=_creation_attributes(name, kind, user_id, tool_name, data_source_id, top_k),
+            attributes=_creation_attributes(
+                name,
+                kind,
+                user_id,
+                tool_name,
+                data_source_id=data_source_id,
+                top_k=top_k,
+                agent_name=agent_name,
+                agent_id=agent_id,
+            ),
         ) as span,
     ):
         observation = Observation(span)
