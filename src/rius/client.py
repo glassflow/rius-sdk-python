@@ -28,7 +28,7 @@ from .instrumentation import enable_instrumentations
 from .masking import MaskingSpanExporter
 from .normalization import NormalizingSpanExporter, NormalizingSpanProcessor
 from .pending import PendingSpanProcessor
-from .semconv import GEN_AI_AGENT_NAME, SERVICE_INSTANCE_ID, TRACER_NAME
+from .semconv import GEN_AI_AGENT_NAME, SERVICE_INSTANCE_ID, SERVICE_VERSION, TRACER_NAME
 from .session import SessionSpanProcessor
 from .user import UserSpanProcessor
 from .workspace import ExporterFactory, RoutingSpanExporter, WorkspaceSpanProcessor
@@ -159,6 +159,7 @@ def init(
     endpoint: str | None = None,
     api_key: str | None = None,
     service_name: str | None = None,
+    service_version: str | None = None,
     headers: dict[str, str] | None = None,
     disabled: bool | None = None,
     sample_rate: float | None = None,
@@ -191,6 +192,13 @@ def init(
         endpoint: Base OTLP endpoint. Traces are sent to ``<endpoint>/v1/traces``.
         api_key: API key; injected as an ``Authorization: Bearer`` header.
         service_name: Value for the ``service.name`` resource attribute.
+        service_version: Value for the ``service.version`` resource
+            attribute, e.g. the release or image tag this process is running.
+            Resolution order is this argument, then ``RIUS_SERVICE_VERSION``,
+            then whatever ``OTEL_RESOURCE_ATTRIBUTES`` supplies (the OTel SDK
+            merges that variable into every resource), then unset. There is no
+            placeholder default: a fake version would group every deployment
+            into one bucket, which is worse than the attribute being absent.
         headers: Extra headers for the OTLP exporter.
         disabled: If True, no exporter is attached (spans are dropped).
         sample_rate: Head sampling ratio 0.0-1.0 (whole-trace). Default 1.0.
@@ -257,6 +265,7 @@ def init(
             endpoint=endpoint,
             api_key=api_key,
             service_name=service_name,
+            service_version=service_version,
             headers=headers,
             disabled=disabled,
             sample_rate=sample_rate,
@@ -283,6 +292,7 @@ def _do_init(
     endpoint: str | None,
     api_key: str | None,
     service_name: str | None,
+    service_version: str | None,
     headers: dict[str, str] | None,
     disabled: bool | None,
     sample_rate: float | None,
@@ -307,6 +317,7 @@ def _do_init(
         endpoint=endpoint,
         api_key=api_key,
         service_name=service_name,
+        service_version=service_version,
         headers=headers,
         disabled=disabled,
         sample_rate=sample_rate,
@@ -332,6 +343,13 @@ def _do_init(
         {
             "service.name": config.service_name,
             SERVICE_INSTANCE_ID: instance_id,
+            # Only when known. Passing None would stamp the attribute with a
+            # null OTel drops with a warning, and passing a placeholder would
+            # be worse: an absent service.version reads as "unknown", a fake
+            # one reads as a real (wrong) release. Leaving the key out also
+            # lets OTEL_RESOURCE_ATTRIBUTES supply it, since Resource.create
+            # merges these attributes OVER the detected ones.
+            **({SERVICE_VERSION: config.service_version} if config.service_version else {}),
             # The same name the heartbeat sender reports. Config resolution
             # already defaults it to the service name, so a process that sets
             # only a service name is unchanged; one that sets both no longer

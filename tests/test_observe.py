@@ -669,3 +669,52 @@ def test_observe_composes_names_on_every_wrapper_shape(
     list(gen_tool())
     asyncio.run(drive())
     assert {s.name for s in exported_spans.get_finished_spans()} == {"execute_tool t"}
+
+
+# --- the tool call id and the tool type on a decorated tool ---
+
+
+def test_observe_tool_takes_a_call_id_and_a_tool_type(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    @observe(
+        kind=SpanKind.TOOL, tool_name="get_weather", tool_call_id="call_1", tool_type="function"
+    )
+    def get_weather(city: str) -> str:
+        return "sunny"
+
+    get_weather("berlin")
+    attrs = exported_spans.get_finished_spans()[0].attributes
+    assert attrs is not None
+    assert attrs["gen_ai.tool.call.id"] == "call_1"
+    assert attrs["gen_ai.tool.type"] == "function"
+    # Named after the tool, never after either identifier.
+    assert exported_spans.get_finished_spans()[0].name == "execute_tool get_weather"
+
+
+def test_observe_omits_the_tool_identifiers_unless_given(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    @observe(kind=SpanKind.TOOL, tool_name="get_weather")
+    def get_weather() -> str:
+        return "sunny"
+
+    get_weather()
+    attrs = exported_spans.get_finished_spans()[0].attributes
+    assert attrs is not None
+    assert "gen_ai.tool.call.id" not in attrs
+    assert "gen_ai.tool.type" not in attrs
+
+
+def test_observe_ignores_the_tool_identifiers_on_other_kinds(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    @observe(kind=SpanKind.CHAIN, tool_call_id="call_1", tool_type="function")
+    def step() -> None:
+        return None
+
+    step()
+    attrs = exported_spans.get_finished_spans()[0].attributes
+    assert attrs is not None
+    assert "gen_ai.tool.call.id" not in attrs
+    assert "gen_ai.tool.type" not in attrs

@@ -765,3 +765,81 @@ def test_an_explicit_generation_name_always_wins(exported_spans: InMemorySpanExp
         pass
     start_generation("summarize", model="gpt-4o").end()
     assert [s.name for s in exported_spans.get_finished_spans()] == ["summarize", "summarize"]
+
+
+# --- gen_ai.output.type (request-shaped) and gen_ai.response.id (post-call) ---
+
+
+def test_output_type_is_set_at_creation(exported_spans: InMemorySpanExporter) -> None:
+    """The requested output type is known before the call, so it is a creation
+    argument and reaches pending snapshots."""
+    with start_as_current_generation(model="gpt-4o", output_type="json"):
+        pass
+    start_generation(model="gpt-4o", output_type="json").end()
+    for span in exported_spans.get_finished_spans():
+        assert span.attributes is not None
+        assert span.attributes["gen_ai.output.type"] == "json"
+
+
+def test_an_unset_output_type_is_absent(exported_spans: InMemorySpanExporter) -> None:
+    with start_as_current_generation(model="gpt-4o"):
+        pass
+    attrs = exported_spans.get_finished_spans()[0].attributes
+    assert attrs is not None
+    assert "gen_ai.output.type" not in attrs
+
+
+def test_an_unrecognised_output_type_is_recorded_verbatim(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    """The conventions list text/json/image/speech, but the enum is theirs to
+    extend and the caller's string is the caller's truth: rejecting a value we
+    do not recognise would lose data over a spec we do not control."""
+    with start_as_current_generation(model="gpt-4o", output_type="video"):
+        pass
+    attrs = exported_spans.get_finished_spans()[0].attributes
+    assert attrs is not None
+    assert attrs["gen_ai.output.type"] == "video"
+
+
+def test_the_output_type_does_not_change_the_span_name(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    with start_as_current_generation(model="gpt-4o", output_type="json"):
+        pass
+    assert exported_spans.get_finished_spans()[0].name == "chat gpt-4o"
+
+
+def test_response_id_is_recorded_after_the_call(exported_spans: InMemorySpanExporter) -> None:
+    """The provider's completion id only exists once the call returns, so it
+    is a setter next to set_response_model rather than a creation argument."""
+    with start_as_current_generation(model="gpt-4o") as generation:
+        generation.set_response_id("chatcmpl-123")
+    manual = start_generation(model="gpt-4o")
+    manual.set_response_id("chatcmpl-456")
+    manual.end()
+    ids = [s.attributes["gen_ai.response.id"] for s in exported_spans.get_finished_spans()]  # type: ignore[index]
+    assert ids == ["chatcmpl-123", "chatcmpl-456"]
+
+
+def test_neither_key_is_content() -> None:
+    """A completion id and an output modality say nothing about what was said,
+    so both survive capture_content=False."""
+    from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
+        InMemorySpanExporter as Exporter,
+    )
+
+    from rius import init
+
+    inner = Exporter()
+    client = init(span_exporter=inner, set_global=False, capture_content=False)
+    with client.get_tracer().start_as_current_span("op") as span:
+        span.set_attribute("gen_ai.output.type", "json")
+        span.set_attribute("gen_ai.response.id", "chatcmpl-123")
+        span.set_attribute("gen_ai.input.messages", "secret")
+    client.flush()
+    attrs = inner.get_finished_spans()[0].attributes
+    assert attrs is not None
+    assert attrs["gen_ai.output.type"] == "json"
+    assert attrs["gen_ai.response.id"] == "chatcmpl-123"
+    assert "gen_ai.input.messages" not in attrs

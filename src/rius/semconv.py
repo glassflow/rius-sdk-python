@@ -25,6 +25,12 @@ TRACER_NAME = "rius"
 # at init). The heartbeat payload's instance_id carries the SAME value, which
 # is what lets the backend join heartbeats to traces and count replicas.
 SERVICE_INSTANCE_ID = "service.instance.id"
+# OTel standard version of the deployed service. Metadata about the process,
+# not about any one span. Stamped only when a version is actually known: there
+# is deliberately no placeholder default, because a fake one merges every
+# deployment into a single bucket — the same mistake `unknown_service` makes
+# for service.name, which _agent.py has to suppress for exactly this reason.
+SERVICE_VERSION = "service.version"
 # The agent this process IS, stamped once on the resource so every span it
 # emits groups under the same name its heartbeats do. Without it the backend
 # falls through to service.name per span, and a process whose agent name
@@ -68,6 +74,21 @@ GEN_AI_PROVIDER_NAME = "gen_ai.provider.name"
 GEN_AI_REQUEST_MODEL = "gen_ai.request.model"
 GEN_AI_REQUEST_REASONING_LEVEL = "gen_ai.request.reasoning.level"
 GEN_AI_RESPONSE_MODEL = "gen_ai.response.model"
+# The provider's own identifier for the completion ("chatcmpl-123"),
+# Recommended on an inference span. Metadata: it exists only once the provider
+# has answered, so it is a post-call setter and never reaches a pending
+# snapshot. Not content — an opaque id says nothing about what was said — so
+# it survives capture_content=False.
+GEN_AI_RESPONSE_ID = "gen_ai.response.id"
+# The output modality the client ASKED for (text / json / image / speech in
+# the registry today), Conditionally Required when the request specifies one.
+# Identity: it describes the request, so it is known at span creation and must
+# ride pending snapshots. Note the key is NOT under gen_ai.request., so
+# PENDING_IDENTITY_PREFIXES does not cover it and it needs its own allowlist
+# entry below. Recorded verbatim rather than validated against the enum: the
+# conventions are free to extend it, and a value we do not recognise is still
+# the caller's truth. Not content, for the reason the response id is not.
+GEN_AI_OUTPUT_TYPE = "gen_ai.output.type"
 # Streaming, per the GenAI inference-span conventions: gen_ai.request.stream
 # (boolean, Conditionally Required when streaming) and
 # gen_ai.response.time_to_first_chunk (double, seconds, "measured from request
@@ -87,6 +108,18 @@ GEN_AI_INPUT_MESSAGES = "gen_ai.input.messages"
 GEN_AI_OUTPUT_MESSAGES = "gen_ai.output.messages"
 GEN_AI_RESPONSE_FINISH_REASONS = "gen_ai.response.finish_reasons"
 GEN_AI_TOOL_NAME = "gen_ai.tool.name"
+# The identifier of the tool call this execution answers — the id the MODEL
+# minted on its tool-call message, which is what joins a tool span back to the
+# generation that asked for it. Identity, set at span creation, so it needs an
+# allowlist entry below. Never derived: only the caller holds the model's
+# response. Its sibling gen_ai.tool.call.arguments IS content and is listed in
+# CONTENT_ATTRIBUTES; an opaque id is not.
+GEN_AI_TOOL_CALL_ID = "gen_ai.tool.call.id"
+# What KIND of tool ran, the conventions' own examples being "function"
+# (client-side), "extension" (agent-side) and "datastore". Identity for the
+# same reason the call id is: caller-supplied, known before the tool runs.
+# A free string, not an enum, in the registry.
+GEN_AI_TOOL_TYPE = "gen_ai.tool.type"
 # The request's tool/function definitions, serialized verbatim (provider
 # shapes differ; the backend reads names and sizes from either). Content,
 # not identity — listed in CONTENT_ATTRIBUTES below.
@@ -172,6 +205,16 @@ PENDING_IDENTITY_ATTRIBUTES = frozenset(
         GEN_AI_OPERATION_NAME,
         GEN_AI_PROVIDER_NAME,
         GEN_AI_TOOL_NAME,
+        # Which tool call a still-running execution answers, and what kind of
+        # tool it is. Both are caller-supplied at creation, and the call id is
+        # what joins the pending tool span back to the generation that asked
+        # for it while the tool is still running.
+        GEN_AI_TOOL_CALL_ID,
+        GEN_AI_TOOL_TYPE,
+        # The requested output modality describes the request, so it is known
+        # before the model answers. Listed explicitly because the key sits
+        # outside gen_ai.request. and the prefix rule below does not reach it.
+        GEN_AI_OUTPUT_TYPE,
         # Which index a still-running retrieval is searching is identity, and
         # the live view has nothing else to tell two searches apart by.
         GEN_AI_DATA_SOURCE_ID,
@@ -430,6 +473,8 @@ def kind_attributes(
     agent_name: str | None = None,
     agent_id: str | None = None,
     executing_agent_name: str | None = None,
+    tool_call_id: str | None = None,
+    tool_type: str | None = None,
 ) -> dict[str, str | int]:
     """Identity attributes for a span of ``kind``, for setting at CREATION.
 
@@ -457,6 +502,14 @@ def kind_attributes(
     identity, and guessing one mislabels every span beneath it. The caller
     supplies them, or the span helper falls back to the configured agent name.
 
+    ``tool_call_id`` is ``gen_ai.tool.call.id``, the identifier the MODEL put
+    on the tool-call message this execution answers, and ``tool_type`` is
+    ``gen_ai.tool.type`` ("function", "extension", "datastore", ...). Both are
+    TOOL-only, both are caller-supplied, and neither is ever guessed: only the
+    caller has seen the model's response, and a tool's type is a fact about
+    its declaration rather than about the call. Neither touches the span NAME,
+    because ``_NAME_TARGET_BY_KIND`` maps TOOL to ``gen_ai.tool.name`` alone.
+
     ``executing_agent_name`` is a SEPARATE argument writing the SAME key,
     ``gen_ai.agent.name``, on a TOOL span — where the conventions define it as
     "the human-readable name of the agent executing the tool". One key, two
@@ -480,6 +533,10 @@ def kind_attributes(
         # other, caller-supplied source.
         if executing_agent_name is not None:
             attributes[GEN_AI_AGENT_NAME] = executing_agent_name
+        if tool_call_id is not None:
+            attributes[GEN_AI_TOOL_CALL_ID] = tool_call_id
+        if tool_type is not None:
+            attributes[GEN_AI_TOOL_TYPE] = tool_type
     if kind is SpanKind.RETRIEVER:
         if data_source_id is not None:
             attributes[GEN_AI_DATA_SOURCE_ID] = data_source_id

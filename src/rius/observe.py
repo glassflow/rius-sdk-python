@@ -113,6 +113,8 @@ def observe(
     top_k: int | None = ...,
     agent_name: str | None = ...,
     agent_id: str | None = ...,
+    tool_call_id: str | None = ...,
+    tool_type: str | None = ...,
 ) -> Callable[[F], F]: ...
 
 
@@ -128,6 +130,8 @@ def observe(
     top_k: int | None = None,
     agent_name: str | None = None,
     agent_id: str | None = None,
+    tool_call_id: str | None = None,
+    tool_type: str | None = None,
 ) -> Any:
     """Decorate a function so each call is traced as a span.
 
@@ -174,6 +178,16 @@ def observe(
             (``gen_ai.agent.id``), such as a Bedrock agent ARN. The
             conventions advise against recording a transient in-memory
             instance id here, so an in-process agent leaves it unset.
+        tool_call_id: The id the MODEL put on the tool-call message this
+            ``TOOL`` span answers (``gen_ai.tool.call.id``), which joins the
+            tool span back to the generation that requested it. Never derived:
+            only the caller has seen the model's response. Ignored for other
+            kinds, and it never becomes part of the span name.
+        tool_type: What kind of tool ran (``gen_ai.tool.type``), the
+            conventions' examples being ``"function"`` (client-side),
+            ``"extension"`` (agent-side) and ``"datastore"``. A fact about the
+            tool's declaration rather than about the call, so it is supplied
+            rather than guessed. Ignored for other kinds.
 
     Returns:
         The wrapped function (or a decorator, when used parameterized).
@@ -197,6 +211,8 @@ def observe(
                 # agent DOING the call, read from the enclosing agent scope
                 # rather than from a decorator argument.
                 executing_agent_name=(executing_agent_name() if kind is SpanKind.TOOL else None),
+                tool_call_id=tool_call_id,
+                tool_type=tool_type,
             )
 
         def _creation() -> tuple[str, dict[str, str | int]]:

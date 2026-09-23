@@ -483,3 +483,66 @@ def test_an_explicit_agent_name_survives_an_unnamed_service() -> None:
         client.shutdown()
     attrs = exporter.get_finished_spans()[0].attributes
     assert attrs["gen_ai.agent.name"] == "researcher"
+
+
+# --- the tool call id and the tool type, on LOCAL tool spans ---
+
+
+def test_cm_tool_span_takes_a_call_id_and_a_tool_type(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    """Neither can be derived: the call id belongs to the model's tool-call
+    message and the type to the tool's declaration, so both are arguments."""
+    with start_as_current_span(
+        kind=SpanKind.TOOL, tool_name="get_weather", tool_call_id="call_1", tool_type="function"
+    ):
+        pass
+    attrs = exported_spans.get_finished_spans()[0].attributes
+    assert attrs is not None
+    assert attrs["gen_ai.tool.call.id"] == "call_1"
+    assert attrs["gen_ai.tool.type"] == "function"
+
+
+def test_manual_tool_span_takes_a_call_id_and_a_tool_type(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    start_span(
+        kind=SpanKind.TOOL, tool_name="get_weather", tool_call_id="call_1", tool_type="function"
+    ).end()
+    attrs = exported_spans.get_finished_spans()[0].attributes
+    assert attrs is not None
+    assert attrs["gen_ai.tool.call.id"] == "call_1"
+    assert attrs["gen_ai.tool.type"] == "function"
+
+
+def test_the_tool_identifiers_are_absent_unless_given(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    with start_as_current_span(kind=SpanKind.TOOL, tool_name="get_weather"):
+        pass
+    attrs = exported_spans.get_finished_spans()[0].attributes
+    assert attrs is not None
+    assert "gen_ai.tool.call.id" not in attrs
+    assert "gen_ai.tool.type" not in attrs
+
+
+def test_the_tool_identifiers_are_ignored_on_other_kinds(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    for kind in (SpanKind.CHAIN, SpanKind.AGENT, SpanKind.RETRIEVER):
+        with start_as_current_span("step", kind=kind, tool_call_id="call_1", tool_type="function"):
+            pass
+    for span in exported_spans.get_finished_spans():
+        assert span.attributes is not None
+        assert "gen_ai.tool.call.id" not in span.attributes
+        assert "gen_ai.tool.type" not in span.attributes
+
+
+def test_the_tool_identifiers_do_not_change_the_span_name(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    with start_as_current_span(
+        kind=SpanKind.TOOL, tool_name="get_weather", tool_call_id="call_1", tool_type="function"
+    ):
+        pass
+    assert exported_spans.get_finished_spans()[0].name == "execute_tool get_weather"

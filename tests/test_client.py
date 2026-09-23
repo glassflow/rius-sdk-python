@@ -1,3 +1,4 @@
+import pytest
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -141,3 +142,49 @@ def test_sampling_keeps_all_at_one() -> None:
         pass
     client.flush()
     assert len(exporter.get_finished_spans()) == 1
+
+
+def test_resource_carries_the_service_version() -> None:
+    client, exporter = _memory_client(service_version="1.4.2")
+    with client.get_tracer().start_as_current_span("op"):
+        pass
+    client.flush()
+    assert exporter.get_finished_spans()[0].resource.attributes["service.version"] == "1.4.2"
+
+
+def test_an_unset_service_version_is_absent_from_the_resource() -> None:
+    """Never stamped empty and never given a placeholder: a resource without
+    the attribute is queryable as "unknown", a fake value is not."""
+    client, exporter = _memory_client()
+    with client.get_tracer().start_as_current_span("op"):
+        pass
+    client.flush()
+    assert "service.version" not in exporter.get_finished_spans()[0].resource.attributes
+
+
+def test_an_explicit_service_version_beats_the_otel_resource_attributes_variable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """OTEL_RESOURCE_ATTRIBUTES already lands service.version on the resource,
+    because Resource.create merges it. It is the weakest source of the three:
+    Resource.create merges the passed attributes OVER the detected ones, so an
+    explicit argument (and RIUS_SERVICE_VERSION behind it) wins."""
+    monkeypatch.setenv("OTEL_RESOURCE_ATTRIBUTES", "service.version=0.0.1-env")
+    client, exporter = _memory_client(service_version="1.4.2")
+    with client.get_tracer().start_as_current_span("op"):
+        pass
+    client.flush()
+    assert exporter.get_finished_spans()[0].resource.attributes["service.version"] == "1.4.2"
+
+
+def test_otel_resource_attributes_still_supplies_the_version_when_nothing_else_does(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The last rung of the resolution order, and it works without any code of
+    ours; the SDK only has to stop overwriting it with a placeholder."""
+    monkeypatch.setenv("OTEL_RESOURCE_ATTRIBUTES", "service.version=0.0.1-env")
+    client, exporter = _memory_client()
+    with client.get_tracer().start_as_current_span("op"):
+        pass
+    client.flush()
+    assert exporter.get_finished_spans()[0].resource.attributes["service.version"] == "0.0.1-env"

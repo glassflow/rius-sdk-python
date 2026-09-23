@@ -25,12 +25,14 @@ from .semconv import (
     GEN_AI_INPUT_MESSAGES,
     GEN_AI_OPERATION_NAME,
     GEN_AI_OUTPUT_MESSAGES,
+    GEN_AI_OUTPUT_TYPE,
     GEN_AI_PROVIDER_NAME,
     GEN_AI_REQUEST_MODEL,
     GEN_AI_REQUEST_PREFIX,
     GEN_AI_REQUEST_REASONING_LEVEL,
     GEN_AI_REQUEST_STREAM,
     GEN_AI_RESPONSE_FINISH_REASONS,
+    GEN_AI_RESPONSE_ID,
     GEN_AI_RESPONSE_MODEL,
     GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK,
     GEN_AI_TOOL_DEFINITIONS,
@@ -209,6 +211,20 @@ class Generation:
         """
         self._span.set_attribute(GEN_AI_RESPONSE_MODEL, response_model)
 
+    def set_response_id(self, response_id: str) -> None:
+        """Record the provider's id for this completion (``gen_ai.response.id``).
+
+        A setter rather than a creation argument for the reason
+        :meth:`set_response_model` is one: the id is minted by the provider,
+        so it does not exist when the span (or its pending snapshot) starts.
+        It is metadata, not content, and survives ``capture_content=False``.
+
+        Args:
+            response_id: The completion identifier the provider reported,
+                e.g. OpenAI's ``chatcmpl-123``. Recorded verbatim.
+        """
+        self._span.set_attribute(GEN_AI_RESPONSE_ID, response_id)
+
     def set_usage(
         self,
         *,
@@ -383,7 +399,11 @@ def _configure(
 
 
 def _creation_attributes(
-    model: str | None, provider: str | None, operation: str, user_id: str | None = None
+    model: str | None,
+    provider: str | None,
+    operation: str,
+    user_id: str | None = None,
+    output_type: str | None = None,
 ) -> dict[str, str | int]:
     """Identity attributes for an LLM span at CREATION (pending snapshots
     are built at on_start; anything set later is invisible to them)."""
@@ -395,6 +415,10 @@ def _creation_attributes(
         attributes[GEN_AI_PROVIDER_NAME] = provider
     if user_id is not None:
         attributes[USER_ID] = user_id
+    # Part of the request, so it belongs here rather than with the post-call
+    # setters: a pending snapshot must already say what modality was asked for.
+    if output_type is not None:
+        attributes[GEN_AI_OUTPUT_TYPE] = output_type
     return attributes
 
 
@@ -409,6 +433,7 @@ def start_generation(
     reasoning_level: str | None = None,
     tools: list[Any] | None = None,
     user_id: str | None = None,
+    output_type: str | None = None,
 ) -> Generation:
     """Create an LLM-kind span and return a ``Generation``. You MUST call ``.end()``.
 
@@ -436,11 +461,18 @@ def start_generation(
             via ``set_tool_definitions`` (verbatim, any provider shape).
         user_id: End-user identity (``user.id``) stamped on this span. Sugar
             for a single call; to attribute a whole request use ``user()``.
+        output_type: The output modality the request asked for
+            (``gen_ai.output.type``) — ``"text"``, ``"json"``, ``"image"`` or
+            ``"speech"`` in the conventions today. Set at creation, since it
+            describes the request; recorded verbatim, so a modality the
+            conventions have not enumerated yet is kept rather than dropped.
+            What the provider actually returned is a separate question the
+            attribute does not answer.
 
     Returns:
         A ``Generation`` handle; call ``.end()`` when the call completes.
     """
-    attributes = _creation_attributes(model, provider, operation, user_id)
+    attributes = _creation_attributes(model, provider, operation, user_id, output_type)
     span = sdk_tracer().start_span(
         name if name is not None else compose_span_name(SpanKind.LLM, attributes),
         kind=otel_span_kind(SpanKind.LLM),
@@ -472,6 +504,7 @@ def start_as_current_generation(
     reasoning_level: str | None = None,
     tools: list[Any] | None = None,
     user_id: str | None = None,
+    output_type: str | None = None,
 ) -> Iterator[Generation]:
     """Open an LLM-kind span as the current span and yield a ``Generation``; auto-ends.
 
@@ -484,7 +517,7 @@ def start_as_current_generation(
         metadata; the span ends when the block exits.
     """
     tracer = sdk_tracer()
-    attributes = _creation_attributes(model, provider, operation, user_id)
+    attributes = _creation_attributes(model, provider, operation, user_id, output_type)
     with (
         # user_id is sugar for user(user_id) around the block: children opened
         # inside inherit it through UserSpanProcessor, this span at creation.
