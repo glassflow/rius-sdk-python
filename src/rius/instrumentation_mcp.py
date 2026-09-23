@@ -115,7 +115,7 @@ def _record_result(span: Any, result: Any) -> None:
         span.set_attribute(ERROR_TYPE, ERROR_TYPE_TOOL_ERROR)
 
 
-def _call_attributes(name: str, *, protocol_version: str | None) -> dict[str, str]:
+def _call_attributes(name: str, *, protocol_version: str | None) -> dict[str, str | int]:
     """Every identity attribute of a tools/call span, for setting at CREATION.
 
     Pending snapshots are built at ``on_start``, so anything set afterwards

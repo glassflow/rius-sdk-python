@@ -63,6 +63,63 @@ def test_every_taxonomy_kind_has_an_otel_kind() -> None:
         assert isinstance(otel_span_kind(kind), OtelSpanKind)
 
 
+# --- RETRIEVER conformance: the retrieval operation and gen_ai.data_source.id ---
+
+
+def test_retriever_maps_to_the_retrieval_operation() -> None:
+    from rius.semconv import kind_attributes
+
+    assert kind_attributes(SpanKind.RETRIEVER)[GEN_AI_OPERATION_NAME] == "retrieval"
+
+
+def test_chain_stays_unmapped() -> None:
+    """The conventions define no operation for a generic step, so we emit none."""
+    from rius.semconv import kind_attributes
+
+    assert GEN_AI_OPERATION_NAME not in kind_attributes(SpanKind.CHAIN)
+
+
+def test_data_source_id_is_set_only_on_retriever_spans() -> None:
+    from rius.semconv import GEN_AI_DATA_SOURCE_ID, kind_attributes
+
+    assert GEN_AI_DATA_SOURCE_ID == "gen_ai.data_source.id"
+    attributes = kind_attributes(SpanKind.RETRIEVER, None, "docs-index")
+    assert attributes[GEN_AI_DATA_SOURCE_ID] == "docs-index"
+    assert GEN_AI_DATA_SOURCE_ID not in kind_attributes(SpanKind.RETRIEVER)
+    assert GEN_AI_DATA_SOURCE_ID not in kind_attributes(SpanKind.TOOL, None, "docs-index")
+
+
+def test_data_source_id_is_pending_identity_not_content() -> None:
+    from rius.semconv import (
+        CONTENT_ATTRIBUTES,
+        GEN_AI_DATA_SOURCE_ID,
+        PENDING_IDENTITY_ATTRIBUTES,
+    )
+
+    assert GEN_AI_DATA_SOURCE_ID in PENDING_IDENTITY_ATTRIBUTES
+    assert GEN_AI_DATA_SOURCE_ID not in CONTENT_ATTRIBUTES
+
+
+def test_top_k_is_request_identity_and_documents_are_result_metadata() -> None:
+    from rius.semconv import (
+        CONTENT_ATTRIBUTES,
+        GEN_AI_RETRIEVAL_DOCUMENTS,
+        GEN_AI_RETRIEVAL_TOP_K,
+        PENDING_IDENTITY_ATTRIBUTES,
+    )
+
+    # top_k describes the request, so it is known before the search runs.
+    assert GEN_AI_RETRIEVAL_TOP_K in PENDING_IDENTITY_ATTRIBUTES
+    assert GEN_AI_RETRIEVAL_TOP_K not in CONTENT_ATTRIBUTES
+
+    # The documents describe the result: unknown at span start, so never on a
+    # snapshot. Not content either, because the conventions define the entries
+    # as ids and scores rather than document text, and do not mark the
+    # attribute sensitive. It must therefore survive capture_content=False.
+    assert GEN_AI_RETRIEVAL_DOCUMENTS not in PENDING_IDENTITY_ATTRIBUTES
+    assert GEN_AI_RETRIEVAL_DOCUMENTS not in CONTENT_ATTRIBUTES
+
+
 def test_context_sizes_is_not_content_and_not_pending_identity() -> None:
     from rius.semconv import CONTENT_ATTRIBUTES, PENDING_IDENTITY_ATTRIBUTES, RIUS_CONTEXT_SIZES
 
