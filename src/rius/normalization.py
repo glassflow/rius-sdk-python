@@ -49,6 +49,14 @@ be both correct and total for that source; the per-instrumentation tables are
 their own tickets, and they are purely additive to this file. Rules used to
 exercise the machinery live in the tests, injected through ``table=``.
 
+Not everything a dialect says is an attribute. OpenInference records the first
+streamed chunk as a span EVENT, so it cannot go through the rule table at all;
+``normalize_first_token_event`` maps it onto ``gen_ai.first_token`` plus the
+canonical streaming attributes, and the exporter applies it alongside the
+table. It lives in the exporter for two reasons that agree: the event does not
+exist yet at ``on_start``, and the exporter is rebuilding the attribute dict
+anyway, so the derived attribute is still settable there.
+
 Ordering: the normalizing exporter must run BEFORE the masking exporter
 (i.e. it wraps it), so masking only has to recognise canonical content keys.
 Reversed, masking would strip ``llm.input_messages`` before it could be
@@ -64,8 +72,14 @@ from collections.abc import Callable, Iterable, Mapping, Sequence
 from typing import Any
 
 from opentelemetry import context as otel_context
-from opentelemetry.sdk.trace import ReadableSpan, Span, SpanProcessor
+from opentelemetry.sdk.trace import Event, ReadableSpan, Span, SpanProcessor
 from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
+
+from .semconv import (
+    GEN_AI_FIRST_TOKEN_EVENT,
+    GEN_AI_REQUEST_STREAM,
+    GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -231,6 +245,78 @@ class NormalizingSpanProcessor(SpanProcessor):
         return True
 
 
+#: The name OpenInference's instrumentors give the first streamed chunk.
+#: Confirmed in ``openinference-instrumentation-openai`` 0.1.52,
+#: ``openinference/instrumentation/openai/_stream.py::_Stream._process_chunk``:
+#: on the first iteration it calls ``add_event("First Token Stream Event")``
+#: with no attributes and no explicit timestamp, so the SDK stamps the moment
+#: the chunk arrived. That is the whole signal — the instrumentors set no
+#: streaming attribute and no time-to-first-chunk of their own.
+OPENINFERENCE_FIRST_TOKEN_EVENT = "First Token Stream Event"
+
+
+def normalize_first_token_event(
+    span: ReadableSpan,
+) -> tuple[tuple[Event, ...] | None, dict[str, Any]]:
+    """Map OpenInference's first-token event onto the canonical shape.
+
+    Returns the rebuilt event tuple (None when nothing changes) and the
+    canonical attributes to add. This does NOT go through
+    :class:`NormalizationTable`: the table maps attribute keys, and the source
+    here is an event.
+
+    It is the exporter's job, not the processor's, for two reasons that point
+    the same way. The event does not exist at ``on_start`` — it is added
+    mid-stream — so a start-time processor has nothing to read. And the
+    derived ``gen_ai.response.time_to_first_chunk`` is an attribute, which the
+    exporter can still set because it rebuilds ``_attributes`` on a copy of
+    the span (see :class:`NormalizingSpanExporter`); it is only the *live*
+    span that is out of reach by then, and we do not need it.
+
+    Native wins, as for attributes: a span already carrying
+    ``gen_ai.first_token`` keeps it, and canonical attributes already present
+    are never overwritten. The source event is dropped either way — kept, it
+    would double-count as a second first-token marker.
+
+    Unit: ``gen_ai.response.time_to_first_chunk`` is **seconds** (a float),
+    matching what ``GenerationSpan.record_first_token`` emits on the native
+    path and what the conventions specify.
+    """
+    events = span.events
+    if not events or not any(e.name == OPENINFERENCE_FIRST_TOKEN_EVENT for e in events):
+        return None, {}
+
+    attributes = span.attributes or {}
+    canonical_seen = any(e.name == GEN_AI_FIRST_TOKEN_EVENT for e in events)
+    first_token_ns: int | None = None
+    rebuilt: list[Event] = []
+    for event in events:
+        if event.name != OPENINFERENCE_FIRST_TOKEN_EVENT:
+            rebuilt.append(event)
+            continue
+        if first_token_ns is None:
+            first_token_ns = event.timestamp
+        if canonical_seen:
+            # A duplicate marker; the canonical one is authoritative.
+            continue
+        canonical_seen = True
+        rebuilt.append(Event(GEN_AI_FIRST_TOKEN_EVENT, event.attributes, event.timestamp))
+
+    added: dict[str, Any] = {}
+    if GEN_AI_REQUEST_STREAM not in attributes:
+        # A first chunk arriving is what proves the request streamed — the
+        # same inference record_first_token makes.
+        added[GEN_AI_REQUEST_STREAM] = True
+    start_ns = span.start_time
+    if (
+        GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK not in attributes
+        and isinstance(first_token_ns, int)
+        and isinstance(start_ns, int)
+    ):
+        added[GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK] = max(first_token_ns - start_ns, 0) / 1e9
+    return tuple(rebuilt), added
+
+
 class NormalizingSpanExporter(SpanExporter):
     """Map third-party keys onto canonical ones before delegating to ``inner``.
 
@@ -247,10 +333,23 @@ class NormalizingSpanExporter(SpanExporter):
 
     def _normalized(self, span: ReadableSpan) -> ReadableSpan:
         new_attributes = self._table.normalize(span.attributes)
-        if new_attributes is None:
+        new_events, event_attributes = normalize_first_token_event(span)
+        if event_attributes:
+            # setdefault, not update: normalize_first_token_event already
+            # skipped the keys the span carried natively, and a table rule
+            # that produced one wins over the derived value for the same
+            # reason — it read the span's own data rather than inferring.
+            base = dict(span.attributes or {}) if new_attributes is None else new_attributes
+            for key, value in event_attributes.items():
+                base.setdefault(key, value)
+            new_attributes = base
+        if new_attributes is None and new_events is None:
             return span
         normalized = copy.copy(span)
-        normalized._attributes = new_attributes
+        if new_attributes is not None:
+            normalized._attributes = new_attributes
+        if new_events is not None:
+            normalized._events = new_events
         return normalized
 
     def force_flush(self, timeout_millis: int = 30_000) -> bool:
