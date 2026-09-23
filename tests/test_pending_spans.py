@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 
+import pytest
 from opentelemetry.sdk.trace import SpanProcessor as _SpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
@@ -427,3 +428,163 @@ def test_pending_snapshot_does_not_leak_tool_definitions_from_request_parameters
     assert "rius.request.tools" not in attrs
     assert "SECRET" not in json.dumps(dict(attrs))
     assert attrs["gen_ai.request.temperature"] == 0.7
+
+
+# --- The inverted guard ------------------------------------------------------
+#
+# test_creation_identity_keys_are_pending_allowlisted above walks the creation
+# builders and asserts every key they set is allowlisted. That catches a
+# missing allowlist entry. It cannot catch the opposite mistake: a key that IS
+# allowlisted but is written after the span exists, so the snapshot built at
+# on_start never sees it.
+#
+# That mistake was live for the whole life of partial spans. model_parameters
+# was applied after start_span returned, so no request parameter ever reached a
+# snapshot, while the prefix rule sat in the allowlist looking correct because
+# nothing exercised it. The guard below is the invariant the allowlist actually
+# encodes: allowlisted means "reaches the live view".
+
+#: Allowlisted keys that legitimately cannot be known when the span opens.
+#: Each one is an argued exemption, not an oversight, and the set existing is
+#: the point: a new late write has to be defended in a diff instead of passing
+#: unnoticed.
+PENDING_LATE_EXEMPTIONS = frozenset(
+    {
+        # Set by record_first_token. Whether the response streamed is only
+        # answerable once a first chunk has actually arrived, which is after
+        # the span started by definition.
+        "gen_ai.request.stream",
+    }
+)
+
+
+def _fully_populated_generation() -> None:
+    from rius.generation import start_generation
+
+    generation = start_generation(
+        model="gpt-4o",
+        provider="openai",
+        input=[{"role": "user", "content": "hello"}],
+        model_parameters={
+            "temperature": 0.7,
+            "max_completion_tokens": 256,  # a recognised provider spelling
+            "my_custom_knob": 3,  # lands in rius.request.*
+        },
+        operation="chat",
+        reasoning_level="high",
+        tools=[{"name": "get_weather"}],
+        user_id="u-1",
+        output_type="json",
+    )
+    # Everything a caller can add once the call is under way, so the final span
+    # is as rich as it ever gets and the comparison has something to bite on.
+    generation.record_first_token()
+    generation.set_response_model("gpt-4o-2024-08-06")
+    generation.set_response_id("resp_1")
+    generation.set_usage(
+        input_tokens=10,
+        output_tokens=5,
+        cache_read_input_tokens=2,
+        cache_write_input_tokens=1,
+        reasoning_output_tokens=3,
+    )
+    generation.set_finish_reasons("stop")
+    generation.set_output([{"role": "assistant", "content": "hi"}])
+    generation.end()
+
+
+def _fully_populated_tool() -> None:
+    from rius.semconv import SpanKind
+    from rius.spans import start_span
+
+    observation = start_span(
+        "lookup",
+        kind=SpanKind.TOOL,
+        input={"city": "Berlin"},
+        user_id="u-1",
+        tool_name="get_weather",
+        tool_call_id="call_1",
+        tool_type="function",
+    )
+    observation.set_output({"temp": 20})
+    observation.end()
+
+
+def _fully_populated_agent() -> None:
+    from rius.semconv import SpanKind
+    from rius.spans import start_span
+
+    observation = start_span(
+        kind=SpanKind.AGENT,
+        input="research this",
+        user_id="u-1",
+        agent_name="researcher",
+        agent_id="ag_1",
+        agent_version="1.0.0",
+    )
+    observation.set_output("done")
+    observation.end()
+
+
+def _fully_populated_retriever() -> None:
+    from rius.semconv import SpanKind
+    from rius.spans import start_span
+
+    observation = start_span(
+        kind=SpanKind.RETRIEVER,
+        input="weather berlin",
+        user_id="u-1",
+        data_source_id="product-kb",
+        top_k=5,
+    )
+    observation.set_retrieved_documents([{"id": "doc-1", "score": 0.9}])
+    observation.end()
+
+
+@pytest.mark.parametrize(
+    "build",
+    [
+        _fully_populated_generation,
+        _fully_populated_tool,
+        _fully_populated_agent,
+        _fully_populated_retriever,
+    ],
+    ids=["generation", "tool", "agent", "retriever"],
+)
+def test_allowlisted_attributes_on_the_final_span_are_on_the_snapshot(build) -> None:  # noqa: ANN001
+    """An allowlisted key written after the span opens never reaches the live
+    view, and nothing today would notice. Open one span per helper with every
+    optional argument populated, then assert the snapshot carries every
+    allowlisted attribute the finished span ended up with."""
+    from rius import _tracer
+    from rius.semconv import (
+        PENDING_IDENTITY_ATTRIBUTES,
+        PENDING_IDENTITY_PREFIXES,
+    )
+    from rius.session import session
+
+    client, exporter = _memory_client(partial_spans=True)
+    _tracer.publish(client._provider)
+    # A session scope so session.id is on the span too: it is allowlisted, and
+    # a scope-derived attribute is exactly the kind that could be applied late.
+    with session("sess-1"):
+        build()
+    client.flush()
+
+    pending, final = _split(exporter.get_finished_spans())
+    assert len(pending) == 1 and len(final) == 1
+    snapshot, finished = pending[0], final[0]
+    assert snapshot.context.span_id == finished.context.span_id
+
+    missing = {
+        key: value
+        for key, value in finished.attributes.items()
+        if (key in PENDING_IDENTITY_ATTRIBUTES or key.startswith(PENDING_IDENTITY_PREFIXES))
+        and key not in PENDING_LATE_EXEMPTIONS
+        and key not in snapshot.attributes
+    }
+    assert not missing, (
+        f"allowlisted but written too late to reach the pending snapshot: {missing}. "
+        "Either set it in the span's creation attributes, or add it to "
+        "PENDING_LATE_EXEMPTIONS with the reason it cannot be known at span start."
+    )
