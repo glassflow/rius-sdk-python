@@ -248,6 +248,7 @@ def test_creation_identity_keys_are_pending_allowlisted() -> None:
             top_k=5,
             agent_name="planner",
             agent_id="ag_1",
+            executing_agent_name="executor",
         )
         for kind in SpanKind
     }
@@ -320,3 +321,22 @@ def test_pending_and_final_agree_on_a_composed_tool_span_name() -> None:
         client.flush()
     (pending,), (final,) = _split(exporter.get_finished_spans())
     assert pending.name == final.name == "execute_tool get_weather"
+
+
+def test_pending_snapshot_of_a_tool_span_carries_the_executing_agent() -> None:
+    """A still-running tool must be attributable to the agent that launched
+    it: which agent is stuck is the live view's first question."""
+    from rius import _tracer
+    from rius.semconv import SpanKind
+    from rius.spans import start_as_current_span, start_span
+
+    client, exporter = _memory_client(partial_spans=True, agent_name="configured")
+    _tracer.publish(client._provider)
+    with start_as_current_span("plan", kind=SpanKind.AGENT, agent_name="researcher"):
+        span = start_span("weather", kind=SpanKind.TOOL, tool_name="weather")
+        client.flush()
+        pending, _ = _split(exporter.get_finished_spans())
+        span.end()
+    tool_pending = [s for s in pending if s.name == "weather"]
+    assert tool_pending, "expected a pending snapshot for the tool span"
+    assert tool_pending[0].attributes["gen_ai.agent.name"] == "researcher"
