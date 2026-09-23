@@ -101,14 +101,24 @@ def resolve_agent_name(agent_name: str | None, kind: SpanKind) -> str | None:
     return _named_agent()
 
 
+def named_agent(name: str | None) -> str | None:
+    """``name``, unless it is the unnamed placeholder, in which case ``None``.
+
+    The suppression rule itself, stated once and applied at BOTH scopes: by
+    the span helpers below, and by the resource's ``rius.main_agent.name``,
+    which is the same resolved value. A process that named nothing must claim
+    no agent identity anywhere.
+    """
+    return None if name == DEFAULT_SERVICE_NAME else name
+
+
 def _named_agent() -> str | None:
     """The configured agent name, unless it is the unnamed placeholder.
 
     Shared by both readings of ``gen_ai.agent.name`` so the suppression rule
     is stated once: a process that named nothing emits nothing.
     """
-    configured = configured_agent_name()
-    return None if configured == DEFAULT_SERVICE_NAME else configured
+    return named_agent(configured_agent_name())
 
 
 def invoked_agent_name(kind: SpanKind, attributes: Mapping[str, str | int]) -> str | None:

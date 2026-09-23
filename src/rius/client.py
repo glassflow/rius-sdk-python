@@ -28,7 +28,16 @@ from .instrumentation import enable_instrumentations
 from .masking import MaskingSpanExporter
 from .normalization import NormalizingSpanExporter, NormalizingSpanProcessor
 from .pending import PendingSpanProcessor
-from .semconv import GEN_AI_AGENT_NAME, SERVICE_INSTANCE_ID, SERVICE_VERSION, TRACER_NAME
+from .semconv import (
+    GEN_AI_AGENT_NAME,
+    RIUS_MAIN_AGENT_DESCRIPTION,
+    RIUS_MAIN_AGENT_ID,
+    RIUS_MAIN_AGENT_NAME,
+    RIUS_MAIN_AGENT_VERSION,
+    SERVICE_INSTANCE_ID,
+    SERVICE_VERSION,
+    TRACER_NAME,
+)
 from .session import SessionSpanProcessor
 from .user import UserSpanProcessor
 from .workspace import ExporterFactory, RoutingSpanExporter, WorkspaceSpanProcessor
@@ -170,6 +179,9 @@ def init(
     heartbeat: bool | None = None,
     heartbeat_interval: float | None = None,
     agent_name: str | None = None,
+    main_agent_id: str | None = None,
+    main_agent_description: str | None = None,
+    main_agent_version: str | None = None,
     heartbeat_transport: Callable[[dict[str, Any]], None] | None = None,
     connectivity_transport: ProbeTransport | None = None,
     partial_spans: bool | None = None,
@@ -225,8 +237,34 @@ def init(
         heartbeat_interval: Seconds between pings (default 15, clamped to
             ``[5, 300]``; the backend derives staleness from this).
         agent_name: Identity both heartbeats and spans group under, stamped
-            on the resource as ``gen_ai.agent.name``; defaults to
-            ``service_name``.
+            on the resource as ``rius.main_agent.name`` AND, unchanged, as
+            ``gen_ai.agent.name``; defaults to ``service_name``. The
+            ``rius.main_agent.*`` family is where the process-level question
+            "which agent is this?" lives: ``gen_ai.agent.name`` has no
+            resource-level meaning in the conventions and on a span means the
+            agent being INVOKED. Both keys are stamped, indefinitely — a swap
+            would break agent identity for every deployment running an SDK
+            newer than the sink, and resource attributes ride once per OTLP
+            batch, so the duplication costs essentially nothing. A process
+            whose name resolves to the ``unknown_service`` placeholder emits
+            no ``rius.main_agent.name`` at all, the same suppression the span
+            helpers apply.
+        main_agent_id: Stable identifier of the agent this process IS
+            (``RIUS_MAIN_AGENT_ID``), stamped as ``rius.main_agent.id``. It
+            must be STABLE across restarts and deployments; a transient
+            in-memory or process-local id must not be used, exactly as the
+            conventions require of ``gen_ai.agent.id``, because a value that
+            changes every restart mints a new "agent" every restart. Stamped
+            only when set; there is no placeholder.
+        main_agent_description: What this agent does
+            (``RIUS_MAIN_AGENT_DESCRIPTION``), stamped as
+            ``rius.main_agent.description``. Stamped only when set.
+        main_agent_version: Version of the agent DEFINITION — its prompt,
+            tools and policy (``RIUS_MAIN_AGENT_VERSION``), stamped as
+            ``rius.main_agent.version``. Deliberately NOT ``service.version``
+            and never derived from it in either direction: a service can sit
+            at 2.3.1 while its agent definition is at 7, and the two move
+            independently. Stamped only when set.
         heartbeat_transport: Override the heartbeat HTTP transport
             (useful for testing, like ``span_exporter``).
         connectivity_transport: Override the HTTP send used by the one-shot
@@ -276,6 +314,9 @@ def init(
             heartbeat=heartbeat,
             heartbeat_interval=heartbeat_interval,
             agent_name=agent_name,
+            main_agent_id=main_agent_id,
+            main_agent_description=main_agent_description,
+            main_agent_version=main_agent_version,
             heartbeat_transport=heartbeat_transport,
             connectivity_transport=connectivity_transport,
             partial_spans=partial_spans,
@@ -285,6 +326,28 @@ def init(
             workspace_exporter_factory=workspace_exporter_factory,
             set_global=set_global,
         )
+
+
+def _main_agent_attributes(config: GlassflowConfig) -> dict[str, str]:
+    """The ``rius.main_agent.*`` resource attributes, each only when known.
+
+    Every one is omitted rather than defaulted, for the reason
+    ``service.version`` is: an absent attribute reads as "not told", a
+    fabricated one reads as a real (wrong) answer. The name additionally
+    drops the ``unknown_service`` placeholder, which is not an identity.
+    """
+    name = _agent.named_agent(config.agent_name)
+    attributes: dict[str, str] = {}
+    if name is not None:
+        attributes[RIUS_MAIN_AGENT_NAME] = name
+    if config.main_agent_id:
+        attributes[RIUS_MAIN_AGENT_ID] = config.main_agent_id
+    if config.main_agent_description:
+        attributes[RIUS_MAIN_AGENT_DESCRIPTION] = config.main_agent_description
+    # Never from config.service_version: different fact, independent lifecycle.
+    if config.main_agent_version:
+        attributes[RIUS_MAIN_AGENT_VERSION] = config.main_agent_version
+    return attributes
 
 
 def _do_init(
@@ -303,6 +366,9 @@ def _do_init(
     heartbeat: bool | None,
     heartbeat_interval: float | None,
     agent_name: str | None,
+    main_agent_id: str | None,
+    main_agent_description: str | None,
+    main_agent_version: str | None,
     heartbeat_transport: Callable[[dict[str, Any]], None] | None,
     connectivity_transport: ProbeTransport | None,
     partial_spans: bool | None,
@@ -325,6 +391,9 @@ def _do_init(
         heartbeat=heartbeat,
         heartbeat_interval=heartbeat_interval,
         agent_name=agent_name,
+        main_agent_id=main_agent_id,
+        main_agent_description=main_agent_description,
+        main_agent_version=main_agent_version,
         partial_spans=partial_spans,
         partial_spans_delay=partial_spans_delay,
         session_id=session_id,
@@ -355,6 +424,14 @@ def _do_init(
             # only a service name is unchanged; one that sets both no longer
             # has its spans grouped under a different name than its heartbeats.
             GEN_AI_AGENT_NAME: config.agent_name,
+            # The SAME resolved name under our own namespace, where the
+            # process-level question belongs: gen_ai.agent.name has no
+            # resource-level meaning in the conventions and means the INVOKED
+            # agent on a span. Additive on purpose — both keys, indefinitely —
+            # so a deployment on a newer SDK than the sink keeps its identity.
+            # Suppressed on the placeholder by the same rule the span helpers
+            # use: a process that named nothing claims no agent identity.
+            **_main_agent_attributes(config),
             "telemetry.distro.name": "glassflow-rius",
             "telemetry.distro.version": __version__,
         }

@@ -346,3 +346,63 @@ def test_the_tool_identifiers_never_reach_the_span_name() -> None:
     # than borrowing either identifier.
     nameless = kind_attributes(SpanKind.TOOL, tool_call_id="call_1", tool_type="function")
     assert compose_span_name(SpanKind.TOOL, nameless) == "execute_tool"
+
+
+def test_kind_attributes_sets_the_agent_version_only_on_agent_spans() -> None:
+    """gen_ai.agent.version describes the agent this span INVOKED, the same
+    callee gen_ai.agent.name and .id describe. No other kind has a callee."""
+    from rius.semconv import GEN_AI_AGENT_VERSION, kind_attributes
+
+    assert (
+        kind_attributes(SpanKind.AGENT, agent_version="2025-05-01")[GEN_AI_AGENT_VERSION]
+        == "2025-05-01"
+    )
+
+    assert GEN_AI_AGENT_VERSION not in kind_attributes(SpanKind.AGENT)
+    assert GEN_AI_AGENT_VERSION not in kind_attributes(SpanKind.CHAIN, agent_version="1.0.0")
+    assert GEN_AI_AGENT_VERSION not in kind_attributes(SpanKind.TOOL, agent_version="1.0.0")
+    assert GEN_AI_AGENT_VERSION not in kind_attributes(SpanKind.LLM, agent_version="1.0.0")
+
+
+def test_the_agent_version_never_reaches_the_span_name() -> None:
+    """_NAME_TARGET_BY_KIND maps AGENT to the agent NAME alone."""
+    from rius.semconv import compose_span_name, kind_attributes
+
+    attributes = kind_attributes(SpanKind.AGENT, agent_name="planner", agent_version="7")
+    assert compose_span_name(SpanKind.AGENT, attributes) == "invoke_agent planner"
+
+
+def test_the_agent_version_is_pending_identity_not_content() -> None:
+    """Set at creation, so a still-running agent span must carry it into the
+    pending snapshot; the allowlist is what lets it through."""
+    from rius.semconv import (
+        CONTENT_ATTRIBUTES,
+        GEN_AI_AGENT_VERSION,
+        PENDING_IDENTITY_ATTRIBUTES,
+    )
+
+    assert GEN_AI_AGENT_VERSION in PENDING_IDENTITY_ATTRIBUTES
+    assert GEN_AI_AGENT_VERSION not in CONTENT_ATTRIBUTES
+
+
+def test_the_main_agent_resource_keys_are_neither_span_identity_nor_content() -> None:
+    """They ride the Resource once per batch and are never set on a span, so
+    they belong to neither span-level set."""
+    from rius.semconv import (
+        CONTENT_ATTRIBUTES,
+        PENDING_IDENTITY_ATTRIBUTES,
+        RIUS_MAIN_AGENT_DESCRIPTION,
+        RIUS_MAIN_AGENT_ID,
+        RIUS_MAIN_AGENT_NAME,
+        RIUS_MAIN_AGENT_VERSION,
+    )
+
+    for key in (
+        RIUS_MAIN_AGENT_NAME,
+        RIUS_MAIN_AGENT_ID,
+        RIUS_MAIN_AGENT_DESCRIPTION,
+        RIUS_MAIN_AGENT_VERSION,
+    ):
+        assert key.startswith("rius.main_agent.")
+        assert key not in PENDING_IDENTITY_ATTRIBUTES
+        assert key not in CONTENT_ATTRIBUTES

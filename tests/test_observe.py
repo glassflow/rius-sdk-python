@@ -718,3 +718,25 @@ def test_observe_ignores_the_tool_identifiers_on_other_kinds(
     assert attrs is not None
     assert "gen_ai.tool.call.id" not in attrs
     assert "gen_ai.tool.type" not in attrs
+
+
+def test_observe_takes_the_agent_version_on_agent_spans(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    @observe(kind=SpanKind.AGENT, agent_name="planner", agent_version="1.0.0")
+    def plan() -> None:
+        pass
+
+    plan()
+    assert exported_spans.get_finished_spans()[0].attributes["gen_ai.agent.version"] == "1.0.0"
+
+
+def test_observe_ignores_the_agent_version_on_other_kinds(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    @observe(agent_version="1.0.0")
+    def step() -> None:
+        pass
+
+    step()
+    assert "gen_ai.agent.version" not in exported_spans.get_finished_spans()[0].attributes

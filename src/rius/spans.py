@@ -154,6 +154,7 @@ def _creation(
     top_k: int | None = None,
     agent_name: str | None = None,
     agent_id: str | None = None,
+    agent_version: str | None = None,
     tool_call_id: str | None = None,
     tool_type: str | None = None,
 ) -> tuple[str, dict[str, str | int]]:
@@ -185,6 +186,7 @@ def _creation(
             top_k=top_k,
             agent_name=resolved_agent_name,
             agent_id=agent_id,
+            agent_version=agent_version,
             executing_agent_name=resolved_executing_agent,
             tool_call_id=tool_call_id,
             tool_type=tool_type,
@@ -206,6 +208,7 @@ def start_span(
     top_k: int | None = None,
     agent_name: str | None = None,
     agent_id: str | None = None,
+    agent_version: str | None = None,
     tool_call_id: str | None = None,
     tool_type: str | None = None,
 ) -> Observation:
@@ -253,8 +256,13 @@ def start_span(
     to the agent name ``init()`` was given, and is never taken from the span
     name. ``agent_id`` is for a HOSTED agent resource, such as a Bedrock agent
     ARN; the conventions advise against putting a transient in-memory instance
-    id there, so an in-process agent leaves it unset. Both are ignored on
-    every other kind.
+    id there, so an in-process agent leaves it unset. ``agent_version`` is
+    that same invoked agent's definition version (``gen_ai.agent.version``),
+    taken verbatim — the conventions' examples are ``"1.0.0"`` and
+    ``"2025-05-01"``, so there is no format to validate — and never derived
+    from ``service.version`` or from the process's own main-agent version:
+    different agent, different scope. All three are ignored on every other
+    kind.
 
     A ``TOOL`` span carries ``gen_ai.agent.name`` too, and there it means the
     agent EXECUTING the tool: the innermost enclosing agent scope, else the
@@ -272,6 +280,7 @@ def start_span(
         top_k=top_k,
         agent_name=agent_name,
         agent_id=agent_id,
+        agent_version=agent_version,
         tool_call_id=tool_call_id,
         tool_type=tool_type,
     )
@@ -297,6 +306,7 @@ def start_as_current_span(
     top_k: int | None = None,
     agent_name: str | None = None,
     agent_id: str | None = None,
+    agent_version: str | None = None,
     tool_call_id: str | None = None,
     tool_type: str | None = None,
 ) -> Iterator[Observation]:
@@ -342,8 +352,13 @@ def start_as_current_span(
     to the agent name ``init()`` was given, and is never taken from the span
     name. ``agent_id`` is for a HOSTED agent resource, such as a Bedrock agent
     ARN; the conventions advise against putting a transient in-memory instance
-    id there, so an in-process agent leaves it unset. Both are ignored on
-    every other kind.
+    id there, so an in-process agent leaves it unset. ``agent_version`` is
+    that same invoked agent's definition version (``gen_ai.agent.version``),
+    taken verbatim — the conventions' examples are ``"1.0.0"`` and
+    ``"2025-05-01"``, so there is no format to validate — and never derived
+    from ``service.version`` or from the process's own main-agent version:
+    different agent, different scope. All three are ignored on every other
+    kind.
 
     A ``TOOL`` span carries ``gen_ai.agent.name`` too, and there it means the
     agent EXECUTING the tool. An ``AGENT`` block opened here scopes its
@@ -362,6 +377,7 @@ def start_as_current_span(
         top_k=top_k,
         agent_name=agent_name,
         agent_id=agent_id,
+        agent_version=agent_version,
         tool_call_id=tool_call_id,
         tool_type=tool_type,
     )

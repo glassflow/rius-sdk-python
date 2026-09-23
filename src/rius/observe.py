@@ -113,6 +113,7 @@ def observe(
     top_k: int | None = ...,
     agent_name: str | None = ...,
     agent_id: str | None = ...,
+    agent_version: str | None = ...,
     tool_call_id: str | None = ...,
     tool_type: str | None = ...,
 ) -> Callable[[F], F]: ...
@@ -130,6 +131,7 @@ def observe(
     top_k: int | None = None,
     agent_name: str | None = None,
     agent_id: str | None = None,
+    agent_version: str | None = None,
     tool_call_id: str | None = None,
     tool_type: str | None = None,
 ) -> Any:
@@ -178,6 +180,14 @@ def observe(
             (``gen_ai.agent.id``), such as a Bedrock agent ARN. The
             conventions advise against recording a transient in-memory
             instance id here, so an in-process agent leaves it unset.
+        agent_version: The version of the agent definition an ``AGENT`` span
+            invoked (``gen_ai.agent.version``) — its prompt, tools and policy.
+            Taken verbatim; the conventions' own examples are ``"1.0.0"`` and
+            ``"2025-05-01"``, so there is no format to validate. Never derived
+            from ``service.version``, which versions the deployed process, nor
+            from the main agent's version, which versions the agent this
+            process IS rather than the one it called: different agent,
+            different scope. Ignored for other kinds.
         tool_call_id: The id the MODEL put on the tool-call message this
             ``TOOL`` span answers (``gen_ai.tool.call.id``), which joins the
             tool span back to the generation that requested it. Never derived:
@@ -207,6 +217,7 @@ def observe(
                 top_k=top_k,
                 agent_name=resolve_agent_name(agent_name, kind),
                 agent_id=agent_id,
+                agent_version=agent_version,
                 # The other meaning of gen_ai.agent.name: on a TOOL span the
                 # agent DOING the call, read from the enclosing agent scope
                 # rather than from a decorator argument.
