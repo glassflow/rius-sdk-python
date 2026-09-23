@@ -708,3 +708,60 @@ def test_context_sizes_do_not_change_the_message_attributes(
     assert json.loads(str(attrs["gen_ai.output.messages"])) == [
         {"role": "assistant", "parts": [{"type": "text", "content": "yo"}]}
     ]
+
+
+# --- default span names: "{operation} {model}" when no name is given ---
+
+
+def test_cm_names_a_generation_after_the_operation_and_the_request_model(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    with start_as_current_generation(model="gpt-4o"):
+        pass
+    assert exported_spans.get_finished_spans()[0].name == "chat gpt-4o"
+
+
+def test_manual_names_a_generation_after_the_operation_and_the_request_model(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    start_generation(model="gpt-4o").end()
+    assert exported_spans.get_finished_spans()[0].name == "chat gpt-4o"
+
+
+def test_generation_without_a_model_is_the_bare_operation(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    with start_as_current_generation():
+        pass
+    start_generation().end()
+    assert [s.name for s in exported_spans.get_finished_spans()] == ["chat", "chat"]
+
+
+def test_generation_name_uses_the_resolved_operation(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    """The operation is overridable per generation, so the name composes from
+    what was resolved rather than from a hardcoded "chat"."""
+    with start_as_current_generation(operation="embeddings", model="text-embedding-3-small"):
+        pass
+    span = exported_spans.get_finished_spans()[0]
+    assert span.name == "embeddings text-embedding-3-small"
+    assert span.attributes["gen_ai.operation.name"] == "embeddings"
+
+
+def test_generation_name_never_uses_the_response_model(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    """The response model can arrive long after the span (and its pending
+    snapshot) started; only the request model is known at creation."""
+    generation = start_generation(model="gpt-4o")
+    generation.set_response_model("gpt-4o-2024-08-06")
+    generation.end()
+    assert exported_spans.get_finished_spans()[0].name == "chat gpt-4o"
+
+
+def test_an_explicit_generation_name_always_wins(exported_spans: InMemorySpanExporter) -> None:
+    with start_as_current_generation("summarize", model="gpt-4o"):
+        pass
+    start_generation("summarize", model="gpt-4o").end()
+    assert [s.name for s in exported_spans.get_finished_spans()] == ["summarize", "summarize"]

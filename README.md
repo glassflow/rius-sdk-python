@@ -39,6 +39,14 @@ with start_as_current_generation("chat", model="gpt-4o", input=messages) as gen:
     gen.set_usage(input_tokens=42, output_tokens=17)
 ```
 
+Span names are optional. Left out, a span is named the way the OpenTelemetry
+GenAI conventions say it should be — the operation followed by what it acted on:
+`chat gpt-4o`, `embeddings text-embedding-3-small`, `execute_tool get_weather`,
+`invoke_agent planner`, `retrieval product-kb` — degrading to the bare operation
+(`chat`) when that identifier is unknown. `@observe` keeps the function's
+qualified name for a plain `CHAIN` step, which has no operation; an unnamed
+`start_span()` of that kind is called `chain`. An explicit name always wins.
+
 Each surface has a **manual** variant for lifetimes a `with` block can't express
 (streaming, callbacks): `start_span(...)` / `start_generation(...)` return a handle
 you `.update()` and must `.end()` yourself. A manual handle does not auto-record

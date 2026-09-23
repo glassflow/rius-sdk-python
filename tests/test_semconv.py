@@ -163,3 +163,58 @@ def test_agent_identity_is_pending_allowlisted_and_not_content() -> None:
     for key in (GEN_AI_AGENT_NAME, GEN_AI_AGENT_ID):
         assert key in PENDING_IDENTITY_ATTRIBUTES
         assert key not in CONTENT_ATTRIBUTES
+
+
+# --- default span names: "{operation} {target}", per the GenAI conventions ---
+
+
+def test_default_span_name_composes_the_operation_and_the_target() -> None:
+    """The conventions' SHOULD for every operation they define: the operation,
+    then the one identifier that says which model/tool/agent/index it hit."""
+    from rius.semconv import default_span_name
+
+    assert default_span_name(SpanKind.LLM, model="gpt-4o") == "chat gpt-4o"
+    assert default_span_name(SpanKind.EMBEDDING, model="text-embedding-3-small") == (
+        "embeddings text-embedding-3-small"
+    )
+    assert default_span_name(SpanKind.TOOL, tool_name="get_weather") == "execute_tool get_weather"
+    assert default_span_name(SpanKind.AGENT, agent_name="planner") == "invoke_agent planner"
+    assert default_span_name(SpanKind.RETRIEVER, data_source_id="kb") == "retrieval kb"
+
+
+def test_default_span_name_falls_back_to_the_bare_operation() -> None:
+    """The identifier is optional on every kind, so the name degrades to the
+    operation alone rather than to a name with a hole in it."""
+    from rius.semconv import default_span_name
+
+    assert default_span_name(SpanKind.LLM) == "chat"
+    assert default_span_name(SpanKind.EMBEDDING) == "embeddings"
+    assert default_span_name(SpanKind.TOOL) == "execute_tool"
+    assert default_span_name(SpanKind.AGENT) == "invoke_agent"
+    assert default_span_name(SpanKind.RETRIEVER) == "retrieval"
+
+
+def test_default_span_name_takes_the_resolved_operation_over_the_kind() -> None:
+    """A generation's operation is overridable per call, and the name follows
+    it: an embeddings request through the LLM helper is not a "chat"."""
+    from rius.semconv import default_span_name
+
+    assert default_span_name(SpanKind.LLM, operation="embeddings", model="m") == "embeddings m"
+
+
+def test_default_span_name_of_a_chain_is_the_degenerate_literal() -> None:
+    """CHAIN has no operation in the conventions and the manual helpers have
+    no function to borrow a qualname from, so the name is the bare literal."""
+    from rius.semconv import default_span_name
+
+    assert default_span_name(SpanKind.CHAIN) == "chain"
+
+
+def test_default_span_name_ignores_targets_from_another_kind() -> None:
+    """Each kind reads exactly one identifier; a tool name never leaks into an
+    agent's name, which is what makes the composed name a reliable filter."""
+    from rius.semconv import default_span_name
+
+    assert default_span_name(SpanKind.AGENT, tool_name="get_weather") == "invoke_agent"
+    assert default_span_name(SpanKind.TOOL, agent_name="planner") == "execute_tool"
+    assert default_span_name(SpanKind.LLM, data_source_id="kb") == "chat"

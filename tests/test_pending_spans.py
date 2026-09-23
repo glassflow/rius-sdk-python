@@ -238,7 +238,7 @@ def test_creation_identity_keys_are_pending_allowlisted() -> None:
         SpanKind,
         kind_attributes,
     )
-    from rius.spans import _creation_attributes as span_attributes
+    from rius.spans import _creation as span_creation
 
     builders: dict[str, dict[str, str]] = {
         f"kind_attributes({kind.name})": kind_attributes(
@@ -251,10 +251,10 @@ def test_creation_identity_keys_are_pending_allowlisted() -> None:
         )
         for kind in SpanKind
     }
-    builders["spans"] = span_attributes("weather", SpanKind.TOOL, "u", tool_name="weather")
-    builders["spans(agent)"] = span_attributes(
+    builders["spans"] = span_creation("weather", SpanKind.TOOL, "u", tool_name="weather")[1]
+    builders["spans(agent)"] = span_creation(
         "plan", SpanKind.AGENT, "u", agent_name="planner", agent_id="ag_1"
-    )
+    )[1]
     builders["generation"] = generation_attributes(
         model="m", provider="p", operation="chat", user_id="u"
     )
@@ -285,3 +285,38 @@ def test_pending_snapshot_of_an_agent_span_carries_the_agent_name() -> None:
     assert attrs["gen_ai.agent.name"] == "researcher"
     assert attrs["gen_ai.agent.id"] == "ag_1"
     assert attrs["gen_ai.operation.name"] == "invoke_agent"
+
+
+def test_pending_and_final_agree_on_a_composed_span_name() -> None:
+    """The snapshot carries the name the final span will have, which is why
+    the composed name is built from the REQUEST model: a response model
+    arriving later would make the two disagree, and the backend replaces the
+    snapshot by identity, not by name."""
+    from rius import _tracer, start_as_current_generation
+
+    client, exporter = _memory_client(partial_spans=True)
+    # Route the SDK helpers to this scoped client (the lifecycle fixture
+    # withdraws it again after the test).
+    _tracer.publish(client._provider)
+    try:
+        with start_as_current_generation(model="gpt-4o") as generation:
+            generation.set_response_model("gpt-4o-2024-08-06")
+    finally:
+        client.flush()
+    (pending,), (final,) = _split(exporter.get_finished_spans())
+    assert pending.name == final.name == "chat gpt-4o"
+
+
+def test_pending_and_final_agree_on_a_composed_tool_span_name() -> None:
+    from rius import _tracer, start_as_current_span
+    from rius.semconv import SpanKind
+
+    client, exporter = _memory_client(partial_spans=True)
+    _tracer.publish(client._provider)
+    try:
+        with start_as_current_span(kind=SpanKind.TOOL, tool_name="get_weather"):
+            pass
+    finally:
+        client.flush()
+    (pending,), (final,) = _split(exporter.get_finished_spans())
+    assert pending.name == final.name == "execute_tool get_weather"

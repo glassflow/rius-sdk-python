@@ -363,6 +363,59 @@ def otel_span_kind(kind: SpanKind) -> OtelSpanKind:
     return _OTEL_KIND_BY_KIND[kind]
 
 
+# The name of a span whose kind has no operation and nothing else to compose
+# from. The conventions define no operation for a generic workflow step, and
+# the manual span helpers — unlike @observe, which has a function to borrow a
+# qualname from — see nothing but the kind. A literal beats an empty name.
+CHAIN_SPAN_NAME = "chain"
+
+
+def default_span_name(
+    kind: SpanKind,
+    *,
+    operation: str | None = None,
+    model: str | None = None,
+    tool_name: str | None = None,
+    agent_name: str | None = None,
+    data_source_id: str | None = None,
+) -> str:
+    """The span name for a span of ``kind``: ``"{operation} {target}"``.
+
+    The GenAI conventions give every operation they define a SHOULD-level span
+    name of the operation followed by the one identifier that says what it
+    acted on: ``chat gpt-4o``, ``embeddings text-embedding-3-small``,
+    ``execute_tool get_weather``, ``invoke_agent planner``, ``retrieval kb``.
+    Each kind reads exactly ONE identifier, so a tool name can never surface
+    in an agent's name and the composed name stays a reliable filter value.
+
+    The identifier is optional on every kind, and the name degrades to the
+    bare operation rather than to a name with a hole in it. ``CHAIN`` has no
+    operation at all and falls back to :data:`CHAIN_SPAN_NAME`.
+
+    ``operation`` overrides the operation the kind maps to, because a
+    generation's operation is a per-call argument: an embeddings request made
+    through the LLM helper must not be named a chat. ``model`` is the REQUEST
+    model, never the response model — the response model can arrive after the
+    span started, and a pending snapshot (built at ``on_start``) has to carry
+    the same name as the final span.
+
+    Callers pass the RESOLVED identifiers — the same values
+    :func:`kind_attributes` is given — so the name and the attributes agree,
+    and so the rendered string is never fed back in as an identity.
+    """
+    resolved_operation = operation or _OPERATION_BY_KIND.get(kind)
+    if resolved_operation is None:
+        return CHAIN_SPAN_NAME
+    target = {
+        SpanKind.LLM: model,
+        SpanKind.EMBEDDING: model,
+        SpanKind.TOOL: tool_name,
+        SpanKind.AGENT: agent_name,
+        SpanKind.RETRIEVER: data_source_id,
+    }.get(kind)
+    return f"{resolved_operation} {target}" if target else resolved_operation
+
+
 def kind_attributes(
     kind: SpanKind,
     tool_name: str | None = None,

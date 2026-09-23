@@ -42,6 +42,7 @@ from .semconv import (
     RIUS_CONTEXT_SIZES,
     USER_ID,
     SpanKind,
+    default_span_name,
     kind_attributes,
     otel_span_kind,
 )
@@ -398,7 +399,7 @@ def _creation_attributes(
 
 
 def start_generation(
-    name: str,
+    name: str | None = None,
     *,
     model: str | None = None,
     provider: str | None = None,
@@ -415,7 +416,12 @@ def start_generation(
     auto-recording of exceptions.
 
     Args:
-        name: Span name.
+        name: Span name. Optional: left out, the span is named
+            ``"{operation} {model}"`` per the GenAI conventions — ``chat
+            gpt-4o`` — falling back to the bare operation when no model was
+            given. Composed from the REQUEST model, never the response model:
+            the response model can arrive after the span (and its pending
+            snapshot) started, and the two must carry the same name.
         model: Requested model (``gen_ai.request.model``).
         provider: Provider name (``gen_ai.provider.name``), e.g. ``"openai"``.
         input: Request messages, recorded immediately via ``set_input``.
@@ -435,7 +441,9 @@ def start_generation(
         A ``Generation`` handle; call ``.end()`` when the call completes.
     """
     span = sdk_tracer().start_span(
-        name,
+        name
+        if name is not None
+        else default_span_name(SpanKind.LLM, operation=operation, model=model),
         kind=otel_span_kind(SpanKind.LLM),
         attributes=_creation_attributes(model, provider, operation, user_id),
     )
@@ -455,7 +463,7 @@ def start_generation(
 
 @contextmanager
 def start_as_current_generation(
-    name: str,
+    name: str | None = None,
     *,
     model: str | None = None,
     provider: str | None = None,
@@ -482,7 +490,9 @@ def start_as_current_generation(
         # inside inherit it through UserSpanProcessor, this span at creation.
         user(user_id) if user_id is not None else nullcontext(),
         tracer.start_as_current_span(
-            name,
+            name
+            if name is not None
+            else default_span_name(SpanKind.LLM, operation=operation, model=model),
             kind=otel_span_kind(SpanKind.LLM),
             attributes=_creation_attributes(model, provider, operation, user_id),
         ) as span,

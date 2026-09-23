@@ -313,3 +313,140 @@ def test_explicit_agent_name_wins_over_the_configured_one() -> None:
     finally:
         client.shutdown()
     assert exporter.get_finished_spans()[0].attributes["gen_ai.agent.name"] == "researcher"
+
+
+# --- default span names: "{operation} {target}" when no name is given ---
+
+
+def test_cm_names_a_tool_span_after_the_operation_and_the_tool(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    with start_as_current_span(kind=SpanKind.TOOL, tool_name="get_weather"):
+        pass
+    span = exported_spans.get_finished_spans()[0]
+    assert span.name == "execute_tool get_weather"
+    # The rendered name never feeds the attribute: gen_ai.tool.name is a
+    # Required metric dimension and a prefix there splits the series.
+    assert span.attributes["gen_ai.tool.name"] == "get_weather"
+
+
+def test_manual_names_a_tool_span_after_the_operation_and_the_tool(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    start_span(kind=SpanKind.TOOL, tool_name="get_weather").end()
+    assert exported_spans.get_finished_spans()[0].name == "execute_tool get_weather"
+
+
+def test_tool_span_without_a_tool_name_is_the_bare_operation(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    with start_as_current_span(kind=SpanKind.TOOL):
+        pass
+    span = exported_spans.get_finished_spans()[0]
+    assert span.name == "execute_tool"
+    assert "gen_ai.tool.name" not in span.attributes
+
+
+def test_cm_names_an_agent_span_after_the_agent_it_invokes(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    with start_as_current_span(kind=SpanKind.AGENT, agent_name="planner"):
+        pass
+    assert exported_spans.get_finished_spans()[0].name == "invoke_agent planner"
+
+
+def test_manual_names_an_agent_span_after_the_agent_it_invokes(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    start_span(kind=SpanKind.AGENT, agent_name="planner").end()
+    assert exported_spans.get_finished_spans()[0].name == "invoke_agent planner"
+
+
+def test_agent_span_name_uses_the_configured_agent_name() -> None:
+    """The name composes from the SAME resolved agent name the attribute
+    carries, so a single-agent process gets a named span for free."""
+    from rius import init
+
+    exporter = InMemorySpanExporter()
+    client = init(
+        span_exporter=exporter, service_name="svc", agent_name="configured", instruments=[]
+    )
+    try:
+        with start_as_current_span(kind=SpanKind.AGENT):
+            pass
+    finally:
+        client.shutdown()
+    assert exporter.get_finished_spans()[0].name == "invoke_agent configured"
+
+
+def test_agent_span_without_any_agent_name_is_the_bare_operation(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    with start_as_current_span(kind=SpanKind.AGENT):
+        pass
+    assert exported_spans.get_finished_spans()[0].name == "invoke_agent"
+
+
+def test_cm_names_a_retriever_span_after_the_data_source(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    with start_as_current_span(kind=SpanKind.RETRIEVER, data_source_id="product-kb"):
+        pass
+    assert exported_spans.get_finished_spans()[0].name == "retrieval product-kb"
+
+
+def test_manual_names_a_retriever_span_after_the_data_source(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    start_span(kind=SpanKind.RETRIEVER, data_source_id="product-kb").end()
+    assert exported_spans.get_finished_spans()[0].name == "retrieval product-kb"
+
+
+def test_retriever_span_without_a_data_source_is_the_bare_operation(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    with start_as_current_span(kind=SpanKind.RETRIEVER):
+        pass
+    assert exported_spans.get_finished_spans()[0].name == "retrieval"
+
+
+def test_unnamed_chain_span_is_the_degenerate_literal(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    """The one case with nothing to compose from: CHAIN has no operation, and
+    a manual helper has no function whose qualname it could borrow."""
+    with start_as_current_span(kind=SpanKind.CHAIN):
+        pass
+    start_span().end()
+    assert [s.name for s in exported_spans.get_finished_spans()] == ["chain", "chain"]
+
+
+@pytest.mark.parametrize(
+    "kind",
+    [
+        SpanKind.CHAIN,
+        SpanKind.TOOL,
+        SpanKind.AGENT,
+        SpanKind.RETRIEVER,
+        SpanKind.LLM,
+        SpanKind.EMBEDDING,
+    ],
+)
+def test_an_explicit_name_always_wins(kind: SpanKind, exported_spans: InMemorySpanExporter) -> None:
+    """Composition changes the DEFAULT, never the ability to choose."""
+    with start_as_current_span("my-step", kind=kind, tool_name="t", agent_name="a"):
+        pass
+    start_span("my-step", kind=kind, tool_name="t", agent_name="a").end()
+    assert [s.name for s in exported_spans.get_finished_spans()] == ["my-step", "my-step"]
+
+
+def test_model_kinds_on_the_generic_helper_get_the_bare_operation(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    """This surface takes no model, so it cannot compose one in; a name with
+    a model in it comes from the generation helpers."""
+    with start_as_current_span(kind=SpanKind.LLM):
+        pass
+    with start_as_current_span(kind=SpanKind.EMBEDDING):
+        pass
+    assert [s.name for s in exported_spans.get_finished_spans()] == ["chat", "embeddings"]

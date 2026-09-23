@@ -25,6 +25,7 @@ from .semconv import (
     INPUT_VALUE,
     OUTPUT_VALUE,
     SpanKind,
+    default_span_name,
     kind_attributes,
     otel_span_kind,
 )
@@ -69,6 +70,38 @@ def _resolve_tool_name(
     return qualname
 
 
+def _decorated_span_name(
+    name: str | None,
+    qualname: str,
+    kind: SpanKind,
+    *,
+    tool_name: str | None,
+    agent_name: str | None,
+    data_source_id: str | None,
+) -> str:
+    """The span name: explicit, else the spec form, else the function's qualname.
+
+    CHAIN is the exception the manual span helpers cannot make: it has no
+    operation to compose from, but here there IS a function, and its qualname
+    labels a workflow step better than any literal could.
+
+    Composed from the RESOLVED tool name — the same value ``gen_ai.tool.name``
+    gets — so the two agree, so the rendered ``execute_tool x`` is never fed
+    back in as the tool's identity, and so no second deprecation warning is
+    raised on the way.
+    """
+    if name is not None:
+        return name
+    if kind is SpanKind.CHAIN:
+        return qualname
+    return default_span_name(
+        kind,
+        tool_name=tool_name,
+        agent_name=agent_name,
+        data_source_id=data_source_id,
+    )
+
+
 @overload
 def observe(func: F) -> F: ...
 
@@ -111,7 +144,12 @@ def observe(
 
     Args:
         func: The decorated function (filled in by bare ``@observe`` usage).
-        name: Span name; defaults to the function's ``__qualname__``.
+        name: Span name. Unset, the span is named the way the GenAI
+            conventions say it should be — the operation for its kind followed
+            by what it acted on (``execute_tool get_weather``,
+            ``invoke_agent planner``, ``retrieval product-kb``), or the bare
+            operation when that identifier is unknown. A ``CHAIN`` span has no
+            operation and keeps the function's ``__qualname__``.
         capture_input: Record call arguments as JSON in ``input.value``.
         capture_output: Record the return value as JSON in ``output.value``.
         kind: Span taxonomy (``openinference.span.kind``); default ``CHAIN``.
@@ -142,8 +180,26 @@ def observe(
     """
 
     def decorate(fn: Callable[..., Any]) -> Callable[..., Any]:
-        span_name = name or fn.__qualname__
         span_tool_name = _resolve_tool_name(tool_name, name, fn.__qualname__, kind)
+
+        def _compose() -> str:
+            return _decorated_span_name(
+                name,
+                fn.__qualname__,
+                kind,
+                tool_name=span_tool_name,
+                agent_name=resolve_agent_name(agent_name, kind),
+                data_source_id=data_source_id,
+            )
+
+        # An AGENT span with no agent_name composes from the CONFIGURED agent
+        # name, which init() publishes after the module defining this function
+        # was imported, so that one combination resolves its name per CALL,
+        # exactly as its attributes do. Every other name is fixed here.
+        fixed_span_name = None if (name is None and kind is SpanKind.AGENT) else _compose()
+
+        def _span_name() -> str:
+            return fixed_span_name if fixed_span_name is not None else _compose()
 
         def _kind_attributes() -> dict[str, str | int]:
             # Resolved per CALL, not per decoration: init() usually runs after
@@ -174,7 +230,7 @@ def observe(
             async def async_gen_wrapper(*args: Any, **kwargs: Any) -> Any:
                 tracer = sdk_tracer()
                 span = tracer.start_span(
-                    span_name,
+                    _span_name(),
                     kind=otel_span_kind(kind),
                     attributes=_kind_attributes(),
                 )
@@ -217,7 +273,7 @@ def observe(
             async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
                 tracer = sdk_tracer()
                 with tracer.start_as_current_span(
-                    span_name,
+                    _span_name(),
                     kind=otel_span_kind(kind),
                     attributes=_kind_attributes(),
                     record_exception=False,
@@ -241,7 +297,7 @@ def observe(
             def gen_wrapper(*args: Any, **kwargs: Any) -> Any:
                 tracer = sdk_tracer()
                 span = tracer.start_span(
-                    span_name,
+                    _span_name(),
                     kind=otel_span_kind(kind),
                     attributes=_kind_attributes(),
                 )
@@ -279,7 +335,7 @@ def observe(
         def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
             tracer = sdk_tracer()
             with tracer.start_as_current_span(
-                span_name,
+                _span_name(),
                 kind=otel_span_kind(kind),
                 attributes=_kind_attributes(),
                 record_exception=False,
