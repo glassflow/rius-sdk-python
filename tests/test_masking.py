@@ -3,7 +3,6 @@ import json
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from rius import init
-from rius.semconv import GEN_AI_INPUT_MESSAGES, GEN_AI_REQUEST_MODEL
 
 
 def test_mask_redacts_content_attributes() -> None:
@@ -42,10 +41,7 @@ def test_mask_covers_third_party_instrumentation_keys() -> None:
         span.set_attribute("gen_ai.prompt", "another prompt")
     client.flush()
     attrs = inner.get_finished_spans()[0].attributes
-    # normalization maps llm.input_messages onto the canonical key before
-    # masking sees it (see normalization.py); either spelling must be masked.
-    assert attrs[GEN_AI_INPUT_MESSAGES] == "***"
-    assert "llm.input_messages" not in attrs
+    assert attrs["llm.input_messages"] == "***"
     assert attrs["gen_ai.prompt"] == "***"
 
 
@@ -62,9 +58,7 @@ def test_mask_covers_flattened_third_party_content_keys() -> None:
     attrs = inner.get_finished_spans()[0].attributes
     assert attrs["llm.input_messages.0.message.content"] == "***"
     assert attrs["gen_ai.prompt.0.content"] == "***"
-    # identity, not content: it survives masking — under its canonical name,
-    # normalization having mapped it on the way out.
-    assert attrs[GEN_AI_REQUEST_MODEL] == "gpt-4o"
+    assert attrs["llm.model_name"] == "gpt-4o"
 
 
 def test_mask_returning_none_drops_attribute_not_leaks_original() -> None:

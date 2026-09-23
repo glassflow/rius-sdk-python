@@ -36,7 +36,18 @@ Contract, in both components:
 
 Always on, no opt-out. A fast path skips the whole pass when a span carries
 no key under any source namespace at all, which is every span we emit
-ourselves.
+ourselves; on an empty table it short-circuits on the first check.
+
+**The shipped table is deliberately empty**, and a rule is not a casual
+addition. Normalization is wired into ``init()`` unconditionally, so anything
+in ``DEFAULT_TABLE`` is live in every process on the next release — and a rule
+DELETES its source key, so a wrong mapping is unrecoverable: the original is
+gone and a wrongly-shaped value sits under a canonical key that the sink and
+console read as conventional. Half-migrating a concept is worse than not
+migrating it. A rule therefore belongs here only once the mapping is known to
+be both correct and total for that source; the per-instrumentation tables are
+their own tickets, and they are purely additive to this file. Rules used to
+exercise the machinery live in the tests, injected through ``table=``.
 
 Ordering: the normalizing exporter must run BEFORE the masking exporter
 (i.e. it wraps it), so masking only has to recognise canonical content keys.
@@ -55,8 +66,6 @@ from typing import Any
 from opentelemetry import context as otel_context
 from opentelemetry.sdk.trace import ReadableSpan, Span, SpanProcessor
 from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
-
-from .semconv import GEN_AI_INPUT_MESSAGES, GEN_AI_REQUEST_MODEL
 
 logger = logging.getLogger(__name__)
 
@@ -251,12 +260,5 @@ class NormalizingSpanExporter(SpanExporter):
         self._inner.shutdown()
 
 
-# The real per-instrumentation tables are separate tickets. These two exist to
-# exercise the machinery end to end: one identity key and one content key, so
-# the normalize-then-mask ordering is observable.
-DEFAULT_TABLE = NormalizationTable(
-    [
-        Rule("llm.model_name", GEN_AI_REQUEST_MODEL),
-        Rule("llm.input_messages", GEN_AI_INPUT_MESSAGES),
-    ]
-)
+#: **Deliberately empty.** See the module docstring before adding a rule.
+DEFAULT_TABLE = NormalizationTable([])

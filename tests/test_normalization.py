@@ -14,8 +14,9 @@ import pytest
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from rius import init
+from rius import init, normalization
 from rius.normalization import (
+    DEFAULT_TABLE,
     NormalizationTable,
     NormalizingSpanExporter,
     NormalizingSpanProcessor,
@@ -181,7 +182,47 @@ def test_exporter_returns_the_same_object_when_nothing_maps() -> None:
     assert exported is original
 
 
+# --- the shipped table -----------------------------------------------------
+
+
+def test_the_shipped_table_is_empty() -> None:
+    """Deliberately: a rule here is live everywhere and DELETES its source.
+
+    The per-instrumentation tables are their own tickets. If this fails,
+    read the normalization module docstring before changing the assertion.
+    """
+    assert DEFAULT_TABLE.rules == ()
+
+
+def test_an_empty_table_short_circuits() -> None:
+    assert NormalizationTable([]).prefixes == ()
+    assert NormalizationTable([]).applies({"llm.model_name": "m"}) is False
+    assert NormalizationTable([]).normalize({"llm.model_name": "m"}) is None
+
+
 # --- end-to-end wiring ------------------------------------------------------
+
+# The shipped table is empty, so the wiring is exercised against an injected
+# one: both components resolve DEFAULT_TABLE at construction time, inside
+# init(), so patching the module attribute first reaches them.
+_E2E_TABLE = NormalizationTable(
+    [
+        Rule("vendor.model_name", GEN_AI_REQUEST_MODEL),
+        # Two sources for one canonical content key, so BOTH ordering tests
+        # below fail if the two exporters are swapped: llm.input_messages is a
+        # key masking already recognises as content (so the mask records which
+        # spelling it was handed), vendor.input_messages is not (so masking
+        # cannot strip it, and a late normalization leaks it under the
+        # canonical key). Neither ships: the table is test-only.
+        Rule("llm.input_messages", GEN_AI_INPUT_MESSAGES),
+        Rule("vendor.input_messages", GEN_AI_INPUT_MESSAGES),
+    ]
+)
+
+
+@pytest.fixture
+def wired(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(normalization, "DEFAULT_TABLE", _E2E_TABLE)
 
 
 def _memory_client(**kwargs: Any):
@@ -202,24 +243,38 @@ def _split(spans):
     return pending, final
 
 
-def test_normalization_is_wired_into_init() -> None:
+def test_normalization_is_wired_into_init(wired: None) -> None:
+    client, exporter = _memory_client()
+    try:
+        with client.get_tracer().start_as_current_span("op", attributes={"vendor.model_name": "m"}):
+            pass
+        client.flush()
+        (span,) = exporter.get_finished_spans()
+        assert span.attributes[GEN_AI_REQUEST_MODEL] == "m"
+        assert "vendor.model_name" not in span.attributes
+    finally:
+        client.shutdown()
+
+
+def test_the_empty_shipped_table_leaves_spans_alone() -> None:
+    """Without the fixture: nothing is mapped, nothing is deleted."""
     client, exporter = _memory_client()
     try:
         with client.get_tracer().start_as_current_span("op", attributes={"llm.model_name": "m"}):
             pass
         client.flush()
         (span,) = exporter.get_finished_spans()
-        assert span.attributes[GEN_AI_REQUEST_MODEL] == "m"
-        assert "llm.model_name" not in span.attributes
+        assert span.attributes["llm.model_name"] == "m"
+        assert GEN_AI_REQUEST_MODEL not in span.attributes
     finally:
         client.shutdown()
 
 
-def test_start_time_mapping_reaches_a_pending_snapshot() -> None:
+def test_start_time_mapping_reaches_a_pending_snapshot(wired: None) -> None:
     """The exporter alone is too late: pending snapshots are built at on_start."""
     client, exporter = _memory_client(partial_spans=True)
     try:
-        with client.get_tracer().start_as_current_span("op", attributes={"llm.model_name": "m"}):
+        with client.get_tracer().start_as_current_span("op", attributes={"vendor.model_name": "m"}):
             pass
         client.flush()
         (pending,), _ = _split(exporter.get_finished_spans())
@@ -228,8 +283,8 @@ def test_start_time_mapping_reaches_a_pending_snapshot() -> None:
         client.shutdown()
 
 
-def test_normalization_runs_before_masking() -> None:
-    """Reversed, masking would strip llm.input_messages before it is mapped."""
+def test_normalization_runs_before_masking(wired: None) -> None:
+    """Reversed, masking would strip the source key before it is mapped."""
     seen: list[str] = []
 
     def mask(value: Any, key: str) -> Any:
@@ -251,11 +306,11 @@ def test_normalization_runs_before_masking() -> None:
     assert span.attributes[GEN_AI_INPUT_MESSAGES] == "***"
 
 
-def test_mapped_content_key_is_stripped_with_capture_content_off() -> None:
+def test_mapped_content_key_is_stripped_with_capture_content_off(wired: None) -> None:
     client, exporter = _memory_client(capture_content=False)
     try:
         with client.get_tracer().start_as_current_span(
-            "op", attributes={"llm.input_messages": '[{"role": "user"}]'}
+            "op", attributes={"vendor.input_messages": '[{"role": "user"}]'}
         ):
             pass
         client.flush()
@@ -263,23 +318,23 @@ def test_mapped_content_key_is_stripped_with_capture_content_off() -> None:
     finally:
         client.shutdown()
     assert GEN_AI_INPUT_MESSAGES not in span.attributes
-    assert "llm.input_messages" not in span.attributes
+    assert "vendor.input_messages" not in span.attributes
 
 
-def test_a_second_registered_exporter_sees_an_unnormalized_span() -> None:
+def test_a_second_registered_exporter_sees_an_unnormalized_span(wired: None) -> None:
     """In-place mutation would rewrite what every other exporter sees."""
     other = InMemorySpanExporter()
     client, exporter = _memory_client()
     try:
         client._provider.add_span_processor(SimpleSpanProcessor(other))
         with client.get_tracer().start_as_current_span("op") as span:
-            span.set_attribute("llm.model_name", "m")
+            span.set_attribute("vendor.model_name", "m")
         client.flush()
         (seen,) = other.get_finished_spans()
         (normalized,) = exporter.get_finished_spans()
     finally:
         client.shutdown()
-    assert seen.attributes["llm.model_name"] == "m"
+    assert seen.attributes["vendor.model_name"] == "m"
     assert normalized.attributes[GEN_AI_REQUEST_MODEL] == "m"
 
 
