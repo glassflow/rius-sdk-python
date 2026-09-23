@@ -20,6 +20,7 @@ from __future__ import annotations
 import threading
 from typing import Any
 
+from .config import DEFAULT_SERVICE_NAME
 from .semconv import SpanKind
 
 _lock = threading.Lock()
@@ -54,9 +55,22 @@ def resolve_agent_name(agent_name: str | None, kind: SpanKind) -> str | None:
     the same string. An agent name does not: a function name is not an agent's
     identity, so the fallback is the name this process was configured with,
     which is a real answer, and nothing after that.
+
+    Except when that configured name is the placeholder. Nothing was named,
+    and ``DEFAULT_SERVICE_NAME`` is what BOTH the service name and the agent
+    name resolve to in that case, so emitting it would claim an identity the
+    caller never gave and would name every such span ``invoke_agent
+    unknown_service``. A bare ``invoke_agent`` is the honest answer, and it is
+    what the conventions prescribe when the name is not available.
+
+    A caller who literally names their agent ``"unknown_service"`` is treated
+    as not having named one. That is the placeholder's meaning everywhere else
+    in the pipeline, and the alternative is threading a "was this defaulted"
+    flag through the client for a case nobody has.
     """
     if kind is not SpanKind.AGENT:
         return None
     if agent_name is not None:
         return agent_name
-    return configured_agent_name()
+    configured = configured_agent_name()
+    return None if configured == DEFAULT_SERVICE_NAME else configured
