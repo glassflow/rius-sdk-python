@@ -414,6 +414,20 @@
       }
     },
     {
+      "name": "a tool_use item with any field beyond the call's is not a copy, even an empty one",
+      "sink_identical": true,
+      "attributes": {
+        "llm.output_messages.0.message.role": "assistant",
+        "llm.output_messages.0.message.tool_calls.0.tool_call.id": "toolu_D",
+        "llm.output_messages.0.message.contents.0.message_content.type": "tool_use",
+        "llm.output_messages.0.message.contents.0.message_content.text": "",
+        "llm.output_messages.0.message.contents.0.tool_call.id": "toolu_D"
+      },
+      "expected": {
+        "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"{\\\"text\\\":\\\"\\\",\\\"tool_call.id\\\":\\\"toolu_D\\\",\\\"type\\\":\\\"tool_use\\\"}\"},{\"type\":\"tool_call\",\"id\":\"toolu_D\"}]}]"
+      }
+    },
+    {
       "name": "anthropic block-list system prompt (cache_control) and a string user turn",
       "sink_identical": true,
       "attributes": {
