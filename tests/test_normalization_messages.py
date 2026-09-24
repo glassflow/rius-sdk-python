@@ -10,9 +10,9 @@ indistinguishable downstream.
 
 ``tests/fixtures/openinference_messages.json`` is the shared contract. It is
 consumed unchanged by the TypeScript SDK's port, and every case marked
-``sink_identical`` was checked against the sink's ``reassembleMessages``. The
-cases that are not are the multimodal ones, which the sink does not reassemble
-yet.
+``sink_identical`` is checked against the sink's ``reassembleMessages``
+(all of them, today). The Anthropic cases are shapes read from the
+openinference-instrumentation-anthropic code, Python and JS.
 """
 
 from __future__ import annotations
