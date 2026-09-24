@@ -58,7 +58,9 @@ the sink still sees it under its own name. The deliberate omissions are listed
 with their reasons at ``OPENINFERENCE_RULES`` below.
 
 The shipped table covers the OpenInference ``llm.*`` model-call and usage
-families (RIUS-921). Rules used to exercise the machinery itself live in the
+families (RIUS-921), plus two GenAI-shaped usage spellings that third-party
+instrumentations still emit (``cache_creation``, ``details.reasoning_tokens``).
+Rules used to exercise the machinery itself live in the
 tests, injected through ``table=``.
 
 Not everything a dialect says is an attribute. OpenInference records the first
@@ -878,6 +880,33 @@ OPENINFERENCE_RULES: tuple[AnyRule, ...] = (
     ),
     Rule(
         "llm.token_count.completion_details.reasoning",
+        GEN_AI_USAGE_REASONING_OUTPUT_TOKENS,
+        to_int,
+    ),
+    # Two GenAI-shaped spellings of the same counts, each its own rule AFTER
+    # the OpenInference one for its target: the OpenInference count keeps the
+    # target where a span somehow carries both, and a separate rule rather
+    # than a second source means an OpenInference count that won't parse
+    # still lets a usable alternate through (a rule converts only its first
+    # present source). Spelled here rather than in semconv.py for the reason
+    # gen_ai.system is: they are source spellings we map and never emit.
+    #
+    # cache_creation is the cache-write count's name before the upstream
+    # rename to cache_write. Permanent, not a transition aid: current
+    # third-party releases still emit it (pydantic-ai, and @ai-sdk/otel for
+    # every Vercel AI SDK app), and the backend prices cache writes from the
+    # canonical key alone. The rename is exact, so nothing is lost.
+    Rule(
+        "gen_ai.usage.cache_creation.input_tokens",
+        GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS,
+        to_int,
+    ),
+    # pydantic-ai writes OpenAI's reasoning count as one entry of its usage
+    # details namespace. The other providers' names there for the same split
+    # (Anthropic's thinking_tokens, Google's thoughts_tokens) are not mapped,
+    # matching the sink; the rest of the namespace has no canonical key.
+    Rule(
+        "gen_ai.usage.details.reasoning_tokens",
         GEN_AI_USAGE_REASONING_OUTPUT_TOKENS,
         to_int,
     ),
