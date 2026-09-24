@@ -149,6 +149,11 @@ GEN_AI_REQUEST_SEED = "gen_ai.request.seed"
 GEN_AI_REQUEST_STOP_SEQUENCES = "gen_ai.request.stop_sequences"
 # "The target number of candidate completions to return" — OpenAI's `n`.
 GEN_AI_REQUEST_CHOICE_COUNT = "gen_ai.request.choice.count"
+# Reached only through model_parameters (and so through GEN_AI_REQUEST_PARAMETERS),
+# named here because a per-key guard is keyed by them.
+GEN_AI_REQUEST_ENCODING_FORMATS = "gen_ai.request.encoding_formats"
+GEN_AI_REQUEST_PREVIOUS_RESPONSE_ID = "gen_ai.request.previous_response.id"
+GEN_AI_REQUEST_STREAM_CURSOR = "gen_ai.request.stream_cursor"
 GEN_AI_USAGE_INPUT_TOKENS = "gen_ai.usage.input_tokens"
 GEN_AI_USAGE_OUTPUT_TOKENS = "gen_ai.usage.output_tokens"
 GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS = "gen_ai.usage.cache_read.input_tokens"
@@ -244,6 +249,12 @@ RIUS_REQUEST_PREFIX = "rius.request."
 # spelling is not also emitted. Two keys for one parameter would make every
 # consumer de-duplicate, and the point of a convention is that there is one
 # place to look.
+#
+# ORDER IS PRECEDENCE. When a request carries two spellings of one parameter,
+# the spelling listed first here that has a value of the right shape wins the
+# canonical key, and the other is kept under RIUS_REQUEST_PREFIX. That is the
+# rule the normalizer's tables follow (the first source present wins), and it
+# does not depend on the order the caller wrote the keys in.
 GEN_AI_REQUEST_PARAMETERS: dict[str, str] = {
     # model — the request's model; also settable via the `model=` argument.
     "model": GEN_AI_REQUEST_MODEL,
@@ -275,10 +286,12 @@ GEN_AI_REQUEST_PARAMETERS: dict[str, str] = {
     "top_k": "gen_ai.request.top_k",
     "topK": "gen_ai.request.top_k",
     "k": "gen_ai.request.top_k",
-    # stop_sequences — OpenAI `stop`, Google `stopSequences`.
+    # stop_sequences — OpenAI `stop`, Google `stopSequences`. `stop` is listed
+    # FIRST because the llm.invocation_parameters rule prefers it, and both
+    # paths must keep the same spelling when a request carries two.
+    "stop": "gen_ai.request.stop_sequences",
     "stop_sequences": "gen_ai.request.stop_sequences",
     "stopSequences": "gen_ai.request.stop_sequences",
-    "stop": "gen_ai.request.stop_sequences",
     "frequency_penalty": "gen_ai.request.frequency_penalty",
     "frequencyPenalty": "gen_ai.request.frequency_penalty",
     "presence_penalty": "gen_ai.request.presence_penalty",
@@ -286,10 +299,10 @@ GEN_AI_REQUEST_PARAMETERS: dict[str, str] = {
     # encoding_formats — plural in the registry; OpenAI's embeddings endpoint
     # sends the singular `encoding_format`, and the registry's note says some
     # systems call these "embedding types" (Cohere `embedding_types`).
-    "encoding_formats": "gen_ai.request.encoding_formats",
-    "encoding_format": "gen_ai.request.encoding_formats",
-    "encodingFormat": "gen_ai.request.encoding_formats",
-    "embedding_types": "gen_ai.request.encoding_formats",
+    "encoding_formats": GEN_AI_REQUEST_ENCODING_FORMATS,
+    "encoding_format": GEN_AI_REQUEST_ENCODING_FORMATS,
+    "encodingFormat": GEN_AI_REQUEST_ENCODING_FORMATS,
+    "embedding_types": GEN_AI_REQUEST_ENCODING_FORMATS,
     "seed": "gen_ai.request.seed",
     "stream": GEN_AI_REQUEST_STREAM,
     # reasoning.level — "the exact string value sent to the provider";
@@ -300,15 +313,15 @@ GEN_AI_REQUEST_PARAMETERS: dict[str, str] = {
     "reasoningEffort": GEN_AI_REQUEST_REASONING_LEVEL,
     # previous_response.id — the registry names OpenAI's
     # `previous_response_id` and Google's `previous_interaction_id`.
-    "previous_response.id": "gen_ai.request.previous_response.id",
-    "previous_response_id": "gen_ai.request.previous_response.id",
-    "previousResponseId": "gen_ai.request.previous_response.id",
-    "previous_interaction_id": "gen_ai.request.previous_response.id",
+    "previous_response.id": GEN_AI_REQUEST_PREVIOUS_RESPONSE_ID,
+    "previous_response_id": GEN_AI_REQUEST_PREVIOUS_RESPONSE_ID,
+    "previousResponseId": GEN_AI_REQUEST_PREVIOUS_RESPONSE_ID,
+    "previous_interaction_id": GEN_AI_REQUEST_PREVIOUS_RESPONSE_ID,
     # stream_cursor — the registry names OpenAI's `starting_after` and
     # Google's `last_event_id`.
-    "stream_cursor": "gen_ai.request.stream_cursor",
-    "starting_after": "gen_ai.request.stream_cursor",
-    "last_event_id": "gen_ai.request.stream_cursor",
+    "stream_cursor": GEN_AI_REQUEST_STREAM_CURSOR,
+    "starting_after": GEN_AI_REQUEST_STREAM_CURSOR,
+    "last_event_id": GEN_AI_REQUEST_STREAM_CURSOR,
 }
 
 
