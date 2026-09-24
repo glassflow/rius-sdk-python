@@ -5,6 +5,7 @@
       "release-type": "python",
       "package-name": "glassflow-rius",
       "bump-minor-pre-major": true,
+      "release-as": "1.0.0",
       "include-component-in-tag": false,
       "extra-files": ["src/rius/__init__.py"]
     }
