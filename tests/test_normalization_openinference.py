@@ -17,6 +17,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from rius import init
 from rius.normalization import DEFAULT_TABLE, openinference_invocation_parameters
 from rius.semconv import (
+    GEN_AI_OPERATION_NAME,
     GEN_AI_PROVIDER_NAME,
     GEN_AI_REQUEST_MODEL,
     GEN_AI_RESPONSE_MODEL,
@@ -73,8 +74,11 @@ def test_openai_chat_span() -> None:
     }
 
     assert _normalize(raw) == {
-        # untouched: not mapped by any rule
+        # kept, not consumed: the taxonomy rules derive the operation FROM it
+        # and both keys must be present on every span
         "openinference.span.kind": "LLM",
+        GEN_AI_OPERATION_NAME: "chat",
+        # untouched: not mapped by any rule
         "llm.system": "openai",
         "llm.model_name": "gpt-4o-2024-08-06",
         "llm.input_messages.0.message.role": "user",
@@ -126,6 +130,7 @@ def test_anthropic_messages_span() -> None:
 
     assert _normalize(raw) == {
         "openinference.span.kind": "LLM",
+        GEN_AI_OPERATION_NAME: "chat",
         "llm.system": "anthropic",
         "llm.model_name": "claude-sonnet-4-5-20250929",
         "llm.token_count.total": 1664,
