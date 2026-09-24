@@ -584,6 +584,57 @@ _OPERATION_BY_KIND: dict[SpanKind, str] = {
     SpanKind.RETRIEVER: "retrieval",
 }
 
+# The inverse, for spans that speak only the conventions. A GenAI-native
+# instrumentation sets gen_ai.operation.name and never heard of
+# openinference.span.kind, and both keys must be present on every span, so the
+# derivation has to run in both directions.
+#
+# Not a mechanical inversion of the map above, and it cannot be generated from
+# it, for two reasons:
+#   - several operations share one kind. text_completion and generate_content
+#     are LLM calls the same way chat is, and create_agent is an AGENT span
+#     just as invoke_agent is, so the mapping is many-to-one and only the
+#     chat/invoke_agent entries round-trip.
+#   - CHAIN has no operation of its own, but two operations land on it.
+#     invoke_workflow and plan are real GenAI operations with no taxonomy
+#     value of their own; CHAIN is the honest home for both, and the reverse
+#     direction is the only one that can say so.
+# The structural test asserts the round-trip where one exists, not equality of
+# the two maps. Mirrors the console's deriveSpanKind.
+_KIND_BY_OPERATION: dict[str, SpanKind] = {
+    "chat": SpanKind.LLM,
+    "text_completion": SpanKind.LLM,
+    "generate_content": SpanKind.LLM,
+    "execute_tool": SpanKind.TOOL,
+    "embeddings": SpanKind.EMBEDDING,
+    "invoke_agent": SpanKind.AGENT,
+    "create_agent": SpanKind.AGENT,
+    "retrieval": SpanKind.RETRIEVER,
+    "invoke_workflow": SpanKind.CHAIN,
+    "plan": SpanKind.CHAIN,
+}
+
+
+def operation_for_kind(kind: str) -> str | None:
+    """``gen_ai.operation.name`` for a taxonomy value, or None if it has none.
+
+    Takes the raw attribute string rather than the enum: the caller is
+    normalizing a third-party span, where the value is whatever the
+    instrumentation wrote. An unrecognised one yields None rather than raising,
+    because a span carrying a kind we do not know is not a reason to lose the
+    span.
+    """
+    try:
+        return _OPERATION_BY_KIND.get(SpanKind(kind))
+    except ValueError:
+        return None
+
+
+def kind_for_operation(operation: str) -> str | None:
+    """The taxonomy value for a ``gen_ai.operation.name``, or None if unknown."""
+    kind = _KIND_BY_OPERATION.get(operation)
+    return kind.value if kind is not None else None
+
 
 # SpanKind (our taxonomy ATTRIBUTE) -> the OpenTelemetry SpanKind FIELD, set
 # centrally at span creation. The GenAI conventions decide the field per

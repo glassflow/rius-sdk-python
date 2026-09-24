@@ -36,12 +36,14 @@ Contract, in both components:
 
 Always on, no opt-out. A fast path skips the whole pass when a span carries
 no key under any source namespace at all; on an empty table it short-circuits
-on the first check. The shipped table claims ``gen_ai.`` as well as ``llm.``
-(the deprecated ``gen_ai.system`` is one of its sources), so our OWN spans no
-longer take that path — they walk the rules, match none of the sources, and
-``normalize`` returns None without copying anything. The pass is a handful of
-dict lookups; the copy, which is the part that costs, still only happens for
-a span that actually carries a source key.
+on the first check. Our OWN spans no longer take that path and now match a
+source outright: every one carries ``openinference.span.kind``, which the
+taxonomy rules read. They are the reason ``normalize`` ends with a no-op
+check. The rules produce exactly the two keys the span already has, so the
+rebuilt mapping is equal to the original, and returning None there is what
+keeps a native span from being copied on every export. The copy, which is the
+part that costs, still only happens for a span normalization actually
+changed.
 
 A rule is not a casual addition. Normalization is wired into ``init()``
 unconditionally, so anything in ``DEFAULT_TABLE`` is live in every process on
@@ -88,6 +90,7 @@ from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
 from ._serde import serialize
 from .semconv import (
     GEN_AI_FIRST_TOKEN_EVENT,
+    GEN_AI_OPERATION_NAME,
     GEN_AI_PROVIDER_NAME,
     GEN_AI_REQUEST_CHOICE_COUNT,
     GEN_AI_REQUEST_FREQUENCY_PENALTY,
@@ -108,6 +111,9 @@ from .semconv import (
     GEN_AI_USAGE_OUTPUT_TOKENS,
     GEN_AI_USAGE_REASONING_OUTPUT_TOKENS,
     LLM_INVOCATION_PARAMETERS,
+    OPENINFERENCE_SPAN_KIND,
+    kind_for_operation,
+    operation_for_kind,
 )
 
 logger = logging.getLogger(__name__)
@@ -280,6 +286,14 @@ class NormalizationTable:
             return None
         new_attributes = {k: v for k, v in attributes.items() if k not in removed}
         new_attributes.update(added)
+        # Every span we emit ourselves reaches here, because the taxonomy
+        # rules take openinference.span.kind as a source and we always set it.
+        # For those the rules re-derive what is already there, so the result
+        # is equal to the input and the only honest answer is "unchanged" —
+        # otherwise the exporter rebuilds every native span for nothing. One
+        # mapping comparison is much cheaper than the span copy it avoids.
+        if new_attributes == attributes:
+            return None
         return new_attributes
 
 
@@ -605,6 +619,44 @@ def openinference_invocation_parameters(raw: Any) -> Mapping[str, Any]:
 #:   litellm's own Anthropic transformation (``chat/transformation.py:2358``),
 #:   and openai by the provider's definition of ``prompt_tokens``. Summing
 #:   again would double-count every cached token.
+def taxonomy_from_kind(raw: Any) -> Mapping[str, Any]:
+    """``openinference.span.kind`` kept, plus the operation it implies."""
+    if not isinstance(raw, str):
+        return {}
+    operation = operation_for_kind(raw)
+    produced: dict[str, Any] = {OPENINFERENCE_SPAN_KIND: raw}
+    if operation is not None:
+        produced[GEN_AI_OPERATION_NAME] = operation
+    return produced
+
+
+def taxonomy_from_operation(raw: Any) -> Mapping[str, Any]:
+    """``gen_ai.operation.name`` kept, plus the taxonomy value it implies."""
+    if not isinstance(raw, str):
+        return {}
+    kind = kind_for_operation(raw)
+    produced: dict[str, Any] = {GEN_AI_OPERATION_NAME: raw}
+    if kind is not None:
+        produced[OPENINFERENCE_SPAN_KIND] = kind
+    return produced
+
+
+#: Both taxonomy keys on every span, whichever one the instrumentation speaks.
+#:
+#: These are ``ExpandingRule``s rather than plain ``Rule``s for one reason: a
+#: ``Rule`` DELETES its source after mapping, and here the source must stay.
+#: The two keys carry different information and the contract requires both, so
+#: neither may be consumed to produce the other. An expander returning its own
+#: source key is the shape that says "rewrite, do not consume".
+#:
+#: Both directions are needed. OpenInference instrumentors set only the kind;
+#: a GenAI-native instrumentation sets only the operation. A span carrying
+#: both is left alone by native-wins.
+TAXONOMY_RULES: tuple[AnyRule, ...] = (
+    ExpandingRule(OPENINFERENCE_SPAN_KIND, taxonomy_from_kind),
+    ExpandingRule(GEN_AI_OPERATION_NAME, taxonomy_from_operation),
+)
+
 OPENINFERENCE_RULES: tuple[AnyRule, ...] = (
     # Provider. One rule, two spellings, first present wins: llm.provider is
     # OpenInference's and the more specific (azure/aws/google rather than the
@@ -645,4 +697,6 @@ OPENINFERENCE_RULES: tuple[AnyRule, ...] = (
 )
 
 #: Live in every process. See the module docstring before adding a rule.
-DEFAULT_TABLE = NormalizationTable(OPENINFERENCE_RULES)
+#: Taxonomy first: it is the only family whose rules are pure additions, and
+#: putting it ahead of the mapping rules keeps the order easy to read.
+DEFAULT_TABLE = NormalizationTable(TAXONOMY_RULES + OPENINFERENCE_RULES)

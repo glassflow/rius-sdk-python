@@ -193,7 +193,10 @@ def test_the_shipped_table_only_claims_namespaces_it_maps() -> None:
     If it fails, read the normalization module docstring before changing the
     assertion.
     """
-    assert DEFAULT_TABLE.prefixes == ("gen_ai.", "llm.")
+    # openinference. joined the list when the taxonomy rules did: the kind is
+    # a SOURCE now, not only a target. That is also why every span we emit
+    # matches the table, and why normalize() ends with a no-op check.
+    assert DEFAULT_TABLE.prefixes == ("gen_ai.", "llm.", "openinference.")
 
 
 def test_an_empty_table_short_circuits() -> None:
@@ -364,3 +367,82 @@ def test_processor_maps_at_start_without_deleting_the_source() -> None:
 def test_processor_fast_path(attributes: dict[str, Any]) -> None:
     table = _table(Rule("vendor.model", GEN_AI_REQUEST_MODEL, copy_value))
     assert table.applies(attributes) is False
+
+
+# --- taxonomy: both keys on every span --------------------------------------
+
+
+def test_openinference_kind_yields_the_operation_and_keeps_the_kind() -> None:
+    """The two keys carry different information and the contract wants both,
+    so the kind is a source that is rewritten rather than consumed."""
+    out = _normalize(DEFAULT_TABLE, {"openinference.span.kind": "LLM"})
+    assert out == {"openinference.span.kind": "LLM", "gen_ai.operation.name": "chat"}
+
+
+def test_operation_yields_the_kind_for_a_genai_native_span() -> None:
+    """A GenAI-native instrumentation never heard of openinference.span.kind,
+    so the derivation has to run in this direction too."""
+    out = _normalize(DEFAULT_TABLE, {"gen_ai.operation.name": "execute_tool"})
+    assert out == {"gen_ai.operation.name": "execute_tool", "openinference.span.kind": "TOOL"}
+
+
+def test_a_chain_kind_yields_no_operation() -> None:
+    """The conventions define no operation for a generic step; inventing one
+    would put a non-spec value in a spec-defined enum."""
+    out = _normalize(DEFAULT_TABLE, {"openinference.span.kind": "CHAIN"})
+    assert out == {"openinference.span.kind": "CHAIN"}
+
+
+def test_operations_with_no_taxonomy_value_of_their_own_land_on_chain() -> None:
+    """The reverse direction is the only one that can place these, which is
+    why the two maps are not inverses of each other."""
+    for operation in ("invoke_workflow", "plan"):
+        out = _normalize(DEFAULT_TABLE, {"gen_ai.operation.name": operation})
+        assert out["openinference.span.kind"] == "CHAIN", operation
+
+
+def test_a_native_taxonomy_key_is_never_overwritten() -> None:
+    """An instrumentation that sets both is telling us something the maps
+    cannot: text_completion is an LLM call, and re-deriving would flatten it
+    to chat."""
+    attributes = {"openinference.span.kind": "LLM", "gen_ai.operation.name": "text_completion"}
+    assert DEFAULT_TABLE.normalize(attributes) is None
+
+
+def test_an_unrecognised_taxonomy_value_is_kept_and_derives_nothing() -> None:
+    """A kind we do not know is not a reason to lose the span or the value."""
+    for attributes in (
+        {"openinference.span.kind": "GUARDRAIL"},
+        {"gen_ai.operation.name": "transcribe"},
+    ):
+        out = _normalize(DEFAULT_TABLE, dict(attributes))
+        assert out == attributes
+
+
+def test_the_two_taxonomy_maps_round_trip_where_an_operation_exists() -> None:
+    """Structural: every kind with a canonical operation must come back as
+    itself. The maps are many-to-one in the reverse direction, so this is the
+    strongest property that holds — not equality of the two tables."""
+    from rius.semconv import SpanKind, kind_for_operation, operation_for_kind
+
+    for kind in SpanKind:
+        operation = operation_for_kind(kind.value)
+        if operation is None:
+            assert kind is SpanKind.CHAIN, f"{kind} unexpectedly has no operation"
+            continue
+        assert kind_for_operation(operation) == kind.value, kind
+
+
+def test_our_own_spans_are_not_rebuilt_by_the_taxonomy_rules() -> None:
+    """Every span we emit carries openinference.span.kind, so the table now
+    MATCHES all of them. The rules re-derive what is already there, and
+    normalize must say 'unchanged' rather than hand back an equal copy the
+    exporter would then rebuild the span from."""
+    native = {
+        "openinference.span.kind": "LLM",
+        "gen_ai.operation.name": "chat",
+        "gen_ai.request.model": "gpt-4o",
+        "session.id": "s-1",
+    }
+    assert DEFAULT_TABLE.applies(native) is True
+    assert DEFAULT_TABLE.normalize(native) is None
