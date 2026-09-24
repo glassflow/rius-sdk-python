@@ -356,31 +356,43 @@ def test_capture_content_false_strips_wrapper_tool_and_vercel_content_keys() -> 
     assert attrs["ai.response.model"] == "gpt-test"
 
 
-def test_invocation_parameters_tools_member_redacted_when_stripping() -> None:
-    # litellm and langchain (both SDKs' bundled instrumentations) embed the
-    # request tools array INSIDE llm.invocation_parameters; the direct
-    # openai/anthropic instrumentors do not. The key is not wholly content —
-    # sampling params are identity — so the tools/functions members are
-    # redacted and the rest survives. The surviving members here are ones
-    # normalization does NOT promote out of the bag (model and temperature
-    # become gen_ai.request.*), so this stays a test of masking alone.
+def test_invocation_parameters_dropped_whole_when_stripping() -> None:
+    # The bag's membership is open and provider-defined: litellm and langchain
+    # embed the request tools array in it, and nothing stops a provider adding
+    # a system prompt or customer data beside it. A per-member blocklist is
+    # always one provider behind, so the whole bag is content.
+    #
+    # That costs nothing the caller can name, because normalization runs
+    # before masking and has already lifted every member the rule table knows
+    # onto gen_ai.request.*. What is dropped here is exactly what nothing
+    # classified.
     inner = InMemorySpanExporter()
     client = init(span_exporter=inner, set_global=False, capture_content=False)
     with client.get_tracer().start_as_current_span("chat") as span:
         span.set_attribute(
             "llm.invocation_parameters",
-            '{"tool_choice": "auto", "user": "u",'
-            ' "tools": [{"name": "secret_tool"}], "functions": [{"name": "legacy"}]}',
+            '{"model": "claude-sonnet-4", "temperature": 0.2,'
+            ' "tools": [{"name": "refund", "description": "never above $500"}],'
+            ' "system": "Our margin floor is 12%.",'
+            ' "extra_body": {"customer_tier": "enterprise-gold"}}',
         )
     client.flush()
     attrs = inner.get_finished_spans()[0].attributes
-    kept = json.loads(attrs["llm.invocation_parameters"])
-    assert kept == {"tool_choice": "auto", "user": "u"}
+
+    assert "llm.invocation_parameters" not in attrs
+    # Neither the tools array nor the unrecognised members survive anywhere.
+    for secret in ("refund", "margin floor", "enterprise-gold"):
+        assert secret not in json.dumps(dict(attrs)), secret
+    # The recognised knobs did survive, promoted before masking saw the bag.
+    assert attrs["gen_ai.request.model"] == "claude-sonnet-4"
+    assert attrs["gen_ai.request.temperature"] == 0.2
 
 
-def test_invocation_parameters_without_tools_untouched() -> None:
+def test_invocation_parameters_survive_when_content_is_captured() -> None:
+    # Content capture on and no mask is the default, and content keys pass
+    # through untouched there. Classifying the bag must not change that.
     inner = InMemorySpanExporter()
-    client = init(span_exporter=inner, set_global=False, capture_content=False)
+    client = init(span_exporter=inner, set_global=False)
     with client.get_tracer().start_as_current_span("chat") as span:
         span.set_attribute("llm.invocation_parameters", '{"tool_choice": "none"}')
     client.flush()
@@ -389,7 +401,9 @@ def test_invocation_parameters_without_tools_untouched() -> None:
 
 
 def test_invocation_parameters_unparseable_dropped_when_stripping() -> None:
-    # Fail closed: an unreadable payload might hide tool definitions.
+    # Once the bag is a content key this is no longer a special case, but it
+    # is the input that used to take the partial-redaction path, and that path
+    # deleted the key a second time. Kept as the regression guard.
     inner = InMemorySpanExporter()
     client = init(span_exporter=inner, set_global=False, capture_content=False)
     with client.get_tracer().start_as_current_span("chat") as span:
@@ -398,19 +412,25 @@ def test_invocation_parameters_unparseable_dropped_when_stripping() -> None:
     assert "llm.invocation_parameters" not in inner.get_finished_spans()[0].attributes
 
 
-def test_invocation_parameters_tools_member_redacted_under_mask_too() -> None:
-    # A mask declares content sensitive just like capture_content=False does;
-    # tool definitions hiding inside a non-content key must not bypass it.
+def test_invocation_parameters_reach_the_mask_with_their_key() -> None:
+    # Before the bag was content it was invisible to a caller-supplied mask:
+    # mask dispatch is keyed on the content allowlist, so a user who wanted a
+    # member redacted had no hook at all. Now it arrives like any content key,
+    # and a key-aware mask can act on it precisely.
+    seen: dict[str, object] = {}
+
+    def mask(value: object, *, key: str) -> object:
+        seen[key] = value
+        return "[masked]" if key == "llm.invocation_parameters" else value
+
     inner = InMemorySpanExporter()
-    client = init(span_exporter=inner, set_global=False, mask=lambda value: "[masked]")
+    client = init(span_exporter=inner, set_global=False, mask=mask)
     with client.get_tracer().start_as_current_span("chat") as span:
-        span.set_attribute(
-            "llm.invocation_parameters",
-            '{"tool_choice": "auto", "tools": [{"name": "secret_tool"}]}',
-        )
+        span.set_attribute("llm.invocation_parameters", '{"tool_choice": "auto"}')
     client.flush()
     attrs = inner.get_finished_spans()[0].attributes
-    assert json.loads(attrs["llm.invocation_parameters"]) == {"tool_choice": "auto"}
+    assert "llm.invocation_parameters" in seen
+    assert attrs["llm.invocation_parameters"] == "[masked]"
 
 
 # --- span status: provider errors echo the rejected request into the message ---

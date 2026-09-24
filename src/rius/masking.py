@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import copy
 import inspect
-import json
 import logging
 from collections.abc import Callable, Sequence
 from typing import Any
@@ -32,8 +31,6 @@ from .semconv import (
     CONTENT_ATTRIBUTE_PREFIXES,
     CONTENT_ATTRIBUTE_SUFFIXES,
     CONTENT_ATTRIBUTES,
-    INVOCATION_PARAMETERS_CONTENT_MEMBERS,
-    LLM_INVOCATION_PARAMETERS,
 )
 
 logger = logging.getLogger(__name__)
@@ -54,31 +51,6 @@ def _accepts_key(mask: Mask) -> bool:
         or (p.name == "key" and p.kind in (p.KEYWORD_ONLY, p.POSITIONAL_OR_KEYWORD))
         for p in parameters
     )
-
-
-def _redact_invocation_parameters(value: Any) -> str | None:
-    """The tools/functions members removed, the rest kept; None = drop it all.
-
-    ``llm.invocation_parameters`` is not wholly content — sampling parameters
-    are identity — but the litellm and langchain instrumentations embed the
-    request's tool definitions inside it. Whenever sanitization runs (content
-    capture off, or a mask installed), those members must not leave the
-    process. An unparseable payload is dropped whole: it might hide tool
-    definitions, and unreadable is exactly when a pass-through is wrong.
-    """
-    if not isinstance(value, str):
-        return None
-    try:
-        parameters = json.loads(value)
-    except ValueError:
-        return None
-    if not isinstance(parameters, dict):
-        return None
-    if not any(member in parameters for member in INVOCATION_PARAMETERS_CONTENT_MEMBERS):
-        return value  # nothing sensitive; keep byte-identical
-    for member in INVOCATION_PARAMETERS_CONTENT_MEMBERS:
-        parameters.pop(member, None)
-    return serialize(parameters)
 
 
 # The namespace the OpenInference Vercel transform mirrors untranslated
@@ -224,24 +196,10 @@ class MaskingSpanExporter(SpanExporter):
         if not attributes:
             return None
         keys = [key for key in attributes if _is_content_key(key) or key in extra_content_keys]
-
-        # Partial redaction, not the strip/mask below: the key mixes identity
-        # (sampling params) with content (embedded tool definitions).
-        invocation = attributes.get(LLM_INVOCATION_PARAMETERS)
-        redacted_invocation = (
-            _redact_invocation_parameters(invocation) if invocation is not None else None
-        )
-        invocation_changed = invocation is not None and redacted_invocation != invocation
-
-        if not keys and not invocation_changed:
+        if not keys:
             return None
 
         new_attributes = dict(attributes)
-        if invocation_changed:
-            if redacted_invocation is None:
-                del new_attributes[LLM_INVOCATION_PARAMETERS]
-            else:
-                new_attributes[LLM_INVOCATION_PARAMETERS] = redacted_invocation
         for key in keys:
             if not self._capture_content:
                 del new_attributes[key]
