@@ -100,6 +100,7 @@ from .semconv import (
     GEN_AI_REQUEST_TEMPERATURE,
     GEN_AI_REQUEST_TOP_K,
     GEN_AI_REQUEST_TOP_P,
+    GEN_AI_RESPONSE_FINISH_REASONS,
     GEN_AI_RESPONSE_MODEL,
     GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK,
     GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS,
@@ -619,6 +620,20 @@ OPENINFERENCE_RULES: tuple[AnyRule, ...] = (
     # (_wrappers.py:596, :603); see the omission note on llm.model_name.
     Rule("llm.request.model_name", GEN_AI_REQUEST_MODEL, copy_value),
     Rule("llm.response.model_name", GEN_AI_RESPONSE_MODEL, copy_value),
+    # Why the model stopped. The source is a SCALAR and the canonical key is
+    # an array (one entry per generation), so wrap rather than copy.
+    #
+    # The VALUE is passed through untouched, deliberately. The registry
+    # defines this key as a free-form string array with no enum, and says
+    # instrumentations report whatever the provider supplied. OpenInference's
+    # own converter lowercases and folds tool_calls/function_call into
+    # tool_call; following it would replace the string OpenAI actually
+    # returned with one neither the provider nor the conventions use, while
+    # leaving Anthropic's end_turn and tool_use alone — so it would cost
+    # fidelity and unify nothing. Grouping "stop" with "end_turn" is a
+    # question for a reader who still has both, not for the SDK that would
+    # destroy one of them.
+    Rule("llm.finish_reason", GEN_AI_RESPONSE_FINISH_REASONS, wrap_in_list),
     # Usage. to_int rather than copy: a count under a canonical key must be a
     # count, and a converter that SKIPs is how a wrongly-shaped value stays
     # off the wire.

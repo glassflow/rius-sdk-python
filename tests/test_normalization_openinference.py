@@ -19,6 +19,7 @@ from rius.normalization import DEFAULT_TABLE, openinference_invocation_parameter
 from rius.semconv import (
     GEN_AI_PROVIDER_NAME,
     GEN_AI_REQUEST_MODEL,
+    GEN_AI_RESPONSE_FINISH_REASONS,
     GEN_AI_RESPONSE_MODEL,
     GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS,
     GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS,
@@ -79,7 +80,7 @@ def test_openai_chat_span() -> None:
         "llm.model_name": "gpt-4o-2024-08-06",
         "llm.input_messages.0.message.role": "user",
         "llm.token_count.total": 1088,
-        "llm.finish_reason": "stop",
+        GEN_AI_RESPONSE_FINISH_REASONS: ["stop"],
         # mapped
         GEN_AI_PROVIDER_NAME: "openai",
         GEN_AI_REQUEST_MODEL: "gpt-4o",
@@ -231,7 +232,6 @@ def test_source_is_mapped_and_deleted(source: str, target: str, value: Any) -> N
         "llm.token_count.prompt_details.cache_input",
         "llm.token_count.completion_details.audio",
         "llm.cost.total",
-        "llm.finish_reason",
         "llm.tools.0.tool.json_schema",
         "llm.input_messages.0.message.content",
     ],
@@ -414,3 +414,47 @@ def test_tool_definitions_left_in_the_blob_are_still_stripped() -> None:
         client.shutdown()
     assert span.attributes["gen_ai.request.temperature"] == 0
     assert "secret_tool" not in span.attributes.get(LLM_INVOCATION_PARAMETERS, "")
+
+
+# --- finish reasons: verbatim, by decision ----------------------------------
+
+
+def test_a_scalar_finish_reason_becomes_a_one_element_array() -> None:
+    """The source is a scalar and the canonical key is an array, one entry per
+    generation."""
+    assert _normalize({"llm.finish_reason": "stop"}) == {GEN_AI_RESPONSE_FINISH_REASONS: ["stop"]}
+
+
+def test_a_list_valued_finish_reason_passes_through_as_a_list() -> None:
+    """An instrumentor that already reports one reason per choice must not be
+    double-wrapped into [["stop", "length"]]."""
+    assert _normalize({"llm.finish_reason": ["stop", "length"]}) == {
+        GEN_AI_RESPONSE_FINISH_REASONS: ["stop", "length"]
+    }
+
+
+@pytest.mark.parametrize(
+    "provider_value",
+    ["tool_calls", "function_call", "tool_use", "end_turn", "STOP", "max_tokens"],
+)
+def test_the_provider_value_is_never_rewritten(provider_value: str) -> None:
+    """The decision this rule exists to encode.
+
+    The registry defines the key as a free-form string array with no enum, so
+    there is no vocabulary to conform to. OpenInference's own converter
+    lowercases and folds tool_calls/function_call into tool_call; we do not,
+    because that would replace what OpenAI actually returned with a string
+    neither the provider nor the conventions use, while leaving Anthropic's
+    end_turn and tool_use untouched. Fidelity lost, nothing unified.
+
+    If this test is ever changed to expect a folded value, the change belongs
+    in RIUS-917 first, and it has to bind the native path too.
+    """
+    out = _normalize({"llm.finish_reason": provider_value})
+    assert out[GEN_AI_RESPONSE_FINISH_REASONS] == [provider_value]
+
+
+def test_a_native_finish_reason_wins_and_the_source_still_goes() -> None:
+    out = _normalize({"llm.finish_reason": "stop", GEN_AI_RESPONSE_FINISH_REASONS: ["length"]})
+    assert out[GEN_AI_RESPONSE_FINISH_REASONS] == ["length"]
+    assert "llm.finish_reason" not in out
