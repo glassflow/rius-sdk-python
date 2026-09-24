@@ -1059,3 +1059,15 @@ def test_the_model_argument_still_beats_a_model_parameter(
     start_generation("chat", model="gpt-4o", model_parameters={"model": "other"}).end()
     attrs = exported_spans.get_finished_spans()[0].attributes
     assert attrs["gen_ai.request.model"] == "gpt-4o"
+
+
+@pytest.mark.parametrize("spelling", ["temperature", "max_tokens", "seed"])
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+def test_a_non_finite_number_fails_a_numeric_guard(
+    exported_spans: InMemorySpanExporter, spelling: str, value: float
+) -> None:
+    """Not a number a model can be sent, and int() of one raises: the guard
+    rejects it (as the TypeScript SDK's does) instead of failing the call."""
+    attrs = _params(exported_spans, **{spelling: value})
+    assert f"gen_ai.request.{spelling}" not in attrs
+    assert f"rius.request.{spelling}" in attrs

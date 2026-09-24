@@ -87,6 +87,7 @@ from __future__ import annotations
 import copy
 import json
 import logging
+import math
 import re
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from typing import Any
@@ -642,15 +643,22 @@ def provider_name(values: list[Any]) -> Any:
 
 
 def _number(value: Any) -> Any:
-    """A double, or SKIP. Booleans are not numbers here."""
+    """A finite double, or SKIP. Booleans are not numbers here, and NaN and
+    the infinities are not a value a model is sent (``json`` reads them)."""
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return SKIP
-    return float(value)
+    try:
+        number = float(value)
+    except OverflowError:  # an int beyond a double's range
+        return SKIP
+    return number if math.isfinite(number) else SKIP
 
 
 def _count(value: Any) -> Any:
-    """An int, or SKIP."""
+    """An int, or SKIP. A non-finite float is SKIP: ``int()`` of one raises."""
     if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return SKIP
+    if isinstance(value, float) and not math.isfinite(value):
         return SKIP
     return int(value)
 

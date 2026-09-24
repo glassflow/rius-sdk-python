@@ -80,3 +80,21 @@ def test_both_paths_put_the_same_canonical_keys_on_the_wire(bag: dict[str, Any])
     native = _canonical(_request_attributes(bag))
     normalized = _canonical(openinference_invocation_parameters(json.dumps(bag)))
     assert native == normalized
+
+
+def test_a_non_finite_member_stays_in_the_invocation_parameters_bag() -> None:
+    """Python's json module reads Infinity and NaN; neither is promoted."""
+    produced = openinference_invocation_parameters(
+        '{"max_tokens": Infinity, "temperature": NaN, "seed": 1}'
+    )
+    assert produced["gen_ai.request.seed"] == 1
+    assert "gen_ai.request.max_tokens" not in produced
+    assert "gen_ai.request.temperature" not in produced
+
+
+def test_an_int_beyond_a_doubles_range_is_not_a_crash() -> None:
+    """float() of it raises; the guard must SKIP rather than fail the call."""
+    produced = _request_attributes({"temperature": 10**400, "max_tokens": 10**400})
+    assert "gen_ai.request.temperature" not in produced
+    assert "rius.request.temperature" in produced
+    assert produced["gen_ai.request.max_tokens"] == 10**400
