@@ -67,7 +67,10 @@ streamed chunk as a span EVENT, so it cannot go through the rule table at all;
 canonical streaming attributes, and the exporter applies it alongside the
 table. It lives in the exporter for two reasons that agree: the event does not
 exist yet at ``on_start``, and the exporter is rebuilding the attribute dict
-anyway, so the derived attribute is still settable there.
+anyway, so the derived attribute is still settable there. A failure is the
+same shape: an auto-instrumented span records the OTel ``exception`` event and
+an ERROR status but no ``error.type``, and
+``error_type_from_exception_event`` derives it there for the same reasons.
 
 Ordering: the normalizing exporter must run BEFORE the masking exporter
 (i.e. it wraps it), so masking only has to recognise canonical content keys.
@@ -86,9 +89,13 @@ from typing import Any
 from opentelemetry import context as otel_context
 from opentelemetry.sdk.trace import Event, ReadableSpan, Span, SpanProcessor
 from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
+from opentelemetry.trace import StatusCode
 
 from ._serde import serialize
 from .semconv import (
+    ERROR_TYPE,
+    EXCEPTION_EVENT,
+    EXCEPTION_TYPE,
     GEN_AI_FIRST_TOKEN_EVENT,
     GEN_AI_OPERATION_NAME,
     GEN_AI_PROVIDER_NAME,
@@ -399,6 +406,46 @@ def normalize_first_token_event(
     return tuple(rebuilt), added
 
 
+def error_type_from_exception_event(span: ReadableSpan) -> dict[str, Any]:
+    """``error.type`` for a failed span, from its OTel ``exception`` event.
+
+    A third-party instrumentor that fails a span records the exception event
+    and an ERROR status and stops there, so the failure never carries the
+    ``error.type`` the GenAI conventions make Conditionally Required. Our own
+    helpers set it natively (``_errors.record_error``); this is the same fact
+    for the spans we did not write.
+
+    Like :func:`normalize_first_token_event` it reads an EVENT, so it sits
+    outside :class:`NormalizationTable`, and it is export-stage only: neither
+    the event nor the ERROR status exists at ``on_start``. ``error.type`` is
+    metadata, not identity, so it never needs to reach a pending snapshot.
+
+    Four cases:
+
+    * ERROR status, an exception event, no ``error.type`` -> the event's
+      ``exception.type``, spelled exactly as the event spells it, so one span
+      never carries two spellings of the same failure. With several exception
+      events the first usable one names it, the choice the TypeScript SDK and
+      the sink make too.
+    * ERROR status, NO exception event -> nothing. An error with no exception
+      is not classifiable, and a guessed value is worse than an absent one.
+    * An exception event on a span that did not fail -> nothing. A recorded
+      and handled exception is not a failure.
+    * ``error.type`` already present -> nothing; native wins.
+    """
+    if span.status.status_code is not StatusCode.ERROR:
+        return {}
+    if ERROR_TYPE in (span.attributes or {}):
+        return {}
+    for event in span.events:
+        if event.name != EXCEPTION_EVENT:
+            continue
+        value = (event.attributes or {}).get(EXCEPTION_TYPE)
+        if isinstance(value, str) and value:
+            return {ERROR_TYPE: value}
+    return {}
+
+
 class NormalizingSpanExporter(SpanExporter):
     """Map third-party keys onto canonical ones before delegating to ``inner``.
 
@@ -416,11 +463,12 @@ class NormalizingSpanExporter(SpanExporter):
     def _normalized(self, span: ReadableSpan) -> ReadableSpan:
         new_attributes = self._table.normalize(span.attributes)
         new_events, event_attributes = normalize_first_token_event(span)
+        event_attributes = {**event_attributes, **error_type_from_exception_event(span)}
         if event_attributes:
-            # setdefault, not update: normalize_first_token_event already
-            # skipped the keys the span carried natively, and a table rule
-            # that produced one wins over the derived value for the same
-            # reason — it read the span's own data rather than inferring.
+            # setdefault, not update: the event passes already skipped the
+            # keys the span carried natively, and a table rule that produced
+            # one wins over the derived value for the same reason — it read
+            # the span's own data rather than inferring.
             base = dict(span.attributes or {}) if new_attributes is None else new_attributes
             for key, value in event_attributes.items():
                 base.setdefault(key, value)
