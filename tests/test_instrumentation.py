@@ -431,8 +431,11 @@ def test_anthropic_instrumentor_emits_tool_definitions_and_system_message() -> N
         assert recorded == _TOOLS_ANTHROPIC
         assert "input_schema" in recorded[0]
         assert not [key for key in llm.attributes if key.startswith("llm.tools")]
-        assert llm.attributes["llm.input_messages.0.message.role"] == "system"
-        assert llm.attributes["llm.input_messages.0.message.content"] == "be brief"
+        # The instrumentor's flattened messages leave the process reassembled.
+        messages = json.loads(str(llm.attributes["gen_ai.input.messages"]))
+        assert messages[0] == {"role": "system", "parts": [{"type": "text", "content": "be brief"}]}
+        assert messages[1] == {"role": "user", "parts": [{"type": "text", "content": "hi"}]}
+        assert not [key for key in llm.attributes if key.startswith("llm.input_messages")]
     finally:
         instrumentor.uninstrument()
         server.shutdown()
