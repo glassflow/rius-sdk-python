@@ -423,15 +423,19 @@ PENDING_IDENTITY_PREFIXES = (GEN_AI_REQUEST_PREFIX, RIUS_REQUEST_PREFIX)
 # Parameter names that carry TOOL DEFINITIONS rather than a sampling knob.
 # Named here once and consumed by three places, so the routes to the same
 # definitions cannot drift apart:
-#   - as JSON members of llm.invocation_parameters, redacted member-by-member
-#     (litellm and langchain embed the request's tools array in that bag);
 #   - as gen_ai.request.<member>, and
 #   - as rius.request.<member>, when a caller passes `tools=` through
 #     model_parameters and it reaches either namespace.
 # Tool definitions are content in the same sense messages are — see
-# GEN_AI_TOOL_DEFINITIONS below and semconv-genai#431 — and which of the three
+# GEN_AI_TOOL_DEFINITIONS below and semconv-genai#431 — and which of the two
 # routes they arrived by cannot be what decides whether they are protected.
+# A third route, as JSON members of llm.invocation_parameters, used to be
+# redacted member-by-member; the whole bag is content now, so that member
+# list is no longer consulted there.
 INVOCATION_PARAMETERS_CONTENT_MEMBERS = ("tools", "functions")
+
+# The request-parameters bag OpenInference instrumentors emit.
+LLM_INVOCATION_PARAMETERS = "llm.invocation_parameters"
 
 # Attribute keys carrying user content, masked/stripped at export (see masking.py).
 CONTENT_ATTRIBUTES = frozenset(
@@ -498,6 +502,18 @@ CONTENT_ATTRIBUTES = frozenset(
         "ai.documents",
         "ai.schema",
         "ai.schema.description",
+        # The OpenInference request-parameters bag, whole. Its membership is
+        # open and provider-defined — litellm and langchain put the request's
+        # tools array in it, and providers are free to add anything else —
+        # so a per-member blocklist is always one provider behind. It is only
+        # safe to treat the whole bag as content because normalization runs
+        # BEFORE masking and has already promoted every member the rule table
+        # recognises onto gen_ai.request.*, so what reaches here is exactly
+        # the set nothing has classified. A knob that matters is recovered by
+        # teaching the rule table its name, which is a reviewed decision;
+        # the default is that unclassified request data does not leave a
+        # process that asked for no content.
+        LLM_INVOCATION_PARAMETERS,
     }
     # The NAMED EXCEPTION to the rule that request parameters export in clear
     # (RIUS-917). That rule is right for scalar knobs — temperature, top_p,
@@ -515,12 +531,6 @@ CONTENT_ATTRIBUTES = frozenset(
         for member in INVOCATION_PARAMETERS_CONTENT_MEMBERS
     }
 )
-
-# The request-parameters bag OpenInference instrumentors emit. Not wholly
-# content — sampling parameters are identity — but the litellm and langchain
-# instrumentations embed the request's tools/functions arrays inside it, so
-# masking redacts those members and keeps the rest (see masking.py).
-LLM_INVOCATION_PARAMETERS = "llm.invocation_parameters"
 
 # OpenInference/OpenLLMetry instrumentors flatten message content into indexed
 # keys (e.g. `llm.input_messages.0.message.content`), matched by prefix.
