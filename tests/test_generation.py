@@ -969,6 +969,20 @@ def test_a_string_list_on_an_array_key_passes_through(
     assert attrs["gen_ai.request.encoding_formats"] == ("float", "int8")
 
 
+class _Encoded:
+    """A value recorded JSON-encoded; compared parsed, so the assertion does
+    not pin the encoder's whitespace."""
+
+    def __init__(self, value: Any) -> None:
+        self.value = value
+
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, str) and json.loads(other) == self.value
+
+    def __repr__(self) -> str:
+        return f"_Encoded({self.value!r})"
+
+
 @pytest.mark.parametrize(
     ("spelling", "value", "recorded"),
     [
@@ -978,7 +992,7 @@ def test_a_string_list_on_an_array_key_passes_through(
         ("frequency_penalty", [0.1], (0.1,)),
         ("presencePenalty", "high", "high"),
         # counts: an object is JSON-encoded under OUR key, not the numeric one
-        ("max_tokens", {"limit": 5}, '{"limit": 5}'),
+        ("max_tokens", {"limit": 5}, _Encoded({"limit": 5})),
         ("top_k", "40", "40"),
         ("seed", False, False),
         ("n", "2", "2"),
@@ -989,7 +1003,7 @@ def test_a_string_list_on_an_array_key_passes_through(
         ("previous_response_id", ["r1"], ("r1",)),
         ("starting_after", 9, 9),
         # string arrays: a list of non-strings is not a string array
-        ("stop", [["a"], ["b"]], '[["a"], ["b"]]'),
+        ("stop", [["a"], ["b"]], _Encoded([["a"], ["b"]])),
         ("stop_sequences", [1, 2], (1, 2)),
         ("encoding_format", 7, 7),
         # flag
@@ -1004,7 +1018,7 @@ def test_a_value_that_fails_its_keys_guard_lands_under_rius_request(
 
     attrs = _params(exported_spans, **{spelling: value})
     assert request_attribute_key(spelling) not in attrs
-    assert attrs[f"rius.request.{spelling}"] == recorded
+    assert recorded == attrs[f"rius.request.{spelling}"]
 
 
 def test_a_numeric_parameter_is_recorded_as_the_normalizer_records_it(
