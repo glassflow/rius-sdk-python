@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
@@ -140,24 +141,26 @@ def test_a_converter_that_raises_drops_only_its_own_rule() -> None:
 
 
 def _exported(table: NormalizationTable, attributes: dict[str, Any]):
+    """Export one span through ``table``; return ``(original, exported)``.
+
+    The original comes from a bare OTel provider, not through ``init()``:
+    its exporter chain already normalizes, so the input would reach the
+    exporter under test with the mapping done.
+    """
     inner = InMemorySpanExporter()
     exporter = NormalizingSpanExporter(inner, table=table)
     provider_exporter = InMemorySpanExporter()
-    client = init(
-        span_exporter=provider_exporter,
-        set_global=False,
-        service_name="test-svc",
-        instruments=[],
-    )
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(provider_exporter))
     try:
-        with client.get_tracer().start_as_current_span("op", attributes=attributes):
+        with provider.get_tracer("test").start_as_current_span("op", attributes=attributes):
             pass
-        client.flush()
         (span,) = provider_exporter.get_finished_spans()
+        assert dict(span.attributes or {}) == attributes
         exporter.export([span])
         return span, inner.get_finished_spans()[0]
     finally:
-        client.shutdown()
+        provider.shutdown()
 
 
 def test_exporter_maps_at_export_time() -> None:
@@ -351,18 +354,19 @@ def test_a_second_registered_exporter_sees_an_unnormalized_span(wired: None) -> 
 def test_processor_maps_at_start_without_deleting_the_source() -> None:
     """A live Span can be added to but not deleted from; the exporter deletes."""
     table = _table(Rule("vendor.model", GEN_AI_REQUEST_MODEL, copy_value))
-    inner = InMemorySpanExporter()
-    client = init(span_exporter=inner, set_global=False, service_name="test-svc", instruments=[])
+    # A bare provider with only the processor under test, not ``init()``,
+    # whose own processor would make this pass on its own.
+    provider = TracerProvider()
+    provider.add_span_processor(NormalizingSpanProcessor(table=table))
     try:
-        client._provider.add_span_processor(NormalizingSpanProcessor(table=table))
-        with client.get_tracer().start_as_current_span(
+        with provider.get_tracer("test").start_as_current_span(
             "op", attributes={"vendor.model": "gpt-4o"}
         ) as span:
             assert span.attributes[GEN_AI_REQUEST_MODEL] == "gpt-4o"
             # a live Span has no delete; the source rides on until export
             assert span.attributes["vendor.model"] == "gpt-4o"
     finally:
-        client.shutdown()
+        provider.shutdown()
 
 
 @pytest.mark.parametrize("attributes", [{}, {"unrelated": 1}])
