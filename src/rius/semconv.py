@@ -435,9 +435,11 @@ PENDING_IDENTITY_PREFIXES = (GEN_AI_REQUEST_PREFIX, RIUS_REQUEST_PREFIX)
 # Tool definitions are content in the same sense messages are — see
 # GEN_AI_TOOL_DEFINITIONS below and semconv-genai#431 — and which of the two
 # routes they arrived by cannot be what decides whether they are protected.
-# A third route, as JSON members of llm.invocation_parameters, used to be
-# redacted member-by-member; the whole bag is content now, so that member
-# list is no longer consulted there.
+# A third route, as JSON members of llm.invocation_parameters, is covered by
+# the whole bag being content; there normalization reads this same list to
+# PROMOTE those members onto gen_ai.tool.definitions (normalization.py,
+# normalize_tool_definitions), so the bag route and the native routes agree on
+# which parameter names are tool definitions.
 INVOCATION_PARAMETERS_CONTENT_MEMBERS = ("tools", "functions")
 
 # The request-parameters bag OpenInference instrumentors emit.
