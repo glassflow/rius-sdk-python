@@ -621,7 +621,10 @@ class _FlatMessage:
                 )
             else:
                 parts.append({"type": "text", "content": self.content})
-        parts.extend(_content_part(self.contents[k]) for k in sorted(self.contents))
+        for k in sorted(self.contents):
+            part = _content_part(self.contents[k], self.tool_calls)
+            if part is not None:
+                parts.append(part)
         for j in sorted(self.tool_calls):
             call = self.tool_calls[j]
             part = {"type": "tool_call"}
@@ -633,18 +636,47 @@ class _FlatMessage:
         return message
 
 
-def _content_part(item: dict[str, str]) -> dict[str, Any]:
-    """One multimodal contents item as a message part.
+def _content_part(
+    item: dict[str, str], tool_calls: dict[int, dict[str, str]]
+) -> dict[str, Any] | None:
+    """One multimodal contents item as a message part, or None for no part.
 
-    A text item, and nothing more, is a text part. Anything else (an image, a
-    text item carrying an id or a signature, an item without a type) becomes a
-    text part holding the item serialized, as the generation helper does with
-    content it has no part type for. The item is its flattened fields by
-    name, sorted, so no field is lost and both SDKs order it the same way.
+    * A text item, and nothing more, is a text part. This is how the
+      Anthropic instrumentors write every text block, replies and block-list
+      system prompts alike.
+    * A ``tool_use`` item that repeats a tool call the message already carries
+      adds no part. The Anthropic instrumentors write each tool_use block
+      twice, under ``message.tool_calls.J`` and as a contents item, so the call
+      is already a ``tool_call`` part and a second copy would only be noise.
+      It must hold nothing but the call's fields, and each of them must equal
+      one tool call's; otherwise it is not provably a copy, and is serialized.
+    * Anything else (an image, a reasoning block, a text item carrying an id
+      or a signature, an item without a type) becomes a text part holding the
+      item serialized, as the generation helper does with content it has no
+      part type for. The item is its fields by name (``message_content.`` cut,
+      ``tool_call.`` kept), sorted, so no field is lost and every producer
+      orders it the same way.
     """
     if item.keys() == {"type", "text"} and item["type"] == "text":
         return {"type": "text", "content": item["text"]}
+    if item.get("type") == "tool_use" and _repeats_a_tool_call(item, tool_calls):
+        return None
     return {"type": "text", "content": serialize({k: item[k] for k in sorted(item)})}
+
+
+#: The fields a tool_use contents item may carry to count as a copy of a tool
+#: call, each with the tool-call field it must equal.
+_TOOL_USE_ITEM_FIELDS = {f"{_TOOL_CALL}{field}": field for field, _ in _TOOL_CALL_FIELDS}
+
+
+def _repeats_a_tool_call(item: dict[str, str], tool_calls: dict[int, dict[str, str]]) -> bool:
+    fields = {k: v for k, v in item.items() if k != "type"}
+    if not fields.keys() <= _TOOL_USE_ITEM_FIELDS.keys():
+        return False
+    return any(
+        all(call.get(_TOOL_USE_ITEM_FIELDS[k], "") == v for k, v in fields.items())
+        for call in tool_calls.values()
+    )
 
 
 def _reassemble_family(
@@ -678,6 +710,10 @@ def _reassemble_family(
             sub = _index(sub_text) if dot else None
             if sub is not None and rest.startswith(_CONTENT_ITEM):
                 item = (sub, rest[len(_CONTENT_ITEM) :])
+            elif sub is not None and rest.startswith(_TOOL_CALL):
+                # A tool_use item's call fields sit beside message_content.type
+                # rather than under it; they are the item's too, prefix kept.
+                item = (sub, rest)
         if (
             call is None
             and item is None
@@ -730,9 +766,13 @@ def reassemble_openinference_messages(
     does not route through ``_normalize_message``, which would default a
     missing role, write ``null`` for a missing tool-call field and drop the
     tool calls of a tool message, each of which the sink does not do. The
-    encoding is the shared one (``serialize``). Two known differences, both
-    stated in the fixture: the sink does not reassemble multimodal contents
-    yet, and it does not cap the attribute.
+    encoding is the shared one (``serialize``). The one known difference is
+    that the sink does not cap the attribute.
+
+    The multimodal ``contents`` form is not optional: the Anthropic
+    instrumentors write EVERY text block there, never in ``message.content``,
+    so without it an Anthropic reply or a block-list system prompt arrives
+    with empty parts.
 
     Native wins: a family whose canonical key is already present is left
     entirely as it came, flattened keys included, as the sink leaves it.

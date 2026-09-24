@@ -283,8 +283,7 @@
     },
     {
       "name": "multimodal contents: text items become text parts, others a serialized text part",
-      "sink_identical": false,
-      "note": "The sink leaves message.contents.* in place and emits the message without them.",
+      "sink_identical": true,
       "attributes": {
         "llm.input_messages.0.message.role": "user",
         "llm.input_messages.0.message.contents.0.message_content.type": "text",
@@ -304,8 +303,7 @@
     },
     {
       "name": "multimodal contents follow the content and precede the tool calls",
-      "sink_identical": false,
-      "note": "The sink leaves message.contents.* in place and emits the message without them.",
+      "sink_identical": true,
       "attributes": {
         "llm.output_messages.0.message.role": "assistant",
         "llm.output_messages.0.message.content": "first",
@@ -323,14 +321,149 @@
     },
     {
       "name": "an index carrying only contents is a message",
-      "sink_identical": false,
-      "note": "The sink produces no messages here and leaves the key in place.",
+      "sink_identical": true,
       "attributes": {
         "llm.input_messages.0.message.contents.0.message_content.type": "text",
         "llm.input_messages.0.message.contents.0.message_content.text": "hello"
       },
       "expected": {
         "gen_ai.input.messages": "[{\"parts\":[{\"type\":\"text\",\"content\":\"hello\"}]}]"
+      }
+    },
+    {
+      "name": "anthropic text reply (messages.create)",
+      "sink_identical": true,
+      "attributes": {
+        "llm.output_messages.0.message.role": "assistant",
+        "llm.output_messages.0.message.contents.0.message_content.type": "text",
+        "llm.output_messages.0.message.contents.0.message_content.text": "Paris is the capital of France."
+      },
+      "expected": {
+        "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"Paris is the capital of France.\"}]}]"
+      }
+    },
+    {
+      "name": "anthropic streamed reply (messages.stream) with a thinking block",
+      "sink_identical": true,
+      "attributes": {
+        "llm.output_messages.0.message.role": "assistant",
+        "llm.output_messages.0.message.contents.0.message_content.type": "reasoning",
+        "llm.output_messages.0.message.contents.0.message_content.text": "The user wants a haiku.",
+        "llm.output_messages.0.message.contents.0.message_content.signature": "EqQBCgIYAh",
+        "llm.output_messages.0.message.contents.1.message_content.type": "text",
+        "llm.output_messages.0.message.contents.1.message_content.text": "Autumn moonlight—\na worm digs silently\ninto the chestnut."
+      },
+      "expected": {
+        "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"{\\\"signature\\\":\\\"EqQBCgIYAh\\\",\\\"text\\\":\\\"The user wants a haiku.\\\",\\\"type\\\":\\\"reasoning\\\"}\"},{\"type\":\"text\",\"content\":\"Autumn moonlight—\\na worm digs silently\\ninto the chestnut.\"}]}]"
+      }
+    },
+    {
+      "name": "anthropic reply with text and a tool call: the duplicate tool_use item adds no part",
+      "sink_identical": true,
+      "attributes": {
+        "llm.output_messages.0.message.role": "assistant",
+        "llm.output_messages.0.message.contents.0.message_content.type": "text",
+        "llm.output_messages.0.message.contents.0.message_content.text": "Let me check the weather.",
+        "llm.output_messages.0.message.tool_calls.0.tool_call.id": "toolu_01",
+        "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": "get_weather",
+        "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": "{\"city\": \"Paris\"}",
+        "llm.output_messages.0.message.contents.1.message_content.type": "tool_use",
+        "llm.output_messages.0.message.contents.1.tool_call.id": "toolu_01",
+        "llm.output_messages.0.message.contents.1.tool_call.function.name": "get_weather",
+        "llm.output_messages.0.message.contents.1.tool_call.function.arguments": "{\"city\": \"Paris\"}"
+      },
+      "expected": {
+        "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"Let me check the weather.\"},{\"type\":\"tool_call\",\"id\":\"toolu_01\",\"name\":\"get_weather\",\"arguments\":\"{\\\"city\\\": \\\"Paris\\\"}\"}]}]"
+      }
+    },
+    {
+      "name": "anthropic streamed tool call: the tool_use item carries no arguments yet and still matches",
+      "sink_identical": true,
+      "attributes": {
+        "llm.output_messages.0.message.role": "assistant",
+        "llm.output_messages.0.message.tool_calls.0.tool_call.id": "toolu_02",
+        "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": "search",
+        "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": "{\"q\":\"otel\"}",
+        "llm.output_messages.0.message.contents.0.message_content.type": "tool_use",
+        "llm.output_messages.0.message.contents.0.tool_call.id": "toolu_02",
+        "llm.output_messages.0.message.contents.0.tool_call.function.name": "search"
+      },
+      "expected": {
+        "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"toolu_02\",\"name\":\"search\",\"arguments\":\"{\\\"q\\\":\\\"otel\\\"}\"}]}]"
+      }
+    },
+    {
+      "name": "a tool_use item that matches no tool call is serialized, not dropped",
+      "sink_identical": true,
+      "attributes": {
+        "llm.output_messages.0.message.role": "assistant",
+        "llm.output_messages.0.message.tool_calls.0.tool_call.id": "toolu_A",
+        "llm.output_messages.0.message.contents.0.message_content.type": "tool_use",
+        "llm.output_messages.0.message.contents.0.tool_call.id": "toolu_B",
+        "llm.output_messages.1.message.role": "assistant",
+        "llm.output_messages.1.message.contents.0.message_content.type": "tool_use",
+        "llm.output_messages.1.message.contents.0.tool_call.function.name": "orphan",
+        "llm.output_messages.2.message.role": "assistant",
+        "llm.output_messages.2.message.tool_calls.0.tool_call.id": "toolu_C",
+        "llm.output_messages.2.message.contents.0.message_content.type": "tool_use",
+        "llm.output_messages.2.message.contents.0.message_content.text": "an extra field",
+        "llm.output_messages.2.message.contents.0.tool_call.id": "toolu_C"
+      },
+      "expected": {
+        "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"{\\\"tool_call.id\\\":\\\"toolu_B\\\",\\\"type\\\":\\\"tool_use\\\"}\"},{\"type\":\"tool_call\",\"id\":\"toolu_A\"}]},{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"{\\\"tool_call.function.name\\\":\\\"orphan\\\",\\\"type\\\":\\\"tool_use\\\"}\"}]},{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"{\\\"text\\\":\\\"an extra field\\\",\\\"tool_call.id\\\":\\\"toolu_C\\\",\\\"type\\\":\\\"tool_use\\\"}\"},{\"type\":\"tool_call\",\"id\":\"toolu_C\"}]}]"
+      }
+    },
+    {
+      "name": "anthropic block-list system prompt (cache_control) and a string user turn",
+      "sink_identical": true,
+      "attributes": {
+        "llm.input_messages.0.message.role": "system",
+        "llm.input_messages.0.message.contents.0.message_content.type": "text",
+        "llm.input_messages.0.message.contents.0.message_content.text": "You are a terse assistant.",
+        "llm.input_messages.0.message.contents.1.message_content.type": "text",
+        "llm.input_messages.0.message.contents.1.message_content.text": "Reference manual: ...",
+        "llm.input_messages.1.message.role": "user",
+        "llm.input_messages.1.message.content": "What is OTLP?"
+      },
+      "expected": {
+        "gen_ai.input.messages": "[{\"role\":\"system\",\"parts\":[{\"type\":\"text\",\"content\":\"You are a terse assistant.\"},{\"type\":\"text\",\"content\":\"Reference manual: ...\"}]},{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"What is OTLP?\"}]}]"
+      }
+    },
+    {
+      "name": "anthropic input history: an echoed tool_use turn and a tool_result turn",
+      "sink_identical": true,
+      "attributes": {
+        "llm.input_messages.0.message.role": "user",
+        "llm.input_messages.0.message.content": "Weather in Paris?",
+        "llm.input_messages.1.message.role": "assistant",
+        "llm.input_messages.1.message.tool_calls.0.tool_call.id": "toolu_01",
+        "llm.input_messages.1.message.tool_calls.0.tool_call.function.name": "get_weather",
+        "llm.input_messages.1.message.tool_calls.0.tool_call.function.arguments": "{\"city\": \"Paris\"}",
+        "llm.input_messages.1.message.contents.0.message_content.type": "tool_use",
+        "llm.input_messages.1.message.contents.0.tool_call.id": "toolu_01",
+        "llm.input_messages.1.message.contents.0.tool_call.function.name": "get_weather",
+        "llm.input_messages.1.message.contents.0.tool_call.function.arguments": "{\"city\": \"Paris\"}",
+        "llm.input_messages.2.message.role": "user",
+        "llm.input_messages.2.message.tool_call_id": "toolu_01",
+        "llm.input_messages.2.message.content": "18C and clear"
+      },
+      "expected": {
+        "gen_ai.input.messages": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Weather in Paris?\"}]},{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"toolu_01\",\"name\":\"get_weather\",\"arguments\":\"{\\\"city\\\": \\\"Paris\\\"}\"}]},{\"role\":\"user\",\"parts\":[{\"type\":\"tool_call_response\",\"id\":\"toolu_01\",\"response\":\"18C and clear\"}]}]"
+      }
+    },
+    {
+      "name": "anthropic base64 image item (JS instrumentor) is serialized",
+      "sink_identical": true,
+      "attributes": {
+        "llm.input_messages.0.message.role": "user",
+        "llm.input_messages.0.message.contents.0.message_content.type": "image",
+        "llm.input_messages.0.message.contents.0.message_content.image.type": "base64",
+        "llm.input_messages.0.message.contents.0.message_content.image.media_type": "image/png",
+        "llm.input_messages.0.message.contents.1.message_content.type": "text",
+        "llm.input_messages.0.message.contents.1.message_content.text": "Describe it."
+      },
+      "expected": {
+        "gen_ai.input.messages": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"{\\\"image.media_type\\\":\\\"image/png\\\",\\\"image.type\\\":\\\"base64\\\",\\\"type\\\":\\\"image\\\"}\"},{\"type\":\"text\",\"content\":\"Describe it.\"}]}]"
       }
     }
   ]
