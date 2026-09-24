@@ -255,6 +255,21 @@
       }
     },
     {
+      "name": "a per-message finish_reason is not read, and none is invented",
+      "sink_identical": true,
+      "attributes": {
+        "llm.output_messages.0.message.role": "assistant",
+        "llm.output_messages.0.message.content": "done",
+        "llm.output_messages.0.message.finish_reason": "stop",
+        "llm.output_messages.1.message.role": "assistant",
+        "llm.output_messages.1.message.content": "no reason given"
+      },
+      "expected": {
+        "llm.output_messages.0.message.finish_reason": "stop",
+        "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"done\"}]},{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"no reason given\"}]}]"
+      }
+    },
+    {
       "name": "a span without flattened messages is unchanged",
       "sink_identical": true,
       "attributes": {
