@@ -204,6 +204,12 @@ MCP_PROTOCOL_VERSION = "mcp.protocol.version"
 # exception class when the call itself raised.
 ERROR_TYPE = "error.type"
 ERROR_TYPE_TOOL_ERROR = "tool_error"
+# The OTel exception event, as record_exception() writes it, and its attribute
+# naming the exception's class. Read, never emitted by us directly: an
+# auto-instrumented failure carries these but no error.type, so normalization
+# derives error.type from EXCEPTION_TYPE (see normalization.py).
+EXCEPTION_EVENT = "exception"
+EXCEPTION_TYPE = "exception.type"
 # MCP spec 2026-07-28: a tools/call round can end with an interim
 # "input_required" result (MRTR) instead of a final one. Set ONLY on interim
 # rounds. NOT an OTel semconv attribute, unlike the two above: the key
