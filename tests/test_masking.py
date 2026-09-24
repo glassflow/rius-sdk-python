@@ -82,7 +82,7 @@ def test_mask_returning_non_primitive_is_serialized_not_leaked() -> None:
         span.set_attribute("input.value", "secret")
     client.flush()
     attrs = inner.get_finished_spans()[0].attributes
-    assert attrs.get("input.value") == '{"redacted": true}'
+    assert attrs.get("input.value") == '{"redacted":true}'
 
 
 def test_masking_does_not_mutate_spans_seen_by_other_processors() -> None:
