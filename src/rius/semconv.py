@@ -133,6 +133,22 @@ GEN_AI_OUTPUT_TYPE = "gen_ai.output.type"
 # streamed, and the SDK has no earlier hook for it.
 GEN_AI_REQUEST_STREAM = "gen_ai.request.stream"
 GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK = "gen_ai.response.time_to_first_chunk"
+# Sampling parameters. The SDK's own API takes no sampling parameters, so
+# these are produced only by normalization, which promotes them out of a
+# third-party instrumentor's request bag (`llm.invocation_parameters`). Listed
+# here anyway because they go on the wire, and the wire's keys live in one
+# place. Names and types are the GenAI registry's
+# (opentelemetry.semconv._incubating.attributes.gen_ai_attributes).
+GEN_AI_REQUEST_TEMPERATURE = "gen_ai.request.temperature"
+GEN_AI_REQUEST_TOP_P = "gen_ai.request.top_p"
+GEN_AI_REQUEST_TOP_K = "gen_ai.request.top_k"
+GEN_AI_REQUEST_MAX_TOKENS = "gen_ai.request.max_tokens"
+GEN_AI_REQUEST_FREQUENCY_PENALTY = "gen_ai.request.frequency_penalty"
+GEN_AI_REQUEST_PRESENCE_PENALTY = "gen_ai.request.presence_penalty"
+GEN_AI_REQUEST_SEED = "gen_ai.request.seed"
+GEN_AI_REQUEST_STOP_SEQUENCES = "gen_ai.request.stop_sequences"
+# "The target number of candidate completions to return" — OpenAI's `n`.
+GEN_AI_REQUEST_CHOICE_COUNT = "gen_ai.request.choice.count"
 GEN_AI_USAGE_INPUT_TOKENS = "gen_ai.usage.input_tokens"
 GEN_AI_USAGE_OUTPUT_TOKENS = "gen_ai.usage.output_tokens"
 GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS = "gen_ai.usage.cache_read.input_tokens"

@@ -185,13 +185,15 @@ def test_exporter_returns_the_same_object_when_nothing_maps() -> None:
 # --- the shipped table -----------------------------------------------------
 
 
-def test_the_shipped_table_is_empty() -> None:
-    """Deliberately: a rule here is live everywhere and DELETES its source.
+def test_the_shipped_table_only_claims_namespaces_it_maps() -> None:
+    """A rule here is live everywhere and DELETES its source.
 
-    The per-instrumentation tables are their own tickets. If this fails,
-    read the normalization module docstring before changing the assertion.
+    The shipped rules and their golden output are asserted in
+    tests/test_normalization_openinference.py; this guards the blast radius.
+    If it fails, read the normalization module docstring before changing the
+    assertion.
     """
-    assert DEFAULT_TABLE.rules == ()
+    assert DEFAULT_TABLE.prefixes == ("gen_ai.", "llm.")
 
 
 def test_an_empty_table_short_circuits() -> None:
@@ -256,8 +258,8 @@ def test_normalization_is_wired_into_init(wired: None) -> None:
         client.shutdown()
 
 
-def test_the_empty_shipped_table_leaves_spans_alone() -> None:
-    """Without the fixture: nothing is mapped, nothing is deleted."""
+def test_the_shipped_table_leaves_an_unmapped_key_alone() -> None:
+    """Without the fixture: llm.model_name is a deliberate omission."""
     client, exporter = _memory_client()
     try:
         with client.get_tracer().start_as_current_span("op", attributes={"llm.model_name": "m"}):
