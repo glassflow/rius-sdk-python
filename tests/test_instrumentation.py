@@ -354,12 +354,13 @@ _ANTHROPIC_MESSAGE = {
 
 @pytest.mark.integration
 def test_openai_instrumentor_emits_tool_definitions() -> None:
-    """Pins the attribute the backend reads tool definitions from.
+    """Pins where tool definitions land on the wire for the real instrumentor.
 
     OpenInference's OpenAI instrumentor emits one `llm.tools.{i}.tool.json_schema`
-    per tool. NOT `llm.invocation_parameters` — that carries only sampling
-    params (verified against openinference-instrumentation-openai 0.1.x); the
-    backend must read the indexed family.
+    per tool, and pops `tools` out of `llm.invocation_parameters` to do it
+    (verified against openinference-instrumentation-openai 0.1.x).
+    Normalization reassembles the family into ONE `gen_ai.tool.definitions`
+    array, verbatim, and deletes the indexed keys.
     """
     openai = pytest.importorskip("openai")
     oi = pytest.importorskip("openinference.instrumentation.openai")
@@ -384,8 +385,8 @@ def test_openai_instrumentor_emits_tool_definitions() -> None:
 
         (llm,) = inner.get_finished_spans()
         assert llm.attributes is not None
-        recorded = json.loads(str(llm.attributes["llm.tools.0.tool.json_schema"]))
-        assert recorded == _TOOLS_OPENAI[0]
+        assert json.loads(str(llm.attributes["gen_ai.tool.definitions"])) == _TOOLS_OPENAI
+        assert not [key for key in llm.attributes if key.startswith("llm.tools")]
     finally:
         instrumentor.uninstrument()
         server.shutdown()
@@ -393,7 +394,9 @@ def test_openai_instrumentor_emits_tool_definitions() -> None:
 
 @pytest.mark.integration
 def test_anthropic_instrumentor_emits_tool_definitions_and_system_message() -> None:
-    """Same contract for Anthropic: `llm.tools.{i}.tool.json_schema` per tool.
+    """Same contract for Anthropic: `llm.tools.{i}.tool.json_schema` per tool,
+    reassembled into `gen_ai.tool.definitions` in Anthropic's own shape
+    (`input_schema`), not rewritten into OpenAI's.
 
     Also pins that the request's `system` param surfaces as a role=system
     input message — the segmentation the backend's context attribution
@@ -424,8 +427,10 @@ def test_anthropic_instrumentor_emits_tool_definitions_and_system_message() -> N
 
         (llm,) = inner.get_finished_spans()
         assert llm.attributes is not None
-        recorded = json.loads(str(llm.attributes["llm.tools.0.tool.json_schema"]))
-        assert recorded == _TOOLS_ANTHROPIC[0]
+        recorded = json.loads(str(llm.attributes["gen_ai.tool.definitions"]))
+        assert recorded == _TOOLS_ANTHROPIC
+        assert "input_schema" in recorded[0]
+        assert not [key for key in llm.attributes if key.startswith("llm.tools")]
         assert llm.attributes["llm.input_messages.0.message.role"] == "system"
         assert llm.attributes["llm.input_messages.0.message.content"] == "be brief"
     finally:

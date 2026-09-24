@@ -71,6 +71,10 @@ anyway, so the derived attribute is still settable there. A failure is the
 same shape: an auto-instrumented span records the OTel ``exception`` event and
 an ERROR status but no ``error.type``, and
 ``error_type_from_exception_event`` derives it there for the same reasons.
+``normalize_tool_definitions`` is applied there too, for a different reason:
+its source is an indexed key family (``llm.tools.N.tool.json_schema``), which
+the exact-key rule table cannot match, and its target is content, which must
+never be written at span start.
 
 Ordering: the normalizing exporter must run BEFORE the masking exporter
 (i.e. it wraps it), so masking only has to recognise canonical content keys.
@@ -83,6 +87,7 @@ from __future__ import annotations
 import copy
 import json
 import logging
+import re
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from typing import Any
 
@@ -113,11 +118,14 @@ from .semconv import (
     GEN_AI_RESPONSE_FINISH_REASONS,
     GEN_AI_RESPONSE_MODEL,
     GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK,
+    GEN_AI_TOOL_DEFINITIONS,
+    GEN_AI_TOOL_NAME,
     GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS,
     GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS,
     GEN_AI_USAGE_INPUT_TOKENS,
     GEN_AI_USAGE_OUTPUT_TOKENS,
     GEN_AI_USAGE_REASONING_OUTPUT_TOKENS,
+    INVOCATION_PARAMETERS_CONTENT_MEMBERS,
     LLM_INVOCATION_PARAMETERS,
     OPENINFERENCE_SPAN_KIND,
     kind_for_operation,
@@ -446,6 +454,96 @@ def error_type_from_exception_event(span: ReadableSpan) -> dict[str, Any]:
     return {}
 
 
+#: OpenInference's indexed tool-definition family: ``llm.tools.{i}.tool.json_schema``.
+#: A source spelling, so it lives here rather than in ``semconv.py`` (the set
+#: of keys we emit), like the ``llm.*`` keys in the rule table below.
+_LLM_TOOL_SCHEMA = re.compile(r"llm\.tools\.(\d+)\.tool\.json_schema")
+
+
+def normalize_tool_definitions(attributes: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    """Reassemble a span's tool definitions into one ``gen_ai.tool.definitions``.
+
+    Returns the rebuilt attribute dict, or None when nothing changes. Like the
+    event passes this sits outside :class:`NormalizationTable`, for a reason of
+    its own: the source is an INDEXED family, ``llm.tools.N.tool.json_schema``,
+    and a :class:`Rule`'s sources are exact keys. It is export-stage only,
+    which is also right on the merits — definitions are content, so they never
+    ride a pending snapshot, and only a start-time pass could put them there.
+
+    Two sources, in order:
+
+    * ``llm.tools.N.tool.json_schema``, which every bundled OpenInference
+      instrumentor that sees tools writes (openai pops ``tools`` out of the
+      request bag to do it). Each value is a JSON string; the schemas are
+      parsed and re-serialized as one array, in index order, VERBATIM — an
+      Anthropic ``input_schema`` stays an Anthropic ``input_schema``, as on
+      the native ``set_tool_definitions``. The indexed keys are then deleted.
+      If any one schema does not parse, the family is left untouched rather
+      than reassembled without it: it is content by prefix already, so
+      nothing escapes, and a partial array would be a silent loss.
+    * Only when there is no ``llm.tools.*`` schema: the tool-definition
+      members of ``llm.invocation_parameters`` (``tools`` and the legacy
+      ``functions``), where litellm and langchain leave them. Both present
+      are concatenated, tools first. The members leave the bag; a bag left
+      empty goes too, rather than riding as ``{}``.
+
+    Native wins: a span already carrying ``gen_ai.tool.definitions`` keeps it,
+    and the sources are removed anyway because they are then duplicates.
+
+    This runs before masking, so the promoted key is then stripped under
+    ``capture_content=False`` exactly like a native one — it is on the
+    content allowlist.
+    """
+    if not attributes:
+        return None
+    native = GEN_AI_TOOL_DEFINITIONS in attributes
+
+    indexed: dict[int, str] = {}
+    for key in attributes:
+        # The cheap prefix test first: this runs on every exported span.
+        match = _LLM_TOOL_SCHEMA.fullmatch(key) if key.startswith("llm.tools.") else None
+        if match is not None:
+            indexed[int(match.group(1))] = key
+    if indexed:
+        schemas: list[Any] = []
+        for index in sorted(indexed):
+            raw = attributes[indexed[index]]
+            if not isinstance(raw, str):
+                return None
+            try:
+                schemas.append(json.loads(raw))
+            except ValueError:
+                return None
+        drop = set(indexed.values())
+        rebuilt = {k: v for k, v in attributes.items() if k not in drop}
+        if not native:
+            rebuilt[GEN_AI_TOOL_DEFINITIONS] = serialize(schemas)
+        return rebuilt
+
+    bag = attributes.get(LLM_INVOCATION_PARAMETERS)
+    if not isinstance(bag, str):
+        return None
+    try:
+        payload = json.loads(bag)
+    except ValueError:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    members = [m for m in INVOCATION_PARAMETERS_CONTENT_MEMBERS if m in payload]
+    if not members or not all(isinstance(payload[m], list) for m in members):
+        # Absent, or a shape we cannot vouch is a list of definitions: the
+        # bag is content already, so leaving it is safe.
+        return None
+    definitions = [definition for m in members for definition in payload[m]]
+    leftover = {k: v for k, v in payload.items() if k not in members}
+    rebuilt = {k: v for k, v in attributes.items() if k != LLM_INVOCATION_PARAMETERS}
+    if leftover:
+        rebuilt[LLM_INVOCATION_PARAMETERS] = serialize(leftover)
+    if not native:
+        rebuilt[GEN_AI_TOOL_DEFINITIONS] = serialize(definitions)
+    return rebuilt
+
+
 class NormalizingSpanExporter(SpanExporter):
     """Map third-party keys onto canonical ones before delegating to ``inner``.
 
@@ -462,6 +560,14 @@ class NormalizingSpanExporter(SpanExporter):
 
     def _normalized(self, span: ReadableSpan) -> ReadableSpan:
         new_attributes = self._table.normalize(span.attributes)
+        # After the table, on its output: the table has already taken the
+        # request knobs out of the bag, so what this pass re-serializes is
+        # the remainder, and it never has to re-derive what the table did.
+        tooled = normalize_tool_definitions(
+            span.attributes if new_attributes is None else new_attributes
+        )
+        if tooled is not None:
+            new_attributes = tooled
         new_events, event_attributes = normalize_first_token_event(span)
         event_attributes = {**event_attributes, **error_type_from_exception_event(span)}
         if event_attributes:
@@ -553,6 +659,11 @@ def _flag(value: Any) -> Any:
     return value if isinstance(value, bool) else SKIP
 
 
+def text_value(values: list[Any]) -> Any:
+    """The source value when it is a non-empty string; SKIP otherwise."""
+    return _text(values[0])
+
+
 def _text_sequence(value: Any) -> Any:
     """A string list. A lone stop string is the one-element list of itself."""
     if isinstance(value, str):
@@ -594,12 +705,15 @@ def openinference_invocation_parameters(raw: Any) -> Mapping[str, Any]:
 
     The members left over go back under ``llm.invocation_parameters``, and
     that is deliberate rather than a half-measure. The bag's membership is
-    open and provider-defined: litellm and langchain leave the request's
-    ``tools`` / ``functions`` arrays in it, which is why ``masking.py``
-    redacts those members THERE. Fanning unknown members out into keys of our
-    own would move content out from under that redaction, so a member is
-    promoted only when a canonical key represents it totally, and the bag
-    survives to carry everything else.
+    open and provider-defined, and the whole bag is content to masking.
+    Fanning unknown members out into keys of our own would move them out from
+    under that, so a member is promoted only when a canonical key represents
+    it totally, and the bag survives to carry everything else. The request's
+    ``tools`` / ``functions`` arrays, which litellm and langchain leave here,
+    are the one exception, and they are not promoted HERE: their canonical key
+    is content, it must not be written at span start, and whether to promote
+    them depends on another key (``llm.tools.*``) that an expander cannot see.
+    :func:`normalize_tool_definitions` does it at export.
 
     A member that produced a canonical key is removed from the bag even when
     a native key beat it — at that point it is a duplicate, which is the same
@@ -720,6 +834,19 @@ OPENINFERENCE_RULES: tuple[AnyRule, ...] = (
     # (_wrappers.py:596, :603); see the omission note on llm.model_name.
     Rule("llm.request.model_name", GEN_AI_REQUEST_MODEL, copy_value),
     Rule("llm.response.model_name", GEN_AI_RESPONSE_MODEL, copy_value),
+    # Tool identity. OpenInference writes the bare key only on TOOL spans (on
+    # an LLM span the same name sits under llm.tools.N.tool.name instead), so
+    # the rule needs no kind guard. A rule rather than an export pass because
+    # gen_ai.tool.name is IDENTITY: the processor adds it at start, and a
+    # still-running tool call is then named on its pending snapshot, as the
+    # native one is.
+    #
+    # Deliberately NO fallback to the span name. The native path stopped
+    # deriving the tool name from the span name because a span name is not a
+    # tool name, and a wrong name silently groups unrelated calls — worse than
+    # an absent one. A third-party span offers no better guarantee. (It could
+    # not be a rule anyway: the span name is not an attribute.)
+    Rule("tool.name", GEN_AI_TOOL_NAME, text_value),
     # Why the model stopped. The source is a SCALAR and the canonical key is
     # an array (one entry per generation), so wrap rather than copy.
     #

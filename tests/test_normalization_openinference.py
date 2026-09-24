@@ -310,9 +310,10 @@ def test_non_object_invocation_parameters_survive_untouched() -> None:
 
 
 def test_tool_definitions_stay_inside_the_blob() -> None:
-    """litellm and langchain embed the request's tools there, and masking
-    redacts them THERE; fanning them out to a key of our own would take them
-    out from under ``capture_content=False``.
+    """litellm and langchain embed the request's tools there. The TABLE
+    leaves them: their canonical key is content and must not be written at
+    span start, which is when the table also runs. The exporter's
+    ``normalize_tool_definitions`` promotes them (tests/test_normalization_tools.py).
     """
     raw = {
         LLM_INVOCATION_PARAMETERS: json.dumps(
