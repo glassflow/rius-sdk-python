@@ -103,6 +103,7 @@ from opentelemetry.sdk.trace import Event, ReadableSpan, Span, SpanProcessor
 from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
 from opentelemetry.trace import StatusCode
 
+from ._attributes import replacement_attributes
 from ._serde import serialize
 from .semconv import (
     ERROR_TYPE,
@@ -850,7 +851,9 @@ class NormalizingSpanExporter(SpanExporter):
             return span
         normalized = copy.copy(span)
         if new_attributes is not None:
-            normalized._attributes = new_attributes
+            # Carrying the dropped count: a plain dict would report 0 and hide
+            # a span that hit the attribute-count limit.
+            normalized._attributes = replacement_attributes(span, new_attributes)
         if new_events is not None:
             normalized._events = new_events
         return normalized
