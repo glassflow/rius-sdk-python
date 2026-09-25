@@ -90,16 +90,52 @@ def test_a_user_count_limit_env_var_wins(monkeypatch: pytest.MonkeyPatch, env_va
     assert client._provider._span_limits.max_span_attributes == 20
 
 
-@pytest.mark.parametrize("value", ["", "  "])
+@pytest.mark.parametrize("value", ["", "  ", "abc", "-5", "1e3", "unset"])
 @pytest.mark.parametrize("env_var", _COUNT_ENV_VARS)
-def test_a_blank_count_env_var_does_not_count_as_set(
+def test_a_value_otel_does_not_honour_does_not_count_as_set(
     monkeypatch: pytest.MonkeyPatch, env_var: str, value: str
 ) -> None:
-    # Blank is not a choice of limit (the TypeScript SDK's rule too). Left to
-    # Python OTel, a blank OTEL_ATTRIBUTE_COUNT_LIMIT would give spans 128.
+    # The TypeScript SDK's rule too. Left to Python OTel, a blank
+    # OTEL_ATTRIBUTE_COUNT_LIMIT gives spans 128, and a non-integer or negative
+    # one makes SpanLimits() raise, which would take init() down with it.
     monkeypatch.setenv(env_var, value)
     client = _init(InMemorySpanExporter())
-    assert client._provider._span_limits.max_span_attributes == 4096
+    limits = client._provider._span_limits
+    assert limits.max_span_attributes == 4096
+    # Event and link attributes keep OTel's default.
+    assert limits.max_attributes == 128
+    assert limits.max_event_attributes == 128
+
+
+@pytest.mark.parametrize(("value", "expected"), [("50", 50), (" 50 ", 50), ("+7", 7), ("0", 0)])
+@pytest.mark.parametrize("env_var", _COUNT_ENV_VARS)
+def test_a_value_otel_honours_wins(
+    monkeypatch: pytest.MonkeyPatch, env_var: str, value: str, expected: int
+) -> None:
+    # Exactly the values OTel's own parser accepts: int() after strip.
+    monkeypatch.setenv(env_var, value)
+    client = _init(InMemorySpanExporter())
+    assert client._provider._span_limits.max_span_attributes == expected
+
+
+def test_an_unusable_value_is_reported(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setenv("OTEL_ATTRIBUTE_COUNT_LIMIT", "abc")
+    with caplog.at_level("WARNING", logger="rius.client"):
+        _init(InMemorySpanExporter())
+    assert "OTEL_ATTRIBUTE_COUNT_LIMIT" in caplog.text
+    assert "4096" in caplog.text
+
+
+def test_a_blank_value_is_not_reported(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    # A blank entry is routine in a container env; it is not worth a warning.
+    monkeypatch.setenv("OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT", "")
+    with caplog.at_level("WARNING", logger="rius.client"):
+        _init(InMemorySpanExporter())
+    assert "COUNT_LIMIT" not in caplog.text
 
 
 def test_the_span_specific_env_var_still_beats_the_global_one(

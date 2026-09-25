@@ -150,7 +150,8 @@ tool definitions, and the system prompt.
 `init()` therefore gives its tracer provider a limit of **4096** attributes per
 span. The value-length limit is left alone (the SDK caps its own JSON
 attributes). If you set `OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT` or
-`OTEL_ATTRIBUTE_COUNT_LIMIT` to a value (a blank one does not count), your value wins and OpenTelemetry resolves the
+`OTEL_ATTRIBUTE_COUNT_LIMIT` to a non-negative integer, your value wins (a blank value
+is ignored, and an invalid one is ignored with a warning) and OpenTelemetry resolves the
 limits as usual. A span that still hits the limit reports how many attributes
 it dropped (`dropped_attributes_count` on the wire), so a loss is visible
 rather than silent.

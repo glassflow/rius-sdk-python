@@ -60,24 +60,59 @@ DEFAULT_SPAN_ATTRIBUTE_COUNT_LIMIT = 4096
 _ATTRIBUTE_COUNT_ENV_VARS = ("OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT", "OTEL_ATTRIBUTE_COUNT_LIMIT")
 
 
+#: OTel's default for event and link attribute counts (the spec's 128).
+#: Passed explicitly whenever the SDK sets the span count, for the reason in
+#: :func:`_span_limits`.
+_OTEL_DEFAULT_ATTRIBUTE_COUNT_LIMIT = 128
+
+
+def _honoured_count(name: str) -> bool:
+    """True when ``name`` holds a count OTel's own env parsing accepts.
+
+    Mirrors ``SpanLimits._from_env_if_absent`` (opentelemetry-sdk): the value
+    must parse with ``int()`` to a non-negative number. ``int()`` itself
+    ignores surrounding whitespace and rejects a blank string, which OTel
+    reads as "unset", so a blank value is not a count either.
+    """
+    try:
+        return int(os.environ.get(name, "")) >= 0
+    except ValueError:
+        return False
+
+
 def _span_limits() -> SpanLimits:
     """The provider's limits: ours for the attribute count, unless the user chose.
 
     An explicit ``max_span_attributes`` beats the env var inside ``SpanLimits``,
     so passing ours unconditionally would silently override a user's
     ``OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT``. When either count variable holds a
-    value, OTel resolves everything itself, its own precedence included.
+    count OTel honours, OTel resolves everything itself, its own precedence
+    included. That is the TypeScript SDK's rule too.
 
-    "Holds a value" means non-blank, the rule the TypeScript SDK applies too. A
-    blank variable is not a choice of limit: Python OTel reads a blank
-    ``OTEL_ATTRIBUTE_COUNT_LIMIT`` as unset and falls back to 128 for spans,
-    which is the very eviction this limit exists to prevent. An unparseable
-    value never reaches here: OTel raises on it when ``opentelemetry.sdk.trace``
-    is imported.
+    Anything else is not a choice of limit, and leaving it to OTel would be
+    wrong: a blank ``OTEL_ATTRIBUTE_COUNT_LIMIT`` gives spans 128, the very
+    eviction this limit exists to prevent, and a non-integer or negative one
+    makes ``SpanLimits()`` raise. The global count is therefore passed too,
+    at OTel's default, because ``SpanLimits`` parses that variable even when
+    the span count is explicit. (A bad ``OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT``
+    never gets here: OTel raises on it when ``opentelemetry.sdk.trace`` is
+    imported.)
     """
-    if any(os.environ.get(name, "").strip() for name in _ATTRIBUTE_COUNT_ENV_VARS):
+    if any(_honoured_count(name) for name in _ATTRIBUTE_COUNT_ENV_VARS):
         return SpanLimits()
-    return SpanLimits(max_span_attributes=DEFAULT_SPAN_ATTRIBUTE_COUNT_LIMIT)
+    for name in _ATTRIBUTE_COUNT_ENV_VARS:
+        if os.environ.get(name, "").strip():
+            logger.warning(
+                "%s=%r is not a non-negative integer, so OpenTelemetry cannot use it; "
+                "rius applies its span attribute count limit of %d instead.",
+                name,
+                os.environ[name],
+                DEFAULT_SPAN_ATTRIBUTE_COUNT_LIMIT,
+            )
+    return SpanLimits(
+        max_attributes=_OTEL_DEFAULT_ATTRIBUTE_COUNT_LIMIT,
+        max_span_attributes=DEFAULT_SPAN_ATTRIBUTE_COUNT_LIMIT,
+    )
 
 
 _lock = threading.Lock()
