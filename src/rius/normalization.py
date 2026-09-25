@@ -81,6 +81,8 @@ never be written at span start.
 reasons: the flattened ``llm.input_messages.N.message.*`` and
 ``llm.output_messages.N.message.*`` families become ``gen_ai.input.messages``
 and ``gen_ai.output.messages``, which are content.
+``drop_embedding_vectors`` removes the indexed
+``embedding.embeddings.N.embedding.vector`` family, which is never exported.
 
 Ordering: the normalizing exporter must run BEFORE the masking exporter
 (i.e. it wraps it), so masking only has to recognise canonical content keys.
@@ -806,6 +808,44 @@ def reassemble_openinference_messages(
     return rebuilt
 
 
+#: OpenInference's embedding family: ``embedding.embeddings.{i}.embedding.*``.
+#: Source spellings, like the message families above.
+_EMBEDDINGS_PREFIX = "embedding.embeddings."
+_EMBEDDING_VECTOR_SUFFIX = ".embedding.vector"
+
+
+def drop_embedding_vectors(attributes: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    """The attributes without ``embedding.embeddings.N.embedding.vector``.
+
+    Returns the rebuilt dict, or None when there is no vector to drop. An
+    EMBEDDING span from OpenInference carries every returned vector as its own
+    attribute, 1536 floats each for ``text-embedding-3-small``. Nothing
+    downstream reads them, and the provider response under ``output.value``
+    already holds them, so they are never exported. The neighbouring
+    ``...embedding.text`` keys are the INPUT and are kept; they are content,
+    and masking strips them under ``capture_content=False``.
+
+    Not a table rule: the family is indexed and a rule's sources are exact
+    keys. Export-stage only: the vectors come from the response, so they do
+    not exist at ``on_start``.
+    """
+    if not attributes:
+        return None
+    drop = [
+        key
+        for key in attributes
+        if key.startswith(_EMBEDDINGS_PREFIX)
+        and key.endswith(_EMBEDDING_VECTOR_SUFFIX)
+        and _index(key[len(_EMBEDDINGS_PREFIX) : -len(_EMBEDDING_VECTOR_SUFFIX)]) is not None
+    ]
+    if not drop:
+        return None
+    rebuilt = dict(attributes)
+    for key in drop:
+        del rebuilt[key]
+    return rebuilt
+
+
 class NormalizingSpanExporter(SpanExporter):
     """Map third-party keys onto canonical ones before delegating to ``inner``.
 
@@ -835,6 +875,11 @@ class NormalizingSpanExporter(SpanExporter):
         )
         if messages is not None:
             new_attributes = messages
+        vectorless = drop_embedding_vectors(
+            span.attributes if new_attributes is None else new_attributes
+        )
+        if vectorless is not None:
+            new_attributes = vectorless
         new_events, event_attributes = normalize_first_token_event(span)
         event_attributes = {**event_attributes, **error_type_from_exception_event(span)}
         if event_attributes:
@@ -1246,9 +1291,20 @@ OPENINFERENCE_RULES: tuple[AnyRule, ...] = (
         GEN_AI_USAGE_REASONING_OUTPUT_TOKENS,
         to_int,
     ),
-    # The request bag, last: the dedicated model rules above take precedence
-    # over its `model` member.
+    # The request bag: the dedicated model rules above take precedence over
+    # its `model` member.
     ExpandingRule(LLM_INVOCATION_PARAMETERS, openinference_invocation_parameters),
+    # The embedding model, AFTER every LLM model spelling, so it can never
+    # change which value an existing rule gives gen_ai.request.model; it only
+    # fills the key on a span that has no other source for it, which is every
+    # OpenInference EMBEDDING span. Unlike llm.model_name this one is mapped:
+    # an embedding call has no separate response model to confuse it with, and
+    # OpenInference's own GenAI converter reads it as the REQUEST model
+    # (openinference.instrumentation._genai_conversion._get_request_model).
+    # The openai instrumentor sets it from the response's `model`; OpenAI's
+    # embedding models have no dated snapshots for a response to resolve to,
+    # so it is the model asked for.
+    Rule("embedding.model_name", GEN_AI_REQUEST_MODEL, text_value),
 )
 
 #: Live in every process. See the module docstring before adding a rule.

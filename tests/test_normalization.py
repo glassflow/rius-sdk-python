@@ -201,7 +201,10 @@ def test_the_shipped_table_only_claims_namespaces_it_maps() -> None:
     # matches the table, and why normalize() ends with a no-op check.
     # tool. joined for tool.name -> gen_ai.tool.name, an exact key: tool.
     # description and tool.parameters share the namespace and stay untouched.
-    assert DEFAULT_TABLE.prefixes == ("gen_ai.", "llm.", "openinference.", "tool.")
+    # embedding. joined for embedding.model_name -> gen_ai.request.model, an
+    # exact key: embedding.invocation_parameters and the embedding.embeddings.*
+    # texts share the namespace and stay untouched by the table.
+    assert DEFAULT_TABLE.prefixes == ("embedding.", "gen_ai.", "llm.", "openinference.", "tool.")
 
 
 def test_an_empty_table_short_circuits() -> None:
