@@ -39,6 +39,7 @@ from opentelemetry.context import Context
 from opentelemetry.sdk.trace import ReadableSpan, Span, SpanProcessor
 from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
 
+from ._attributes import replacement_attributes
 from .semconv import WORKSPACE_ROUTE
 
 logger = logging.getLogger(__name__)
@@ -193,7 +194,7 @@ class RoutingSpanExporter(SpanExporter):
         new_attributes = dict(span.attributes or {})
         del new_attributes[WORKSPACE_ROUTE]
         stripped = copy.copy(span)
-        stripped._attributes = new_attributes
+        stripped._attributes = replacement_attributes(span, new_attributes)
         return stripped
 
     def force_flush(self, timeout_millis: int = 30_000) -> bool:

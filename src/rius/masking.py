@@ -26,6 +26,7 @@ from opentelemetry.sdk.trace import Event, ReadableSpan
 from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
 from opentelemetry.trace import Link, Status
 
+from ._attributes import replacement_attributes
 from ._serde import serialize
 from .semconv import (
     CONTENT_ATTRIBUTE_PREFIXES,
@@ -122,7 +123,7 @@ class MaskingSpanExporter(SpanExporter):
             return span
         sanitized = copy.copy(span)
         if new_attributes is not None:
-            sanitized._attributes = new_attributes
+            sanitized._attributes = replacement_attributes(span, new_attributes)
         if new_events is not None:
             sanitized._events = new_events
         if new_links is not None:

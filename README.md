@@ -138,6 +138,34 @@ explicitly. Calling `init()` again while a client is active logs a warning and
 returns the existing client unchanged; call `client.shutdown()` first to
 reconfigure.
 
+### Span attribute limit
+
+OpenTelemetry caps a span at **128 attributes** by default and, once a span is
+full, silently evicts its OLDEST keys. The OpenInference instrumentors write
+one attribute per message field and per tool field, so an agent loop with ten
+tools passes 128 within about six (Anthropic) to nine (OpenAI) turns, and what
+goes first is what they wrote first: the model and request parameters, the
+tool definitions, and the system prompt.
+
+`init()` therefore gives its tracer provider a limit of **4096** attributes per
+span. The value-length limit is left alone (the SDK caps its own JSON
+attributes). If you set `OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT` or
+`OTEL_ATTRIBUTE_COUNT_LIMIT`, your value wins and OpenTelemetry resolves the
+limits as usual. A span that still hits the limit reports how many attributes
+it dropped (`dropped_attributes_count` on the wire), so a loss is visible
+rather than silent.
+
+The limit applies to the provider `init()` builds. `init()` does not accept a
+provider of your own; if you run OpenInference instrumentors **without** this
+SDK, on your own `TracerProvider`, raise the limit yourself, either with
+`OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT=4096` in the environment or in code:
+
+```python
+from opentelemetry.sdk.trace import SpanLimits, TracerProvider
+
+provider = TracerProvider(span_limits=SpanLimits(max_span_attributes=4096))
+```
+
 ## Reliability
 
 Export is designed to never block or crash your application:
