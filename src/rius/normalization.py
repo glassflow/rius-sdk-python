@@ -808,10 +808,11 @@ def reassemble_openinference_messages(
     return rebuilt
 
 
-#: OpenInference's embedding family: ``embedding.embeddings.{i}.embedding.*``.
-#: Source spellings, like the message families above.
-_EMBEDDINGS_PREFIX = "embedding.embeddings."
-_EMBEDDING_VECTOR_SUFFIX = ".embedding.vector"
+#: OpenInference's embedding vectors: ``embedding.embeddings.{i}.embedding.vector``.
+#: A source spelling, like the message families above. The index is any run of
+#: ASCII digits, with no sign and no bound, the same pattern the TypeScript SDK
+#: uses, so the two drop exactly the same keys.
+_EMBEDDING_VECTOR = re.compile(r"embedding\.embeddings\.[0-9]+\.embedding\.vector", re.ASCII)
 
 
 def drop_embedding_vectors(attributes: Mapping[str, Any] | None) -> dict[str, Any] | None:
@@ -831,12 +832,11 @@ def drop_embedding_vectors(attributes: Mapping[str, Any] | None) -> dict[str, An
     """
     if not attributes:
         return None
+    # The cheap prefix test first: this runs on every exported span.
     drop = [
         key
         for key in attributes
-        if key.startswith(_EMBEDDINGS_PREFIX)
-        and key.endswith(_EMBEDDING_VECTOR_SUFFIX)
-        and _index(key[len(_EMBEDDINGS_PREFIX) : -len(_EMBEDDING_VECTOR_SUFFIX)]) is not None
+        if key.startswith("embedding.embeddings.") and _EMBEDDING_VECTOR.fullmatch(key)
     ]
     if not drop:
         return None

@@ -161,6 +161,12 @@ def test_every_vector_is_dropped_and_the_text_is_kept() -> None:
     assert out == {"embedding.embeddings.0.embedding.text": "hello", "other": 1}
 
 
+def test_any_run_of_ascii_digits_is_an_index() -> None:
+    # No upper bound: the rule is the digit pattern, as in the TypeScript SDK.
+    key = f"embedding.embeddings.{2**64}.embedding.vector"
+    assert drop_embedding_vectors({key: (0.1,)}) == {}
+
+
 def test_nothing_to_drop_returns_none() -> None:
     assert drop_embedding_vectors({"embedding.embeddings.0.embedding.text": "x"}) is None
     assert drop_embedding_vectors({}) is None
@@ -171,6 +177,10 @@ def test_nothing_to_drop_returns_none() -> None:
     "key",
     [
         "embedding.embeddings.x.embedding.vector",  # not an index
+        # ASCII digits only, matched with the TypeScript SDK: no sign.
+        "embedding.embeddings.+1.embedding.vector",
+        "embedding.embeddings.-0.embedding.vector",
+        "embedding.embeddings.\u0661.embedding.vector",  # an Arabic-Indic digit
         "embedding.embeddings.0.embedding.vector.extra",
         "embedding.embeddings.embedding.vector",
         "other.embeddings.0.embedding.vector",
