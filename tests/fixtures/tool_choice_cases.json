@@ -1,0 +1,203 @@
+{
+  "_comment": "Promotion of the tool_choice member of llm.invocation_parameters to rius.request.tool_choice. Shared byte-for-byte by rius-sdk-python and rius-sdk-typescript; the cases and expected values mirror the sink's TestOpenInference tool_choice cases. 'input' is a span's attributes; 'expected' is every attribute after normalization, where llm.invocation_parameters is given PARSED (each SDK serializes the leftover bag its own way) and an absent key means the key must be absent.",
+  "cases": [
+    {
+      "name": "a string is promoted as it is",
+      "input": {
+        "llm.invocation_parameters": "{\"tool_choice\": \"required\", \"user\": \"u-1\"}"
+      },
+      "expected": {
+        "rius.request.tool_choice": "required",
+        "llm.invocation_parameters": {
+          "user": "u-1"
+        }
+      }
+    },
+    {
+      "name": "an object is promoted as compact JSON and the emptied bag is dropped",
+      "input": {
+        "llm.invocation_parameters": "{\"tool_choice\": {\"type\": \"tool\", \"name\": \"get_weather\"}}"
+      },
+      "expected": {
+        "rius.request.tool_choice": "{\"type\":\"tool\",\"name\":\"get_weather\"}"
+      }
+    },
+    {
+      "name": "Anthropic's forced any, next to a promoted knob",
+      "input": {
+        "llm.invocation_parameters": "{\"tool_choice\": {\"type\": \"any\"}, \"temperature\": 0.5}"
+      },
+      "expected": {
+        "rius.request.tool_choice": "{\"type\":\"any\"}",
+        "gen_ai.request.temperature": 0.5
+      }
+    },
+    {
+      "name": "member order is kept, not sorted",
+      "input": {
+        "llm.invocation_parameters": "{\"tool_choice\": {\"type\": \"tool\", \"name\": \"b\", \"disable_parallel_tool_use\": true}}"
+      },
+      "expected": {
+        "rius.request.tool_choice": "{\"type\":\"tool\",\"name\":\"b\",\"disable_parallel_tool_use\":true}"
+      }
+    },
+    {
+      "name": "nested objects, integers, null and arrays are compacted too",
+      "input": {
+        "llm.invocation_parameters": "{\"tool_choice\": {\"type\": \"function\", \"function\": {\"name\": \"f\"}, \"k\": 2, \"x\": null, \"l\": [1, \"a\"]}}"
+      },
+      "expected": {
+        "rius.request.tool_choice": "{\"type\":\"function\",\"function\":{\"name\":\"f\"},\"k\":2,\"x\":null,\"l\":[1,\"a\"]}"
+      }
+    },
+    {
+      "name": "an object is not HTML-escaped",
+      "input": {
+        "llm.invocation_parameters": "{\"tool_choice\": {\"type\": \"function\", \"function\": {\"name\": \"a<b>&c\"}}}"
+      },
+      "expected": {
+        "rius.request.tool_choice": "{\"type\":\"function\",\"function\":{\"name\":\"a<b>&c\"}}"
+      }
+    },
+    {
+      "name": "an object is written in raw UTF-8",
+      "input": {
+        "llm.invocation_parameters": "{\"tool_choice\": {\"type\": \"tool\", \"name\": \"m\\u00e9t\\u00e9o_\\u5929\\u6c17_\\ud83d\\ude00\"}}"
+      },
+      "expected": {
+        "rius.request.tool_choice": "{\"type\":\"tool\",\"name\":\"m\u00e9t\u00e9o_\u5929\u6c17_\ud83d\ude00\"}"
+      }
+    },
+    {
+      "name": "control characters, quotes and backslashes are escaped as JSON escapes them",
+      "input": {
+        "llm.invocation_parameters": "{\"tool_choice\": {\"name\": \"a\\nb\\t\\\"c\\\\d\\u0001e\\u007f\"}}"
+      },
+      "expected": {
+        "rius.request.tool_choice": "{\"name\":\"a\\nb\\t\\\"c\\\\d\\u0001e\u007f\"}"
+      }
+    },
+    {
+      "name": "the line and paragraph separators stay escaped",
+      "input": {
+        "llm.invocation_parameters": "{\"tool_choice\": {\"name\": \"a\u2028b\\u2029c\"}}"
+      },
+      "expected": {
+        "rius.request.tool_choice": "{\"name\":\"a\\u2028b\\u2029c\"}"
+      }
+    },
+    {
+      "name": "a lone surrogate becomes the replacement character",
+      "input": {
+        "llm.invocation_parameters": "{\"tool_choice\": {\"name\": \"a\\ud800b\"}}"
+      },
+      "expected": {
+        "rius.request.tool_choice": "{\"name\":\"a\ufffdb\"}"
+      }
+    },
+    {
+      "name": "an empty object is still an object",
+      "input": {
+        "llm.invocation_parameters": "{\"tool_choice\": {}, \"user\": \"u-1\"}"
+      },
+      "expected": {
+        "rius.request.tool_choice": "{}",
+        "llm.invocation_parameters": {
+          "user": "u-1"
+        }
+      }
+    },
+    {
+      "name": "null stays in the bag",
+      "input": {
+        "llm.invocation_parameters": "{\"tool_choice\": null, \"temperature\": 1}"
+      },
+      "expected": {
+        "gen_ai.request.temperature": 1,
+        "llm.invocation_parameters": {
+          "tool_choice": null
+        }
+      }
+    },
+    {
+      "name": "an empty string stays in the bag",
+      "input": {
+        "llm.invocation_parameters": "{\"tool_choice\": \"\"}"
+      },
+      "expected": {
+        "llm.invocation_parameters": {
+          "tool_choice": ""
+        }
+      }
+    },
+    {
+      "name": "an array stays in the bag",
+      "input": {
+        "llm.invocation_parameters": "{\"tool_choice\": [\"auto\"]}"
+      },
+      "expected": {
+        "llm.invocation_parameters": {
+          "tool_choice": ["auto"]
+        }
+      }
+    },
+    {
+      "name": "a number stays in the bag",
+      "input": {
+        "llm.invocation_parameters": "{\"tool_choice\": 1}"
+      },
+      "expected": {
+        "llm.invocation_parameters": {
+          "tool_choice": 1
+        }
+      }
+    },
+    {
+      "name": "a boolean stays in the bag",
+      "input": {
+        "llm.invocation_parameters": "{\"tool_choice\": true}"
+      },
+      "expected": {
+        "llm.invocation_parameters": {
+          "tool_choice": true
+        }
+      }
+    },
+    {
+      "name": "a native value wins and the bag's copy goes",
+      "input": {
+        "rius.request.tool_choice": "auto",
+        "llm.invocation_parameters": "{\"tool_choice\": \"required\", \"user\": \"u-1\"}"
+      },
+      "expected": {
+        "rius.request.tool_choice": "auto",
+        "llm.invocation_parameters": {
+          "user": "u-1"
+        }
+      }
+    },
+    {
+      "name": "a native value wins over an object and the emptied bag is dropped",
+      "input": {
+        "rius.request.tool_choice": "auto",
+        "llm.invocation_parameters": "{\"tool_choice\": {\"type\": \"any\"}}"
+      },
+      "expected": {
+        "rius.request.tool_choice": "auto"
+      }
+    },
+    {
+      "name": "a native value leaves a wrongly-shaped member where it was",
+      "input": {
+        "rius.request.tool_choice": "auto",
+        "llm.invocation_parameters": "{\"tool_choice\": null}"
+      },
+      "expected": {
+        "rius.request.tool_choice": "auto",
+        "llm.invocation_parameters": {
+          "tool_choice": null
+        }
+      }
+    }
+  ]
+}
