@@ -58,7 +58,9 @@ the sink still sees it under its own name. The deliberate omissions are listed
 with their reasons at ``OPENINFERENCE_RULES`` below.
 
 The shipped table covers the OpenInference ``llm.*`` model-call and usage
-families (RIUS-921). Rules used to exercise the machinery itself live in the
+families (RIUS-921), plus two GenAI-shaped usage spellings that third-party
+instrumentations still emit (``cache_creation``, ``details.reasoning_tokens``).
+Rules used to exercise the machinery itself live in the
 tests, injected through ``table=``.
 
 Not everything a dialect says is an attribute. OpenInference records the first
@@ -75,6 +77,10 @@ an ERROR status but no ``error.type``, and
 its source is an indexed key family (``llm.tools.N.tool.json_schema``), which
 the exact-key rule table cannot match, and its target is content, which must
 never be written at span start.
+``reassemble_openinference_messages`` sits beside it for the same two
+reasons: the flattened ``llm.input_messages.N.message.*`` and
+``llm.output_messages.N.message.*`` families become ``gen_ai.input.messages``
+and ``gen_ai.output.messages``, which are content.
 
 Ordering: the normalizing exporter must run BEFORE the masking exporter
 (i.e. it wraps it), so masking only has to recognise canonical content keys.
@@ -87,6 +93,7 @@ from __future__ import annotations
 import copy
 import json
 import logging
+import math
 import re
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from typing import Any
@@ -102,16 +109,22 @@ from .semconv import (
     EXCEPTION_EVENT,
     EXCEPTION_TYPE,
     GEN_AI_FIRST_TOKEN_EVENT,
+    GEN_AI_INPUT_MESSAGES,
     GEN_AI_OPERATION_NAME,
+    GEN_AI_OUTPUT_MESSAGES,
     GEN_AI_PROVIDER_NAME,
     GEN_AI_REQUEST_CHOICE_COUNT,
+    GEN_AI_REQUEST_ENCODING_FORMATS,
     GEN_AI_REQUEST_FREQUENCY_PENALTY,
     GEN_AI_REQUEST_MAX_TOKENS,
     GEN_AI_REQUEST_MODEL,
     GEN_AI_REQUEST_PRESENCE_PENALTY,
+    GEN_AI_REQUEST_PREVIOUS_RESPONSE_ID,
+    GEN_AI_REQUEST_REASONING_LEVEL,
     GEN_AI_REQUEST_SEED,
     GEN_AI_REQUEST_STOP_SEQUENCES,
     GEN_AI_REQUEST_STREAM,
+    GEN_AI_REQUEST_STREAM_CURSOR,
     GEN_AI_REQUEST_TEMPERATURE,
     GEN_AI_REQUEST_TOP_K,
     GEN_AI_REQUEST_TOP_P,
@@ -545,6 +558,254 @@ def normalize_tool_definitions(attributes: Mapping[str, Any] | None) -> dict[str
     return rebuilt
 
 
+#: OpenInference's flattened message families and the canonical key each one
+#: is reassembled into. Source spellings, so they live here rather than in
+#: ``semconv.py``, like ``_LLM_TOOL_SCHEMA`` above.
+_MESSAGE_FAMILIES = (
+    ("llm.input_messages.", GEN_AI_INPUT_MESSAGES),
+    ("llm.output_messages.", GEN_AI_OUTPUT_MESSAGES),
+)
+_MESSAGE_PREFIXES = tuple(prefix for prefix, _ in _MESSAGE_FAMILIES)
+
+#: The message fields that are read, besides the tool-call and contents
+#: families. Any other ``message.*`` field (``message.name``,
+#: ``message.function_call_name``, ...) is not consumed and rides through.
+_MESSAGE_ROLE = "message.role"
+_MESSAGE_CONTENT = "message.content"
+_MESSAGE_TOOL_CALL_ID = "message.tool_call_id"
+_TOOL_CALLS = "message.tool_calls."
+_TOOL_CALL = "tool_call."
+_CONTENTS = "message.contents."
+_CONTENT_ITEM = "message_content."
+
+#: Tool-call fields and the part field each one fills. Any other
+#: ``tool_call.*`` field is consumed and dropped, as the sink does.
+_TOOL_CALL_FIELDS = (("id", "id"), ("function.name", "name"), ("function.arguments", "arguments"))
+
+#: An index as the sink's ``strconv.Atoi`` reads one: an optional sign and
+#: ASCII digits, within int64. The sink is the other producer of this key, and
+#: the two must agree on which keys are messages.
+_INDEX = re.compile(r"[+-]?[0-9]+", re.ASCII)
+
+
+def _index(text: str) -> int | None:
+    if _INDEX.fullmatch(text) is None:
+        return None
+    value = int(text)
+    return value if 0 <= value < 2**63 else None
+
+
+class _FlatMessage:
+    """One flattened message's fields, gathered before it is encoded."""
+
+    def __init__(self) -> None:
+        self.role = ""
+        self.content: str | None = None
+        self.tool_call_id = ""
+        self.tool_calls: dict[int, dict[str, str]] = {}
+        self.contents: dict[int, dict[str, str]] = {}
+
+    def encode(self) -> dict[str, Any]:
+        """The message in the GenAI role/parts shape, as the sink encodes it.
+
+        The content first (a ``tool_call_response`` when the message carries
+        a tool-call id, a text part otherwise), then the multimodal contents,
+        then the tool calls, each family in index order. An empty role, id,
+        name or arguments is omitted rather than written empty, as the sink
+        does; empty content is still a part, because empty content was said.
+        """
+        message: dict[str, Any] = {}
+        if self.role:
+            message["role"] = self.role
+        parts: list[dict[str, Any]] = []
+        if self.content is not None:
+            if self.tool_call_id:
+                parts.append(
+                    {
+                        "type": "tool_call_response",
+                        "id": self.tool_call_id,
+                        "response": self.content,
+                    }
+                )
+            else:
+                parts.append({"type": "text", "content": self.content})
+        for k in sorted(self.contents):
+            part = _content_part(self.contents[k], self.tool_calls)
+            if part is not None:
+                parts.append(part)
+        for j in sorted(self.tool_calls):
+            call = self.tool_calls[j]
+            part = {"type": "tool_call"}
+            for field, name in _TOOL_CALL_FIELDS:
+                if call.get(field):
+                    part[name] = call[field]
+            parts.append(part)
+        message["parts"] = parts
+        return message
+
+
+def _content_part(
+    item: dict[str, str], tool_calls: dict[int, dict[str, str]]
+) -> dict[str, Any] | None:
+    """One multimodal contents item as a message part, or None for no part.
+
+    * A text item, and nothing more, is a text part. This is how the
+      Anthropic instrumentors write every text block, replies and block-list
+      system prompts alike.
+    * A ``tool_use`` item that repeats a tool call the message already carries
+      adds no part. The Anthropic instrumentors write each tool_use block
+      twice, under ``message.tool_calls.J`` and as a contents item, so the call
+      is already a ``tool_call`` part and a second copy would only be noise.
+      It must hold nothing but the call's fields, and each of them must equal
+      one tool call's; otherwise it is not provably a copy, and is serialized.
+    * Anything else (an image, a reasoning block, a text item carrying an id
+      or a signature, an item without a type) becomes a text part holding the
+      item serialized, as the generation helper does with content it has no
+      part type for. The item is its fields by name (``message_content.`` cut,
+      ``tool_call.`` kept), sorted, so no field is lost and every producer
+      orders it the same way.
+    """
+    if item.keys() == {"type", "text"} and item["type"] == "text":
+        return {"type": "text", "content": item["text"]}
+    if item.get("type") == "tool_use" and _repeats_a_tool_call(item, tool_calls):
+        return None
+    return {"type": "text", "content": serialize({k: item[k] for k in sorted(item)})}
+
+
+#: The fields a tool_use contents item may carry to count as a copy of a tool
+#: call, each with the tool-call field it must equal.
+_TOOL_USE_ITEM_FIELDS = {f"{_TOOL_CALL}{field}": field for field, _ in _TOOL_CALL_FIELDS}
+
+
+def _repeats_a_tool_call(item: dict[str, str], tool_calls: dict[int, dict[str, str]]) -> bool:
+    fields = {k: v for k, v in item.items() if k != "type"}
+    if not fields.keys() <= _TOOL_USE_ITEM_FIELDS.keys():
+        return False
+    return any(
+        all(call.get(_TOOL_USE_ITEM_FIELDS[k], "") == v for k, v in fields.items())
+        for call in tool_calls.values()
+    )
+
+
+def _reassemble_family(
+    attributes: Mapping[str, Any], prefix: str
+) -> tuple[list[dict[str, Any]], list[str]] | None:
+    """The family's messages in index order and the keys they consumed.
+
+    None when the family has no message, or holds a value that is not a
+    string: OpenInference writes every message field as one, so anything
+    else is a shape we cannot vouch for, and leaving it is safe because the
+    family is content by prefix already.
+    """
+    messages: dict[int, _FlatMessage] = {}
+    consumed: list[str] = []
+    for key, value in attributes.items():
+        if not key.startswith(prefix):
+            continue
+        index_text, dot, field = key[len(prefix) :].partition(".")
+        index = _index(index_text) if dot else None
+        if index is None:
+            continue
+        call: tuple[int, str] | None = None
+        item: tuple[int, str] | None = None
+        if field.startswith(_TOOL_CALLS):
+            sub_text, dot, rest = field[len(_TOOL_CALLS) :].partition(".")
+            sub = _index(sub_text) if dot else None
+            if sub is not None and rest.startswith(_TOOL_CALL):
+                call = (sub, rest[len(_TOOL_CALL) :])
+        elif field.startswith(_CONTENTS):
+            sub_text, dot, rest = field[len(_CONTENTS) :].partition(".")
+            sub = _index(sub_text) if dot else None
+            if sub is not None and rest.startswith(_CONTENT_ITEM):
+                item = (sub, rest[len(_CONTENT_ITEM) :])
+            elif sub is not None and rest.startswith(_TOOL_CALL):
+                # A tool_use item's call fields sit beside message_content.type
+                # rather than under it; they are the item's too, prefix kept.
+                item = (sub, rest)
+        if (
+            call is None
+            and item is None
+            and field
+            not in (
+                _MESSAGE_ROLE,
+                _MESSAGE_CONTENT,
+                _MESSAGE_TOOL_CALL_ID,
+            )
+        ):
+            continue
+        if not isinstance(value, str):
+            return None
+        message = messages.setdefault(index, _FlatMessage())
+        if call is not None:
+            message.tool_calls.setdefault(call[0], {})[call[1]] = value
+        elif item is not None:
+            message.contents.setdefault(item[0], {})[item[1]] = value
+        elif field == _MESSAGE_ROLE:
+            message.role = value
+        elif field == _MESSAGE_TOOL_CALL_ID:
+            message.tool_call_id = value
+        else:
+            message.content = value
+        consumed.append(key)
+    if not messages:
+        return None
+    return [messages[i].encode() for i in sorted(messages)], consumed
+
+
+def reassemble_openinference_messages(
+    attributes: Mapping[str, Any] | None,
+) -> dict[str, Any] | None:
+    """Rebuild OpenInference's flattened messages as ``gen_ai.*.messages``.
+
+    Returns the rebuilt attribute dict, or None when nothing changes.
+    OpenInference writes one attribute per message field:
+    ``llm.input_messages.{i}.message.{role,content,tool_call_id}``,
+    ``...message.tool_calls.{j}.tool_call.{id,function.name,function.arguments}``
+    and the multimodal ``...message.contents.{k}.message_content.*``, and the
+    same under ``llm.output_messages``. Each family becomes one JSON array
+    under its canonical key, in the role/parts shape the generation helpers
+    write, capped like every other JSON attribute, and every key it consumed
+    is deleted.
+
+    The output is BYTE-IDENTICAL to the sink's ``reassembleMessages`` for the
+    same input, because a span normalized here and one normalized by the sink
+    must be indistinguishable downstream, and
+    ``tests/fixtures/openinference_messages.json`` pins it. That is why this
+    does not route through ``_normalize_message``, which would default a
+    missing role, write ``null`` for a missing tool-call field and drop the
+    tool calls of a tool message, each of which the sink does not do. The
+    encoding is the shared one (``serialize``). The one known difference is
+    that the sink does not cap the attribute.
+
+    The multimodal ``contents`` form is not optional: the Anthropic
+    instrumentors write EVERY text block there, never in ``message.content``,
+    so without it an Anthropic reply or a block-list system prompt arrives
+    with empty parts.
+
+    Native wins: a family whose canonical key is already present is left
+    entirely as it came, flattened keys included, as the sink leaves it.
+    Export-stage only, like the tool definitions: messages are content, so
+    they never ride a pending snapshot, and masking, which runs after this,
+    strips the canonical key under ``capture_content=False``.
+    """
+    if not attributes or not any(key.startswith(_MESSAGE_PREFIXES) for key in attributes):
+        return None
+    rebuilt: dict[str, Any] | None = None
+    for prefix, target in _MESSAGE_FAMILIES:
+        if target in attributes:
+            continue
+        family = _reassemble_family(attributes, prefix)
+        if family is None:
+            continue
+        messages, consumed = family
+        if rebuilt is None:
+            rebuilt = dict(attributes)
+        for key in consumed:
+            del rebuilt[key]
+        rebuilt[target] = serialize(messages)
+    return rebuilt
+
+
 class NormalizingSpanExporter(SpanExporter):
     """Map third-party keys onto canonical ones before delegating to ``inner``.
 
@@ -569,6 +830,11 @@ class NormalizingSpanExporter(SpanExporter):
         )
         if tooled is not None:
             new_attributes = tooled
+        messages = reassemble_openinference_messages(
+            span.attributes if new_attributes is None else new_attributes
+        )
+        if messages is not None:
+            new_attributes = messages
         new_events, event_attributes = normalize_first_token_event(span)
         event_attributes = {**event_attributes, **error_type_from_exception_event(span)}
         if event_attributes:
@@ -639,15 +905,22 @@ def provider_name(values: list[Any]) -> Any:
 
 
 def _number(value: Any) -> Any:
-    """A double, or SKIP. Booleans are not numbers here."""
+    """A finite double, or SKIP. Booleans are not numbers here, and NaN and
+    the infinities are not a value a model is sent (``json`` reads them)."""
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return SKIP
-    return float(value)
+    try:
+        number = float(value)
+    except OverflowError:  # an int beyond a double's range
+        return SKIP
+    return number if math.isfinite(number) else SKIP
 
 
 def _count(value: Any) -> Any:
-    """An int, or SKIP."""
+    """An int, or SKIP. A non-finite float is SKIP: ``int()`` of one raises."""
     if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return SKIP
+    if isinstance(value, float) and not math.isfinite(value):
         return SKIP
     return int(value)
 
@@ -736,6 +1009,30 @@ INVOCATION_PARAMETER_MEMBERS: tuple[tuple[str, str, Callable[[Any], Any]], ...] 
     # content, and this runs before masking.
     ("tool_choice", RIUS_REQUEST_TOOL_CHOICE, _tool_choice),
 )
+
+#: The guard for every canonical ``gen_ai.request.*`` key, by the key's type
+#: in the GenAI registry: the value to record, or SKIP when the value is the
+#: wrong shape for that key. The native ``model_parameters`` path
+#: (``generation._request_attributes``) and the members above use the SAME
+#: function per key, so one parameter has one shape on the wire whichever way
+#: it arrived; a test pins that the two stay wired to this table.
+REQUEST_PARAMETER_GUARDS: Mapping[str, Callable[[Any], Any]] = {
+    GEN_AI_REQUEST_MODEL: _text,  # string
+    GEN_AI_REQUEST_MAX_TOKENS: _count,  # int
+    GEN_AI_REQUEST_CHOICE_COUNT: _count,  # int
+    GEN_AI_REQUEST_TEMPERATURE: _number,  # double
+    GEN_AI_REQUEST_TOP_P: _number,  # double
+    GEN_AI_REQUEST_TOP_K: _count,  # int
+    GEN_AI_REQUEST_STOP_SEQUENCES: _text_sequence,  # string[]
+    GEN_AI_REQUEST_FREQUENCY_PENALTY: _number,  # double
+    GEN_AI_REQUEST_PRESENCE_PENALTY: _number,  # double
+    GEN_AI_REQUEST_ENCODING_FORMATS: _text_sequence,  # string[]
+    GEN_AI_REQUEST_SEED: _count,  # int
+    GEN_AI_REQUEST_STREAM: _flag,  # boolean
+    GEN_AI_REQUEST_REASONING_LEVEL: _text,  # string
+    GEN_AI_REQUEST_PREVIOUS_RESPONSE_ID: _text,  # string
+    GEN_AI_REQUEST_STREAM_CURSOR: _text,  # string
+}
 
 
 def openinference_invocation_parameters(raw: Any) -> Mapping[str, Any]:
@@ -919,6 +1216,33 @@ OPENINFERENCE_RULES: tuple[AnyRule, ...] = (
     ),
     Rule(
         "llm.token_count.completion_details.reasoning",
+        GEN_AI_USAGE_REASONING_OUTPUT_TOKENS,
+        to_int,
+    ),
+    # Two GenAI-shaped spellings of the same counts, each its own rule AFTER
+    # the OpenInference one for its target: the OpenInference count keeps the
+    # target where a span somehow carries both, and a separate rule rather
+    # than a second source means an OpenInference count that won't parse
+    # still lets a usable alternate through (a rule converts only its first
+    # present source). Spelled here rather than in semconv.py for the reason
+    # gen_ai.system is: they are source spellings we map and never emit.
+    #
+    # cache_creation is the cache-write count's name before the upstream
+    # rename to cache_write. Permanent, not a transition aid: current
+    # third-party releases still emit it (pydantic-ai, and @ai-sdk/otel for
+    # every Vercel AI SDK app), and the backend prices cache writes from the
+    # canonical key alone. The rename is exact, so nothing is lost.
+    Rule(
+        "gen_ai.usage.cache_creation.input_tokens",
+        GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS,
+        to_int,
+    ),
+    # pydantic-ai writes OpenAI's reasoning count as one entry of its usage
+    # details namespace. The other providers' names there for the same split
+    # (Anthropic's thinking_tokens, Google's thoughts_tokens) are not mapped,
+    # matching the sink; the rest of the namespace has no canonical key.
+    Rule(
+        "gen_ai.usage.details.reasoning_tokens",
         GEN_AI_USAGE_REASONING_OUTPUT_TOKENS,
         to_int,
     ),

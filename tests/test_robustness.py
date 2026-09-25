@@ -55,7 +55,7 @@ def test_model_parameters_serialize_non_primitives_and_skip_none(
     ).end()
     attrs = exported_spans.get_finished_spans()[0].attributes
     # response_format is not a spec-defined request attribute: our namespace.
-    assert attrs["rius.request.response_format"] == '{"type": "json_object"}'
+    assert attrs["rius.request.response_format"] == '{"type":"json_object"}'
     assert "gen_ai.request.temperature" not in attrs
     assert attrs["gen_ai.request.top_p"] == 0.5
     # OpenAI's `stop` is a recognised spelling of gen_ai.request.stop_sequences.

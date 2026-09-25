@@ -431,8 +431,61 @@ def test_anthropic_instrumentor_emits_tool_definitions_and_system_message() -> N
         assert recorded == _TOOLS_ANTHROPIC
         assert "input_schema" in recorded[0]
         assert not [key for key in llm.attributes if key.startswith("llm.tools")]
-        assert llm.attributes["llm.input_messages.0.message.role"] == "system"
-        assert llm.attributes["llm.input_messages.0.message.content"] == "be brief"
+        # The instrumentor's flattened messages leave the process reassembled.
+        messages = json.loads(str(llm.attributes["gen_ai.input.messages"]))
+        assert messages[0] == {"role": "system", "parts": [{"type": "text", "content": "be brief"}]}
+        assert messages[1] == {"role": "user", "parts": [{"type": "text", "content": "hi"}]}
+        assert not [key for key in llm.attributes if key.startswith("llm.input_messages")]
+    finally:
+        instrumentor.uninstrument()
+        server.shutdown()
+
+
+@pytest.mark.integration
+def test_anthropic_text_reply_and_block_list_system_prompt_keep_their_text() -> None:
+    """The Anthropic instrumentor writes every text block in the multi-part
+    form (``message.contents.K.message_content.text``), never in
+    ``message.content``. A reassembly that read only ``message.content``
+    exported this reply as ``[{"role":"assistant","parts":[]}]`` and a
+    block-list system prompt as ``{"role":"system","parts":[]}``."""
+    anthropic = pytest.importorskip("anthropic")
+    oi = pytest.importorskip("openinference.instrumentation.anthropic")
+
+    instrumentor = oi.AnthropicInstrumentor()
+    if instrumentor.is_instrumented_by_opentelemetry:
+        instrumentor.uninstrument()
+
+    server = _start_json_server(_ANTHROPIC_MESSAGE)
+    inner = InMemorySpanExporter()
+    client = init(span_exporter=inner, set_global=False, instruments=["anthropic"])
+    try:
+        ac = anthropic.Anthropic(
+            api_key="test-key", base_url=f"http://127.0.0.1:{server.server_port}"
+        )
+        ac.messages.create(
+            model="claude-sonnet-5",
+            max_tokens=100,
+            system=[
+                {"type": "text", "text": "be brief"},
+                {"type": "text", "text": "manual", "cache_control": {"type": "ephemeral"}},
+            ],
+            messages=[{"role": "user", "content": "hi"}],
+        )
+        client.flush()
+
+        (llm,) = inner.get_finished_spans()
+        assert llm.attributes is not None
+        assert json.loads(str(llm.attributes["gen_ai.input.messages"]))[0] == {
+            "role": "system",
+            "parts": [
+                {"type": "text", "content": "be brief"},
+                {"type": "text", "content": "manual"},
+            ],
+        }
+        assert json.loads(str(llm.attributes["gen_ai.output.messages"])) == [
+            {"role": "assistant", "parts": [{"type": "text", "content": "Hello!"}]}
+        ]
+        assert not [key for key in llm.attributes if key.startswith("llm.output_messages")]
     finally:
         instrumentor.uninstrument()
         server.shutdown()

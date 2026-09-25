@@ -260,7 +260,7 @@ def test_a_native_definitions_key_wins_over_the_bag_and_the_member_still_goes() 
     )
     assert out == {
         GEN_AI_TOOL_DEFINITIONS: '[{"name": "native"}]',
-        LLM_INVOCATION_PARAMETERS: '{"seed": 1}',
+        LLM_INVOCATION_PARAMETERS: '{"seed":1}',
     }
 
 

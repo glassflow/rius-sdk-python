@@ -12,7 +12,7 @@ import inspect
 from typing import Any
 
 import pytest
-from opentelemetry.sdk.trace import ReadableSpan
+from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
@@ -38,23 +38,30 @@ def _raw_span(
     attributes: dict[str, Any] | None = None,
     events: list[tuple[str, int]] | None = None,
 ) -> ReadableSpan:
-    """A finished span built by the real SDK, with pinned start/event times."""
+    """A finished span from a bare OTel provider, never touched by normalization.
+
+    Not through ``init()``: its exporter chain already normalizes, so a span
+    collected there would arrive carrying ``gen_ai.first_token`` and every
+    assertion below would pass without the export step doing anything. This
+    input carries only what an instrumentor emits.
+    """
     collected = InMemorySpanExporter()
-    client = init(
-        span_exporter=collected, set_global=False, service_name="test-svc", instruments=[]
-    )
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(collected))
     try:
-        span = client.get_tracer().start_span(
+        span = provider.get_tracer("test").start_span(
             "chat", attributes=attributes or {}, start_time=_START_NS
         )
         for name, timestamp in events or []:
             span.add_event(name, timestamp=timestamp)
         span.end()
-        client.flush()
         (finished,) = collected.get_finished_spans()
-        return finished
     finally:
-        client.shutdown()
+        provider.shutdown()
+    # The input is exactly what was asked for: nothing derived, nothing renamed.
+    assert _events(finished) == list(events or [])
+    assert dict(finished.attributes or {}) == dict(attributes or {})
+    return finished
 
 
 def _export(span: ReadableSpan) -> ReadableSpan:

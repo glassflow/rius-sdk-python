@@ -48,15 +48,20 @@ def test_mask_covers_third_party_instrumentation_keys() -> None:
 def test_mask_covers_flattened_third_party_content_keys() -> None:
     # OpenInference/OpenLLMetry instrumentors flatten message content into
     # indexed keys — masking must match those by prefix, not just exact keys.
+    # The fields normalization reassembles arrive as gen_ai.input.messages;
+    # a field it does not read (message.name) still arrives flattened.
     inner = InMemorySpanExporter()
     client = init(span_exporter=inner, set_global=False, mask=lambda _v: "***")
     with client.get_tracer().start_as_current_span("op") as span:
         span.set_attribute("llm.input_messages.0.message.content", "secret")
+        span.set_attribute("llm.input_messages.0.message.name", "secret")
         span.set_attribute("gen_ai.prompt.0.content", "secret")  # OpenLLMetry style
         span.set_attribute("llm.model_name", "gpt-4o")
     client.flush()
     attrs = inner.get_finished_spans()[0].attributes
-    assert attrs["llm.input_messages.0.message.content"] == "***"
+    assert attrs["gen_ai.input.messages"] == "***"
+    assert "llm.input_messages.0.message.content" not in attrs
+    assert attrs["llm.input_messages.0.message.name"] == "***"
     assert attrs["gen_ai.prompt.0.content"] == "***"
     assert attrs["llm.model_name"] == "gpt-4o"
 
@@ -82,7 +87,7 @@ def test_mask_returning_non_primitive_is_serialized_not_leaked() -> None:
         span.set_attribute("input.value", "secret")
     client.flush()
     attrs = inner.get_finished_spans()[0].attributes
-    assert attrs.get("input.value") == '{"redacted": true}'
+    assert attrs.get("input.value") == '{"redacted":true}'
 
 
 def test_masking_does_not_mutate_spans_seen_by_other_processors() -> None:
