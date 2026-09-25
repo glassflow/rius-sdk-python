@@ -128,6 +128,7 @@ from .semconv import (
     INVOCATION_PARAMETERS_CONTENT_MEMBERS,
     LLM_INVOCATION_PARAMETERS,
     OPENINFERENCE_SPAN_KIND,
+    RIUS_REQUEST_TOOL_CHOICE,
     kind_for_operation,
     operation_for_kind,
 )
@@ -664,6 +665,35 @@ def text_value(values: list[Any]) -> Any:
     return _text(values[0])
 
 
+#: Lone UTF-16 surrogates. ``json.loads`` pairs the valid ones into one code
+#: point, so any left in a decoded ``str`` are unpaired.
+_LONE_SURROGATE = re.compile("[\ud800-\udfff]")
+
+
+def _compact_json(value: Any) -> str:
+    """``value`` as compact JSON in raw UTF-8, member order kept.
+
+    Spelled out here, not taken from ``_serde``, because the result is matched
+    byte for byte: the sink promotes the same member from the same bag and
+    the TypeScript SDK writes the same string. Both escape U+2028/U+2029 and
+    turn an unpaired surrogate into U+FFFD, as Go's encoder does.
+    """
+    text = json.dumps(value, separators=(",", ":"), ensure_ascii=False)
+    text = text.replace("\u2028", "\\u2028").replace("\u2029", "\\u2029")
+    return _LONE_SURROGATE.sub("\ufffd", text)
+
+
+def _tool_choice(value: Any) -> Any:
+    """A mode kept as the non-empty string it is, or an object as compact JSON.
+
+    The two shapes a provider's ``tool_choice`` takes. Any other shape is not
+    one we can vouch for, so it SKIPs and stays in the bag.
+    """
+    if isinstance(value, dict):
+        return _compact_json(value)
+    return _text(value)
+
+
 def _text_sequence(value: Any) -> Any:
     """A string list. A lone stop string is the one-element list of itself."""
     if isinstance(value, str):
@@ -673,8 +703,9 @@ def _text_sequence(value: Any) -> Any:
     return SKIP
 
 
-#: Members of ``llm.invocation_parameters`` that a ``gen_ai.request.*`` key
-#: represents TOTALLY, in precedence order (the first spelling to produce a
+#: Members of ``llm.invocation_parameters`` that a canonical key represents
+#: TOTALLY (a ``gen_ai.request.*`` key, or ``rius.request.tool_choice``), in
+#: precedence order (the first spelling to produce a
 #: target keeps it). Everything else stays in the blob: see
 #: :func:`openinference_invocation_parameters`.
 INVOCATION_PARAMETER_MEMBERS: tuple[tuple[str, str, Callable[[Any], Any]], ...] = (
@@ -697,6 +728,13 @@ INVOCATION_PARAMETER_MEMBERS: tuple[tuple[str, str, Callable[[Any], Any]], ...] 
     ("stop", GEN_AI_REQUEST_STOP_SEQUENCES, _text_sequence),
     ("stop_sequences", GEN_AI_REQUEST_STOP_SEQUENCES, _text_sequence),
     ("stream", GEN_AI_REQUEST_STREAM, _flag),
+    # Not a convention key: the GenAI conventions define no tool_choice, so it
+    # goes where an unnamed request parameter goes, rius.request.*. Promoted
+    # because context attribution reads it to tell a forced tool call from an
+    # automatic one, and the bag is content: left inside, it would be dropped
+    # with the bag under capture_content=False. It is a routing parameter, not
+    # content, and this runs before masking.
+    ("tool_choice", RIUS_REQUEST_TOOL_CHOICE, _tool_choice),
 )
 
 
@@ -708,7 +746,10 @@ def openinference_invocation_parameters(raw: Any) -> Mapping[str, Any]:
     open and provider-defined, and the whole bag is content to masking.
     Fanning unknown members out into keys of our own would move them out from
     under that, so a member is promoted only when a canonical key represents
-    it totally, and the bag survives to carry everything else. The request's
+    it totally, and the bag survives to carry everything else. ``tool_choice``
+    is promoted too although no convention names it: attribution reads it,
+    and it must not be dropped with the bag when content capture is off. A
+    bag left empty is dropped rather than kept as ``{}``. The request's
     ``tools`` / ``functions`` arrays, which litellm and langchain leave here,
     are the one exception, and they are not promoted HERE: their canonical key
     is content, it must not be written at span start, and whether to promote

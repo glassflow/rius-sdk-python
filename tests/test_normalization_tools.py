@@ -128,7 +128,7 @@ def test_openai_function_tools_become_one_definitions_array() -> None:
         GEN_AI_OPERATION_NAME: "chat",
         GEN_AI_PROVIDER_NAME: "openai",
         GEN_AI_REQUEST_MODEL: "gpt-4o",
-        LLM_INVOCATION_PARAMETERS: '{"tool_choice": "auto"}',
+        "rius.request.tool_choice": "auto",
         GEN_AI_TOOL_DEFINITIONS: out[GEN_AI_TOOL_DEFINITIONS],
     }
     assert not [key for key in out if key.startswith("llm.tools")]
@@ -211,8 +211,10 @@ def test_bag_tools_are_promoted_when_llm_tools_is_absent() -> None:
     }
     out = _exported_attributes(raw)
     assert _definitions(out) == _OPENAI_TOOLS
-    assert json.loads(out[LLM_INVOCATION_PARAMETERS]) == {"tool_choice": "auto"}
     assert out[GEN_AI_REQUEST_MODEL] == "gpt-4o"
+    assert out["rius.request.tool_choice"] == "auto"
+    # Every member was promoted somewhere, so the bag goes rather than riding as "{}".
+    assert LLM_INVOCATION_PARAMETERS not in out
 
 
 def test_legacy_bag_functions_are_promoted() -> None:

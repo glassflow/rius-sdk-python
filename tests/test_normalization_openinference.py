@@ -95,9 +95,9 @@ def test_openai_chat_span() -> None:
         "gen_ai.request.stop_sequences": ["\n"],
         "gen_ai.request.stream": False,
         "gen_ai.request.seed": 42,
-        # the members no canonical key covers stay in the blob, which is the
-        # key masking knows how to redact
-        LLM_INVOCATION_PARAMETERS: '{"tool_choice": "auto"}',
+        # not a convention key, and not content either: attribution reads it,
+        # so it leaves the bag, and the bag, now empty, goes with it
+        "rius.request.tool_choice": "auto",
         GEN_AI_USAGE_INPUT_TOKENS: 1024,
         GEN_AI_USAGE_OUTPUT_TOKENS: 64,
         GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS: 512,

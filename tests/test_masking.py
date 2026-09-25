@@ -394,10 +394,10 @@ def test_invocation_parameters_survive_when_content_is_captured() -> None:
     inner = InMemorySpanExporter()
     client = init(span_exporter=inner, set_global=False)
     with client.get_tracer().start_as_current_span("chat") as span:
-        span.set_attribute("llm.invocation_parameters", '{"tool_choice": "none"}')
+        span.set_attribute("llm.invocation_parameters", '{"user": "u-1"}')
     client.flush()
     attrs = inner.get_finished_spans()[0].attributes
-    assert attrs["llm.invocation_parameters"] == '{"tool_choice": "none"}'
+    assert attrs["llm.invocation_parameters"] == '{"user": "u-1"}'
 
 
 def test_invocation_parameters_unparseable_dropped_when_stripping() -> None:
@@ -426,7 +426,7 @@ def test_invocation_parameters_reach_the_mask_with_their_key() -> None:
     inner = InMemorySpanExporter()
     client = init(span_exporter=inner, set_global=False, mask=mask)
     with client.get_tracer().start_as_current_span("chat") as span:
-        span.set_attribute("llm.invocation_parameters", '{"tool_choice": "auto"}')
+        span.set_attribute("llm.invocation_parameters", '{"user": "u-1"}')
     client.flush()
     attrs = inner.get_finished_spans()[0].attributes
     assert "llm.invocation_parameters" in seen

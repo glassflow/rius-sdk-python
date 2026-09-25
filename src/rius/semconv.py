@@ -231,6 +231,14 @@ GEN_AI_REQUEST_PREFIX = "gen_ai.request."
 # alone. test_request_namespaces_are_tied_for_masking pins it.
 RIUS_REQUEST_PREFIX = "rius.request."
 
+# How the request constrained tool use: a mode string ("auto", "required") or,
+# for a forced call, the provider's object as compact JSON. The GenAI
+# conventions define no tool_choice, so it lives in our namespace. Context
+# attribution reads it to price the tool-use preamble, which is why the
+# normalizer lifts it out of the OpenInference request bag (content) into here
+# (not content).
+RIUS_REQUEST_TOOL_CHOICE = f"{RIUS_REQUEST_PREFIX}tool_choice"
+
 # Request parameters the GenAI conventions define, mapped from every spelling
 # we recognise to the canonical attribute key. Verified against
 # open-telemetry/semantic-conventions-genai at commit
