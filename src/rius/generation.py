@@ -19,6 +19,7 @@ from ._context_sizes import context_sizes
 from ._errors import error_type, record_error
 from ._serde import serialize
 from ._tracer import sdk_tracer
+from .normalization import REQUEST_PARAMETER_GUARDS, SKIP
 from .semconv import (
     ERROR_TYPE,
     GEN_AI_FIRST_TOKEN_EVENT,
@@ -28,6 +29,7 @@ from .semconv import (
     GEN_AI_OUTPUT_TYPE,
     GEN_AI_PROVIDER_NAME,
     GEN_AI_REQUEST_MODEL,
+    GEN_AI_REQUEST_PARAMETERS,
     GEN_AI_REQUEST_REASONING_LEVEL,
     GEN_AI_REQUEST_STREAM,
     GEN_AI_RESPONSE_FINISH_REASONS,
@@ -41,6 +43,7 @@ from .semconv import (
     GEN_AI_USAGE_OUTPUT_TOKENS,
     GEN_AI_USAGE_REASONING_OUTPUT_TOKENS,
     RIUS_CONTEXT_SIZES,
+    RIUS_REQUEST_PREFIX,
     USER_ID,
     SpanKind,
     compose_span_name,
@@ -388,11 +391,34 @@ def _request_attributes(model_parameters: dict[str, Any] | None) -> dict[str, An
     under their canonical ``gen_ai.request.*`` key; everything else lands
     under ``rius.request.<key>`` with the key otherwise untouched. ``None``
     is "not set", not a value, and is skipped.
+
+    A canonical key carries only a value of its own type: each goes through
+    the key's guard in ``REQUEST_PARAMETER_GUARDS``, the same one the
+    normalizer applies to ``llm.invocation_parameters``, so a lone ``stop``
+    string becomes a one-element list and a numeric string never reaches a
+    numeric key. A value its guard rejects was still sent to the model, so it
+    lands under ``rius.request.<key>`` unchanged instead.
+
+    Two spellings of one parameter: the first in ``GEN_AI_REQUEST_PARAMETERS``
+    order that passes its guard wins the canonical key, whatever order the
+    caller wrote them in, and the other is kept under ``rius.request.<key>``.
     """
+    parameters = {
+        key: value for key, value in (model_parameters or {}).items() if value is not None
+    }
     attributes: dict[str, Any] = {}
-    for key, value in (model_parameters or {}).items():
-        if value is None:
+    # Canonical spellings first, in precedence order, so the winner of a
+    # collision is decided by the table and not by the caller's key order.
+    for spelling, canonical in GEN_AI_REQUEST_PARAMETERS.items():
+        if spelling not in parameters:
             continue
+        value = parameters.pop(spelling)
+        guarded = REQUEST_PARAMETER_GUARDS[canonical](value)
+        if guarded is not SKIP and canonical not in attributes:
+            attributes[canonical] = guarded
+        else:
+            attributes[f"{RIUS_REQUEST_PREFIX}{spelling}"] = _attribute_value(value)
+    for key, value in parameters.items():
         attributes[request_attribute_key(key)] = _attribute_value(value)
     return attributes
 

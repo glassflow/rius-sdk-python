@@ -93,6 +93,7 @@ from __future__ import annotations
 import copy
 import json
 import logging
+import math
 import re
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from typing import Any
@@ -113,13 +114,17 @@ from .semconv import (
     GEN_AI_OUTPUT_MESSAGES,
     GEN_AI_PROVIDER_NAME,
     GEN_AI_REQUEST_CHOICE_COUNT,
+    GEN_AI_REQUEST_ENCODING_FORMATS,
     GEN_AI_REQUEST_FREQUENCY_PENALTY,
     GEN_AI_REQUEST_MAX_TOKENS,
     GEN_AI_REQUEST_MODEL,
     GEN_AI_REQUEST_PRESENCE_PENALTY,
+    GEN_AI_REQUEST_PREVIOUS_RESPONSE_ID,
+    GEN_AI_REQUEST_REASONING_LEVEL,
     GEN_AI_REQUEST_SEED,
     GEN_AI_REQUEST_STOP_SEQUENCES,
     GEN_AI_REQUEST_STREAM,
+    GEN_AI_REQUEST_STREAM_CURSOR,
     GEN_AI_REQUEST_TEMPERATURE,
     GEN_AI_REQUEST_TOP_K,
     GEN_AI_REQUEST_TOP_P,
@@ -899,15 +904,22 @@ def provider_name(values: list[Any]) -> Any:
 
 
 def _number(value: Any) -> Any:
-    """A double, or SKIP. Booleans are not numbers here."""
+    """A finite double, or SKIP. Booleans are not numbers here, and NaN and
+    the infinities are not a value a model is sent (``json`` reads them)."""
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return SKIP
-    return float(value)
+    try:
+        number = float(value)
+    except OverflowError:  # an int beyond a double's range
+        return SKIP
+    return number if math.isfinite(number) else SKIP
 
 
 def _count(value: Any) -> Any:
-    """An int, or SKIP."""
+    """An int, or SKIP. A non-finite float is SKIP: ``int()`` of one raises."""
     if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return SKIP
+    if isinstance(value, float) and not math.isfinite(value):
         return SKIP
     return int(value)
 
@@ -959,6 +971,30 @@ INVOCATION_PARAMETER_MEMBERS: tuple[tuple[str, str, Callable[[Any], Any]], ...] 
     ("stop_sequences", GEN_AI_REQUEST_STOP_SEQUENCES, _text_sequence),
     ("stream", GEN_AI_REQUEST_STREAM, _flag),
 )
+
+#: The guard for every canonical ``gen_ai.request.*`` key, by the key's type
+#: in the GenAI registry: the value to record, or SKIP when the value is the
+#: wrong shape for that key. The native ``model_parameters`` path
+#: (``generation._request_attributes``) and the members above use the SAME
+#: function per key, so one parameter has one shape on the wire whichever way
+#: it arrived; a test pins that the two stay wired to this table.
+REQUEST_PARAMETER_GUARDS: Mapping[str, Callable[[Any], Any]] = {
+    GEN_AI_REQUEST_MODEL: _text,  # string
+    GEN_AI_REQUEST_MAX_TOKENS: _count,  # int
+    GEN_AI_REQUEST_CHOICE_COUNT: _count,  # int
+    GEN_AI_REQUEST_TEMPERATURE: _number,  # double
+    GEN_AI_REQUEST_TOP_P: _number,  # double
+    GEN_AI_REQUEST_TOP_K: _count,  # int
+    GEN_AI_REQUEST_STOP_SEQUENCES: _text_sequence,  # string[]
+    GEN_AI_REQUEST_FREQUENCY_PENALTY: _number,  # double
+    GEN_AI_REQUEST_PRESENCE_PENALTY: _number,  # double
+    GEN_AI_REQUEST_ENCODING_FORMATS: _text_sequence,  # string[]
+    GEN_AI_REQUEST_SEED: _count,  # int
+    GEN_AI_REQUEST_STREAM: _flag,  # boolean
+    GEN_AI_REQUEST_REASONING_LEVEL: _text,  # string
+    GEN_AI_REQUEST_PREVIOUS_RESPONSE_ID: _text,  # string
+    GEN_AI_REQUEST_STREAM_CURSOR: _text,  # string
+}
 
 
 def openinference_invocation_parameters(raw: Any) -> Mapping[str, Any]:

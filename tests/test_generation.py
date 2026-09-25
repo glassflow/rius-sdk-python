@@ -935,3 +935,153 @@ def test_a_tools_model_parameter_lands_on_a_maskable_key(
     attrs = _params(exported_spans, tools=[{"name": "get_weather"}])
     assert "rius.request.tools" in attrs
     assert "rius.request.tools" in CONTENT_ATTRIBUTES
+
+
+# --- model_parameters: canonical keys carry only the value shape they define ---
+#
+# The native path goes through the SAME per-key guard as the normalizer's
+# llm.invocation_parameters rule, so one parameter has one shape on the wire
+# whichever way it arrived. A value that fails its key's guard is still a
+# parameter the model was sent, so it lands under rius.request.<spelling>
+# unchanged rather than being dropped.
+
+
+def test_a_lone_stop_string_is_wrapped_into_a_list(exported_spans: InMemorySpanExporter) -> None:
+    """gen_ai.request.stop_sequences is a string array; OpenAI accepts a lone
+    string for `stop`, and it means the one-element list."""
+    attrs = _params(exported_spans, stop="END")
+    assert attrs["gen_ai.request.stop_sequences"] == ("END",)
+    assert "rius.request.stop" not in attrs
+
+
+def test_a_lone_encoding_format_is_wrapped_into_a_list(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    attrs = _params(exported_spans, encoding_format="float")
+    assert attrs["gen_ai.request.encoding_formats"] == ("float",)
+
+
+def test_a_string_list_on_an_array_key_passes_through(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    attrs = _params(exported_spans, stop=["a", "b"], embedding_types=["float", "int8"])
+    assert attrs["gen_ai.request.stop_sequences"] == ("a", "b")
+    assert attrs["gen_ai.request.encoding_formats"] == ("float", "int8")
+
+
+class _Encoded:
+    """A value recorded JSON-encoded; compared parsed, so the assertion does
+    not pin the encoder's whitespace."""
+
+    def __init__(self, value: Any) -> None:
+        self.value = value
+
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, str) and json.loads(other) == self.value
+
+    def __repr__(self) -> str:
+        return f"_Encoded({self.value!r})"
+
+
+@pytest.mark.parametrize(
+    ("spelling", "value", "recorded"),
+    [
+        # numbers: a numeric string is not a number, and bool is not either
+        ("temperature", "0.2", "0.2"),
+        ("top_p", True, True),
+        ("frequency_penalty", [0.1], (0.1,)),
+        ("presencePenalty", "high", "high"),
+        # counts: an object is JSON-encoded under OUR key, not the numeric one
+        ("max_tokens", {"limit": 5}, _Encoded({"limit": 5})),
+        ("top_k", "40", "40"),
+        ("seed", False, False),
+        ("n", "2", "2"),
+        # text: the empty string is not a value, nor is a number
+        ("model", "", ""),
+        ("model", 4, 4),
+        ("reasoning_effort", 3, 3),
+        ("previous_response_id", ["r1"], ("r1",)),
+        ("starting_after", 9, 9),
+        # string arrays: a list of non-strings is not a string array
+        ("stop", [["a"], ["b"]], _Encoded([["a"], ["b"]])),
+        ("stop_sequences", [1, 2], (1, 2)),
+        ("encoding_format", 7, 7),
+        # flag
+        ("stream", "yes", "yes"),
+        ("stream", 1, 1),
+    ],
+)
+def test_a_value_that_fails_its_keys_guard_lands_under_rius_request(
+    exported_spans: InMemorySpanExporter, spelling: str, value: Any, recorded: Any
+) -> None:
+    from rius.semconv import request_attribute_key
+
+    attrs = _params(exported_spans, **{spelling: value})
+    assert request_attribute_key(spelling) not in attrs
+    assert recorded == attrs[f"rius.request.{spelling}"]
+
+
+def test_a_numeric_parameter_is_recorded_as_the_normalizer_records_it(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    """The guard's output, not the caller's value: a temperature is a double,
+    a token limit an int, as they are when llm.invocation_parameters is
+    promoted."""
+    attrs = _params(exported_spans, temperature=1, max_tokens=256.0)
+    assert attrs["gen_ai.request.temperature"] == 1.0
+    assert isinstance(attrs["gen_ai.request.temperature"], float)
+    assert attrs["gen_ai.request.max_tokens"] == 256
+    assert isinstance(attrs["gen_ai.request.max_tokens"], int)
+
+
+# --- model_parameters: two spellings of one parameter, the first one wins ---
+
+
+def test_two_spellings_of_one_parameter_the_first_one_wins(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    """First in the spelling table's precedence, as in every rule of the
+    normalizer's table. The losing spelling is still a parameter the caller
+    sent, so it is kept under our own namespace rather than dropped."""
+    attrs = _params(exported_spans, max_tokens=100, max_completion_tokens=200)
+    assert attrs["gen_ai.request.max_tokens"] == 100
+    assert attrs["rius.request.max_completion_tokens"] == 200
+
+
+def test_collision_precedence_does_not_depend_on_the_callers_order(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    attrs = _params(exported_spans, max_output_tokens=300, max_completion_tokens=200, maxTokens=1)
+    assert attrs["gen_ai.request.max_tokens"] == 1
+    assert attrs["rius.request.max_completion_tokens"] == 200
+    assert attrs["rius.request.max_output_tokens"] == 300
+
+
+def test_a_spelling_that_fails_its_guard_does_not_claim_the_key(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    """ "First to PRODUCE a value", as the invocation-parameters rule says: a
+    wrongly-shaped first spelling leaves the key to the next one."""
+    attrs = _params(exported_spans, max_tokens="100", max_output_tokens=200)
+    assert attrs["gen_ai.request.max_tokens"] == 200
+    assert attrs["rius.request.max_tokens"] == "100"
+
+
+def test_the_model_argument_still_beats_a_model_parameter(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    start_generation("chat", model="gpt-4o", model_parameters={"model": "other"}).end()
+    attrs = exported_spans.get_finished_spans()[0].attributes
+    assert attrs["gen_ai.request.model"] == "gpt-4o"
+
+
+@pytest.mark.parametrize("spelling", ["temperature", "max_tokens", "seed"])
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+def test_a_non_finite_number_fails_a_numeric_guard(
+    exported_spans: InMemorySpanExporter, spelling: str, value: float
+) -> None:
+    """Not a number a model can be sent, and int() of one raises: the guard
+    rejects it (as the TypeScript SDK's does) instead of failing the call."""
+    attrs = _params(exported_spans, **{spelling: value})
+    assert f"gen_ai.request.{spelling}" not in attrs
+    assert f"rius.request.{spelling}" in attrs
