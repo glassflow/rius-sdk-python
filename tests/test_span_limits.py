@@ -90,6 +90,18 @@ def test_a_user_count_limit_env_var_wins(monkeypatch: pytest.MonkeyPatch, env_va
     assert client._provider._span_limits.max_span_attributes == 20
 
 
+@pytest.mark.parametrize("value", ["", "  "])
+@pytest.mark.parametrize("env_var", _COUNT_ENV_VARS)
+def test_a_blank_count_env_var_does_not_count_as_set(
+    monkeypatch: pytest.MonkeyPatch, env_var: str, value: str
+) -> None:
+    # Blank is not a choice of limit (the TypeScript SDK's rule too). Left to
+    # Python OTel, a blank OTEL_ATTRIBUTE_COUNT_LIMIT would give spans 128.
+    monkeypatch.setenv(env_var, value)
+    client = _init(InMemorySpanExporter())
+    assert client._provider._span_limits.max_span_attributes == 4096
+
+
 def test_the_span_specific_env_var_still_beats_the_global_one(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
