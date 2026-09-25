@@ -1070,11 +1070,12 @@ def _compact_json(value: Any) -> str:
 
     Spelled out here, not taken from ``_serde``, because the result is matched
     byte for byte: the sink promotes the same member from the same bag and
-    the TypeScript SDK writes the same string. Both escape U+2028/U+2029 and
-    turn an unpaired surrogate into U+FFFD, as Go's encoder does.
+    the TypeScript SDK writes the same string. U+2028/U+2029 stay RAW, as the
+    sink writes them (its ``encodeJSON`` undoes Go's escapes for exactly these
+    two) and as ``JSON.stringify`` does. An unpaired surrogate becomes U+FFFD,
+    as the sink's decoder makes it.
     """
     text = json.dumps(value, separators=(",", ":"), ensure_ascii=False)
-    text = text.replace("\u2028", "\\u2028").replace("\u2029", "\\u2029")
     return _LONE_SURROGATE.sub("\ufffd", text)
 
 
@@ -1083,10 +1084,15 @@ def _tool_choice(value: Any) -> Any:
 
     The two shapes a provider's ``tool_choice`` takes. Any other shape is not
     one we can vouch for, so it SKIPs and stays in the bag.
+
+    A mode's unpaired surrogate becomes U+FFFD, as it does inside an object
+    and as the sink's decoder makes it. Kept, it could not be encoded as UTF-8,
+    and the OTLP exporter would drop the whole attribute.
     """
     if isinstance(value, dict):
         return _compact_json(value)
-    return _text(value)
+    text = _text(value)
+    return text if text is SKIP else _LONE_SURROGATE.sub("\ufffd", text)
 
 
 def _text_sequence(value: Any) -> Any:
