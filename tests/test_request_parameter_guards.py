@@ -28,7 +28,11 @@ def test_every_canonical_request_key_has_a_guard() -> None:
 
 
 def test_the_invocation_parameters_rule_uses_the_same_guards() -> None:
-    for member, target, convert in INVOCATION_PARAMETER_MEMBERS:
+    # Only canonical targets have a native counterpart; a member promoted to
+    # rius.request.* (tool_choice) has no gen_ai.request.* key to agree with.
+    canonical = [m for m in INVOCATION_PARAMETER_MEMBERS if m[1].startswith(GEN_AI_REQUEST_PREFIX)]
+    assert canonical
+    for member, target, convert in canonical:
         assert convert is REQUEST_PARAMETER_GUARDS[target], member
 
 
