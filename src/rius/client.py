@@ -65,10 +65,17 @@ def _span_limits() -> SpanLimits:
 
     An explicit ``max_span_attributes`` beats the env var inside ``SpanLimits``,
     so passing ours unconditionally would silently override a user's
-    ``OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT``. When either count variable is present
-    OTel resolves everything itself, its own precedence included.
+    ``OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT``. When either count variable holds a
+    value, OTel resolves everything itself, its own precedence included.
+
+    "Holds a value" means non-blank, the rule the TypeScript SDK applies too. A
+    blank variable is not a choice of limit: Python OTel reads a blank
+    ``OTEL_ATTRIBUTE_COUNT_LIMIT`` as unset and falls back to 128 for spans,
+    which is the very eviction this limit exists to prevent. An unparseable
+    value never reaches here: OTel raises on it when ``opentelemetry.sdk.trace``
+    is imported.
     """
-    if any(name in os.environ for name in _ATTRIBUTE_COUNT_ENV_VARS):
+    if any(os.environ.get(name, "").strip() for name in _ATTRIBUTE_COUNT_ENV_VARS):
         return SpanLimits()
     return SpanLimits(max_span_attributes=DEFAULT_SPAN_ATTRIBUTE_COUNT_LIMIT)
 
