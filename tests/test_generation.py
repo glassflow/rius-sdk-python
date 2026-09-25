@@ -908,8 +908,8 @@ def test_nested_parameter_values_are_json_encoded(
         response_format={"type": "json_object"},
         mixed=[1, "a"],
     )
-    assert attrs["rius.request.response_format"] == '{"type": "json_object"}'
-    assert attrs["rius.request.mixed"] == '[1, "a"]'
+    assert attrs["rius.request.response_format"] == '{"type":"json_object"}'
+    assert attrs["rius.request.mixed"] == '[1,"a"]'
 
 
 def test_none_valued_parameters_are_skipped(exported_spans: InMemorySpanExporter) -> None:

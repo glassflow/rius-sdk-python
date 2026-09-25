@@ -10,12 +10,28 @@ review measured at 200x the cost on large tool results.
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 MAX_ATTR_CHARS = 32 * 1024
 TRUNCATION_MARKER = "…(truncated)"
 
-_encoder = json.JSONEncoder(default=repr)
+# One JSON encoding for every producer of a JSON-valued attribute (this SDK,
+# the TypeScript SDK and the sink): compact separators, raw UTF-8 rather than
+# \uXXXX escapes, and no HTML escaping of < > & (Python never does that).
+# It is what TypeScript's JSON.stringify writes, so the same value produces the
+# same bytes whichever SDK recorded it.
+_encoder = json.JSONEncoder(default=repr, separators=(",", ":"), ensure_ascii=False)
+
+# ensure_ascii=False writes a lone surrogate raw, and a string holding one
+# cannot be encoded as UTF-8: the OTLP exporter drops such an attribute. The
+# escaping ensure_ascii used to do for it is kept here, which is also what
+# JSON.stringify does with a lone surrogate.
+_SURROGATE = re.compile("[\ud800-\udfff]")
+
+
+def _escape_surrogate(match: re.Match[str]) -> str:
+    return f"\\u{ord(match.group()):04x}"
 
 
 def truncate(text: str) -> str:
@@ -46,6 +62,7 @@ def _bounded_dumps(value: Any) -> str:
     chunks: list[str] = []
     size = 0
     for chunk in _encoder.iterencode(value, _one_shot=False):
+        chunk = _SURROGATE.sub(_escape_surrogate, chunk)
         chunks.append(chunk)
         size += len(chunk)
         if size > MAX_ATTR_CHARS:
