@@ -813,6 +813,12 @@ def reassemble_openinference_messages(
     return rebuilt
 
 
+#: OpenInference's declared type for ``output.value``, and its JSON value. Source
+#: spellings, like the ``llm.*`` keys: we read them and never emit them.
+_OUTPUT_MIME_TYPE = "output.mime_type"
+_JSON_MIME_TYPE = "application/json"
+
+
 def response_id_from_output_value(attributes: Mapping[str, Any] | None) -> dict[str, Any]:
     """``gen_ai.response.id`` for an LLM span, from the provider object in ``output.value``.
 
@@ -823,6 +829,8 @@ def response_id_from_output_value(attributes: Mapping[str, Any] | None) -> dict[
     ``output.value`` under ``capture_content=False``. It runs in the exporter,
     ahead of masking, so the id survives capture-off. ``output.value`` itself
     is never modified or removed.
+
+    ``output.mime_type``, when present, must be ``application/json``.
 
     Only an LLM span qualifies, by the taxonomy (the kind the taxonomy rules
     derive from either key), because a tool's or chain's ``output.value`` is
@@ -843,6 +851,13 @@ def response_id_from_output_value(attributes: Mapping[str, Any] | None) -> dict[
     if not attributes or GEN_AI_RESPONSE_ID in attributes:
         return {}
     if attributes.get(OPENINFERENCE_SPAN_KIND) != SpanKind.LLM.value:
+        return {}
+    # A declared type other than JSON means output.value is not the provider's
+    # response object: the JS instrumentors record a streamed reply's TEXT
+    # there as text/plain, and a JSON-mode reply's {"id": ...} is then the
+    # model's words. Exact match, as in the TypeScript SDK; an absent type is
+    # still taken.
+    if _OUTPUT_MIME_TYPE in attributes and attributes[_OUTPUT_MIME_TYPE] != _JSON_MIME_TYPE:
         return {}
     raw = attributes.get(OUTPUT_VALUE)
     if not isinstance(raw, str) or not raw.startswith("{"):
