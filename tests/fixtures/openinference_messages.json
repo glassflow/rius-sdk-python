@@ -1,0 +1,484 @@
+{
+  "cases": [
+    {
+      "name": "system, user and assistant text",
+      "sink_identical": true,
+      "attributes": {
+        "llm.input_messages.0.message.role": "system",
+        "llm.input_messages.0.message.content": "be terse",
+        "llm.input_messages.1.message.role": "user",
+        "llm.input_messages.1.message.content": "hi",
+        "llm.output_messages.0.message.role": "assistant",
+        "llm.output_messages.0.message.content": "yo",
+        "input.value": "hi",
+        "output.value": "yo"
+      },
+      "expected": {
+        "input.value": "hi",
+        "output.value": "yo",
+        "gen_ai.input.messages": "[{\"role\":\"system\",\"parts\":[{\"type\":\"text\",\"content\":\"be terse\"}]},{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"hi\"}]}]",
+        "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"yo\"}]}]"
+      }
+    },
+    {
+      "name": "assistant tool call and the tool's response",
+      "sink_identical": true,
+      "attributes": {
+        "llm.input_messages.0.message.role": "assistant",
+        "llm.input_messages.0.message.content": "Checking.",
+        "llm.input_messages.0.message.tool_calls.0.tool_call.id": "call_1",
+        "llm.input_messages.0.message.tool_calls.0.tool_call.function.name": "get_weather",
+        "llm.input_messages.0.message.tool_calls.0.tool_call.function.arguments": "{\"city\":\"Berlin\"}",
+        "llm.input_messages.1.message.role": "tool",
+        "llm.input_messages.1.message.tool_call_id": "call_1",
+        "llm.input_messages.1.message.content": "18C and clear"
+      },
+      "expected": {
+        "gen_ai.input.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"Checking.\"},{\"type\":\"tool_call\",\"id\":\"call_1\",\"name\":\"get_weather\",\"arguments\":\"{\\\"city\\\":\\\"Berlin\\\"}\"}]},{\"role\":\"tool\",\"parts\":[{\"type\":\"tool_call_response\",\"id\":\"call_1\",\"response\":\"18C and clear\"}]}]"
+      }
+    },
+    {
+      "name": "tool-call arguments are kept verbatim, not re-encoded",
+      "sink_identical": true,
+      "attributes": {
+        "llm.output_messages.0.message.role": "assistant",
+        "llm.output_messages.0.message.tool_calls.0.tool_call.id": "call_9",
+        "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": "search",
+        "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": "{\"q\": \"caf\\u00e9\", \"n\": 3}"
+      },
+      "expected": {
+        "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"call_9\",\"name\":\"search\",\"arguments\":\"{\\\"q\\\": \\\"caf\\\\u00e9\\\", \\\"n\\\": 3}\"}]}]"
+      }
+    },
+    {
+      "name": "message indices sort numerically past 9",
+      "sink_identical": true,
+      "attributes": {
+        "llm.input_messages.0.message.role": "user",
+        "llm.input_messages.0.message.content": "m0",
+        "llm.input_messages.1.message.role": "user",
+        "llm.input_messages.1.message.content": "m1",
+        "llm.input_messages.2.message.role": "user",
+        "llm.input_messages.2.message.content": "m2",
+        "llm.input_messages.3.message.role": "user",
+        "llm.input_messages.3.message.content": "m3",
+        "llm.input_messages.4.message.role": "user",
+        "llm.input_messages.4.message.content": "m4",
+        "llm.input_messages.5.message.role": "user",
+        "llm.input_messages.5.message.content": "m5",
+        "llm.input_messages.6.message.role": "user",
+        "llm.input_messages.6.message.content": "m6",
+        "llm.input_messages.7.message.role": "user",
+        "llm.input_messages.7.message.content": "m7",
+        "llm.input_messages.8.message.role": "user",
+        "llm.input_messages.8.message.content": "m8",
+        "llm.input_messages.9.message.role": "user",
+        "llm.input_messages.9.message.content": "m9",
+        "llm.input_messages.10.message.role": "user",
+        "llm.input_messages.10.message.content": "m10"
+      },
+      "expected": {
+        "gen_ai.input.messages": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"m0\"}]},{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"m1\"}]},{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"m2\"}]},{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"m3\"}]},{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"m4\"}]},{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"m5\"}]},{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"m6\"}]},{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"m7\"}]},{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"m8\"}]},{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"m9\"}]},{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"m10\"}]}]"
+      }
+    },
+    {
+      "name": "tool calls sort numerically past 9",
+      "sink_identical": true,
+      "attributes": {
+        "llm.input_messages.0.message.role": "assistant",
+        "llm.input_messages.0.message.tool_calls.0.tool_call.function.name": "tool_0",
+        "llm.input_messages.0.message.tool_calls.1.tool_call.function.name": "tool_1",
+        "llm.input_messages.0.message.tool_calls.2.tool_call.function.name": "tool_2",
+        "llm.input_messages.0.message.tool_calls.3.tool_call.function.name": "tool_3",
+        "llm.input_messages.0.message.tool_calls.4.tool_call.function.name": "tool_4",
+        "llm.input_messages.0.message.tool_calls.5.tool_call.function.name": "tool_5",
+        "llm.input_messages.0.message.tool_calls.6.tool_call.function.name": "tool_6",
+        "llm.input_messages.0.message.tool_calls.7.tool_call.function.name": "tool_7",
+        "llm.input_messages.0.message.tool_calls.8.tool_call.function.name": "tool_8",
+        "llm.input_messages.0.message.tool_calls.9.tool_call.function.name": "tool_9",
+        "llm.input_messages.0.message.tool_calls.10.tool_call.function.name": "tool_10",
+        "llm.input_messages.0.message.tool_calls.11.tool_call.function.name": "tool_11"
+      },
+      "expected": {
+        "gen_ai.input.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"name\":\"tool_0\"},{\"type\":\"tool_call\",\"name\":\"tool_1\"},{\"type\":\"tool_call\",\"name\":\"tool_2\"},{\"type\":\"tool_call\",\"name\":\"tool_3\"},{\"type\":\"tool_call\",\"name\":\"tool_4\"},{\"type\":\"tool_call\",\"name\":\"tool_5\"},{\"type\":\"tool_call\",\"name\":\"tool_6\"},{\"type\":\"tool_call\",\"name\":\"tool_7\"},{\"type\":\"tool_call\",\"name\":\"tool_8\"},{\"type\":\"tool_call\",\"name\":\"tool_9\"},{\"type\":\"tool_call\",\"name\":\"tool_10\"},{\"type\":\"tool_call\",\"name\":\"tool_11\"}]}]"
+      }
+    },
+    {
+      "name": "a role-only message keeps an empty parts array",
+      "sink_identical": true,
+      "attributes": {
+        "llm.input_messages.0.message.role": "assistant"
+      },
+      "expected": {
+        "gen_ai.input.messages": "[{\"role\":\"assistant\",\"parts\":[]}]"
+      }
+    },
+    {
+      "name": "native messages win and their flattened keys are left in place",
+      "sink_identical": true,
+      "attributes": {
+        "gen_ai.input.messages": "[{\"role\":\"user\",\"content\":\"native\"}]",
+        "llm.input_messages.0.message.role": "user",
+        "llm.input_messages.0.message.content": "hi",
+        "llm.output_messages.0.message.role": "assistant",
+        "llm.output_messages.0.message.content": "yo"
+      },
+      "expected": {
+        "gen_ai.input.messages": "[{\"role\":\"user\",\"content\":\"native\"}]",
+        "llm.input_messages.0.message.role": "user",
+        "llm.input_messages.0.message.content": "hi",
+        "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"yo\"}]}]"
+      }
+    },
+    {
+      "name": "the shared JSON encoding: raw UTF-8, no HTML escaping, raw U+2028/U+2029",
+      "sink_identical": true,
+      "attributes": {
+        "llm.input_messages.0.message.role": "user",
+        "llm.input_messages.0.message.content": "<b>a & b</b> café 日本 🙂    \"q\" \\u2028 tab\there\nnew"
+      },
+      "expected": {
+        "gen_ai.input.messages": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"<b>a & b</b> café 日本 🙂    \\\"q\\\" \\\\u2028 tab\\there\\nnew\"}]}]"
+      }
+    },
+    {
+      "name": "empty content is still a text part",
+      "sink_identical": true,
+      "attributes": {
+        "llm.input_messages.0.message.role": "user",
+        "llm.input_messages.0.message.content": ""
+      },
+      "expected": {
+        "gen_ai.input.messages": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"\"}]}]"
+      }
+    },
+    {
+      "name": "a missing or empty role is omitted, not defaulted",
+      "sink_identical": true,
+      "attributes": {
+        "llm.input_messages.0.message.content": "no role",
+        "llm.input_messages.1.message.role": "",
+        "llm.input_messages.1.message.content": "empty role"
+      },
+      "expected": {
+        "gen_ai.input.messages": "[{\"parts\":[{\"type\":\"text\",\"content\":\"no role\"}]},{\"parts\":[{\"type\":\"text\",\"content\":\"empty role\"}]}]"
+      }
+    },
+    {
+      "name": "tool_call_id: a response needs content, an empty id is no id, the role does not matter",
+      "sink_identical": true,
+      "attributes": {
+        "llm.input_messages.0.message.role": "tool",
+        "llm.input_messages.0.message.tool_call_id": "call_1",
+        "llm.input_messages.1.message.role": "tool",
+        "llm.input_messages.1.message.tool_call_id": "",
+        "llm.input_messages.1.message.content": "plain",
+        "llm.input_messages.2.message.role": "user",
+        "llm.input_messages.2.message.tool_call_id": "call_2",
+        "llm.input_messages.2.message.content": "result",
+        "llm.input_messages.3.message.role": "tool",
+        "llm.input_messages.3.message.tool_call_id": "call_3",
+        "llm.input_messages.3.message.content": ""
+      },
+      "expected": {
+        "gen_ai.input.messages": "[{\"role\":\"tool\",\"parts\":[]},{\"role\":\"tool\",\"parts\":[{\"type\":\"text\",\"content\":\"plain\"}]},{\"role\":\"user\",\"parts\":[{\"type\":\"tool_call_response\",\"id\":\"call_2\",\"response\":\"result\"}]},{\"role\":\"tool\",\"parts\":[{\"type\":\"tool_call_response\",\"id\":\"call_3\",\"response\":\"\"}]}]"
+      }
+    },
+    {
+      "name": "tool-call fields: missing or empty ones are omitted, unknown ones are consumed and dropped",
+      "sink_identical": true,
+      "attributes": {
+        "llm.input_messages.0.message.role": "assistant",
+        "llm.input_messages.0.message.tool_calls.0.tool_call.function.name": "only_name",
+        "llm.input_messages.0.message.tool_calls.1.tool_call.id": "",
+        "llm.input_messages.0.message.tool_calls.1.tool_call.function.name": "empty_id",
+        "llm.input_messages.0.message.tool_calls.1.tool_call.function.arguments": "",
+        "llm.input_messages.0.message.tool_calls.2.tool_call.reasoning_signature": "sig",
+        "llm.input_messages.0.message.tool_calls.3.tool_call.id": "call_3",
+        "llm.input_messages.0.message.tool_calls.3.tool_call.reasoning_signature": "sig"
+      },
+      "expected": {
+        "gen_ai.input.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"name\":\"only_name\"},{\"type\":\"tool_call\",\"name\":\"empty_id\"},{\"type\":\"tool_call\"},{\"type\":\"tool_call\",\"id\":\"call_3\"}]}]"
+      }
+    },
+    {
+      "name": "unknown message fields are kept, and an index carrying only them adds no message",
+      "sink_identical": true,
+      "attributes": {
+        "llm.input_messages.0.message.role": "assistant",
+        "llm.input_messages.0.message.content": "a",
+        "llm.input_messages.0.message.name": "helper",
+        "llm.input_messages.1.message.function_call_name": "legacy",
+        "llm.input_messages.2.message.role": "user",
+        "llm.input_messages.2.message.content": "b"
+      },
+      "expected": {
+        "llm.input_messages.0.message.name": "helper",
+        "llm.input_messages.1.message.function_call_name": "legacy",
+        "gen_ai.input.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"a\"}]},{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"b\"}]}]"
+      }
+    },
+    {
+      "name": "keys whose index does not parse are left alone",
+      "sink_identical": true,
+      "attributes": {
+        "llm.input_messages.x.message.role": "user",
+        "llm.input_messages.-1.message.role": "user",
+        "llm.input_messages.0": "bare",
+        "llm.input_messages.0.message.tool_calls.x.tool_call.id": "call_x",
+        "llm.input_messages.0.message.tool_calls.0.id": "not_a_tool_call_field",
+        "llm.input_messages.1.message.role": "user",
+        "llm.input_messages.1.message.content": "kept"
+      },
+      "expected": {
+        "llm.input_messages.x.message.role": "user",
+        "llm.input_messages.-1.message.role": "user",
+        "llm.input_messages.0": "bare",
+        "llm.input_messages.0.message.tool_calls.x.tool_call.id": "call_x",
+        "llm.input_messages.0.message.tool_calls.0.id": "not_a_tool_call_field",
+        "gen_ai.input.messages": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"kept\"}]}]"
+      }
+    },
+    {
+      "name": "indices parse as the sink parses them: a sign and leading zeros are accepted",
+      "sink_identical": true,
+      "attributes": {
+        "llm.input_messages.+1.message.role": "user",
+        "llm.input_messages.+1.message.content": "second",
+        "llm.input_messages.-0.message.role": "system",
+        "llm.input_messages.-0.message.content": "first",
+        "llm.input_messages.002.message.role": "assistant",
+        "llm.input_messages.002.message.content": "third"
+      },
+      "expected": {
+        "gen_ai.input.messages": "[{\"role\":\"system\",\"parts\":[{\"type\":\"text\",\"content\":\"first\"}]},{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"second\"}]},{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"third\"}]}]"
+      }
+    },
+    {
+      "name": "a per-message finish_reason is not read, and none is invented",
+      "sink_identical": true,
+      "attributes": {
+        "llm.output_messages.0.message.role": "assistant",
+        "llm.output_messages.0.message.content": "done",
+        "llm.output_messages.0.message.finish_reason": "stop",
+        "llm.output_messages.1.message.role": "assistant",
+        "llm.output_messages.1.message.content": "no reason given"
+      },
+      "expected": {
+        "llm.output_messages.0.message.finish_reason": "stop",
+        "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"done\"}]},{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"no reason given\"}]}]"
+      }
+    },
+    {
+      "name": "a span without flattened messages is unchanged",
+      "sink_identical": true,
+      "attributes": {
+        "gen_ai.request.model": "gpt-4o",
+        "llm.input_messages": "bare key, not flattened"
+      },
+      "expected": {
+        "gen_ai.request.model": "gpt-4o",
+        "llm.input_messages": "bare key, not flattened"
+      }
+    },
+    {
+      "name": "multimodal contents: text items become text parts, others a serialized text part",
+      "sink_identical": true,
+      "attributes": {
+        "llm.input_messages.0.message.role": "user",
+        "llm.input_messages.0.message.contents.0.message_content.type": "text",
+        "llm.input_messages.0.message.contents.0.message_content.text": "What is in this image?",
+        "llm.input_messages.0.message.contents.1.message_content.type": "image",
+        "llm.input_messages.0.message.contents.1.message_content.image.image.url": "https://example.com/cat.png",
+        "llm.input_messages.0.message.contents.10.message_content.type": "text",
+        "llm.input_messages.0.message.contents.10.message_content.text": "eleventh",
+        "llm.input_messages.0.message.contents.2.message_content.type": "text",
+        "llm.input_messages.0.message.contents.2.message_content.text": "with an id",
+        "llm.input_messages.0.message.contents.2.message_content.id": "item_2",
+        "llm.input_messages.0.message.contents.3.message_content.text": "no type"
+      },
+      "expected": {
+        "gen_ai.input.messages": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"What is in this image?\"},{\"type\":\"text\",\"content\":\"{\\\"image.image.url\\\":\\\"https://example.com/cat.png\\\",\\\"type\\\":\\\"image\\\"}\"},{\"type\":\"text\",\"content\":\"{\\\"id\\\":\\\"item_2\\\",\\\"text\\\":\\\"with an id\\\",\\\"type\\\":\\\"text\\\"}\"},{\"type\":\"text\",\"content\":\"{\\\"text\\\":\\\"no type\\\"}\"},{\"type\":\"text\",\"content\":\"eleventh\"}]}]"
+      }
+    },
+    {
+      "name": "multimodal contents follow the content and precede the tool calls",
+      "sink_identical": true,
+      "attributes": {
+        "llm.output_messages.0.message.role": "assistant",
+        "llm.output_messages.0.message.content": "first",
+        "llm.output_messages.0.message.contents.0.message_content.type": "text",
+        "llm.output_messages.0.message.contents.0.message_content.text": "second",
+        "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": "third",
+        "llm.output_messages.0.message.contents.x.message_content.type": "text",
+        "llm.output_messages.0.message.contents.0.other": "not message_content"
+      },
+      "expected": {
+        "llm.output_messages.0.message.contents.x.message_content.type": "text",
+        "llm.output_messages.0.message.contents.0.other": "not message_content",
+        "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"first\"},{\"type\":\"text\",\"content\":\"second\"},{\"type\":\"tool_call\",\"name\":\"third\"}]}]"
+      }
+    },
+    {
+      "name": "an index carrying only contents is a message",
+      "sink_identical": true,
+      "attributes": {
+        "llm.input_messages.0.message.contents.0.message_content.type": "text",
+        "llm.input_messages.0.message.contents.0.message_content.text": "hello"
+      },
+      "expected": {
+        "gen_ai.input.messages": "[{\"parts\":[{\"type\":\"text\",\"content\":\"hello\"}]}]"
+      }
+    },
+    {
+      "name": "anthropic text reply (messages.create)",
+      "sink_identical": true,
+      "attributes": {
+        "llm.output_messages.0.message.role": "assistant",
+        "llm.output_messages.0.message.contents.0.message_content.type": "text",
+        "llm.output_messages.0.message.contents.0.message_content.text": "Paris is the capital of France."
+      },
+      "expected": {
+        "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"Paris is the capital of France.\"}]}]"
+      }
+    },
+    {
+      "name": "anthropic streamed reply (messages.stream) with a thinking block",
+      "sink_identical": true,
+      "attributes": {
+        "llm.output_messages.0.message.role": "assistant",
+        "llm.output_messages.0.message.contents.0.message_content.type": "reasoning",
+        "llm.output_messages.0.message.contents.0.message_content.text": "The user wants a haiku.",
+        "llm.output_messages.0.message.contents.0.message_content.signature": "EqQBCgIYAh",
+        "llm.output_messages.0.message.contents.1.message_content.type": "text",
+        "llm.output_messages.0.message.contents.1.message_content.text": "Autumn moonlight—\na worm digs silently\ninto the chestnut."
+      },
+      "expected": {
+        "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"{\\\"signature\\\":\\\"EqQBCgIYAh\\\",\\\"text\\\":\\\"The user wants a haiku.\\\",\\\"type\\\":\\\"reasoning\\\"}\"},{\"type\":\"text\",\"content\":\"Autumn moonlight—\\na worm digs silently\\ninto the chestnut.\"}]}]"
+      }
+    },
+    {
+      "name": "anthropic reply with text and a tool call: the duplicate tool_use item adds no part",
+      "sink_identical": true,
+      "attributes": {
+        "llm.output_messages.0.message.role": "assistant",
+        "llm.output_messages.0.message.contents.0.message_content.type": "text",
+        "llm.output_messages.0.message.contents.0.message_content.text": "Let me check the weather.",
+        "llm.output_messages.0.message.tool_calls.0.tool_call.id": "toolu_01",
+        "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": "get_weather",
+        "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": "{\"city\": \"Paris\"}",
+        "llm.output_messages.0.message.contents.1.message_content.type": "tool_use",
+        "llm.output_messages.0.message.contents.1.tool_call.id": "toolu_01",
+        "llm.output_messages.0.message.contents.1.tool_call.function.name": "get_weather",
+        "llm.output_messages.0.message.contents.1.tool_call.function.arguments": "{\"city\": \"Paris\"}"
+      },
+      "expected": {
+        "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"Let me check the weather.\"},{\"type\":\"tool_call\",\"id\":\"toolu_01\",\"name\":\"get_weather\",\"arguments\":\"{\\\"city\\\": \\\"Paris\\\"}\"}]}]"
+      }
+    },
+    {
+      "name": "anthropic streamed tool call: the tool_use item carries no arguments yet and still matches",
+      "sink_identical": true,
+      "attributes": {
+        "llm.output_messages.0.message.role": "assistant",
+        "llm.output_messages.0.message.tool_calls.0.tool_call.id": "toolu_02",
+        "llm.output_messages.0.message.tool_calls.0.tool_call.function.name": "search",
+        "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": "{\"q\":\"otel\"}",
+        "llm.output_messages.0.message.contents.0.message_content.type": "tool_use",
+        "llm.output_messages.0.message.contents.0.tool_call.id": "toolu_02",
+        "llm.output_messages.0.message.contents.0.tool_call.function.name": "search"
+      },
+      "expected": {
+        "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"toolu_02\",\"name\":\"search\",\"arguments\":\"{\\\"q\\\":\\\"otel\\\"}\"}]}]"
+      }
+    },
+    {
+      "name": "a tool_use item that matches no tool call is serialized, not dropped",
+      "sink_identical": true,
+      "attributes": {
+        "llm.output_messages.0.message.role": "assistant",
+        "llm.output_messages.0.message.tool_calls.0.tool_call.id": "toolu_A",
+        "llm.output_messages.0.message.contents.0.message_content.type": "tool_use",
+        "llm.output_messages.0.message.contents.0.tool_call.id": "toolu_B",
+        "llm.output_messages.1.message.role": "assistant",
+        "llm.output_messages.1.message.contents.0.message_content.type": "tool_use",
+        "llm.output_messages.1.message.contents.0.tool_call.function.name": "orphan",
+        "llm.output_messages.2.message.role": "assistant",
+        "llm.output_messages.2.message.tool_calls.0.tool_call.id": "toolu_C",
+        "llm.output_messages.2.message.contents.0.message_content.type": "tool_use",
+        "llm.output_messages.2.message.contents.0.message_content.text": "an extra field",
+        "llm.output_messages.2.message.contents.0.tool_call.id": "toolu_C"
+      },
+      "expected": {
+        "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"{\\\"tool_call.id\\\":\\\"toolu_B\\\",\\\"type\\\":\\\"tool_use\\\"}\"},{\"type\":\"tool_call\",\"id\":\"toolu_A\"}]},{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"{\\\"tool_call.function.name\\\":\\\"orphan\\\",\\\"type\\\":\\\"tool_use\\\"}\"}]},{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"{\\\"text\\\":\\\"an extra field\\\",\\\"tool_call.id\\\":\\\"toolu_C\\\",\\\"type\\\":\\\"tool_use\\\"}\"},{\"type\":\"tool_call\",\"id\":\"toolu_C\"}]}]"
+      }
+    },
+    {
+      "name": "a tool_use item with any field beyond the call's is not a copy, even an empty one",
+      "sink_identical": true,
+      "attributes": {
+        "llm.output_messages.0.message.role": "assistant",
+        "llm.output_messages.0.message.tool_calls.0.tool_call.id": "toolu_D",
+        "llm.output_messages.0.message.contents.0.message_content.type": "tool_use",
+        "llm.output_messages.0.message.contents.0.message_content.text": "",
+        "llm.output_messages.0.message.contents.0.tool_call.id": "toolu_D"
+      },
+      "expected": {
+        "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"{\\\"text\\\":\\\"\\\",\\\"tool_call.id\\\":\\\"toolu_D\\\",\\\"type\\\":\\\"tool_use\\\"}\"},{\"type\":\"tool_call\",\"id\":\"toolu_D\"}]}]"
+      }
+    },
+    {
+      "name": "anthropic block-list system prompt (cache_control) and a string user turn",
+      "sink_identical": true,
+      "attributes": {
+        "llm.input_messages.0.message.role": "system",
+        "llm.input_messages.0.message.contents.0.message_content.type": "text",
+        "llm.input_messages.0.message.contents.0.message_content.text": "You are a terse assistant.",
+        "llm.input_messages.0.message.contents.1.message_content.type": "text",
+        "llm.input_messages.0.message.contents.1.message_content.text": "Reference manual: ...",
+        "llm.input_messages.1.message.role": "user",
+        "llm.input_messages.1.message.content": "What is OTLP?"
+      },
+      "expected": {
+        "gen_ai.input.messages": "[{\"role\":\"system\",\"parts\":[{\"type\":\"text\",\"content\":\"You are a terse assistant.\"},{\"type\":\"text\",\"content\":\"Reference manual: ...\"}]},{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"What is OTLP?\"}]}]"
+      }
+    },
+    {
+      "name": "anthropic input history: an echoed tool_use turn and a tool_result turn",
+      "sink_identical": true,
+      "attributes": {
+        "llm.input_messages.0.message.role": "user",
+        "llm.input_messages.0.message.content": "Weather in Paris?",
+        "llm.input_messages.1.message.role": "assistant",
+        "llm.input_messages.1.message.tool_calls.0.tool_call.id": "toolu_01",
+        "llm.input_messages.1.message.tool_calls.0.tool_call.function.name": "get_weather",
+        "llm.input_messages.1.message.tool_calls.0.tool_call.function.arguments": "{\"city\": \"Paris\"}",
+        "llm.input_messages.1.message.contents.0.message_content.type": "tool_use",
+        "llm.input_messages.1.message.contents.0.tool_call.id": "toolu_01",
+        "llm.input_messages.1.message.contents.0.tool_call.function.name": "get_weather",
+        "llm.input_messages.1.message.contents.0.tool_call.function.arguments": "{\"city\": \"Paris\"}",
+        "llm.input_messages.2.message.role": "user",
+        "llm.input_messages.2.message.tool_call_id": "toolu_01",
+        "llm.input_messages.2.message.content": "18C and clear"
+      },
+      "expected": {
+        "gen_ai.input.messages": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Weather in Paris?\"}]},{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"toolu_01\",\"name\":\"get_weather\",\"arguments\":\"{\\\"city\\\": \\\"Paris\\\"}\"}]},{\"role\":\"user\",\"parts\":[{\"type\":\"tool_call_response\",\"id\":\"toolu_01\",\"response\":\"18C and clear\"}]}]"
+      }
+    },
+    {
+      "name": "anthropic base64 image item (JS instrumentor) is serialized",
+      "sink_identical": true,
+      "attributes": {
+        "llm.input_messages.0.message.role": "user",
+        "llm.input_messages.0.message.contents.0.message_content.type": "image",
+        "llm.input_messages.0.message.contents.0.message_content.image.type": "base64",
+        "llm.input_messages.0.message.contents.0.message_content.image.media_type": "image/png",
+        "llm.input_messages.0.message.contents.1.message_content.type": "text",
+        "llm.input_messages.0.message.contents.1.message_content.text": "Describe it."
+      },
+      "expected": {
+        "gen_ai.input.messages": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"{\\\"image.media_type\\\":\\\"image/png\\\",\\\"image.type\\\":\\\"base64\\\",\\\"type\\\":\\\"image\\\"}\"},{\"type\":\"text\",\"content\":\"Describe it.\"}]}]"
+      }
+    }
+  ]
+}
