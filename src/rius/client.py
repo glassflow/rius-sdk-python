@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import threading
 import uuid
 from collections.abc import Callable, Sequence
@@ -11,7 +12,7 @@ from typing import Any
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.resources import Resource
-from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace import SpanLimits, TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, SpanExporter
 from opentelemetry.sdk.trace.sampling import ParentBased, TraceIdRatioBased
 
@@ -43,6 +44,34 @@ from .user import UserSpanProcessor
 from .workspace import ExporterFactory, RoutingSpanExporter, WorkspaceSpanProcessor
 
 logger = logging.getLogger(__name__)
+
+#: The per-span attribute count ``init()`` gives its provider, in place of
+#: OTel's default of 128. The OpenInference instrumentors write one attribute
+#: per message field and per tool field, so an agent loop with ten tools
+#: passes 128 within about six (anthropic) to nine (openai) turns, and OTel
+#: then evicts the OLDEST keys: the request bag (model and parameters), the
+#: tool definitions and the system prompt go first. 4096 holds hundreds of
+#: turns; the value length is not raised, since our JSON attributes carry
+#: their own cap.
+DEFAULT_SPAN_ATTRIBUTE_COUNT_LIMIT = 4096
+
+#: The standard OTel env vars that set the span attribute count. When the user
+#: set either, their value wins and ``init()`` leaves resolution to OTel.
+_ATTRIBUTE_COUNT_ENV_VARS = ("OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT", "OTEL_ATTRIBUTE_COUNT_LIMIT")
+
+
+def _span_limits() -> SpanLimits:
+    """The provider's limits: ours for the attribute count, unless the user chose.
+
+    An explicit ``max_span_attributes`` beats the env var inside ``SpanLimits``,
+    so passing ours unconditionally would silently override a user's
+    ``OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT``. When either count variable is present
+    OTel resolves everything itself, its own precedence included.
+    """
+    if any(name in os.environ for name in _ATTRIBUTE_COUNT_ENV_VARS):
+        return SpanLimits()
+    return SpanLimits(max_span_attributes=DEFAULT_SPAN_ATTRIBUTE_COUNT_LIMIT)
+
 
 _lock = threading.Lock()
 _current_client: GlassflowClient | None = None
@@ -199,6 +228,13 @@ def init(
     the generation helpers) follow the new client, as do the bundled
     instrumentors. Third-party code that took a tracer from the OpenTelemetry
     global keeps the first provider, because that global is write-once.
+
+    The provider allows up to 4096 attributes per span rather than OTel's
+    default of 128, which a long OpenInference agent span passes within a few
+    turns and then silently evicts its oldest keys (model, tools, system
+    prompt). ``OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT`` or
+    ``OTEL_ATTRIBUTE_COUNT_LIMIT``, when set, wins instead. A span that still
+    hits the limit reports its drop count on the wire.
 
     Args:
         endpoint: Base OTLP endpoint. Traces are sent to ``<endpoint>/v1/traces``.
@@ -437,7 +473,7 @@ def _do_init(
         }
     )
     sampler = ParentBased(root=TraceIdRatioBased(config.sample_rate))
-    provider = TracerProvider(resource=resource, sampler=sampler)
+    provider = TracerProvider(resource=resource, sampler=sampler, span_limits=_span_limits())
 
     export_health: ExportOutcomeExporter | None = None
     connectivity_thread: threading.Thread | None = None

@@ -73,6 +73,9 @@ anyway, so the derived attribute is still settable there. A failure is the
 same shape: an auto-instrumented span records the OTel ``exception`` event and
 an ERROR status but no ``error.type``, and
 ``error_type_from_exception_event`` derives it there for the same reasons.
+``response_id_from_output_value`` promotes an LLM span's response id out of
+``output.value`` there too: the value only exists once the call returned, and
+masking, which runs after, strips it under capture-off.
 ``normalize_tool_definitions`` is applied there too, for a different reason:
 its source is an indexed key family (``llm.tools.N.tool.json_schema``), which
 the exact-key rule table cannot match, and its target is content, which must
@@ -105,6 +108,7 @@ from opentelemetry.sdk.trace import Event, ReadableSpan, Span, SpanProcessor
 from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
 from opentelemetry.trace import StatusCode
 
+from ._attributes import replacement_attributes
 from ._serde import serialize
 from .semconv import (
     ERROR_TYPE,
@@ -131,6 +135,7 @@ from .semconv import (
     GEN_AI_REQUEST_TOP_K,
     GEN_AI_REQUEST_TOP_P,
     GEN_AI_RESPONSE_FINISH_REASONS,
+    GEN_AI_RESPONSE_ID,
     GEN_AI_RESPONSE_MODEL,
     GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK,
     GEN_AI_TOOL_DEFINITIONS,
@@ -143,7 +148,9 @@ from .semconv import (
     INVOCATION_PARAMETERS_CONTENT_MEMBERS,
     LLM_INVOCATION_PARAMETERS,
     OPENINFERENCE_SPAN_KIND,
+    OUTPUT_VALUE,
     RIUS_REQUEST_TOOL_CHOICE,
+    SpanKind,
     kind_for_operation,
     operation_for_kind,
 )
@@ -846,6 +853,52 @@ def drop_embedding_vectors(attributes: Mapping[str, Any] | None) -> dict[str, An
     return rebuilt
 
 
+def response_id_from_output_value(attributes: Mapping[str, Any] | None) -> dict[str, Any]:
+    """``gen_ai.response.id`` for an LLM span, from the provider object in ``output.value``.
+
+    OpenInference writes no response-id attribute. The id (``chatcmpl-...``
+    from OpenAI chat, ``resp_...`` from the Responses API, ``msg_...`` from
+    Anthropic) exists only as the top-level ``id`` of the provider object the
+    instrumentors serialize under ``output.value``, and masking strips
+    ``output.value`` under ``capture_content=False``. It runs in the exporter,
+    ahead of masking, so the id survives capture-off. ``output.value`` itself
+    is never modified or removed.
+
+    Only an LLM span qualifies, by the taxonomy (the kind the taxonomy rules
+    derive from either key), because a tool's or chain's ``output.value`` is
+    the user's data and its ``id`` is not a response id. Native wins: a span
+    already carrying ``gen_ai.response.id`` is left alone.
+
+    Hot path: every exported LLM span reaches here. The cheap checks all run
+    before the one ``json.loads``, and a value that does not start with ``{``
+    is not parsed at all.
+
+    Streaming, as recorded from the real instrumentors: openai's
+    ``stream=True`` serializes the ACCUMULATED completion, whose ``id`` is the
+    one every chunk carries, so the id is real. anthropic's ``.stream()``
+    helper writes the final message, id included. anthropic's
+    ``messages.create(stream=True)`` writes no ``output.value`` at all, so
+    that span gets no id rather than an invented one.
+    """
+    if not attributes or GEN_AI_RESPONSE_ID in attributes:
+        return {}
+    if attributes.get(OPENINFERENCE_SPAN_KIND) != SpanKind.LLM.value:
+        return {}
+    raw = attributes.get(OUTPUT_VALUE)
+    if not isinstance(raw, str) or not raw.startswith("{"):
+        return {}
+    try:
+        payload = json.loads(raw)
+    except ValueError:
+        # Not JSON (or truncated by a length cap): no id to vouch for.
+        return {}
+    # A value that starts with "{" and parses is a JSON object, so no type check.
+    response_id = payload.get("id")
+    if not isinstance(response_id, str) or not response_id:
+        return {}
+    return {GEN_AI_RESPONSE_ID: response_id}
+
+
 class NormalizingSpanExporter(SpanExporter):
     """Map third-party keys onto canonical ones before delegating to ``inner``.
 
@@ -881,7 +934,15 @@ class NormalizingSpanExporter(SpanExporter):
         if vectorless is not None:
             new_attributes = vectorless
         new_events, event_attributes = normalize_first_token_event(span)
-        event_attributes = {**event_attributes, **error_type_from_exception_event(span)}
+        event_attributes = {
+            **event_attributes,
+            **error_type_from_exception_event(span),
+            # On the rebuilt attributes, so the taxonomy the table derived
+            # decides whether this is an LLM span.
+            **response_id_from_output_value(
+                span.attributes if new_attributes is None else new_attributes
+            ),
+        }
         if event_attributes:
             # setdefault, not update: the event passes already skipped the
             # keys the span carried natively, and a table rule that produced
@@ -895,7 +956,9 @@ class NormalizingSpanExporter(SpanExporter):
             return span
         normalized = copy.copy(span)
         if new_attributes is not None:
-            normalized._attributes = new_attributes
+            # Carrying the dropped count: a plain dict would report 0 and hide
+            # a span that hit the attribute-count limit.
+            normalized._attributes = replacement_attributes(span, new_attributes)
         if new_events is not None:
             normalized._events = new_events
         return normalized
