@@ -133,6 +133,40 @@ def test_no_usable_top_level_id_means_nothing(output_value: Any) -> None:
     assert response_id_from_output_value(_llm(output_value)) == {}
 
 
+@pytest.mark.parametrize("mime_type", ["application/json"])
+def test_a_json_mime_type_is_taken(mime_type: str) -> None:
+    attributes = _llm(_OPENAI_OUTPUT, **{"output.mime_type": mime_type})
+    assert response_id_from_output_value(attributes) == {GEN_AI_RESPONSE_ID: "chatcmpl-abc"}
+
+
+@pytest.mark.parametrize(
+    "mime_type",
+    [
+        # The JS instrumentors record a streamed reply's TEXT this way; a
+        # JSON-mode reply like {"id":"user-123"} is the model's words, not the
+        # provider's response object.
+        "text/plain",
+        "",
+        "APPLICATION/JSON",  # an exact match, as in the TypeScript SDK
+        "application/json; charset=utf-8",
+        42,
+    ],
+)
+def test_any_other_mime_type_is_skipped(mime_type: Any) -> None:
+    attributes = _llm('{"id":"user-123"}', **{"output.mime_type": mime_type})
+    assert response_id_from_output_value(attributes) == {}
+
+
+def test_a_text_plain_span_is_not_parsed(counting_loads: _CountingLoads) -> None:
+    response_id_from_output_value(_llm(_OPENAI_OUTPUT, **{"output.mime_type": "text/plain"}))
+    assert counting_loads.calls == 0
+
+
+def test_a_text_plain_reply_gets_no_id_through_the_exporter() -> None:
+    exported = _export(_llm('{"id":"user-123"}', **{"output.mime_type": "text/plain"}))
+    assert GEN_AI_RESPONSE_ID not in (exported.attributes or {})
+
+
 def test_no_output_value_means_nothing() -> None:
     assert response_id_from_output_value({"openinference.span.kind": "LLM"}) == {}
     assert response_id_from_output_value({}) == {}
