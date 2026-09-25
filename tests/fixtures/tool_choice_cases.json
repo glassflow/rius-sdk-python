@@ -137,9 +137,7 @@
       },
       "expected": {
         "llm.invocation_parameters": {
-          "tool_choice": [
-            "auto"
-          ]
+          "tool_choice": ["auto"]
         }
       }
     },
