@@ -1,5 +1,54 @@
 # Changelog
 
+## [1.0.0](https://github.com/glassflow/rius-sdk-python/compare/v0.17.0...v1.0.0) (2026-09-25)
+
+
+### ⚠ BREAKING CHANGES
+
+* normalize model_parameters keys onto gen_ai.request.* and rius.request.* ([#117](https://github.com/glassflow/rius-sdk-python/issues/117))
+* name spans after their operation and target, per the conventions ([#110](https://github.com/glassflow/rius-sdk-python/issues/110))
+* map RETRIEVER to the retrieval operation and take a data source id ([#106](https://github.com/glassflow/rius-sdk-python/issues/106))
+* emit rius.span.pending and the rius tracer scope; drop the GLASSFLOW_ env fallback ([#104](https://github.com/glassflow/rius-sdk-python/issues/104))
+
+### Features
+
+* derive both taxonomy keys on spans that carry only one ([#121](https://github.com/glassflow/rius-sdk-python/issues/121)) ([236f6bf](https://github.com/glassflow/rius-sdk-python/commit/236f6bf82ce0aeae1560e760616a593ab76ec95c))
+* emit rius.context.sizes, a per-part byte breakdown of the context, on every generation span ([#102](https://github.com/glassflow/rius-sdk-python/issues/102)) ([67556cc](https://github.com/glassflow/rius-sdk-python/commit/67556cc528a3ec9c2eec0aa4bd17286113e30db4))
+* emit rius.span.pending and the rius tracer scope; drop the GLASSFLOW_ env fallback ([#104](https://github.com/glassflow/rius-sdk-python/issues/104)) ([c9344c6](https://github.com/glassflow/rius-sdk-python/commit/c9344c61eeb2bc23187a72992e0c5423836c904f))
+* fill error.type from the exception event on auto-instrumented spans ([#124](https://github.com/glassflow/rius-sdk-python/issues/124)) ([9546a10](https://github.com/glassflow/rius-sdk-python/commit/9546a10452442f7f1c72a86de7c0d81ffa2bf374))
+* gen_ai.tool.name and gen_ai.tool.definitions on OpenInference spans ([#125](https://github.com/glassflow/rius-sdk-python/issues/125)) ([ac1061a](https://github.com/glassflow/rius-sdk-python/commit/ac1061afb51a027ad020f47cbad05dac62840665))
+* map llm.finish_reason onto gen_ai.response.finish_reasons ([#122](https://github.com/glassflow/rius-sdk-python/issues/122)) ([7f99d9b](https://github.com/glassflow/rius-sdk-python/commit/7f99d9b1aa8eb83d17f24f6c4c0670b35c99521c))
+* map RETRIEVER to the retrieval operation and take a data source id ([#106](https://github.com/glassflow/rius-sdk-python/issues/106)) ([7af1944](https://github.com/glassflow/rius-sdk-python/commit/7af1944f9da07bb91e7ebf05a9207ec539400d52))
+* map the cache_creation and details.reasoning_tokens usage spellings onto the canonical counts ([#129](https://github.com/glassflow/rius-sdk-python/issues/129)) ([0932045](https://github.com/glassflow/rius-sdk-python/commit/09320453d426bfc05aa60f0777f3ff5d117f32ff))
+* map the OpenInference model-call and usage keys onto the canonical wire ([#118](https://github.com/glassflow/rius-sdk-python/issues/118)) ([3c9bedf](https://github.com/glassflow/rius-sdk-python/commit/3c9bedfc892db1d07d3e3b35cab96ce135cad154))
+* name spans after their operation and target, per the conventions ([#110](https://github.com/glassflow/rius-sdk-python/issues/110)) ([7cc18ec](https://github.com/glassflow/rius-sdk-python/commit/7cc18eca61bc6c7d8b44a463c1c424b8466547a3))
+* name the agent an AGENT span invokes ([#109](https://github.com/glassflow/rius-sdk-python/issues/109)) ([2362465](https://github.com/glassflow/rius-sdk-python/commit/2362465b5c22f463678eed06144d6b59f095dd53))
+* name the agent executing a tool on execute_tool spans ([#112](https://github.com/glassflow/rius-sdk-python/issues/112)) ([6414f66](https://github.com/glassflow/rius-sdk-python/commit/6414f66bcd53cf632e8839478cac945de9fe8efc))
+* normalize model_parameters keys onto gen_ai.request.* and rius.request.* ([#117](https://github.com/glassflow/rius-sdk-python/issues/117)) ([02d0608](https://github.com/glassflow/rius-sdk-python/commit/02d0608a10b3e655c88501fcd184828f6796ded8))
+* normalize the OpenInference first-token event into gen_ai.first_token ([#116](https://github.com/glassflow/rius-sdk-python/issues/116)) ([ca5b5f1](https://github.com/glassflow/rius-sdk-python/commit/ca5b5f171b4e33a76b60efd3603c469c2a0f1569))
+* normalize third-party attribute keys onto the canonical wire ([#113](https://github.com/glassflow/rius-sdk-python/issues/113)) ([5c2f635](https://github.com/glassflow/rius-sdk-python/commit/5c2f6350f418282a5b5be481b575dafbd60aa20c))
+* reassemble OpenInference's flattened messages, Anthropic's multi-part contents included ([#133](https://github.com/glassflow/rius-sdk-python/issues/133)) ([2a0cff7](https://github.com/glassflow/rius-sdk-python/commit/2a0cff7dab3db8d2b8a8efda6ba2feb03c11d5d2))
+* record the response id, output type, tool call identity and service version ([#114](https://github.com/glassflow/rius-sdk-python/issues/114)) ([978f64a](https://github.com/glassflow/rius-sdk-python/commit/978f64a55dbff6010dad3afa93b63095214c0bce))
+* record_exception on the manual span and generation handles ([#107](https://github.com/glassflow/rius-sdk-python/issues/107)) ([186b8e4](https://github.com/glassflow/rius-sdk-python/commit/186b8e44c1a1b43114b6d3bf99d81f822db3fc19))
+* take gen_ai.tool.name as an explicit argument, not from the span name ([#105](https://github.com/glassflow/rius-sdk-python/issues/105)) ([f6d2b43](https://github.com/glassflow/rius-sdk-python/commit/f6d2b43f6f7864c419188e30c9a91cb927348855))
+* take the main agent identity into rius.main_agent.*, and version the agent at both scopes ([#115](https://github.com/glassflow/rius-sdk-python/issues/115)) ([f358876](https://github.com/glassflow/rius-sdk-python/commit/f358876a083567c31f811d81dd66522c9b9573d8))
+
+
+### Bug Fixes
+
+* a blank OTEL attribute-count env var no longer counts as the user's limit ([#137](https://github.com/glassflow/rius-sdk-python/issues/137)) ([fff0268](https://github.com/glassflow/rius-sdk-python/commit/fff026861f1e2fd76250affd4878623e6902377b))
+* defer to an OTEL attribute-count env var only when OpenTelemetry can use its value ([#139](https://github.com/glassflow/rius-sdk-python/issues/139)) ([890f9a9](https://github.com/glassflow/rius-sdk-python/commit/890f9a93c157cb695ad25289d1c2ee41908cd15f))
+* give auto-instrumented embedding spans a request model, and stop exporting their vectors ([#135](https://github.com/glassflow/rius-sdk-python/issues/135)) ([b5a5ba0](https://github.com/glassflow/rius-sdk-python/commit/b5a5ba00c8f6f2a4d922d186a768a7ff43282a73))
+* guard native model_parameters with the normalizer's per-key checks, and let the first spelling win ([#131](https://github.com/glassflow/rius-sdk-python/issues/131)) ([3868180](https://github.com/glassflow/rius-sdk-python/commit/3868180d4c793512483b82762b365083dbb47bf8))
+* keep tool_choice with content capture off by promoting it out of the request bag ([#132](https://github.com/glassflow/rius-sdk-python/issues/132)) ([f0edb51](https://github.com/glassflow/rius-sdk-python/commit/f0edb5149fba8458c0c21820c5401bb24e37e115))
+* raise the span attribute count limit so long agent spans keep their model, tools and system prompt ([#134](https://github.com/glassflow/rius-sdk-python/issues/134)) ([7e6c256](https://github.com/glassflow/rius-sdk-python/commit/7e6c2564dbb50a55acb762c5161c85e5f1e86b98))
+* recover gen_ai.response.id from output.value on auto-instrumented LLM spans ([#136](https://github.com/glassflow/rius-sdk-python/issues/136)) ([7f6e7aa](https://github.com/glassflow/rius-sdk-python/commit/7f6e7aa9e5e09ed982537ff274b8d3fd78c4ad90))
+* stamp gen_ai.agent.name on the resource ([#108](https://github.com/glassflow/rius-sdk-python/issues/108)) ([7acffb0](https://github.com/glassflow/rius-sdk-python/commit/7acffb05b0da18af7963d6d2b98911625cbd91e9))
+* take the response id from output.value only when it is declared JSON or undeclared ([#138](https://github.com/glassflow/rius-sdk-python/issues/138)) ([1622481](https://github.com/glassflow/rius-sdk-python/commit/162248147fbe47e6d574ba6842130fa5c17d0bc5))
+* treat the OpenInference request-parameter bag as content ([#120](https://github.com/glassflow/rius-sdk-python/issues/120)) ([8f58973](https://github.com/glassflow/rius-sdk-python/commit/8f5897300ccf072f76b409eb3b156bab0abc9605))
+* write JSON-valued span attributes compact and in raw UTF-8 ([#127](https://github.com/glassflow/rius-sdk-python/issues/127)) ([84d5358](https://github.com/glassflow/rius-sdk-python/commit/84d535835b99672675b743bc884cf76af89d1cac))
+* write U+2028/U+2029 raw in a promoted tool_choice, as the sink does ([#141](https://github.com/glassflow/rius-sdk-python/issues/141)) ([b9da558](https://github.com/glassflow/rius-sdk-python/commit/b9da558d852d3f1fd3bd638daeb4c176ffc51c9e))
+
 ## [0.17.0](https://github.com/glassflow/rius-sdk-python/compare/v0.16.0...v0.17.0) (2026-09-21)
 
 
