@@ -78,12 +78,39 @@
       }
     },
     {
-      "name": "the line and paragraph separators stay escaped",
+      "name": "the line and paragraph separators are written raw",
       "input": {
         "llm.invocation_parameters": "{\"tool_choice\": {\"name\": \"a\u2028b\\u2029c\"}}"
       },
       "expected": {
-        "rius.request.tool_choice": "{\"name\":\"a\\u2028b\\u2029c\"}"
+        "rius.request.tool_choice": "{\"name\":\"a\u2028b\u2029c\"}"
+      }
+    },
+    {
+      "name": "the line and paragraph separators are written raw in a member name too",
+      "input": {
+        "llm.invocation_parameters": "{\"tool_choice\": {\"k\\u2028\": \"v\\u2029\"}}"
+      },
+      "expected": {
+        "rius.request.tool_choice": "{\"k\u2028\":\"v\u2029\"}"
+      }
+    },
+    {
+      "name": "the line and paragraph separators stay raw in a string",
+      "input": {
+        "llm.invocation_parameters": "{\"tool_choice\": \"a\\u2028b\\u2029c\"}"
+      },
+      "expected": {
+        "rius.request.tool_choice": "a\u2028b\u2029c"
+      }
+    },
+    {
+      "name": "backspace, form feed and carriage return use their short escapes",
+      "input": {
+        "llm.invocation_parameters": "{\"tool_choice\": {\"name\": \"a\\bb\\fc\\rd\\u001fe\\/f\"}}"
+      },
+      "expected": {
+        "rius.request.tool_choice": "{\"name\":\"a\\bb\\fc\\rd\\u001fe/f\"}"
       }
     },
     {
@@ -93,6 +120,24 @@
       },
       "expected": {
         "rius.request.tool_choice": "{\"name\":\"a\ufffdb\"}"
+      }
+    },
+    {
+      "name": "a lone surrogate in a member name becomes the replacement character",
+      "input": {
+        "llm.invocation_parameters": "{\"tool_choice\": {\"k\\udfff\": \"v\"}}"
+      },
+      "expected": {
+        "rius.request.tool_choice": "{\"k\ufffd\":\"v\"}"
+      }
+    },
+    {
+      "name": "a lone surrogate in a string becomes the replacement character",
+      "input": {
+        "llm.invocation_parameters": "{\"tool_choice\": \"a\\ud800b\\udc00c\"}"
+      },
+      "expected": {
+        "rius.request.tool_choice": "a\ufffdb\ufffdc"
       }
     },
     {

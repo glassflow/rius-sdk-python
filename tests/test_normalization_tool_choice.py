@@ -135,3 +135,23 @@ def test_it_survives_capture_content_off_through_init(capture_content: bool) -> 
     else:
         assert LLM_INVOCATION_PARAMETERS not in exported
         assert "SECRET" not in json.dumps(exported)
+
+
+def test_a_lone_surrogate_mode_survives_otlp_encoding() -> None:
+    """Kept unpaired, the mode could not be encoded as UTF-8, and the OTLP
+    exporter would drop the attribute (it logs and skips it); as U+FFFD it
+    reaches the wire."""
+    from opentelemetry.exporter.otlp.proto.common.trace_encoder import encode_spans
+
+    collected = InMemorySpanExporter()
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(NormalizingSpanExporter(collected)))
+    with provider.get_tracer("t").start_as_current_span("llm") as span:
+        span.set_attribute(LLM_INVOCATION_PARAMETERS, '{"tool_choice": "a\\ud800b"}')
+
+    request = encode_spans(collected.get_finished_spans())
+    wire = {
+        kv.key: kv.value.string_value
+        for kv in request.resource_spans[0].scope_spans[0].spans[0].attributes
+    }
+    assert wire[RIUS_REQUEST_TOOL_CHOICE] == "a�b"
