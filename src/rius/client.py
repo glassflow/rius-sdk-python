@@ -553,7 +553,8 @@ def _do_init(
         }
     )
     sampler = BridgeAwareSampler(ParentBased(root=TraceIdRatioBased(config.sample_rate)))
-    provider = TracerProvider(resource=resource, sampler=sampler, span_limits=_span_limits())
+    limits = _span_limits()
+    provider = TracerProvider(resource=resource, sampler=sampler, span_limits=limits)
     _own_providers.add(provider)
     # Every processor rides this one chain, so a bridged provider gets exactly
     # the treatment rius's own spans do.
@@ -635,7 +636,7 @@ def _do_init(
     bridged: Bridge | None = None
     if set_global and not config.disabled:
         bridged = _register_global(
-            provider, pipeline, sampler, bridge_foreign=config.bridge_foreign_provider
+            provider, pipeline, sampler, limits, bridge_foreign=config.bridge_foreign_provider
         )
     if set_global:
         # The helpers follow the active client, not the write-once OTel global,
@@ -695,6 +696,7 @@ def _register_global(
     provider: TracerProvider,
     pipeline: SynchronousMultiSpanProcessor,
     sampler: Sampler,
+    limits: SpanLimits,
     *,
     bridge_foreign: bool,
 ) -> Bridge | None:
@@ -709,7 +711,7 @@ def _register_global(
             "span pipeline to it, so spans started through it are exported to rius too.",
             type(existing).__qualname__,
         )
-        return bridge(existing, pipeline, sampler)
+        return bridge(existing, pipeline, sampler, limits)
     logger.warning(
         "could not register the rius tracer provider as the OpenTelemetry "
         "global (%s is already set, or a previous init() claimed it), and rius is "

@@ -42,7 +42,7 @@ from typing import Any
 from opentelemetry import trace
 from opentelemetry.context import Context
 from opentelemetry.sdk.resources import Resource
-from opentelemetry.sdk.trace import ReadableSpan, Span, SpanProcessor, TracerProvider
+from opentelemetry.sdk.trace import ReadableSpan, Span, SpanLimits, SpanProcessor, TracerProvider
 from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
 from opentelemetry.sdk.trace.sampling import (
     ALWAYS_OFF,
@@ -142,6 +142,8 @@ _shadows_by_context: weakref.WeakValueDictionary[tuple[int, int], _Shadow] = (
     weakref.WeakValueDictionary()
 )
 _dropped: weakref.WeakSet[Span] = weakref.WeakSet()
+# Weak containers purge dead entries on access, which is not thread-safe.
+_registry_lock = threading.Lock()
 _ABSENT = object()
 
 
@@ -150,7 +152,10 @@ def _context_key(context: SpanContext) -> tuple[int, int]:
 
 
 def _shadow_of(span: object) -> _Shadow | None:
-    return _shadows.get(span) if isinstance(span, Span) else None
+    if not isinstance(span, Span):
+        return None
+    with _registry_lock:
+        return _shadows.get(span)
 
 
 def twin_of(span: object) -> object:
@@ -161,9 +166,12 @@ def twin_of(span: object) -> object:
 
 def _rius_decision(span: object) -> bool | None:
     """Whether rius sampled a bridged span in, or None when it is not one."""
-    if span in _dropped:
-        return False
-    return True if _shadow_of(span) is not None else None
+    if not isinstance(span, Span):
+        return None
+    with _registry_lock:
+        if span in _dropped:
+            return False
+        return True if span in _shadows else None
 
 
 class BridgeAwareSampler(Sampler):
@@ -201,7 +209,7 @@ class _Twin(Span):
     """A span no provider owns: rius's pipeline stamps it in place of a bridged span."""
 
 
-def _twin(span: Span, parent_context: Context | None) -> Span:
+def _twin(span: Span, parent_context: Context | None, limits: SpanLimits) -> Span:
     twin = _Twin(
         span.name,
         span.get_span_context(),
@@ -211,6 +219,7 @@ def _twin(span: Span, parent_context: Context | None) -> Span:
         links=span.links,
         kind=span.kind,
         instrumentation_scope=span.instrumentation_scope,
+        limits=limits,
     )
     twin.start(start_time=span.start_time, parent_context=parent_context)
     return twin
@@ -240,9 +249,10 @@ class ShadowPipeline(SpanProcessor):
     so its children are flagged ``rius.parent.foreign`` instead.
     """
 
-    def __init__(self, pipeline: SpanProcessor, sampler: Sampler) -> None:
+    def __init__(self, pipeline: SpanProcessor, sampler: Sampler, limits: SpanLimits) -> None:
         self._pipeline = pipeline
         self._sampler = sampler
+        self._limits = limits
 
     def on_start(self, span: Span, parent_context: Context | None = None) -> None:
         result = self._sampler.should_sample(
@@ -254,12 +264,14 @@ class ShadowPipeline(SpanProcessor):
             span.links,
         )
         if result.decision is not Decision.RECORD_AND_SAMPLE:
-            _dropped.add(span)
+            with _registry_lock:
+                _dropped.add(span)
             return
-        twin = _twin(span, parent_context)
+        twin = _twin(span, parent_context, self._limits)
         shadow = _Shadow(twin, dict(span.attributes or {}))
-        _shadows[span] = shadow
-        _shadows_by_context[_context_key(twin.get_span_context())] = shadow
+        with _registry_lock:
+            _shadows[span] = shadow
+            _shadows_by_context[_context_key(twin.get_span_context())] = shadow
         self._pipeline.on_start(twin, parent_context=parent_context)
 
     def _on_ending(self, span: Span) -> None:
@@ -268,9 +280,10 @@ class ShadowPipeline(SpanProcessor):
             self._pipeline._on_ending(shadow.twin)  # noqa: SLF001 - the SpanProcessor hook
 
     def on_end(self, span: ReadableSpan) -> None:
-        shadow = (
-            None if span.context is None else _shadows_by_context.get(_context_key(span.context))
-        )
+        if span.context is None:
+            return
+        with _registry_lock:
+            shadow = _shadows_by_context.get(_context_key(span.context))
         if shadow is not None:
             self._pipeline.on_end(_stamped(span, shadow))
 
@@ -339,9 +352,14 @@ class Bridge:
         self._forwarder.release(self._pipeline)
 
 
-def bridge(provider: TracerProvider, pipeline: SpanProcessor, sampler: Sampler) -> Bridge:
-    """Feed the spans ``provider`` starts and ends that ``sampler`` keeps into ``pipeline``."""
-    shadow = ShadowPipeline(pipeline, sampler)
+def bridge(
+    provider: TracerProvider, pipeline: SpanProcessor, sampler: Sampler, limits: SpanLimits
+) -> Bridge:
+    """Feed the spans ``provider`` starts and ends that ``sampler`` keeps into ``pipeline``.
+
+    ``limits`` are rius's own, so a bridged span's twin truncates as an own span would.
+    """
+    shadow = ShadowPipeline(pipeline, sampler, limits)
     with _forwarders_lock:
         forwarder = _forwarders.get(provider)
         if forwarder is None:

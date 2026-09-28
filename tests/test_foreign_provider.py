@@ -641,6 +641,20 @@ def test_a_bridged_span_exports_what_an_own_span_would(
     assert (spans["own"]["session.id"], spans["own"]["user.id"]) == ("sess-123", "set-later")
 
 
+def test_a_bridged_span_truncates_rius_stamps_as_an_own_span_does(
+    foreign: tuple[_RecordingProvider, InMemorySpanExporter], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("OTEL_SPAN_ATTRIBUTE_VALUE_LENGTH_LIMIT", "8")
+    provider, _ = foreign
+    exporter = InMemorySpanExporter()
+    client = _init_bridged(exporter, session_id="session-longer-than-eight")
+    for tracer, name in ((provider.get_tracer("x"), "bridged"), (client.get_tracer(), "own")):
+        tracer.start_span(name).end()
+    client.flush()
+    spans = _attributes_by_name(exporter)
+    assert spans["bridged"]["session.id"] == spans["own"]["session.id"] == "session-"
+
+
 def test_a_flagged_bridged_span_is_flagged_only_in_the_rius_export(
     foreign: tuple[_RecordingProvider, InMemorySpanExporter],
 ) -> None:
