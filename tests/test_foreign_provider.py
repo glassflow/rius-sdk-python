@@ -398,3 +398,88 @@ def test_after_reinit_the_earlier_rius_global_feeds_the_new_client(
     trace.get_tracer_provider().get_tracer("third.party").start_span("global").end()
     second.flush()
     assert [s.name for s in exporter.get_finished_spans()] == ["global"]
+
+
+# --- content capture on bridged spans -------------------------------------------
+
+# What Langfuse 3.15 wrote on the bridged job and tool spans of the RIUS-1070
+# e2e that ran with capture_content=False.
+_LANGFUSE_JOB = {
+    "langfuse.observation.type": "span",
+    "langfuse.observation.input": '{"label": "job-0"}',
+    "langfuse.observation.output": '{"answer": "96,450,000"}',
+    "langfuse.observation.metadata.note": "customer payload",
+    "langfuse.trace.name": "job-0",
+    "langfuse.trace.input": '{"label": "job-0"}',
+    "langfuse.trace.output": '{"answer": "96,450,000"}',
+    "langfuse.trace.tags": ("run-1",),
+    "session.id": "run-1",
+}
+_LANGFUSE_CONTENT = {
+    "langfuse.observation.input",
+    "langfuse.observation.output",
+    "langfuse.observation.metadata.note",
+    "langfuse.trace.input",
+    "langfuse.trace.output",
+}
+
+
+def _bridged_langfuse_job(
+    provider: trace.TracerProvider, **init_kwargs: Any
+) -> dict[str, ReadableSpan]:
+    exporter = InMemorySpanExporter()
+    client = _init(exporter, **init_kwargs)
+    with provider.get_tracer("langfuse-sdk").start_as_current_span("job") as job:
+        job.set_attributes(_LANGFUSE_JOB)
+        client.get_tracer().start_span("llm").end()
+    client.flush()
+    return _by_name(exporter)
+
+
+def test_content_off_strips_langfuse_content_from_a_bridged_span(
+    foreign: tuple[_RecordingProvider, InMemorySpanExporter],
+) -> None:
+    provider, _ = foreign
+    attributes = dict(
+        _bridged_langfuse_job(provider, capture_content=False)["job"].attributes or {}
+    )
+    assert _LANGFUSE_CONTENT.isdisjoint(attributes)
+    assert {key: attributes.get(key) for key in _LANGFUSE_JOB.keys() - _LANGFUSE_CONTENT} == {
+        key: value for key, value in _LANGFUSE_JOB.items() if key not in _LANGFUSE_CONTENT
+    }
+
+
+def test_content_on_keeps_langfuse_content_on_a_bridged_span(
+    foreign: tuple[_RecordingProvider, InMemorySpanExporter],
+) -> None:
+    provider, _ = foreign
+    attributes = dict(_bridged_langfuse_job(provider)["job"].attributes or {})
+    assert {key: attributes.get(key) for key in _LANGFUSE_JOB} == _LANGFUSE_JOB
+
+
+def test_content_off_leaves_the_foreign_providers_own_export_untouched(
+    foreign: tuple[_RecordingProvider, InMemorySpanExporter],
+) -> None:
+    provider, foreign_exporter = foreign
+    _bridged_langfuse_job(provider, capture_content=False)
+    assert dict(_by_name(foreign_exporter)["job"].attributes or {}) == _LANGFUSE_JOB
+
+
+def test_masking_treats_a_bridged_span_exactly_as_an_own_span(
+    foreign: tuple[_RecordingProvider, InMemorySpanExporter],
+) -> None:
+    provider, _ = foreign
+    exporter = InMemorySpanExporter()
+    client = _init(exporter, mask=lambda value, *, key: f"masked:{key}")
+    for tracer, name in (
+        (provider.get_tracer("langfuse-sdk"), "bridged"),
+        (client.get_tracer(), "own"),
+    ):
+        with tracer.start_as_current_span(name) as span:
+            span.set_attributes(_LANGFUSE_JOB)
+    client.flush()
+    spans = _by_name(exporter)
+    assert dict(spans["bridged"].attributes or {}) == dict(spans["own"].attributes or {})
+    assert (spans["own"].attributes or {})["langfuse.observation.input"] == (
+        "masked:langfuse.observation.input"
+    )

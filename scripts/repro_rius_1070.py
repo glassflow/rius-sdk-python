@@ -17,6 +17,11 @@ only once per process:
 - ``foreign``  a plain ``TracerProvider`` claims the global first.
 - ``langfuse`` Langfuse v3 (OTel-based) is constructed first; it claims the
   global itself when none is set. Skipped when ``langfuse`` is not importable.
+  Rius runs with ``capture_content=False`` here, and each job records input,
+  output and metadata through Langfuse's own API (``start_as_current_span``,
+  ``update_trace``, an ``@observe`` tool) carrying a sentinel string. The case
+  fails as LEAKED if the sentinel reaches rius's exporter anywhere, and is void
+  unless Langfuse's own provider received it (proof the content was written).
 
 The fix (rius bridges its pipeline onto a foreign global provider) is on by
 default; ``foreign`` and ``langfuse`` also run with ``--no-bridge``
@@ -32,7 +37,8 @@ Run (the Langfuse case needs the extra package; it is not a dev dependency):
     uv run --with 'langfuse>=3,<4' python scripts/repro_rius_1070.py
 
 Exits 0 when every case gives its expected verdict (or is skipped), 1
-otherwise (a single ``--case`` run exits 3 when ORPHANED, 4 when skipped).
+otherwise (a single ``--case`` run exits 3 when ORPHANED, 4 when skipped, 5
+when LEAKED).
 """
 
 from __future__ import annotations
@@ -43,8 +49,8 @@ import logging
 import subprocess
 import sys
 from collections import defaultdict
-from collections.abc import Callable, Sequence
-from contextlib import AbstractContextManager
+from collections.abc import Callable, Iterator, Sequence
+from contextlib import AbstractContextManager, contextmanager
 from dataclasses import dataclass, field
 from types import ModuleType
 from typing import Any
@@ -66,6 +72,8 @@ PARENT_FOREIGN = "rius.parent.foreign"
 NO_PARENT = 0
 EXIT_ORPHANED = 3  # distinct from 1, which an uncaught exception also yields
 EXIT_SKIPPED = 4
+EXIT_LEAKED = 5
+SENTINEL = "RIUS1070-CONTENT-SENTINEL"
 
 
 # --------------------------------------------------------------------------- analysis
@@ -161,6 +169,27 @@ def print_identity(spans: Sequence[Any], own_resource: Any) -> None:
 _IDENTITY_KEYS = ("service.name", "service.instance.id", "gen_ai.agent.name")
 
 
+def _flat(value: Any) -> list[str]:
+    items = value if isinstance(value, (list, tuple)) else [value]
+    return [str(item) for item in items]
+
+
+def leaked_keys(spans: Sequence[Any]) -> list[str]:
+    """``span: key`` for every attribute, event attribute or status carrying the sentinel."""
+    leaks: list[str] = []
+    for span in spans:
+        mappings = [span.attributes or {}, *((e.attributes or {}) for e in span.events)]
+        leaks += [
+            f"{span.name}: {key}"
+            for m in mappings
+            for key, value in m.items()
+            if any(SENTINEL in v for v in _flat(value))
+        ]
+        if SENTINEL in (span.status.description or ""):
+            leaks.append(f"{span.name}: status.description")
+    return leaks
+
+
 def print_foreign(spans: Sequence[Any]) -> None:
     print(f"  foreign provider received {len(spans)} span(s):")
     for s in spans:
@@ -219,7 +248,7 @@ def _llm_calls() -> list[Callable[[], object]]:
         base_url="http://llm.invalid",
         http_client=_mock_client(anthropic_httpx, _ANTHROPIC_BODY),
     )
-    prompt = [{"role": "user", "content": "hi"}]
+    prompt = [{"role": "user", "content": f"hi {SENTINEL}"}]
 
     def call_openai() -> object:
         return oai.chat.completions.create(model="gpt-4o-mini", messages=prompt)  # type: ignore[arg-type]
@@ -242,7 +271,9 @@ def run_jobs(start_job: Callable[[int], AbstractContextManager[object]]) -> None
 # --------------------------------------------------------------------------- cases
 
 
-def _init_rius(exporter: Any, *, bridge: bool, pings: list[dict[str, Any]]) -> Any:
+def _init_rius(
+    exporter: Any, *, bridge: bool, pings: list[dict[str, Any]], capture_content: bool
+) -> Any:
     import rius
 
     return rius.init(
@@ -255,6 +286,7 @@ def _init_rius(exporter: Any, *, bridge: bool, pings: list[dict[str, Any]]) -> A
         heartbeat_transport=pings.append,
         partial_spans=False,
         bridge_foreign_provider=bridge,
+        capture_content=capture_content,
     )
 
 
@@ -270,6 +302,27 @@ def _remote_job(job: int) -> AbstractContextManager[object]:
 
     incoming = TraceContextTextMapPropagator().extract({"traceparent": REMOTE_TRACEPARENT})
     return trace.get_tracer("customer.jobs").start_as_current_span(f"job-{job}", context=incoming)
+
+
+@contextmanager
+def _langfuse_job(lf: Any, observe: Callable[..., Any], job: int) -> Iterator[None]:
+    """A job recording its content the ways a Langfuse user would, sentinel in each."""
+
+    @observe(name="lookup")
+    def lookup(country: str) -> dict[str, str]:
+        return {"population": f"68,400,000 {SENTINEL}", "country": country}
+
+    with lf.start_as_current_span(
+        name=f"job-{job}",
+        input={"label": f"job-{job} {SENTINEL}"},
+        metadata={"note": f"customer payload {SENTINEL}"},
+    ) as span:
+        span.update_trace(
+            input={"question": SENTINEL}, output={"answer": SENTINEL}, tags=[f"job-{job}"]
+        )
+        lookup(f"France {SENTINEL}")
+        yield
+        span.update(output={"answer": f"96,450,000 {SENTINEL}"})
 
 
 def run_case(case: str, *, bridge: bool) -> int:
@@ -294,7 +347,7 @@ def run_case(case: str, *, bridge: bool) -> int:
         trace.set_tracer_provider(foreign)
     elif case == "langfuse":
         try:
-            from langfuse import Langfuse
+            from langfuse import Langfuse, observe
         except ImportError:
             print("  SKIPPED: langfuse not importable (run with `uv run --with 'langfuse>=3,<4'`)")
             return EXIT_SKIPPED
@@ -311,12 +364,12 @@ def run_case(case: str, *, bridge: bool) -> int:
         global_provider.add_span_processor(SimpleSpanProcessor(foreign_exporter))  # type: ignore[attr-defined]
 
         def start_job(job: int) -> AbstractContextManager[object]:
-            span: AbstractContextManager[object] = lf.start_as_current_span(name=f"job-{job}")
-            return span
+            return _langfuse_job(lf, observe, job)
 
     rius_exporter = InMemorySpanExporter()
     pings: list[dict[str, Any]] = []
-    client = _init_rius(rius_exporter, bridge=bridge, pings=pings)
+    capture_content = case != "langfuse"
+    client = _init_rius(rius_exporter, bridge=bridge, pings=pings, capture_content=capture_content)
     run_jobs(start_job)
     client.flush()
     own_resource = client._provider.resource
@@ -330,9 +383,28 @@ def run_case(case: str, *, bridge: bool) -> int:
     if foreign_exporter is not None:
         print_foreign(foreign_exporter.get_finished_spans())
     label = case if bridge else f"{case} --no-bridge"
-    print(f"  VERDICT[{label}]: {report.verdict}")
-    print("RESULT " + json.dumps({"case": label, "verdict": report.verdict}))
-    return EXIT_ORPHANED if report.orphaned else 0
+    verdict = report.verdict
+    if not capture_content:
+        verdict = content_verdict(spans, foreign_exporter, verdict)
+    print(f"  VERDICT[{label}]: {verdict}")
+    print("RESULT " + json.dumps({"case": label, "verdict": verdict}))
+    return {"OK": 0, "ORPHANED": EXIT_ORPHANED, "LEAKED": EXIT_LEAKED}.get(verdict, 1)
+
+
+def content_verdict(spans: Sequence[Any], foreign_exporter: Any, verdict: str) -> str:
+    """LEAKED if the sentinel reached rius; an error if nothing ever wrote it."""
+    written = foreign_exporter is not None and bool(
+        leaked_keys(foreign_exporter.get_finished_spans())
+    )
+    leaks = leaked_keys(spans)
+    print("  capture_content=False:")
+    print(f"    sentinel written to the foreign provider's spans: {written}")
+    print(f"    sentinel in rius's export: {len(leaks)} attribute(s)")
+    for leak in leaks:
+        print(f"      {leak}")
+    if not written:
+        return "VOID"
+    return "LEAKED" if leaks else verdict
 
 
 def main(argv: Sequence[str]) -> int:
@@ -351,7 +423,12 @@ def main(argv: Sequence[str]) -> int:
         name = " ".join([case, *flags])
         print(f"=== case: {name}", flush=True)
         code = subprocess.run([sys.executable, __file__, "--case", case, *flags]).returncode
-        verdicts = {0: "OK", EXIT_ORPHANED: "ORPHANED", EXIT_SKIPPED: "SKIPPED"}
+        verdicts = {
+            0: "OK",
+            EXIT_ORPHANED: "ORPHANED",
+            EXIT_SKIPPED: "SKIPPED",
+            EXIT_LEAKED: "LEAKED",
+        }
         actual = verdicts.get(code, f"ERROR(exit {code})")
         results.append((name, expected, actual))
     print("=== summary")

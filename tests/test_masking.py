@@ -1,4 +1,5 @@
 import json
+from typing import Any
 
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
@@ -589,3 +590,151 @@ def test_mask_redacts_tool_definitions_from_request_parameters() -> None:
     attrs = inner.get_finished_spans()[0].attributes
     assert attrs["rius.request.tools"] == "***"
     assert attrs["gen_ai.request.temperature"] == 0.7
+
+
+# --- content keys of other OTel-based SDKs (RIUS-1070): with the bridge on, a
+#     Langfuse or Logfire span reaches this exporter, and so it does whenever
+#     rius holds the global provider those SDKs then write to ---
+
+THIRD_PARTY_CONTENT_KEYS = (
+    # langfuse 3.15, langfuse/_client/attributes.py
+    "langfuse.observation.input",
+    "langfuse.observation.output",
+    "langfuse.trace.input",
+    "langfuse.trace.output",
+    "langfuse.observation.metadata",
+    "langfuse.observation.metadata.customer_note",
+    "langfuse.trace.metadata",
+    "langfuse.trace.metadata.customer_note",
+    "langfuse.observation.status_message",
+    "langfuse.experiment.metadata",
+    "langfuse.experiment.item.metadata",
+    "langfuse.experiment.item.expected_output",
+    # traceloop-sdk 0.62.3 and its instrumentations
+    "traceloop.entity.input",
+    "traceloop.entity.output",
+    "traceloop.prompt.template",
+    "traceloop.prompt.template_variables",
+    "traceloop.prompt.template_variables.question",
+    "gen_ai.task.input",
+    "gen_ai.task.output",
+    "mcp.response.value",
+    # logfire 5.1.1
+    "request_data",
+    "response_data",
+    "events",
+    "all_messages_events",
+    "pydantic_ai.all_messages",
+    "raw_input",
+    "response",
+    "input",
+    "output",
+    # mlflow-tracing 3.16.1, mlflow/tracing/constant.py
+    "mlflow.spanInputs",
+    "mlflow.spanOutputs",
+    "mlflow.chat.tools",
+    "mlflow.trace.intermediate_outputs",
+    "mlflow.chunk.value",
+    # openlit 1.45.0, openlit/semcov/__init__.py
+    "gen_ai.retrieval.query.text",
+    "gen_ai.content.reasoning",
+    "gen_ai.content.revised_prompt",
+    "gen_ai.tool.args",
+    "gen_ai.response.tool_calls",
+    "gen_ai.workflow.input",
+    "gen_ai.workflow.output",
+    "gen_ai.framework.pipeline.input_data",
+    "gen_ai.framework.pipeline.output_data",
+    "gen_ai.framework.error.message",
+    "gen_ai.agent.context",
+    "gen_ai.agent.instructions",
+    "gen_ai.agent.goal",
+    "gen_ai.agent.action.tool_input",
+    "gen_ai.agent.final_result",
+    "gen_ai.agent.next_goal",
+    "gen_ai.agent.step_messages",
+    "gen_ai.memory.search.query",
+    "gen_ai.vectordb.search.query",
+    "gen_ai.extraction.instruction",
+    "mcp.tool.arguments",
+    "mcp.tool.result",
+    "mcp.result",
+    "mcp.params",
+    "mcp.sampling.messages",
+    "mcp.fastmcp.prompt.arguments",
+    "mcp.completion.argument.value",
+    "mcp.completion.context.arguments",
+    "mcp.completion.values",
+    "mcp.error.message",
+)
+
+# Keys the same SDKs write next to their content that must survive content
+# capture off: usage, identity and shape, several of them one suffix away
+# from a content key.
+THIRD_PARTY_KEYS_THAT_SURVIVE = (
+    "input_tokens",
+    "gen_ai.usage.input_tokens",
+    "gen_ai.usage.output_tokens",
+    "input.mime_type",
+    "output.mime_type",
+    "llm.token_count.prompt",
+    "llm.token_count.completion",
+    "llm.token_count.total",
+    "langfuse.observation.type",
+    "langfuse.observation.level",
+    "langfuse.observation.model.name",
+    "langfuse.observation.usage_details",
+    "langfuse.trace.name",
+    "langfuse.trace.tags",
+    "session.id",
+    "user.id",
+    "traceloop.entity.name",
+    "traceloop.prompt.key",
+    "mlflow.spanType",
+    "mlflow.chat.tokenUsage",
+    "gen_ai.agent.description",
+    "mcp.method.name",
+)
+
+
+def _exported_attributes(values: dict[str, str], **init_kwargs: Any) -> dict[str, object]:
+    inner = InMemorySpanExporter()
+    client = init(span_exporter=inner, set_global=False, **init_kwargs)
+    with client.get_tracer().start_as_current_span("op") as span:
+        span.set_attributes(values)
+    client.flush()
+    return dict(inner.get_finished_spans()[0].attributes or {})
+
+
+def test_capture_content_false_strips_third_party_sdk_content_keys() -> None:
+    attrs = _exported_attributes(
+        {key: "SECRET" for key in THIRD_PARTY_CONTENT_KEYS}, capture_content=False
+    )
+    leaked = sorted(key for key, value in attrs.items() if value == "SECRET")
+    assert leaked == []
+
+
+def test_third_party_usage_and_identity_keys_are_not_content() -> None:
+    from rius.masking import _is_content_key
+
+    assert [key for key in THIRD_PARTY_KEYS_THAT_SURVIVE if _is_content_key(key)] == []
+
+
+def test_capture_content_false_keeps_third_party_usage_and_identity_keys() -> None:
+    # Normalization renames llm.token_count.{prompt,completion} before masking
+    # runs, so only the key-level test above can speak for those two.
+    renamed = {"llm.token_count.prompt", "llm.token_count.completion"}
+    values = {key: "kept" for key in THIRD_PARTY_KEYS_THAT_SURVIVE if key not in renamed}
+    attrs = _exported_attributes(values, capture_content=False)
+    assert {key: attrs.get(key) for key in values} == values
+
+
+def test_third_party_sdk_content_keys_reach_the_mask_with_their_key() -> None:
+    seen: list[str] = []
+
+    def mask(value: object, *, key: str) -> str:
+        seen.append(key)
+        return "***"
+
+    _exported_attributes({key: "SECRET" for key in THIRD_PARTY_CONTENT_KEYS}, mask=mask)
+    assert sorted(seen) == sorted(THIRD_PARTY_CONTENT_KEYS)
