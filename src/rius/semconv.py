@@ -481,6 +481,13 @@ LLM_INVOCATION_PARAMETERS = "llm.invocation_parameters"
 # group is read off the SDK's own source at the version named; a key is here
 # only if that source writes it onto a span or span event. Names, types,
 # levels, usage and prompt keys/versions stay: identity, not content.
+#
+# A denylist cannot cover Logfire whole. It writes every keyword argument of
+# logfire.span()/info()/@instrument as a top-level attribute under the
+# caller's own name, so its content has no fixed key. logfire.msg is listed
+# (the message with those values interpolated); logfire.msg_template stays,
+# because it is the literal from the caller's code and Logfire already uses
+# it as the span name.
 THIRD_PARTY_CONTENT_ATTRIBUTES = frozenset(
     {
         # langfuse 3.15.0, langfuse/_client/attributes.py. Metadata is the
@@ -520,6 +527,7 @@ THIRD_PARTY_CONTENT_ATTRIBUTES = frozenset(
         "response",
         "input",
         "output",
+        "logfire.msg",
         # mlflow-tracing 3.16.1, mlflow/tracing/constant.py. chunk.value is a
         # streamed chunk, written on span events.
         "mlflow.spanInputs",
@@ -675,6 +683,16 @@ CONTENT_ATTRIBUTE_PREFIXES = (
 CONTENT_ATTRIBUTE_SUFFIXES = (
     ".document.content",
     ".embedding.text",
+)
+
+# The same, for a leaf too generic to match on its own across every namespace
+# (gen_ai.agent.description is identity): (prefix, content leaves). Traceloop
+# writes each tool definition as llm.request.functions.{i}.{name,description,
+# parameters} (Ollama instrumentation 0.62.3; OpenAI, Anthropic and LangChain
+# up to 0.40.x). .name stays: identity. .arguments has no emitter in the
+# versions read, but is content by name wherever it appears.
+CONTENT_ATTRIBUTE_PREFIXED_SUFFIXES = (
+    ("llm.request.functions.", (".description", ".parameters", ".arguments")),
 )
 
 
