@@ -47,11 +47,16 @@ def _no_ambient_heartbeat(monkeypatch: pytest.MonkeyPatch) -> None:
 def _reset_rius_lifecycle() -> "Iterator[None]":
     """Clear module-level init()/instrumentation state between tests."""
     yield
-    from rius import _agent, _tracer
+    from rius import _agent, _tracer, foreign
     from rius import client as client_module
     from rius import instrumentation as instrumentation_module
 
     client_module._current_client = None
+    # The global provider above is foreign to every init() in the suite, so each
+    # one bridges to it; a client the test never shut down must not keep
+    # receiving the next test's spans.
+    for forwarder in foreign._forwarders.values():
+        forwarder._target = None
     _tracer._active = None
     _agent._active = None
     instrumentation_module._ENABLED.clear()

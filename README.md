@@ -75,6 +75,7 @@ variables:
 | `disabled`     | `RIUS_DISABLED`     | `false`                        | Kill switch. When true, spans are created but never exported.        |
 | `sample_rate`  | `RIUS_SAMPLE_RATE`  | `1.0`                          | Head sampling ratio `0.0`–`1.0` (whole-trace; children follow root). |
 | `capture_content` | `RIUS_CAPTURE_CONTENT` | `true`                    | When false, prompt/response content is stripped at export (metadata still sent). |
+| `bridge_foreign_provider` | `RIUS_BRIDGE_FOREIGN_PROVIDER` | `false`        | Also export the spans of another OpenTelemetry SDK that owns the global provider (see below). |
 
 `mask` is a code-only option (no env var): pass a callable to `init(mask=...)` and
 it is applied to every content attribute value at export, across our spans and any
@@ -94,6 +95,21 @@ rius.init(mask=lambda value: "[REDACTED]")   # redact all captured content
 rius.init(mask=lambda value, *, key: hash_pii(value) if "input" in key else value)
 rius.init(capture_content=False)             # drop content entirely, keep metadata
 ```
+
+### Running next to another OpenTelemetry SDK
+
+OpenTelemetry has one global tracer provider per process. If another SDK
+(Langfuse v3, for one) claims it before `rius.init()`, your own job and tool
+spans go to that SDK only, while the LLM spans inside them still reach Rius, so
+Rius receives traces whose parents it never gets. rius detects this: those LLM
+spans carry `rius.parent.foreign=true`, the resource records
+`rius.sdk.global_provider=foreign:<class>`, and the first one logs a warning.
+
+To send the other SDK's spans to Rius as well, opt in with
+`init(bridge_foreign_provider=True)` or `RIUS_BRIDGE_FOREIGN_PROVIDER=true`.
+rius then exports that SDK's spans too, subject to rius's `sample_rate`,
+`capture_content` and `mask`, and it never modifies what the other SDK
+exports: the other vendor receives exactly what it would without rius.
 
 ## Auto-instrumentation
 

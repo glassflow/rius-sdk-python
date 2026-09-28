@@ -29,6 +29,7 @@ from opentelemetry.trace import Link, Status
 from ._attributes import replacement_attributes
 from ._serde import serialize
 from .semconv import (
+    CONTENT_ATTRIBUTE_PREFIXED_SUFFIXES,
     CONTENT_ATTRIBUTE_PREFIXES,
     CONTENT_ATTRIBUTE_SUFFIXES,
     CONTENT_ATTRIBUTES,
@@ -68,6 +69,10 @@ def _is_content_key(key: str) -> bool:
         key in CONTENT_ATTRIBUTES
         or key.startswith(CONTENT_ATTRIBUTE_PREFIXES)
         or key.endswith(CONTENT_ATTRIBUTE_SUFFIXES)
+        or any(
+            key.startswith(prefix) and key.endswith(leaves)
+            for prefix, leaves in CONTENT_ATTRIBUTE_PREFIXED_SUFFIXES
+        )
     ):
         return True
     return key.startswith(_METADATA_PREFIX) and _is_content_key(key[len(_METADATA_PREFIX) :])

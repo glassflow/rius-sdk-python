@@ -1,0 +1,535 @@
+#!/usr/bin/env python3
+"""Reproduce RIUS-1070: LLM spans exported with a parent rius never receives.
+
+When another SDK registers the OpenTelemetry global tracer provider before
+``rius.init()``, rius keeps a private provider (the global is write-once) and
+binds its instrumentors to it. Span CONTEXT, however, is process-wide: an LLM
+call made inside a span of the foreign provider takes that span as parent. The
+LLM span reaches rius, its parent goes to the foreign provider's exporter, and
+the trace rius receives is flat and rootless with exactly one missing parent.
+
+Each case runs in its own subprocess, because the global provider can be set
+only once per process:
+
+- ``control``  rius alone; the customer's job spans use the global = rius.
+- ``remote``   as control, but every job continues a trace from an incoming
+  ``traceparent`` header: a remote parent, which is never an orphan.
+- ``foreign``  a plain ``TracerProvider`` claims the global first.
+- ``langfuse`` Langfuse v3 (OTel-based) is constructed first; it claims the
+  global itself when none is set. Skipped when ``langfuse`` is not importable.
+  Rius runs with ``capture_content=False`` here, and each job records input,
+  output and metadata through Langfuse's own API (``start_as_current_span``,
+  ``update_trace``, an ``@observe`` tool) carrying a sentinel string. The case
+  fails as LEAKED if the sentinel reaches rius's exporter anywhere, and is void
+  unless Langfuse's own provider received it (proof the content was written).
+
+The fix (rius bridges its pipeline onto a foreign global provider) is opt-in:
+``foreign`` and ``langfuse`` run with ``--bridge``
+(``bridge_foreign_provider=True``), which must give whole trees, and with the
+default config, which must still orphan but DETECT it: every orphan flagged
+``rius.parent.foreign``, counted in the heartbeat, and the conflict named on
+the resource (UNDETECTED otherwise).
+
+Every case runs rius with a session id and inside a ``rius.user()`` scope. A
+bridged case must carry both on the spans rius exports from the other provider
+(UNSTAMPED otherwise), and the other provider's own export must be exactly what
+a ``--baseline`` run, the same workload without rius, gives it (FOREIGN-CHANGED
+otherwise): rius never writes to a span it did not create.
+
+OpenAI and Anthropic are called through their real client libraries over an
+``httpx.MockTransport``, so the bundled instrumentors produce real LLM spans and
+nothing touches the network (Langfuse points at a closed local port).
+
+Run (the Langfuse case needs the extra package; it is not a dev dependency):
+
+    uv run --with 'langfuse>=3,<4' python scripts/repro_rius_1070.py
+
+Exits 0 when every case gives its expected verdict (or is skipped), 1
+otherwise (a single ``--case`` run exits 3 when ORPHANED, 4 when skipped, 5
+when LEAKED, 6 when UNDETECTED, 7 when UNSTAMPED).
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import logging
+import subprocess
+import sys
+from collections import defaultdict
+from collections.abc import Callable, Iterator, Sequence
+from contextlib import AbstractContextManager, contextmanager
+from dataclasses import dataclass, field
+from types import ModuleType
+from typing import Any
+
+JOBS = 5
+LLM_CALLS_PER_JOB = 3
+CASES = ("control", "remote", "foreign", "langfuse")
+#: (case, bridge on) -> expected verdict of the full run.
+MATRIX = (
+    ("control", False, "OK"),
+    ("remote", False, "OK"),
+    ("foreign", True, "OK"),
+    ("langfuse", True, "OK"),
+    ("foreign", False, "ORPHANED"),
+    ("langfuse", False, "ORPHANED"),
+)
+FOREIGN_CASES = ("foreign", "langfuse")
+REMOTE_TRACEPARENT = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"
+PARENT_FOREIGN = "rius.parent.foreign"
+NO_PARENT = 0
+EXIT_ORPHANED = 3  # distinct from 1, which an uncaught exception also yields
+EXIT_SKIPPED = 4
+EXIT_LEAKED = 5
+EXIT_UNDETECTED = 6
+EXIT_UNSTAMPED = 7
+EXIT_CODES = {
+    "OK": 0,
+    "ORPHANED": EXIT_ORPHANED,
+    "SKIPPED": EXIT_SKIPPED,
+    "LEAKED": EXIT_LEAKED,
+    "UNDETECTED": EXIT_UNDETECTED,
+    "UNSTAMPED": EXIT_UNSTAMPED,
+}
+SENTINEL = "RIUS1070-CONTENT-SENTINEL"
+SESSION_ID = "repro-session"
+USER_ID = "repro-user"
+
+
+# --------------------------------------------------------------------------- analysis
+
+
+@dataclass
+class TraceReport:
+    trace_id: str
+    spans: int
+    has_root: bool
+    missing_parent_ids: list[str]
+    remote_parent_ids: list[str]
+
+
+@dataclass
+class ExportReport:
+    total_spans: int
+    spans_with_parent: int
+    parents_resolved: int
+    foreign_flagged: int
+    traces: list[TraceReport] = field(default_factory=list)
+
+    @property
+    def orphaned(self) -> bool:
+        return any(t.missing_parent_ids or not t.has_root for t in self.traces)
+
+    @property
+    def verdict(self) -> str:
+        return "ORPHANED" if self.orphaned else "OK"
+
+
+def analyse(spans: Sequence[Any]) -> ExportReport:
+    """Check that every exported span's parent is in the exported set.
+
+    Works on anything shaped like an OTel ``ReadableSpan`` (``.context`` and
+    ``.parent`` span contexts), so it is independent of the exporter used. A
+    REMOTE parent (continued from a ``traceparent`` header) is never expected in
+    the set and counts as the trace's root.
+    """
+    known = {(s.context.trace_id, s.context.span_id) for s in spans}
+    by_trace: dict[int, list[Any]] = defaultdict(list)
+    for span in spans:
+        by_trace[span.context.trace_id].append(span)
+
+    with_parent = [s for s in spans if s.parent is not None and s.parent.span_id != NO_PARENT]
+    resolved = [s for s in with_parent if (s.parent.trace_id, s.parent.span_id) in known]
+    flagged = sum(1 for s in spans if (s.attributes or {}).get(PARENT_FOREIGN) is True)
+    report = ExportReport(len(spans), len(with_parent), len(resolved), flagged)
+    for trace_id, members in sorted(by_trace.items()):
+        unresolved = [s for s in members if s in with_parent and s not in resolved]
+        local = [s for s in unresolved if not s.parent.is_remote]
+        remote = [s for s in unresolved if s.parent.is_remote]
+        report.traces.append(
+            TraceReport(
+                trace_id=f"{trace_id:032x}",
+                spans=len(members),
+                has_root=bool(remote)
+                or any(s.parent is None or s.parent.span_id == NO_PARENT for s in members),
+                missing_parent_ids=sorted({f"{s.parent.span_id:016x}" for s in local}),
+                remote_parent_ids=sorted({f"{s.parent.span_id:016x}" for s in remote}),
+            )
+        )
+    return report
+
+
+def print_report(title: str, report: ExportReport) -> None:
+    print(f"  {title}")
+    print(f"    total spans:               {report.total_spans}")
+    print(f"    spans with a parent id:    {report.spans_with_parent}")
+    print(f"    parents resolved in set:   {report.parents_resolved}")
+    print(f"    flagged {PARENT_FOREIGN}: {report.foreign_flagged}")
+    print(f"    traces:                    {len(report.traces)}")
+    for t in report.traces:
+        missing = ",".join(t.missing_parent_ids) or "-"
+        remote = ",".join(t.remote_parent_ids) or "-"
+        print(
+            f"    trace {t.trace_id[:12]}  spans={t.spans}  root={t.has_root!s:5}  "
+            f"missing_parents={len(t.missing_parent_ids)} [{missing}]  remote_parent={remote}"
+        )
+
+
+def print_identity(spans: Sequence[Any], own_resource: Any) -> None:
+    """Whether every exported span carries the identity the sink reads off the resource."""
+    wanted = {k: own_resource.attributes.get(k) for k in _IDENTITY_KEYS}
+    off = [
+        s.name for s in spans if any(s.resource.attributes.get(k) != v for k, v in wanted.items())
+    ]
+    conflict = own_resource.attributes.get("rius.sdk.global_provider", "-")
+    print(f"    resource rius.sdk.global_provider: {conflict}")
+    print(f"    spans lacking rius resource identity ({', '.join(_IDENTITY_KEYS)}): {len(off)}")
+
+
+_IDENTITY_KEYS = ("service.name", "service.instance.id", "gen_ai.agent.name")
+
+
+def _flat(value: Any) -> list[str]:
+    items = value if isinstance(value, (list, tuple)) else [value]
+    return [str(item) for item in items]
+
+
+def leaked_keys(spans: Sequence[Any]) -> list[str]:
+    """``span: key`` for every attribute, event attribute or status carrying the sentinel."""
+    leaks: list[str] = []
+    for span in spans:
+        mappings = [span.attributes or {}, *((e.attributes or {}) for e in span.events)]
+        leaks += [
+            f"{span.name}: {key}"
+            for m in mappings
+            for key, value in m.items()
+            if any(SENTINEL in v for v in _flat(value))
+        ]
+        if SENTINEL in (span.status.description or ""):
+            leaks.append(f"{span.name}: status.description")
+    return leaks
+
+
+def print_foreign(spans: Sequence[Any]) -> None:
+    print(f"  foreign provider received {len(spans)} span(s):")
+    for s in spans:
+        print(f"    {s.name:<8} trace {s.context.trace_id:032x}  span_id={s.context.span_id:016x}")
+
+
+# --------------------------------------------------------------------------- mocked LLMs
+
+
+_OPENAI_BODY = {
+    "id": "chatcmpl-1",
+    "object": "chat.completion",
+    "created": 0,
+    "model": "gpt-4o-mini",
+    "choices": [
+        {"index": 0, "message": {"role": "assistant", "content": "ok"}, "finish_reason": "stop"}
+    ],
+    "usage": {"prompt_tokens": 3, "completion_tokens": 1, "total_tokens": 4},
+}
+_ANTHROPIC_BODY = {
+    "id": "msg_1",
+    "type": "message",
+    "role": "assistant",
+    "model": "claude-sonnet-4-5",
+    "content": [{"type": "text", "text": "ok"}],
+    "stop_reason": "end_turn",
+    "stop_sequence": None,
+    "usage": {"input_tokens": 3, "output_tokens": 1},
+}
+
+
+def _mock_client(httpx_module: Any, body: dict[str, Any]) -> Any:
+    """An httpx(-compatible) client that answers every request with ``body``."""
+    transport = httpx_module.MockTransport(lambda _: httpx_module.Response(200, json=body))
+    return httpx_module.Client(transport=transport)
+
+
+def _llm_calls() -> list[Callable[[], object]]:
+    import anthropic
+    import httpx
+    import openai
+
+    # anthropic>=1.5 is built on httpx2 and rejects a plain httpx client.
+    anthropic_httpx: ModuleType
+    try:
+        import httpx2 as anthropic_httpx
+    except ImportError:
+        anthropic_httpx = httpx
+    oai = openai.OpenAI(
+        api_key="test",
+        base_url="http://llm.invalid/v1",
+        http_client=_mock_client(httpx, _OPENAI_BODY),
+    )
+    ant = anthropic.Anthropic(
+        api_key="test",
+        base_url="http://llm.invalid",
+        http_client=_mock_client(anthropic_httpx, _ANTHROPIC_BODY),
+    )
+    prompt = [{"role": "user", "content": f"hi {SENTINEL}"}]
+
+    def call_openai() -> object:
+        return oai.chat.completions.create(model="gpt-4o-mini", messages=prompt)  # type: ignore[arg-type]
+
+    def call_anthropic() -> object:
+        return ant.messages.create(model="claude-sonnet-4-5", max_tokens=8, messages=prompt)  # type: ignore[arg-type]
+
+    return [call_openai, call_anthropic]
+
+
+def run_jobs(start_job: Callable[[int], AbstractContextManager[object]]) -> None:
+    """The customer's workload: each job span wraps a few LLM calls, for one user."""
+    import rius
+
+    calls = _llm_calls()
+    for job in range(JOBS):
+        with rius.user(USER_ID), start_job(job):
+            for n in range(LLM_CALLS_PER_JOB):
+                calls[n % len(calls)]()
+
+
+# --------------------------------------------------------------------------- cases
+
+
+def _init_rius(
+    exporter: Any, *, bridge: bool, pings: list[dict[str, Any]], capture_content: bool
+) -> Any:
+    import rius
+
+    return rius.init(
+        endpoint="http://rius.invalid",
+        api_key="test",
+        service_name="rius-1070-repro",
+        span_exporter=exporter,
+        instruments=["openai", "anthropic"],
+        heartbeat=True,
+        heartbeat_transport=pings.append,
+        partial_spans=False,
+        session_id=SESSION_ID,
+        capture_content=capture_content,
+        # Only when asked, so the default runs exercise the real default.
+        **({"bridge_foreign_provider": True} if bridge else {}),
+    )
+
+
+def _global_job(job: int) -> AbstractContextManager[object]:
+    from opentelemetry import trace
+
+    return trace.get_tracer("customer.jobs").start_as_current_span(f"job-{job}")
+
+
+def _remote_job(job: int) -> AbstractContextManager[object]:
+    from opentelemetry import trace
+    from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
+
+    incoming = TraceContextTextMapPropagator().extract({"traceparent": REMOTE_TRACEPARENT})
+    return trace.get_tracer("customer.jobs").start_as_current_span(f"job-{job}", context=incoming)
+
+
+@contextmanager
+def _langfuse_job(lf: Any, observe: Callable[..., Any], job: int) -> Iterator[None]:
+    """A job recording its content the ways a Langfuse user would, sentinel in each."""
+
+    @observe(name="lookup")
+    def lookup(country: str) -> dict[str, str]:
+        return {"population": f"68,400,000 {SENTINEL}", "country": country}
+
+    with lf.start_as_current_span(
+        name=f"job-{job}",
+        input={"label": f"job-{job} {SENTINEL}"},
+        metadata={"note": f"customer payload {SENTINEL}"},
+    ) as span:
+        span.update_trace(
+            input={"question": SENTINEL}, output={"answer": SENTINEL}, tags=[f"job-{job}"]
+        )
+        lookup(f"France {SENTINEL}")
+        yield
+        span.update(output={"answer": f"96,450,000 {SENTINEL}"})
+
+
+def run_case(case: str, *, bridge: bool, baseline: bool = False) -> int:
+    from opentelemetry import trace
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+    from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+
+    logging.basicConfig(level=logging.WARNING, format="  [log %(name)s] %(message)s")
+    # Langfuse exports to a closed port; its retries are noise, not evidence.
+    logging.getLogger("langfuse").setLevel(logging.CRITICAL)
+    logging.getLogger("opentelemetry.exporter.otlp").setLevel(logging.CRITICAL)
+    foreign_exporter: InMemorySpanExporter | None = None
+    start_job: Callable[[int], AbstractContextManager[object]] = _global_job
+
+    if case == "remote":
+        start_job = _remote_job
+    elif case == "foreign":
+        foreign_exporter = InMemorySpanExporter()
+        foreign = TracerProvider()
+        foreign.add_span_processor(SimpleSpanProcessor(foreign_exporter))
+        trace.set_tracer_provider(foreign)
+    elif case == "langfuse":
+        try:
+            from langfuse import Langfuse, observe
+        except ImportError:
+            print("  SKIPPED: langfuse not importable (run with `uv run --with 'langfuse>=3,<4'`)")
+            return EXIT_SKIPPED
+        from importlib.metadata import version
+
+        lf = Langfuse(public_key="pk-lf-x", secret_key="sk-lf-x", host="http://127.0.0.1:9")
+        global_provider = trace.get_tracer_provider()
+        print(f"  langfuse {version('langfuse')}; global provider after Langfuse():")
+        print(f"    {type(global_provider).__module__}.{type(global_provider).__name__}")
+        processors = global_provider._active_span_processor._span_processors  # type: ignore[attr-defined]
+        print(f"    processors: {[type(p).__name__ for p in processors]}")
+        # Observe what Langfuse's provider receives, next to its own exporter.
+        foreign_exporter = InMemorySpanExporter()
+        global_provider.add_span_processor(SimpleSpanProcessor(foreign_exporter))  # type: ignore[attr-defined]
+
+        def start_job(job: int) -> AbstractContextManager[object]:
+            return _langfuse_job(lf, observe, job)
+
+    if baseline:
+        run_jobs(start_job)
+        assert foreign_exporter is not None
+        print_foreign_attributes(foreign_exporter.get_finished_spans())
+        return 0
+
+    rius_exporter = InMemorySpanExporter()
+    pings: list[dict[str, Any]] = []
+    capture_content = case != "langfuse"
+    client = _init_rius(rius_exporter, bridge=bridge, pings=pings, capture_content=capture_content)
+    run_jobs(start_job)
+    client.flush()
+    own_resource = client._provider.resource
+    client.shutdown()
+
+    spans = rius_exporter.get_finished_spans()
+    report = analyse(spans)
+    print_report("spans rius exported:", report)
+    print_identity(spans, own_resource)
+    print(f"    heartbeat foreign_parent_spans (final ping): {pings[-1]['foreign_parent_spans']}")
+    if foreign_exporter is not None:
+        print_foreign(foreign_exporter.get_finished_spans())
+        print_foreign_attributes(foreign_exporter.get_finished_spans())
+    label = f"{case} --bridge" if bridge else case
+    verdict = report.verdict
+    if verdict == "ORPHANED" and not detected(report, own_resource, pings[-1]):
+        verdict = "UNDETECTED"
+    if bridge and foreign_exporter is not None:
+        verdict = stamp_verdict(spans, own_resource, verdict)
+    if not capture_content:
+        verdict = content_verdict(spans, foreign_exporter, verdict)
+    print(f"  VERDICT[{label}]: {verdict}")
+    print("RESULT " + json.dumps({"case": label, "verdict": verdict}))
+    return EXIT_CODES.get(verdict, 1)
+
+
+def detected(report: ExportReport, own_resource: Any, ping: dict[str, Any]) -> bool:
+    """Every orphan flagged, counted in the heartbeat, and the conflict on the resource."""
+    orphans = report.spans_with_parent - report.parents_resolved
+    conflict = str(own_resource.attributes.get("rius.sdk.global_provider", ""))
+    return (
+        report.foreign_flagged == orphans > 0
+        and ping["foreign_parent_spans"] == orphans
+        and conflict.startswith("foreign:")
+    )
+
+
+def stamp_verdict(spans: Sequence[Any], own_resource: Any, verdict: str) -> str:
+    """UNSTAMPED unless the bridged spans rius exports carry the session and user."""
+    bridged = [s for s in spans if s.instrumentation_scope.name != "rius" and not _is_llm(s)]
+    unstamped = [
+        s.name
+        for s in bridged
+        if (s.attributes or {}).get("session.id") != SESSION_ID
+        or (s.attributes or {}).get("user.id") != USER_ID
+    ]
+    print(f"    bridged spans in rius's export: {len(bridged)}, missing session/user: {unstamped}")
+    return "UNSTAMPED" if unstamped or not bridged else verdict
+
+
+def _is_llm(span: Any) -> bool:
+    return span.instrumentation_scope.name.startswith("openinference.")
+
+
+def print_foreign_attributes(spans: Sequence[Any]) -> None:
+    """One line the parent compares against the ``--baseline`` run."""
+    attributes = sorted(json.dumps([s.name, dict(s.attributes or {})], default=str) for s in spans)
+    print("FOREIGN " + json.dumps(attributes))
+
+
+def content_verdict(spans: Sequence[Any], foreign_exporter: Any, verdict: str) -> str:
+    """LEAKED if the sentinel reached rius; an error if nothing ever wrote it."""
+    written = foreign_exporter is not None and bool(
+        leaked_keys(foreign_exporter.get_finished_spans())
+    )
+    leaks = leaked_keys(spans)
+    print("  capture_content=False:")
+    print(f"    sentinel written to the foreign provider's spans: {written}")
+    print(f"    sentinel in rius's export: {len(leaks)} attribute(s)")
+    for leak in leaks:
+        print(f"      {leak}")
+    if not written:
+        return "VOID"
+    return "LEAKED" if leaks else verdict
+
+
+def _run_child(args: list[str]) -> tuple[int, str]:
+    """Run one case in a subprocess, echoing its output; returns (exit code, stdout)."""
+    child = subprocess.run(
+        [sys.executable, __file__, *args], capture_output=True, text=True, check=False
+    )
+    print(child.stdout, end="", flush=True)
+    print(child.stderr, end="", file=sys.stderr, flush=True)
+    return child.returncode, child.stdout
+
+
+def _foreign_line(stdout: str) -> str | None:
+    lines = [line for line in stdout.splitlines() if line.startswith("FOREIGN ")]
+    return lines[-1] if lines else None
+
+
+def run_matrix_case(case: str, bridge: bool) -> str:
+    """The verdict of one case; a bridged foreign case is also checked against its baseline."""
+    flags = ["--bridge"] if bridge else []
+    code, stdout = _run_child(["--case", case, *flags])
+    actual = {v: k for k, v in EXIT_CODES.items()}.get(code, f"ERROR(exit {code})")
+    if not bridge or case not in FOREIGN_CASES or actual == "SKIPPED":
+        return actual
+    print(f"=== baseline: {case} without rius", flush=True)
+    _, baseline = _run_child(["--case", case, "--baseline"])
+    same = _foreign_line(stdout) == _foreign_line(baseline) is not None
+    print(f"  foreign provider's export identical to the baseline without rius: {same}")
+    return actual if same else "FOREIGN-CHANGED"
+
+
+def main(argv: Sequence[str]) -> int:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--case", choices=CASES, help="run one case in this process")
+    parser.add_argument(
+        "--bridge", action="store_true", help="init rius with bridge_foreign_provider=True"
+    )
+    parser.add_argument(
+        "--baseline", action="store_true", help="run the workload without rius (foreign cases)"
+    )
+    args = parser.parse_args(argv)
+    if args.case:
+        return run_case(args.case, bridge=args.bridge, baseline=args.baseline)
+
+    results: list[tuple[str, str, str]] = []
+    for case, bridge, expected in MATRIX:
+        name = f"{case} --bridge" if bridge else case
+        print(f"=== case: {name}", flush=True)
+        results.append((name, expected, run_matrix_case(case, bridge)))
+    print("=== summary")
+    for name, expected, actual in results:
+        mark = "as expected" if actual in (expected, "SKIPPED") else f"UNEXPECTED (want {expected})"
+        print(f"  {name:<22} {actual:<15} {mark}")
+    return 0 if all(actual in (expected, "SKIPPED") for _, expected, actual in results) else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

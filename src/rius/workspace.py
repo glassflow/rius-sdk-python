@@ -40,6 +40,7 @@ from opentelemetry.sdk.trace import ReadableSpan, Span, SpanProcessor
 from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
 
 from ._attributes import replacement_attributes
+from .foreign import twin_of
 from .semconv import WORKSPACE_ROUTE
 
 logger = logging.getLogger(__name__)
@@ -88,7 +89,7 @@ class WorkspaceSpanProcessor(SpanProcessor):
         alias = otel_context.get_value(_WORKSPACE_KEY, context=parent_context)
         if alias is None:
             return
-        parent = trace.get_current_span(parent_context)
+        parent = twin_of(trace.get_current_span(parent_context))
         parent_alias = None
         if isinstance(parent, ReadableSpan) and parent.attributes:
             parent_alias = parent.attributes.get(WORKSPACE_ROUTE)

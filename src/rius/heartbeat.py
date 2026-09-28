@@ -161,8 +161,10 @@ class HeartbeatSender:
         transport: Callable[[dict[str, Any]], None] | None = None,
         ping_timeout: float = _PING_TIMEOUT_S,
         final_ping_timeout: float = _FINAL_PING_TIMEOUT_S,
+        foreign_parent_spans: Callable[[], int] | None = None,
     ) -> None:
         self._interval = interval
+        self._foreign_parent_spans = foreign_parent_spans
         self._agent_name = agent_name
         self._tracker = tracker
         self._ping_timeout = ping_timeout
@@ -246,6 +248,12 @@ class HeartbeatSender:
             "open_traces": open_ids[:OPEN_TRACES_CAP],
             "open_trace_count": len(open_ids),
         }
+        if self._foreign_parent_spans is not None:
+            # Cumulative for this instance: spans whose local parent came from
+            # another in-process provider rius does not receive (RIUS-1070).
+            # The backend ignores this field until RIUS-1093; the span attribute
+            # rius.parent.foreign and the resource attribute are stored today.
+            payload["foreign_parent_spans"] = self._foreign_parent_spans()
         if stopped:
             # Present-and-true only on the final ping; false is never sent.
             payload["stopped"] = True

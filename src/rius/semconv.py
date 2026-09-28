@@ -383,6 +383,14 @@ GEN_AI_FIRST_TOKEN_EVENT = "gen_ai.first_token"
 # for as long as pre-rename SDK versions are in the field.
 RIUS_SPAN_PENDING = "rius.span.pending"
 
+# --- Another SDK's tracer provider in the process (see foreign.py) ---
+# On a span: its parent is local to this process, yet rius never received it,
+# so the trace arrives without that parent. Remote parents are never flagged.
+RIUS_PARENT_FOREIGN = "rius.parent.foreign"
+# On the resource: ``foreign:<module.Class>`` when another provider already held
+# the OpenTelemetry global at init(). Absent when rius registered the global.
+RIUS_SDK_GLOBAL_PROVIDER = "rius.sdk.global_provider"
+
 # Attributes allowed to ride a pending snapshot: identity/taxonomy known at
 # span start. An ALLOWLIST on purpose: content exclusion must hold for
 # third-party instrumentors' attribute families too, and a blocklist would
@@ -466,6 +474,103 @@ INVOCATION_PARAMETERS_CONTENT_MEMBERS = ("tools", "functions")
 # The request-parameters bag OpenInference instrumentors emit.
 LLM_INVOCATION_PARAMETERS = "llm.invocation_parameters"
 
+# Content keys of other OTel-based SDKs a customer runs next to rius. Their
+# spans reach rius's exporter through the foreign-provider bridge, or directly
+# when rius holds the global provider they write to, and the RIUS-1070 e2e
+# found Langfuse's input and output stored with capture_content=False. Each
+# group is read off the SDK's own source at the version named; a key is here
+# only if that source writes it onto a span or span event. Names, types,
+# levels, usage and prompt keys/versions stay: identity, not content.
+#
+# A denylist cannot cover Logfire whole. It writes every keyword argument of
+# logfire.span()/info()/@instrument as a top-level attribute under the
+# caller's own name, so its content has no fixed key. logfire.msg is listed
+# (the message with those values interpolated); logfire.msg_template stays,
+# because it is the literal from the caller's code and Logfire already uses
+# it as the span name.
+THIRD_PARTY_CONTENT_ATTRIBUTES = frozenset(
+    {
+        # langfuse 3.15.0, langfuse/_client/attributes.py. Metadata is the
+        # caller's arbitrary payload (one key per member, see the prefixes
+        # below), and the OpenAI wrapper writes str(exc) into status_message.
+        "langfuse.observation.input",
+        "langfuse.observation.output",
+        "langfuse.trace.input",
+        "langfuse.trace.output",
+        "langfuse.observation.metadata",
+        "langfuse.trace.metadata",
+        "langfuse.observation.status_message",
+        "langfuse.experiment.metadata",
+        "langfuse.experiment.item.metadata",
+        "langfuse.experiment.item.expected_output",
+        # traceloop-sdk 0.62.3 (opentelemetry-semantic-conventions-ai 0.5.1):
+        # workflow/task I/O and the managed prompt's template and variables;
+        # the LangChain instrumentation mirrors entity I/O into gen_ai.task.*,
+        # and the MCP one writes each tool result to mcp.response.value.
+        "traceloop.entity.input",
+        "traceloop.entity.output",
+        "traceloop.prompt.template",
+        "traceloop.prompt.template_variables",
+        "gen_ai.task.input",
+        "gen_ai.task.output",
+        "mcp.response.value",
+        # logfire 5.1.1: the OpenAI/Anthropic integrations put the request and
+        # the reply in request_data/response_data and the messages in events;
+        # the OpenAI Agents one adds raw_input, the Response object, and a
+        # function span's arguments and result under bare input/output.
+        "request_data",
+        "response_data",
+        "events",
+        "all_messages_events",
+        "pydantic_ai.all_messages",
+        "raw_input",
+        "response",
+        "input",
+        "output",
+        "logfire.msg",
+        # mlflow-tracing 3.16.1, mlflow/tracing/constant.py. chunk.value is a
+        # streamed chunk, written on span events.
+        "mlflow.spanInputs",
+        "mlflow.spanOutputs",
+        "mlflow.chat.tools",
+        "mlflow.trace.intermediate_outputs",
+        "mlflow.chunk.value",
+        # openlit 1.45.0, openlit/semcov/__init__.py, each one written by at
+        # least one of its instrumentations. gen_ai.retrieval.query.text is
+        # also a GenAI convention key: the user's query, verbatim.
+        "gen_ai.retrieval.query.text",
+        "gen_ai.content.reasoning",
+        "gen_ai.content.revised_prompt",
+        "gen_ai.tool.args",
+        "gen_ai.response.tool_calls",
+        "gen_ai.workflow.input",
+        "gen_ai.workflow.output",
+        "gen_ai.framework.pipeline.input_data",
+        "gen_ai.framework.pipeline.output_data",
+        "gen_ai.framework.error.message",
+        "gen_ai.agent.context",
+        "gen_ai.agent.instructions",
+        "gen_ai.agent.goal",
+        "gen_ai.agent.action.tool_input",
+        "gen_ai.agent.final_result",
+        "gen_ai.agent.next_goal",
+        "gen_ai.agent.step_messages",
+        "gen_ai.memory.search.query",
+        "gen_ai.vectordb.search.query",
+        "gen_ai.extraction.instruction",
+        "mcp.tool.arguments",
+        "mcp.tool.result",
+        "mcp.result",
+        "mcp.params",
+        "mcp.sampling.messages",
+        "mcp.fastmcp.prompt.arguments",
+        "mcp.completion.argument.value",
+        "mcp.completion.context.arguments",
+        "mcp.completion.values",
+        "mcp.error.message",
+    }
+)
+
 # Attribute keys carrying user content, masked/stripped at export (see masking.py).
 CONTENT_ATTRIBUTES = frozenset(
     {
@@ -500,11 +605,6 @@ CONTENT_ATTRIBUTES = frozenset(
         # keys, and a prefix match never covers its own bare key
         "llm.prompts",
         "llm.prompt_template",
-        "mlflow.spanInputs",
-        "mlflow.spanOutputs",
-        # OpenLLMetry workflow/task spans carry full I/O here
-        "traceloop.entity.input",
-        "traceloop.entity.output",
         # Every bundled OpenInference instrumentor emits tool definitions as
         # llm.tools.{i}.tool.json_schema (pinned empirically 2026-09-14);
         # covered by prefix below, bare key listed per the bare-key rule.
@@ -559,6 +659,7 @@ CONTENT_ATTRIBUTES = frozenset(
         for prefix in (GEN_AI_REQUEST_PREFIX, RIUS_REQUEST_PREFIX)
         for member in INVOCATION_PARAMETERS_CONTENT_MEMBERS
     }
+    | THIRD_PARTY_CONTENT_ATTRIBUTES
 )
 
 # OpenInference/OpenLLMetry instrumentors flatten message content into indexed
@@ -572,6 +673,9 @@ CONTENT_ATTRIBUTE_PREFIXES = (
     "llm.prompt_template.",
     "llm.tools.",
     "ai.prompt.",
+    "langfuse.observation.metadata.",
+    "langfuse.trace.metadata.",
+    "traceloop.prompt.template_variables.",
 )
 
 # Indexed families where only the content leaf is sensitive (siblings like
@@ -579,6 +683,16 @@ CONTENT_ATTRIBUTE_PREFIXES = (
 CONTENT_ATTRIBUTE_SUFFIXES = (
     ".document.content",
     ".embedding.text",
+)
+
+# The same, for a leaf too generic to match on its own across every namespace
+# (gen_ai.agent.description is identity): (prefix, content leaves). Traceloop
+# writes each tool definition as llm.request.functions.{i}.{name,description,
+# parameters} (Ollama instrumentation 0.62.3; OpenAI, Anthropic and LangChain
+# up to 0.40.x). .name stays: identity. .arguments has no emitter in the
+# versions read, but is content by name wherever it appears.
+CONTENT_ATTRIBUTE_PREFIXED_SUFFIXES = (
+    ("llm.request.functions.", (".description", ".parameters", ".arguments")),
 )
 
 
