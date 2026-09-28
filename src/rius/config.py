@@ -125,7 +125,7 @@ class GlassflowConfig:
     # Process-wide session default; a `session()` scope overrides it. None
     # means unset, and spans outside any scope carry no session.id at all.
     session_id: str | None = None
-    bridge_foreign_provider: bool = True
+    bridge_foreign_provider: bool = False
 
     @property
     def traces_endpoint(self) -> str:
@@ -271,8 +271,9 @@ def resolve_config(
         bridge_foreign_provider: When another SDK already holds the
             OpenTelemetry global provider at ``init()``, attach rius's span
             pipeline to that provider too (``RIUS_BRIDGE_FOREIGN_PROVIDER``).
-            On by default, so what rius exports does not depend on which SDK
-            initialized first; ``False`` keeps rius to its own provider.
+            Off by default: rius then exports that SDK's spans, which is
+            consent the caller gives explicitly. Off, rius keeps to its own
+            provider and flags the parents it never receives.
 
     Returns:
         The resolved, immutable ``GlassflowConfig``.
@@ -313,7 +314,7 @@ def resolve_config(
     )
     resolved_session_id = session_id or os.getenv(ENV_SESSION_ID) or None
     resolved_bridge_foreign_provider = (
-        _env_bool(ENV_BRIDGE_FOREIGN_PROVIDER, default=True)
+        _env_bool(ENV_BRIDGE_FOREIGN_PROVIDER, default=False)
         if bridge_foreign_provider is None
         else bridge_foreign_provider
     )

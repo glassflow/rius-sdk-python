@@ -15,7 +15,7 @@ from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExport
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import SpanLimits, SynchronousMultiSpanProcessor, TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, SpanExporter
-from opentelemetry.sdk.trace.sampling import ParentBased, TraceIdRatioBased
+from opentelemetry.sdk.trace.sampling import ParentBased, Sampler, TraceIdRatioBased
 
 from . import __version__, _agent, _tracer
 from .config import DEFAULT_ENDPOINT, GlassflowConfig, resolve_config
@@ -25,7 +25,13 @@ from .export_health import (
     _default_probe_send,
     check_connectivity,
 )
-from .foreign import Bridge, ForeignParentDetector, ResourceAdoptingExporter, bridge
+from .foreign import (
+    Bridge,
+    BridgeAwareSampler,
+    ForeignParentDetector,
+    ResourceAdoptingExporter,
+    bridge,
+)
 from .heartbeat import HeartbeatSender, OpenRootSpanTracker
 from .instrumentation import enable_instrumentations
 from .masking import MaskingSpanExporter
@@ -385,14 +391,14 @@ def init(
         set_global: Register the provider as the global OpenTelemetry provider.
         bridge_foreign_provider: What to do when another SDK already holds the
             OpenTelemetry global provider (``RIUS_BRIDGE_FOREIGN_PROVIDER``;
-            on by default). On, rius attaches its span pipeline to that
-            provider as well, so its spans (typically the parents of the LLM
-            spans rius instruments) are exported too, under rius's resource
-            identity; had rius initialized first it would be the global and
-            export them anyway. Off, rius keeps to its own provider, and LLM
-            spans started inside the other provider's spans arrive without
-            their parent, flagged ``rius.parent.foreign``. Either way the
-            resource records the conflict as ``rius.sdk.global_provider``.
+            off by default). Off, rius keeps to its own provider: LLM spans
+            started inside the other SDK's spans arrive without their parent,
+            flagged ``rius.parent.foreign``, counted in the heartbeat, and the
+            first one logs a warning. On, rius also exports the other SDK's
+            spans (the parents), under rius's resource identity and subject
+            to rius's sampling and content settings, and it never modifies
+            what the other SDK exports. Either way the resource records the
+            conflict as ``rius.sdk.global_provider``.
             Applies to a global ``init()`` only.
     """
     global _current_client
@@ -546,7 +552,7 @@ def _do_init(
             "telemetry.distro.version": __version__,
         }
     )
-    sampler = ParentBased(root=TraceIdRatioBased(config.sample_rate))
+    sampler = BridgeAwareSampler(ParentBased(root=TraceIdRatioBased(config.sample_rate)))
     provider = TracerProvider(resource=resource, sampler=sampler, span_limits=_span_limits())
     _own_providers.add(provider)
     # Every processor rides this one chain, so a bridged provider gets exactly
@@ -603,7 +609,7 @@ def _do_init(
         # reporting.
         export_health = ExportOutcomeExporter(exporter, endpoint=config.endpoint)
         batch_processor = BatchSpanProcessor(export_health)
-        detector = ForeignParentDetector()
+        detector = ForeignParentDetector(foreign_global)
         pipeline.add_span_processor(detector)
         # Registered BEFORE the pending processor: both act at on_start, and
         # the pending snapshot is built from the attributes already on the
@@ -629,7 +635,7 @@ def _do_init(
     bridged: Bridge | None = None
     if set_global and not config.disabled:
         bridged = _register_global(
-            provider, pipeline, bridge_foreign=config.bridge_foreign_provider
+            provider, pipeline, sampler, bridge_foreign=config.bridge_foreign_provider
         )
     if set_global:
         # The helpers follow the active client, not the write-once OTel global,
@@ -686,7 +692,11 @@ def _foreign_global_name() -> str | None:
 
 
 def _register_global(
-    provider: TracerProvider, pipeline: SynchronousMultiSpanProcessor, *, bridge_foreign: bool
+    provider: TracerProvider,
+    pipeline: SynchronousMultiSpanProcessor,
+    sampler: Sampler,
+    *,
+    bridge_foreign: bool,
 ) -> Bridge | None:
     """Claim the OpenTelemetry global, or bridge to whichever provider holds it."""
     trace.set_tracer_provider(provider)
@@ -699,14 +709,16 @@ def _register_global(
             "span pipeline to it, so spans started through it are exported to rius too.",
             type(existing).__qualname__,
         )
-        return bridge(existing, pipeline)
+        return bridge(existing, pipeline, sampler)
     logger.warning(
         "could not register the rius tracer provider as the OpenTelemetry "
         "global (%s is already set, or a previous init() claimed it), and rius is "
         "not attached to it (%s). rius' own helpers (@observe, start_span, "
         "generations) follow this client regardless; third-party code using "
         "opentelemetry.trace.get_tracer() keeps the pre-existing provider, and "
-        "LLM spans started inside its spans arrive without their parent.",
+        "LLM spans started inside its spans arrive without their parent. Set "
+        "RIUS_BRIDGE_FOREIGN_PROVIDER=true or init(bridge_foreign_provider=True) "
+        "to send that provider's spans to Rius as well.",
         type(existing).__qualname__,
         "bridge_foreign_provider is off"
         if not bridge_foreign

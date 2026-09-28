@@ -22,7 +22,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 
 import rius
-from rius.config import resolve_config
+from rius.config import GlassflowConfig, resolve_config
 from rius.foreign import ForeignParentDetector
 from rius.semconv import RIUS_PARENT_FOREIGN, RIUS_SDK_GLOBAL_PROVIDER, SERVICE_INSTANCE_ID
 
@@ -96,6 +96,10 @@ def _init(exporter: InMemorySpanExporter, **kwargs: Any) -> rius.GlassflowClient
     )
 
 
+def _init_bridged(exporter: InMemorySpanExporter, **kwargs: Any) -> rius.GlassflowClient:
+    return _init(exporter, bridge_foreign_provider=True, **kwargs)
+
+
 def _job_with_llm_child(parent: trace.TracerProvider, client: rius.GlassflowClient) -> None:
     """The RIUS-1070 shape: an LLM span on rius's provider inside a job span of another."""
     with parent.get_tracer("customer.jobs").start_as_current_span("job"):
@@ -122,7 +126,7 @@ def test_bridge_exports_the_foreign_parent_so_the_tree_is_whole(
 ) -> None:
     provider, _ = foreign
     exporter = InMemorySpanExporter()
-    client = _init(exporter)
+    client = _init_bridged(exporter)
     _job_with_llm_child(provider, client)
     client.flush()
 
@@ -138,7 +142,7 @@ def test_bridge_leaves_the_foreign_providers_own_export_alone(
     foreign: tuple[_RecordingProvider, InMemorySpanExporter],
 ) -> None:
     provider, foreign_exporter = foreign
-    client = _init(InMemorySpanExporter())
+    client = _init_bridged(InMemorySpanExporter())
     _job_with_llm_child(provider, client)
     assert [span.name for span in foreign_exporter.get_finished_spans()] == ["job"]
 
@@ -151,7 +155,7 @@ def test_bridged_spans_are_exported_under_the_rius_resource_identity(
     )
     install_global(provider)
     exporter = InMemorySpanExporter()
-    client = _init(exporter, agent_name="checkout-agent")
+    client = _init_bridged(exporter, agent_name="checkout-agent")
     _job_with_llm_child(provider, client)
     client.flush()
 
@@ -173,14 +177,14 @@ def test_rius_spans_keep_their_own_resource_object(
     assert exporter.get_finished_spans()[0].resource is client._provider.resource
 
 
-def test_opt_out_keeps_rius_to_its_own_provider_and_flags_the_orphan(
+def test_by_default_rius_keeps_to_its_own_provider_and_flags_the_orphan(
     foreign: tuple[_RecordingProvider, InMemorySpanExporter],
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     provider, _ = foreign
     exporter = InMemorySpanExporter()
     with caplog.at_level(logging.WARNING, logger="rius.client"):
-        client = _init(exporter, bridge_foreign_provider=False)
+        client = _init(exporter)
     _job_with_llm_child(provider, client)
     client.flush()
 
@@ -189,14 +193,15 @@ def test_opt_out_keeps_rius_to_its_own_provider_and_flags_the_orphan(
     assert any("bridge_foreign_provider is off" in r.message for r in caplog.records)
 
 
-def test_opt_out_via_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("RIUS_BRIDGE_FOREIGN_PROVIDER", "false")
-    assert resolve_config().bridge_foreign_provider is False
-    assert resolve_config(bridge_foreign_provider=True).bridge_foreign_provider is True
-
-
-def test_bridge_is_on_by_default() -> None:
+def test_opt_in_via_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("RIUS_BRIDGE_FOREIGN_PROVIDER", "true")
     assert resolve_config().bridge_foreign_provider is True
+    assert resolve_config(bridge_foreign_provider=False).bridge_foreign_provider is False
+
+
+def test_bridge_is_off_by_default() -> None:
+    assert resolve_config().bridge_foreign_provider is False
+    assert GlassflowConfig("https://x", None, "svc").bridge_foreign_provider is False
 
 
 def test_shutdown_makes_the_bridge_inert_without_touching_foreign_processors(
@@ -205,7 +210,7 @@ def test_shutdown_makes_the_bridge_inert_without_touching_foreign_processors(
     provider, foreign_exporter = foreign
     spy = _LifecycleSpy()
     provider.add_span_processor(spy)
-    client = _init(InMemorySpanExporter(), session_id="session-1")
+    client = _init_bridged(InMemorySpanExporter(), session_id="session-1")
     client.shutdown()
 
     provider.get_tracer("customer.jobs").start_span("after-shutdown").end()
@@ -222,7 +227,7 @@ def test_foreign_shutdown_does_not_shut_down_the_rius_pipeline(
 ) -> None:
     provider, _ = foreign
     exporter = InMemorySpanExporter()
-    client = _init(exporter)
+    client = _init_bridged(exporter)
     provider.shutdown()
     client.get_tracer().start_span("still-alive").end()
     client.flush()
@@ -234,9 +239,9 @@ def test_reinit_reuses_the_one_bridge_instead_of_attaching_another(
 ) -> None:
     provider, _ = foreign
     attached_by_fixture = len(provider.added)
-    _init(InMemorySpanExporter()).shutdown()
+    _init_bridged(InMemorySpanExporter()).shutdown()
     second_exporter = InMemorySpanExporter()
-    second = _init(second_exporter)
+    second = _init_bridged(second_exporter)
     _job_with_llm_child(provider, second)
     second.flush()
 
@@ -250,7 +255,7 @@ def test_a_non_sdk_global_is_not_bridged_and_does_not_crash(
     install_global(trace.NoOpTracerProvider())
     exporter = InMemorySpanExporter()
     with caplog.at_level(logging.WARNING, logger="rius.client"):
-        client = _init(exporter)
+        client = _init_bridged(exporter)
     client.get_tracer().start_span("own").end()
     client.flush()
 
@@ -345,6 +350,29 @@ def test_detector_flags_only_a_local_parent_it_never_saw() -> None:
     assert detector.count == 1
 
 
+def test_by_default_rius_detects_the_other_sdk_end_to_end(
+    foreign: tuple[_RecordingProvider, InMemorySpanExporter],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    provider, _ = foreign
+    owner = f"{__name__}._RecordingProvider"
+    exporter = InMemorySpanExporter()
+    pings: list[dict[str, Any]] = []
+    with caplog.at_level(logging.WARNING, logger="rius.foreign"):
+        client = _init(exporter, heartbeat=True, heartbeat_transport=pings.append)
+        _job_with_llm_child(provider, client)
+        _job_with_llm_child(provider, client)
+    client.shutdown()
+
+    spans = exporter.get_finished_spans()
+    assert _flagged(exporter) == ["llm", "llm"] == [s.name for s in spans]
+    assert pings[-1]["foreign_parent_spans"] == 2
+    assert spans[0].resource.attributes[RIUS_SDK_GLOBAL_PROVIDER] == f"foreign:{owner}"
+    [warning] = [r.getMessage() for r in caplog.records if r.name == "rius.foreign"]
+    assert f"another OpenTelemetry SDK ({owner}) owns the global tracer provider" in warning
+    assert "RIUS_BRIDGE_FOREIGN_PROVIDER=true" in warning
+
+
 def _heartbeat_client(
     exporter: InMemorySpanExporter, pings: list[dict[str, Any]], **kwargs: Any
 ) -> rius.GlassflowClient:
@@ -356,7 +384,7 @@ def test_heartbeat_counts_foreign_parents_when_the_bridge_is_off(
 ) -> None:
     provider, _ = foreign
     pings: list[dict[str, Any]] = []
-    client = _heartbeat_client(InMemorySpanExporter(), pings, bridge_foreign_provider=False)
+    client = _heartbeat_client(InMemorySpanExporter(), pings)
     _job_with_llm_child(provider, client)
     _job_with_llm_child(provider, client)
     client.shutdown()
@@ -369,7 +397,7 @@ def test_heartbeat_counts_nothing_when_the_bridge_is_on(
 ) -> None:
     provider, _ = foreign
     pings: list[dict[str, Any]] = []
-    client = _heartbeat_client(InMemorySpanExporter(), pings)
+    client = _heartbeat_client(InMemorySpanExporter(), pings, bridge_foreign_provider=True)
     _job_with_llm_child(provider, client)
     client.shutdown()
     assert pings[-1]["foreign_parent_spans"] == 0
@@ -380,7 +408,7 @@ def test_bridged_spans_get_the_same_processing_as_rius_spans(
 ) -> None:
     provider, _ = foreign
     exporter = InMemorySpanExporter()
-    client = _init(exporter, session_id="session-1")
+    client = _init_bridged(exporter, session_id="session-1")
     _job_with_llm_child(provider, client)
     client.flush()
     assert {(s.attributes or {}).get("session.id") for s in exporter.get_finished_spans()} == {
@@ -391,10 +419,10 @@ def test_bridged_spans_get_the_same_processing_as_rius_spans(
 def test_after_reinit_the_earlier_rius_global_feeds_the_new_client(
     install_global: InstallGlobal,
 ) -> None:
-    first = _init(InMemorySpanExporter())
+    first = _init_bridged(InMemorySpanExporter())
     first.shutdown()
     exporter = InMemorySpanExporter()
-    second = _init(exporter)
+    second = _init_bridged(exporter)
     trace.get_tracer_provider().get_tracer("third.party").start_span("global").end()
     second.flush()
     assert [s.name for s in exporter.get_finished_spans()] == ["global"]
@@ -428,7 +456,7 @@ def _bridged_langfuse_job(
     provider: trace.TracerProvider, **init_kwargs: Any
 ) -> dict[str, ReadableSpan]:
     exporter = InMemorySpanExporter()
-    client = _init(exporter, **init_kwargs)
+    client = _init_bridged(exporter, **init_kwargs)
     with provider.get_tracer("langfuse-sdk").start_as_current_span("job") as job:
         job.set_attributes(_LANGFUSE_JOB)
         client.get_tracer().start_span("llm").end()
@@ -470,7 +498,7 @@ def test_masking_treats_a_bridged_span_exactly_as_an_own_span(
 ) -> None:
     provider, _ = foreign
     exporter = InMemorySpanExporter()
-    client = _init(exporter, mask=lambda value, *, key: f"masked:{key}")
+    client = _init_bridged(exporter, mask=lambda value, *, key: f"masked:{key}")
     for tracer, name in (
         (provider.get_tracer("langfuse-sdk"), "bridged"),
         (client.get_tracer(), "own"),
@@ -483,3 +511,219 @@ def test_masking_treats_a_bridged_span_exactly_as_an_own_span(
     assert (spans["own"].attributes or {})["langfuse.observation.input"] == (
         "masked:langfuse.observation.input"
     )
+
+
+# --- rius never writes to a span it did not create --------------------------------
+
+# Start attributes the normalizer maps onto canonical GenAI keys at span start.
+_OPENINFERENCE_LLM = {
+    "openinference.span.kind": "LLM",
+    "llm.provider": "openai",
+    "llm.token_count.prompt": 3,
+}
+_PENDING = "rius.span.pending"
+
+
+def _foreign_provider() -> tuple[TracerProvider, InMemorySpanExporter]:
+    provider = TracerProvider()
+    exporter = InMemorySpanExporter()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+    return provider, exporter
+
+
+def _foreign_workload(provider: trace.TracerProvider) -> None:
+    """The reviewer's probe, widened: user and workspace scopes, a GenAI child."""
+    tracer = provider.get_tracer("langfuse-sdk")
+    job_start = {"langfuse.trace.name": "job"}
+    with (
+        rius.user("u-42"),
+        rius.workspace("acme"),
+        tracer.start_as_current_span("job", attributes=job_start) as job,
+    ):
+        job.set_attribute("langfuse.observation.type", "span")
+        tracer.start_span("llm-call", attributes=_OPENINFERENCE_LLM).end()
+
+
+def _attributes_by_name(exporter: InMemorySpanExporter) -> dict[str, dict[str, Any]]:
+    return {span.name: dict(span.attributes or {}) for span in exporter.get_finished_spans()}
+
+
+def _bridge_with_every_stamp(
+    install_global: InstallGlobal, provider: TracerProvider
+) -> tuple[rius.GlassflowClient, InMemorySpanExporter]:
+    """A client stamping session, user, route and pendings; returns acme's exporter."""
+    install_global(provider)
+    acme = InMemorySpanExporter()
+    client = _init_bridged(
+        InMemorySpanExporter(),
+        session_id="sess-123",
+        workspaces={"acme": "key-acme"},
+        workspace_exporter_factory=lambda _key: acme,
+        partial_spans=True,
+        partial_spans_delay=0.0,
+    )
+    return client, acme
+
+
+def test_the_foreign_export_is_exactly_what_it_is_without_rius(
+    install_global: InstallGlobal,
+) -> None:
+    baseline_provider, baseline = _foreign_provider()
+    _foreign_workload(baseline_provider)
+
+    provider, foreign_exporter = _foreign_provider()
+    client, _ = _bridge_with_every_stamp(install_global, provider)
+    _foreign_workload(provider)
+    client.flush()
+
+    assert _attributes_by_name(foreign_exporter) == _attributes_by_name(baseline)
+
+
+def test_bridged_spans_carry_the_stamps_in_the_rius_export(
+    install_global: InstallGlobal,
+) -> None:
+    provider, _ = _foreign_provider()
+    client, acme = _bridge_with_every_stamp(install_global, provider)
+    _foreign_workload(provider)
+    client.flush()
+
+    spans = acme.get_finished_spans()
+    final = {
+        s.name: dict(s.attributes or {}) for s in spans if _PENDING not in (s.attributes or {})
+    }
+    assert set(final) == {"job", "llm-call"}
+    for attributes in final.values():
+        assert (attributes["session.id"], attributes["user.id"]) == ("sess-123", "u-42")
+    assert {k: final["llm-call"][k] for k in _CANONICAL_LLM} == _CANONICAL_LLM
+
+
+_CANONICAL_LLM = {
+    "gen_ai.operation.name": "chat",
+    "gen_ai.provider.name": "openai",
+    "gen_ai.usage.input_tokens": 3,
+}
+
+
+def test_pending_snapshots_of_bridged_spans_carry_the_stamps(
+    install_global: InstallGlobal,
+) -> None:
+    provider, _ = _foreign_provider()
+    client, acme = _bridge_with_every_stamp(install_global, provider)
+    _foreign_workload(provider)
+    client.flush()
+
+    pending = {
+        s.name: dict(s.attributes or {})
+        for s in acme.get_finished_spans()
+        if (s.attributes or {}).get(_PENDING) is True
+    }
+    assert set(pending) == {"job", "llm-call"}
+    for attributes in pending.values():
+        assert (attributes["session.id"], attributes["user.id"]) == ("sess-123", "u-42")
+    assert pending["llm-call"]["gen_ai.operation.name"] == "chat"
+
+
+def test_a_bridged_span_exports_what_an_own_span_would(
+    foreign: tuple[_RecordingProvider, InMemorySpanExporter],
+) -> None:
+    provider, _ = foreign
+    exporter = InMemorySpanExporter()
+    client = _init_bridged(exporter, session_id="sess-123")
+    for tracer, name in ((provider.get_tracer("x"), "bridged"), (client.get_tracer(), "own")):
+        with rius.user("u-42"):
+            span = tracer.start_span(name, attributes={**_OPENINFERENCE_LLM, "session.id": "x"})
+            # Written after start, so it wins over the start-time stamp.
+            span.set_attribute("user.id", "set-later")
+            span.end()
+    client.flush()
+    spans = _attributes_by_name(exporter)
+    assert spans["bridged"] == spans["own"]
+    assert (spans["own"]["session.id"], spans["own"]["user.id"]) == ("sess-123", "set-later")
+
+
+def test_a_flagged_bridged_span_is_flagged_only_in_the_rius_export(
+    foreign: tuple[_RecordingProvider, InMemorySpanExporter],
+) -> None:
+    provider, foreign_exporter = foreign
+    tracer = provider.get_tracer("customer.jobs")
+    with tracer.start_as_current_span("started-before-init"):
+        exporter = InMemorySpanExporter()
+        client = _init_bridged(exporter)
+        tracer.start_span("child").end()
+    client.flush()
+
+    assert _flagged(exporter) == ["child"]
+    assert RIUS_PARENT_FOREIGN not in _attributes_by_name(foreign_exporter)["child"]
+
+
+def test_the_workspace_guard_sees_the_route_of_a_bridged_parent(
+    install_global: InstallGlobal, caplog: pytest.LogCaptureFixture
+) -> None:
+    provider, _ = _foreign_provider()
+    client, _ = _bridge_with_every_stamp(install_global, provider)
+    with (
+        caplog.at_level(logging.WARNING, logger="rius.workspace"),
+        rius.workspace("acme"),
+        provider.get_tracer("x").start_as_current_span("job"),
+        rius.workspace("other"),
+    ):
+        client.get_tracer().start_span("llm").end()
+    assert any("cannot straddle two workspaces" in r.message for r in caplog.records)
+
+
+# --- rius's sampling decision holds for bridged spans ------------------------------
+
+
+def test_rius_sampling_drops_bridged_spans_and_their_own_children(
+    foreign: tuple[_RecordingProvider, InMemorySpanExporter],
+) -> None:
+    provider, foreign_exporter = foreign
+    exporter = InMemorySpanExporter()
+    client = _init_bridged(exporter, sample_rate=0.0)
+    _job_with_llm_child(provider, client)
+    client.flush()
+
+    assert exporter.get_finished_spans() == ()
+    assert [s.name for s in foreign_exporter.get_finished_spans()] == ["job"]
+
+
+def test_a_trace_is_kept_or_dropped_whole_by_the_rius_ratio(
+    foreign: tuple[_RecordingProvider, InMemorySpanExporter],
+) -> None:
+    from opentelemetry.sdk.trace.sampling import TraceIdRatioBased
+
+    provider, foreign_exporter = foreign
+    exporter = InMemorySpanExporter()
+    client = _init_bridged(exporter, sample_rate=0.5)
+    tracer = provider.get_tracer("customer.jobs")
+    for _ in range(64):
+        with tracer.start_as_current_span("job"), tracer.start_as_current_span("step"):
+            client.get_tracer().start_span("llm").end()
+    client.flush()
+
+    ratio = TraceIdRatioBased(0.5)
+    expected = {
+        s.context.trace_id
+        for s in foreign_exporter.get_finished_spans()
+        if ratio.should_sample(None, s.context.trace_id, "job").decision.is_sampled()
+    }
+    names_by_trace: dict[int, list[str]] = {}
+    for span in exporter.get_finished_spans():
+        names_by_trace.setdefault(span.context.trace_id, []).append(span.name)
+    assert set(names_by_trace) == expected
+    assert all(sorted(names) == ["job", "llm", "step"] for names in names_by_trace.values())
+    assert 0 < len(expected) < 64
+
+
+def test_a_sampled_remote_parent_keeps_a_bridged_trace_as_it_would_an_own_one(
+    foreign: tuple[_RecordingProvider, InMemorySpanExporter],
+) -> None:
+    provider, _ = foreign
+    exporter = InMemorySpanExporter()
+    client = _init_bridged(exporter, sample_rate=0.0)
+    carrier = {"traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"}
+    remote = TraceContextTextMapPropagator().extract(carrier)
+    with provider.get_tracer("customer.jobs").start_as_current_span("server", context=remote):
+        client.get_tracer().start_span("llm").end()
+    client.flush()
+    assert sorted(s.name for s in exporter.get_finished_spans()) == ["llm", "server"]

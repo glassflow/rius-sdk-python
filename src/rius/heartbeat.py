@@ -251,6 +251,8 @@ class HeartbeatSender:
         if self._foreign_parent_spans is not None:
             # Cumulative for this instance: spans whose local parent came from
             # another in-process provider rius does not receive (RIUS-1070).
+            # The backend ignores this field until RIUS-1093; the span attribute
+            # rius.parent.foreign and the resource attribute are stored today.
             payload["foreign_parent_spans"] = self._foreign_parent_spans()
         if stopped:
             # Present-and-true only on the final ping; false is never sent.

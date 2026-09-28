@@ -23,10 +23,18 @@ only once per process:
   fails as LEAKED if the sentinel reaches rius's exporter anywhere, and is void
   unless Langfuse's own provider received it (proof the content was written).
 
-The fix (rius bridges its pipeline onto a foreign global provider) is on by
-default; ``foreign`` and ``langfuse`` also run with ``--no-bridge``
-(``bridge_foreign_provider=False``), which must still orphan, with every orphan
-flagged ``rius.parent.foreign`` and counted in the heartbeat.
+The fix (rius bridges its pipeline onto a foreign global provider) is opt-in:
+``foreign`` and ``langfuse`` run with ``--bridge``
+(``bridge_foreign_provider=True``), which must give whole trees, and with the
+default config, which must still orphan but DETECT it: every orphan flagged
+``rius.parent.foreign``, counted in the heartbeat, and the conflict named on
+the resource (UNDETECTED otherwise).
+
+Every case runs rius with a session id and inside a ``rius.user()`` scope. A
+bridged case must carry both on the spans rius exports from the other provider
+(UNSTAMPED otherwise), and the other provider's own export must be exactly what
+a ``--baseline`` run, the same workload without rius, gives it (FOREIGN-CHANGED
+otherwise): rius never writes to a span it did not create.
 
 OpenAI and Anthropic are called through their real client libraries over an
 ``httpx.MockTransport``, so the bundled instrumentors produce real LLM spans and
@@ -38,7 +46,7 @@ Run (the Langfuse case needs the extra package; it is not a dev dependency):
 
 Exits 0 when every case gives its expected verdict (or is skipped), 1
 otherwise (a single ``--case`` run exits 3 when ORPHANED, 4 when skipped, 5
-when LEAKED).
+when LEAKED, 6 when UNDETECTED, 7 when UNSTAMPED).
 """
 
 from __future__ import annotations
@@ -60,20 +68,33 @@ LLM_CALLS_PER_JOB = 3
 CASES = ("control", "remote", "foreign", "langfuse")
 #: (case, bridge on) -> expected verdict of the full run.
 MATRIX = (
-    ("control", True, "OK"),
-    ("remote", True, "OK"),
+    ("control", False, "OK"),
+    ("remote", False, "OK"),
     ("foreign", True, "OK"),
     ("langfuse", True, "OK"),
     ("foreign", False, "ORPHANED"),
     ("langfuse", False, "ORPHANED"),
 )
+FOREIGN_CASES = ("foreign", "langfuse")
 REMOTE_TRACEPARENT = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"
 PARENT_FOREIGN = "rius.parent.foreign"
 NO_PARENT = 0
 EXIT_ORPHANED = 3  # distinct from 1, which an uncaught exception also yields
 EXIT_SKIPPED = 4
 EXIT_LEAKED = 5
+EXIT_UNDETECTED = 6
+EXIT_UNSTAMPED = 7
+EXIT_CODES = {
+    "OK": 0,
+    "ORPHANED": EXIT_ORPHANED,
+    "SKIPPED": EXIT_SKIPPED,
+    "LEAKED": EXIT_LEAKED,
+    "UNDETECTED": EXIT_UNDETECTED,
+    "UNSTAMPED": EXIT_UNSTAMPED,
+}
 SENTINEL = "RIUS1070-CONTENT-SENTINEL"
+SESSION_ID = "repro-session"
+USER_ID = "repro-user"
 
 
 # --------------------------------------------------------------------------- analysis
@@ -260,10 +281,12 @@ def _llm_calls() -> list[Callable[[], object]]:
 
 
 def run_jobs(start_job: Callable[[int], AbstractContextManager[object]]) -> None:
-    """The customer's workload: each job span wraps a few LLM calls."""
+    """The customer's workload: each job span wraps a few LLM calls, for one user."""
+    import rius
+
     calls = _llm_calls()
     for job in range(JOBS):
-        with start_job(job):
+        with rius.user(USER_ID), start_job(job):
             for n in range(LLM_CALLS_PER_JOB):
                 calls[n % len(calls)]()
 
@@ -285,8 +308,10 @@ def _init_rius(
         heartbeat=True,
         heartbeat_transport=pings.append,
         partial_spans=False,
-        bridge_foreign_provider=bridge,
+        session_id=SESSION_ID,
         capture_content=capture_content,
+        # Only when asked, so the default runs exercise the real default.
+        **({"bridge_foreign_provider": True} if bridge else {}),
     )
 
 
@@ -325,7 +350,7 @@ def _langfuse_job(lf: Any, observe: Callable[..., Any], job: int) -> Iterator[No
         span.update(output={"answer": f"96,450,000 {SENTINEL}"})
 
 
-def run_case(case: str, *, bridge: bool) -> int:
+def run_case(case: str, *, bridge: bool, baseline: bool = False) -> int:
     from opentelemetry import trace
     from opentelemetry.sdk.trace import TracerProvider
     from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -366,6 +391,12 @@ def run_case(case: str, *, bridge: bool) -> int:
         def start_job(job: int) -> AbstractContextManager[object]:
             return _langfuse_job(lf, observe, job)
 
+    if baseline:
+        run_jobs(start_job)
+        assert foreign_exporter is not None
+        print_foreign_attributes(foreign_exporter.get_finished_spans())
+        return 0
+
     rius_exporter = InMemorySpanExporter()
     pings: list[dict[str, Any]] = []
     capture_content = case != "langfuse"
@@ -382,13 +413,52 @@ def run_case(case: str, *, bridge: bool) -> int:
     print(f"    heartbeat foreign_parent_spans (final ping): {pings[-1]['foreign_parent_spans']}")
     if foreign_exporter is not None:
         print_foreign(foreign_exporter.get_finished_spans())
-    label = case if bridge else f"{case} --no-bridge"
+        print_foreign_attributes(foreign_exporter.get_finished_spans())
+    label = f"{case} --bridge" if bridge else case
     verdict = report.verdict
+    if verdict == "ORPHANED" and not detected(report, own_resource, pings[-1]):
+        verdict = "UNDETECTED"
+    if bridge and foreign_exporter is not None:
+        verdict = stamp_verdict(spans, own_resource, verdict)
     if not capture_content:
         verdict = content_verdict(spans, foreign_exporter, verdict)
     print(f"  VERDICT[{label}]: {verdict}")
     print("RESULT " + json.dumps({"case": label, "verdict": verdict}))
-    return {"OK": 0, "ORPHANED": EXIT_ORPHANED, "LEAKED": EXIT_LEAKED}.get(verdict, 1)
+    return EXIT_CODES.get(verdict, 1)
+
+
+def detected(report: ExportReport, own_resource: Any, ping: dict[str, Any]) -> bool:
+    """Every orphan flagged, counted in the heartbeat, and the conflict on the resource."""
+    orphans = report.spans_with_parent - report.parents_resolved
+    conflict = str(own_resource.attributes.get("rius.sdk.global_provider", ""))
+    return (
+        report.foreign_flagged == orphans > 0
+        and ping["foreign_parent_spans"] == orphans
+        and conflict.startswith("foreign:")
+    )
+
+
+def stamp_verdict(spans: Sequence[Any], own_resource: Any, verdict: str) -> str:
+    """UNSTAMPED unless the bridged spans rius exports carry the session and user."""
+    bridged = [s for s in spans if s.instrumentation_scope.name != "rius" and not _is_llm(s)]
+    unstamped = [
+        s.name
+        for s in bridged
+        if (s.attributes or {}).get("session.id") != SESSION_ID
+        or (s.attributes or {}).get("user.id") != USER_ID
+    ]
+    print(f"    bridged spans in rius's export: {len(bridged)}, missing session/user: {unstamped}")
+    return "UNSTAMPED" if unstamped or not bridged else verdict
+
+
+def _is_llm(span: Any) -> bool:
+    return span.instrumentation_scope.name.startswith("openinference.")
+
+
+def print_foreign_attributes(spans: Sequence[Any]) -> None:
+    """One line the parent compares against the ``--baseline`` run."""
+    attributes = sorted(json.dumps([s.name, dict(s.attributes or {})], default=str) for s in spans)
+    print("FOREIGN " + json.dumps(attributes))
 
 
 def content_verdict(spans: Sequence[Any], foreign_exporter: Any, verdict: str) -> str:
@@ -407,34 +477,57 @@ def content_verdict(spans: Sequence[Any], foreign_exporter: Any, verdict: str) -
     return "LEAKED" if leaks else verdict
 
 
+def _run_child(args: list[str]) -> tuple[int, str]:
+    """Run one case in a subprocess, echoing its output; returns (exit code, stdout)."""
+    child = subprocess.run(
+        [sys.executable, __file__, *args], capture_output=True, text=True, check=False
+    )
+    print(child.stdout, end="", flush=True)
+    print(child.stderr, end="", file=sys.stderr, flush=True)
+    return child.returncode, child.stdout
+
+
+def _foreign_line(stdout: str) -> str | None:
+    lines = [line for line in stdout.splitlines() if line.startswith("FOREIGN ")]
+    return lines[-1] if lines else None
+
+
+def run_matrix_case(case: str, bridge: bool) -> str:
+    """The verdict of one case; a bridged foreign case is also checked against its baseline."""
+    flags = ["--bridge"] if bridge else []
+    code, stdout = _run_child(["--case", case, *flags])
+    actual = {v: k for k, v in EXIT_CODES.items()}.get(code, f"ERROR(exit {code})")
+    if not bridge or case not in FOREIGN_CASES or actual == "SKIPPED":
+        return actual
+    print(f"=== baseline: {case} without rius", flush=True)
+    _, baseline = _run_child(["--case", case, "--baseline"])
+    same = _foreign_line(stdout) == _foreign_line(baseline) is not None
+    print(f"  foreign provider's export identical to the baseline without rius: {same}")
+    return actual if same else "FOREIGN-CHANGED"
+
+
 def main(argv: Sequence[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--case", choices=CASES, help="run one case in this process")
     parser.add_argument(
-        "--no-bridge", action="store_true", help="init rius with bridge_foreign_provider=False"
+        "--bridge", action="store_true", help="init rius with bridge_foreign_provider=True"
+    )
+    parser.add_argument(
+        "--baseline", action="store_true", help="run the workload without rius (foreign cases)"
     )
     args = parser.parse_args(argv)
     if args.case:
-        return run_case(args.case, bridge=not args.no_bridge)
+        return run_case(args.case, bridge=args.bridge, baseline=args.baseline)
 
     results: list[tuple[str, str, str]] = []
     for case, bridge, expected in MATRIX:
-        flags = [] if bridge else ["--no-bridge"]
-        name = " ".join([case, *flags])
+        name = f"{case} --bridge" if bridge else case
         print(f"=== case: {name}", flush=True)
-        code = subprocess.run([sys.executable, __file__, "--case", case, *flags]).returncode
-        verdicts = {
-            0: "OK",
-            EXIT_ORPHANED: "ORPHANED",
-            EXIT_SKIPPED: "SKIPPED",
-            EXIT_LEAKED: "LEAKED",
-        }
-        actual = verdicts.get(code, f"ERROR(exit {code})")
-        results.append((name, expected, actual))
+        results.append((name, expected, run_matrix_case(case, bridge)))
     print("=== summary")
     for name, expected, actual in results:
         mark = "as expected" if actual in (expected, "SKIPPED") else f"UNEXPECTED (want {expected})"
-        print(f"  {name:<22} {actual:<9} {mark}")
+        print(f"  {name:<22} {actual:<15} {mark}")
     return 0 if all(actual in (expected, "SKIPPED") for _, expected, actual in results) else 1
 
 
