@@ -6,13 +6,14 @@ import logging
 import os
 import threading
 import uuid
+import weakref
 from collections.abc import Callable, Sequence
 from typing import Any
 
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.resources import Resource
-from opentelemetry.sdk.trace import SpanLimits, TracerProvider
+from opentelemetry.sdk.trace import SpanLimits, SynchronousMultiSpanProcessor, TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, SpanExporter
 from opentelemetry.sdk.trace.sampling import ParentBased, TraceIdRatioBased
 
@@ -24,6 +25,7 @@ from .export_health import (
     _default_probe_send,
     check_connectivity,
 )
+from .foreign import Bridge, ForeignParentDetector, ResourceAdoptingExporter, bridge
 from .heartbeat import HeartbeatSender, OpenRootSpanTracker
 from .instrumentation import enable_instrumentations
 from .masking import MaskingSpanExporter
@@ -35,6 +37,7 @@ from .semconv import (
     RIUS_MAIN_AGENT_ID,
     RIUS_MAIN_AGENT_NAME,
     RIUS_MAIN_AGENT_VERSION,
+    RIUS_SDK_GLOBAL_PROVIDER,
     SERVICE_INSTANCE_ID,
     SERVICE_VERSION,
     TRACER_NAME,
@@ -117,6 +120,9 @@ def _span_limits() -> SpanLimits:
 
 _lock = threading.Lock()
 _current_client: GlassflowClient | None = None
+# Every provider init() built, so a global left over from an earlier
+# shutdown()+init() cycle is recognised as ours rather than another SDK's.
+_own_providers: weakref.WeakSet[TracerProvider] = weakref.WeakSet()
 
 
 def build_span_exporter(config: GlassflowConfig) -> SpanExporter:
@@ -162,8 +168,10 @@ class GlassflowClient:
         export_health: ExportOutcomeExporter | None = None,
         connectivity_thread: threading.Thread | None = None,
         routing: RoutingSpanExporter | None = None,
+        bridge: Bridge | None = None,
     ) -> None:
         self._provider = provider
+        self._bridge = bridge
         self.config = config
         self._heartbeat = heartbeat
         self._export_health = export_health
@@ -225,6 +233,10 @@ class GlassflowClient:
             # Daemon thread; give an in-flight probe a moment to log its
             # verdict before the pipeline it describes goes away.
             self._connectivity_thread.join(timeout=0.5)
+        if self._bridge is not None:
+            # First, so the other provider's spans stop entering a pipeline
+            # that is about to shut down. Its own processors are never touched.
+            self._bridge.release()
         self._provider.shutdown()
         self._is_shutdown = True
         with _lock:
@@ -261,6 +273,7 @@ def init(
     workspaces: dict[str, str] | None = None,
     workspace_exporter_factory: ExporterFactory | None = None,
     set_global: bool = True,
+    bridge_foreign_provider: bool | None = None,
 ) -> GlassflowClient:
     """Initialize the SDK: build a tracer provider that exports OTLP traces.
 
@@ -269,7 +282,9 @@ def init(
     reconfigure. After that the SDK's own helpers (``start_span``, ``observe``,
     the generation helpers) follow the new client, as do the bundled
     instrumentors. Third-party code that took a tracer from the OpenTelemetry
-    global keeps the first provider, because that global is write-once.
+    global keeps the first provider, because that global is write-once; its
+    spans still reach the new client through the bridge described under
+    ``bridge_foreign_provider``.
 
     The provider allows up to 4096 attributes per span rather than OTel's
     default of 128, which a long OpenInference agent span passes within a few
@@ -368,6 +383,17 @@ def init(
             ``span_exporter``). Defaults to the standard OTLP exporter
             against the configured endpoint.
         set_global: Register the provider as the global OpenTelemetry provider.
+        bridge_foreign_provider: What to do when another SDK already holds the
+            OpenTelemetry global provider (``RIUS_BRIDGE_FOREIGN_PROVIDER``;
+            on by default). On, rius attaches its span pipeline to that
+            provider as well, so its spans (typically the parents of the LLM
+            spans rius instruments) are exported too, under rius's resource
+            identity; had rius initialized first it would be the global and
+            export them anyway. Off, rius keeps to its own provider, and LLM
+            spans started inside the other provider's spans arrive without
+            their parent, flagged ``rius.parent.foreign``. Either way the
+            resource records the conflict as ``rius.sdk.global_provider``.
+            Applies to a global ``init()`` only.
     """
     global _current_client
     with _lock:
@@ -403,6 +429,7 @@ def init(
             workspaces=workspaces,
             workspace_exporter_factory=workspace_exporter_factory,
             set_global=set_global,
+            bridge_foreign_provider=bridge_foreign_provider,
         )
 
 
@@ -455,6 +482,7 @@ def _do_init(
     workspaces: dict[str, str] | None,
     workspace_exporter_factory: ExporterFactory | None,
     set_global: bool,
+    bridge_foreign_provider: bool | None,
 ) -> GlassflowClient:
     global _current_client
     config = resolve_config(
@@ -475,7 +503,10 @@ def _do_init(
         partial_spans=partial_spans,
         partial_spans_delay=partial_spans_delay,
         session_id=session_id,
+        bridge_foreign_provider=bridge_foreign_provider,
     )
+    # Read before the provider exists: the resource is immutable once built.
+    foreign_global = _foreign_global_name() if set_global else None
     # One identity per client lifetime, shared by spans (resource) and
     # heartbeats (payload instance_id) so the backend can join them. Minted
     # here — before the Resource — because the sender is constructed much
@@ -510,12 +541,19 @@ def _do_init(
             # Suppressed on the placeholder by the same rule the span helpers
             # use: a process that named nothing claims no agent identity.
             **_main_agent_attributes(config),
+            **({RIUS_SDK_GLOBAL_PROVIDER: f"foreign:{foreign_global}"} if foreign_global else {}),
             "telemetry.distro.name": "glassflow-rius",
             "telemetry.distro.version": __version__,
         }
     )
     sampler = ParentBased(root=TraceIdRatioBased(config.sample_rate))
     provider = TracerProvider(resource=resource, sampler=sampler, span_limits=_span_limits())
+    _own_providers.add(provider)
+    # Every processor rides this one chain, so a bridged provider gets exactly
+    # the treatment rius's own spans do.
+    pipeline = SynchronousMultiSpanProcessor()  # type: ignore[no-untyped-call]
+    provider.add_span_processor(pipeline)
+    detector: ForeignParentDetector | None = None
 
     export_health: ExportOutcomeExporter | None = None
     connectivity_thread: threading.Thread | None = None
@@ -559,11 +597,14 @@ def _do_init(
         # llm.input_messages before it could be mapped and gen_ai.input.messages
         # would arrive empty. Always on: the wire format is not optional.
         exporter = NormalizingSpanExporter(exporter)
+        exporter = ResourceAdoptingExporter(exporter, resource)
         # Outermost wrapper so it observes the outcome of the whole chain
         # (masking included); client.flush() reads it for honest delivery
         # reporting.
         export_health = ExportOutcomeExporter(exporter, endpoint=config.endpoint)
         batch_processor = BatchSpanProcessor(export_health)
+        detector = ForeignParentDetector()
+        pipeline.add_span_processor(detector)
         # Registered BEFORE the pending processor: both act at on_start, and
         # the pending snapshot is built from the attributes already on the
         # span, so the session id (and the workspace route, which decides
@@ -572,29 +613,24 @@ def _do_init(
         # Before the pending processor, like the identity stampers: start-time
         # normalization is what lets a pending snapshot (built at on_start,
         # from the identity allowlist) carry canonical keys.
-        provider.add_span_processor(NormalizingSpanProcessor())
-        provider.add_span_processor(SessionSpanProcessor(config.session_id))
-        provider.add_span_processor(UserSpanProcessor())
+        pipeline.add_span_processor(NormalizingSpanProcessor())
+        pipeline.add_span_processor(SessionSpanProcessor(config.session_id))
+        pipeline.add_span_processor(UserSpanProcessor())
         if routing is not None:
-            provider.add_span_processor(WorkspaceSpanProcessor())
+            pipeline.add_span_processor(WorkspaceSpanProcessor())
         if config.partial_spans:
             # Pending snapshots ride the SAME batch pipeline as final spans
             # (exporter, retries, masking); see pending.py for the contract.
-            provider.add_span_processor(
+            pipeline.add_span_processor(
                 PendingSpanProcessor(batch_processor, delay=config.partial_spans_delay)
             )
-        provider.add_span_processor(batch_processor)
+        pipeline.add_span_processor(batch_processor)
 
+    bridged: Bridge | None = None
     if set_global and not config.disabled:
-        trace.set_tracer_provider(provider)
-        if trace.get_tracer_provider() is not provider:
-            logger.warning(
-                "could not register the rius tracer provider as the OpenTelemetry "
-                "global (another provider is already set, or a previous init() "
-                "claimed it). rius' own helpers (@observe, start_span, generations) "
-                "follow this client regardless; third-party code using "
-                "opentelemetry.trace.get_tracer() keeps the pre-existing provider."
-            )
+        bridged = _register_global(
+            provider, pipeline, bridge_foreign=config.bridge_foreign_provider
+        )
     if set_global:
         # The helpers follow the active client, not the write-once OTel global,
         # so a shutdown()+init() cycle moves them to the new pipeline too.
@@ -613,7 +649,7 @@ def _do_init(
     sender: HeartbeatSender | None = None
     if config.heartbeat and not config.disabled:
         tracker = OpenRootSpanTracker()
-        provider.add_span_processor(tracker)
+        pipeline.add_span_processor(tracker)
         sender = HeartbeatSender(
             url=config.heartbeat_endpoint,
             headers=config.headers,
@@ -622,6 +658,7 @@ def _do_init(
             instance_id=instance_id,
             tracker=tracker,
             transport=heartbeat_transport,
+            foreign_parent_spans=None if detector is None else (lambda: detector.count),
         )
         sender.start()
 
@@ -632,10 +669,50 @@ def _do_init(
         export_health=export_health,
         connectivity_thread=connectivity_thread,
         routing=routing,
+        bridge=bridged,
     )
     if set_global:
         _current_client = client
     return client
+
+
+def _foreign_global_name() -> str | None:
+    """``module.Class`` of the global provider when another SDK already set it."""
+    existing = trace.get_tracer_provider()
+    if isinstance(existing, trace.ProxyTracerProvider) or existing in _own_providers:
+        return None
+    kind = type(existing)
+    return f"{kind.__module__}.{kind.__qualname__}"
+
+
+def _register_global(
+    provider: TracerProvider, pipeline: SynchronousMultiSpanProcessor, *, bridge_foreign: bool
+) -> Bridge | None:
+    """Claim the OpenTelemetry global, or bridge to whichever provider holds it."""
+    trace.set_tracer_provider(provider)
+    existing = trace.get_tracer_provider()
+    if existing is provider:
+        return None
+    if bridge_foreign and isinstance(existing, TracerProvider):
+        logger.info(
+            "the OpenTelemetry global provider was already set (%s); rius attached its "
+            "span pipeline to it, so spans started through it are exported to rius too.",
+            type(existing).__qualname__,
+        )
+        return bridge(existing, pipeline)
+    logger.warning(
+        "could not register the rius tracer provider as the OpenTelemetry "
+        "global (%s is already set, or a previous init() claimed it), and rius is "
+        "not attached to it (%s). rius' own helpers (@observe, start_span, "
+        "generations) follow this client regardless; third-party code using "
+        "opentelemetry.trace.get_tracer() keeps the pre-existing provider, and "
+        "LLM spans started inside its spans arrive without their parent.",
+        type(existing).__qualname__,
+        "bridge_foreign_provider is off"
+        if not bridge_foreign
+        else "it is not an OpenTelemetry SDK TracerProvider",
+    )
+    return None
 
 
 def get_tracer(name: str = TRACER_NAME) -> trace.Tracer:

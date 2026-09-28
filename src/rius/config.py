@@ -38,6 +38,7 @@ ENV_MAIN_AGENT_VERSION = "RIUS_MAIN_AGENT_VERSION"
 ENV_PARTIAL_SPANS = "RIUS_PARTIAL_SPANS"
 ENV_PARTIAL_SPANS_DELAY = "RIUS_PARTIAL_SPANS_DELAY"
 ENV_SESSION_ID = "RIUS_SESSION_ID"
+ENV_BRIDGE_FOREIGN_PROVIDER = "RIUS_BRIDGE_FOREIGN_PROVIDER"
 
 # The backend expresses staleness as multiples of the interval, so the clamp
 # bounds are part of the heartbeat wire contract.
@@ -124,6 +125,7 @@ class GlassflowConfig:
     # Process-wide session default; a `session()` scope overrides it. None
     # means unset, and spans outside any scope carry no session.id at all.
     session_id: str | None = None
+    bridge_foreign_provider: bool = True
 
     @property
     def traces_endpoint(self) -> str:
@@ -194,6 +196,7 @@ def resolve_config(
     partial_spans: bool | None = None,
     partial_spans_delay: float | None = None,
     session_id: str | None = None,
+    bridge_foreign_provider: bool | None = None,
 ) -> GlassflowConfig:
     """Resolve SDK configuration from arguments, environment, then defaults.
 
@@ -265,6 +268,11 @@ def resolve_config(
             ``rius.session()`` scope instead, which overrides this
             default. Unset means spans outside a scope carry no session id
             and are grouped per trace.
+        bridge_foreign_provider: When another SDK already holds the
+            OpenTelemetry global provider at ``init()``, attach rius's span
+            pipeline to that provider too (``RIUS_BRIDGE_FOREIGN_PROVIDER``).
+            On by default, so what rius exports does not depend on which SDK
+            initialized first; ``False`` keeps rius to its own provider.
 
     Returns:
         The resolved, immutable ``GlassflowConfig``.
@@ -304,6 +312,11 @@ def resolve_config(
         else _finite("partial_spans_delay", partial_spans_delay, 0.0)
     )
     resolved_session_id = session_id or os.getenv(ENV_SESSION_ID) or None
+    resolved_bridge_foreign_provider = (
+        _env_bool(ENV_BRIDGE_FOREIGN_PROVIDER, default=True)
+        if bridge_foreign_provider is None
+        else bridge_foreign_provider
+    )
 
     resolved_headers = dict(headers or {})
     has_auth = any(key.lower() == "authorization" for key in resolved_headers)
@@ -328,4 +341,5 @@ def resolve_config(
         partial_spans=resolved_partial_spans,
         partial_spans_delay=resolved_partial_spans_delay,
         session_id=resolved_session_id,
+        bridge_foreign_provider=resolved_bridge_foreign_provider,
     )

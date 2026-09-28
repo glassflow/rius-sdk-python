@@ -383,6 +383,14 @@ GEN_AI_FIRST_TOKEN_EVENT = "gen_ai.first_token"
 # for as long as pre-rename SDK versions are in the field.
 RIUS_SPAN_PENDING = "rius.span.pending"
 
+# --- Another SDK's tracer provider in the process (see foreign.py) ---
+# On a span: its parent is local to this process, yet rius never received it,
+# so the trace arrives without that parent. Remote parents are never flagged.
+RIUS_PARENT_FOREIGN = "rius.parent.foreign"
+# On the resource: ``foreign:<module.Class>`` when another provider already held
+# the OpenTelemetry global at init(). Absent when rius registered the global.
+RIUS_SDK_GLOBAL_PROVIDER = "rius.sdk.global_provider"
+
 # Attributes allowed to ride a pending snapshot: identity/taxonomy known at
 # span start. An ALLOWLIST on purpose: content exclusion must hold for
 # third-party instrumentors' attribute families too, and a blocklist would
