@@ -670,6 +670,12 @@ THIRD_PARTY_CONTENT_KEYS = (
     "mcp.completion.context.arguments",
     "mcp.completion.values",
     "mcp.error.message",
+    # lmnr 0.7.64 (Laminar, the SDK OpenHands traces with)
+    "lmnr.span.input",
+    "lmnr.span.output",
+    "lmnr.sdk.raw.response",
+    "lmnr.association.properties.metadata",
+    "lmnr.association.properties.metadata.customer_note",
 )
 
 # Keys the same SDKs write next to their content that must survive content
@@ -702,6 +708,14 @@ THIRD_PARTY_KEYS_THAT_SURVIVE = (
     "mlflow.chat.tokenUsage",
     "gen_ai.agent.description",
     "mcp.method.name",
+    "lmnr.span.type",
+    "lmnr.span.path",
+    "lmnr.association.properties.session_id",
+    "lmnr.association.properties.user_id",
+    "lmnr.association.properties.tags",
+    "lmnr.association.properties.metadata.tool_call_id",
+    "lmnr.association.properties.metadata.agent.name",
+    "lmnr.association.properties.metadata.service.name",
 )
 
 

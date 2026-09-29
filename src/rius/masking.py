@@ -33,6 +33,7 @@ from .semconv import (
     CONTENT_ATTRIBUTE_PREFIXES,
     CONTENT_ATTRIBUTE_SUFFIXES,
     CONTENT_ATTRIBUTES,
+    CONTENT_PREFIX_IDENTITY_ATTRIBUTES,
 )
 
 logger = logging.getLogger(__name__)
@@ -67,7 +68,10 @@ _METADATA_PREFIX = "metadata."
 def _is_content_key(key: str) -> bool:
     if (
         key in CONTENT_ATTRIBUTES
-        or key.startswith(CONTENT_ATTRIBUTE_PREFIXES)
+        or (
+            key.startswith(CONTENT_ATTRIBUTE_PREFIXES)
+            and key not in CONTENT_PREFIX_IDENTITY_ATTRIBUTES
+        )
         or key.endswith(CONTENT_ATTRIBUTE_SUFFIXES)
         or any(
             key.startswith(prefix) and key.endswith(leaves)
