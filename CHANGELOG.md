@@ -2,6 +2,32 @@
 
 ## [1.0.0](https://github.com/glassflow/rius-sdk-python/compare/v0.17.0...v1.0.0) (2026-09-29)
 
+### Upgrading from 0.x
+
+Version 1.0.0 finishes the move from the GlassFlow name to Rius and brings span names in line with the OpenTelemetry GenAI conventions. It needs the Rius platform release of 2026-09-29 or later, which accepts `rius.span.pending`.
+
+**Breaking changes and how to migrate**
+
+| What changed | What to do |
+|---|---|
+| `GLASSFLOW_*` environment variables are no longer read (#104) | Rename them to `RIUS_*`, for example `GLASSFLOW_API_KEY` → `RIUS_API_KEY`. **If you don't, 1.0.0 exports nothing.** |
+| The pending-span attribute is now `rius.span.pending`, not `glassflow.span.pending` (#104) | Update any code that imports the constant. |
+| The tracer scope is now `rius`, not `glassflow` (#104) | Update any collector or processor rule that filters on the instrumentation scope. |
+| Span names follow the GenAI conventions: `chat {model}`, `embeddings {model}`, `execute_tool {tool}`, `invoke_agent {agent}`, `retrieval {data_source}`. CHAIN spans keep the function name, and an explicit name still wins (#110) | Update saved searches, alerts and dashboards that are keyed on span name, or pass an explicit name. |
+| RETRIEVER spans carry `gen_ai.operation.name="retrieval"` and accept `data_source_id=` (#106) | Update any filter on the old operation name. |
+| `model_parameters` maps 43 aliases onto 15 standard `gen_ai.request.*` keys, and unknown keys go under `rius.request.*` (#117) | Filter on the standard keys. |
+
+**Behaviour changes**
+
+- TOOL spans take `tool_name=`, so the tool name is no longer read from the span name. The old form still works but emits a `DeprecationWarning` (#105).
+- A span can carry up to 4096 attributes, up from 128, so long agent spans keep their model, tools and system prompt (#134). An `OTEL_*` attribute-count limit you set yourself still wins (#137, #139).
+- With `capture_content=False`, the OpenInference request-parameter bag (`llm.invocation_parameters`) is treated as content and is not sent (#120). Embedding vectors are no longer exported (#135).
+- **Other OpenTelemetry SDKs in the same process** (Langfuse, Traceloop, Logfire, MLflow, OpenLIT, Laminar): when one of them owns the global tracer provider, Rius can now bridge it, so that their spans (your LLM calls' parents) reach Rius too. The bridge is off by default. Turn it on with `bridge_foreign_provider=True` or `RIUS_BRIDGE_FOREIGN_PROVIDER=1`. Spans whose parent Rius never saw are flagged `rius.parent.foreign` either way (#142).
+- With `capture_content=False`, the content keys those SDKs write are stripped: Langfuse, Traceloop, Logfire, MLflow and OpenLIT (#142), and Laminar `lmnr.*` (#143).
+
+Python 3.10+ is still supported, and the package name (`glassflow-rius`) and import name (`rius`) are unchanged.
+
+
 
 ### ⚠ BREAKING CHANGES
 
