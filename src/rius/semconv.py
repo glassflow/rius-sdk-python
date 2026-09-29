@@ -568,6 +568,15 @@ THIRD_PARTY_CONTENT_ATTRIBUTES = frozenset(
         "mcp.completion.context.arguments",
         "mcp.completion.values",
         "mcp.error.message",
+        # lmnr 0.7.64, lmnr/opentelemetry_lib/tracing/attributes.py: the
+        # observed function's arguments and return value, the caller's
+        # metadata (one key per member, see the prefixes below), and the
+        # provider's whole reply its Anthropic and LiteLLM instrumentations
+        # write.
+        "lmnr.span.input",
+        "lmnr.span.output",
+        "lmnr.association.properties.metadata",
+        "lmnr.sdk.raw.response",
     }
 )
 
@@ -676,6 +685,19 @@ CONTENT_ATTRIBUTE_PREFIXES = (
     "langfuse.observation.metadata.",
     "langfuse.trace.metadata.",
     "traceloop.prompt.template_variables.",
+    "lmnr.association.properties.metadata.",
+)
+
+# Members of a content prefix that carry identity, not content. Laminar's
+# metadata is the caller's arbitrary payload, but the sink reads these three
+# as the tool call id and the agent name; masking them would cost a
+# capture_content=False trace its tool linkage and its agent.
+CONTENT_PREFIX_IDENTITY_ATTRIBUTES = frozenset(
+    {
+        "lmnr.association.properties.metadata.tool_call_id",
+        "lmnr.association.properties.metadata.agent.name",
+        "lmnr.association.properties.metadata.service.name",
+    }
 )
 
 # Indexed families where only the content leaf is sensitive (siblings like
