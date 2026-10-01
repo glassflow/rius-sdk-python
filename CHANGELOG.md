@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/glassflow/rius-sdk-python/compare/v1.0.0...v1.0.1) (2026-10-01)
+
+
+### Documentation
+
+* **config:** the server, not heartbeat_interval, sets stale and gone ([#144](https://github.com/glassflow/rius-sdk-python/issues/144)) ([0047fe7](https://github.com/glassflow/rius-sdk-python/commit/0047fe78618360dafa56e734da5c2fa96cf1f4f4))
+
 ## [1.0.0](https://github.com/glassflow/rius-sdk-python/compare/v0.17.0...v1.0.0) (2026-09-29)
 
 ### Upgrading from 0.x
