@@ -334,7 +334,8 @@ def init(
             for exact per-worker span identity, call ``init()`` after the
             fork (e.g. in gunicorn's ``post_fork``).
         heartbeat_interval: Seconds between pings (default 15, clamped to
-            ``[5, 300]``; the backend derives staleness from this).
+            ``[5, 300]``). The server fixes stale at 30s and gone at 60s
+            since the last ping, so keep this well under 30s.
         agent_name: Identity both heartbeats and spans group under, stamped
             on the resource as ``rius.main_agent.name`` AND, unchanged, as
             ``gen_ai.agent.name``; defaults to ``service_name``. The
