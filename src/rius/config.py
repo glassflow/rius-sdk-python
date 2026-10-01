@@ -40,8 +40,9 @@ ENV_PARTIAL_SPANS_DELAY = "RIUS_PARTIAL_SPANS_DELAY"
 ENV_SESSION_ID = "RIUS_SESSION_ID"
 ENV_BRIDGE_FOREIGN_PROVIDER = "RIUS_BRIDGE_FOREIGN_PROVIDER"
 
-# The backend expresses staleness as multiples of the interval, so the clamp
-# bounds are part of the heartbeat wire contract.
+# The server, not this interval, decides when an agent is stale (30s since
+# its last ping) or gone (60s). The interval only sets how often the SDK
+# pings, so it must stay well under 30s for an agent to show as live.
 HEARTBEAT_INTERVAL_MIN = 5.0
 HEARTBEAT_INTERVAL_MAX = 300.0
 DEFAULT_HEARTBEAT_INTERVAL = 15.0
@@ -229,9 +230,9 @@ def resolve_config(
             (``RIUS_HEARTBEAT``). On by default; set ``False`` or
             ``RIUS_HEARTBEAT=false`` to opt out.
         heartbeat_interval: Seconds between pings
-            (``RIUS_HEARTBEAT_INTERVAL``), clamped to ``[5, 300]``;
-            the backend derives staleness from this, so the bounds are part
-            of the wire contract.
+            (``RIUS_HEARTBEAT_INTERVAL``), clamped to ``[5, 300]``. The
+            server fixes stale at 30s and gone at 60s since the last ping,
+            so keep this well under 30s for the agent to show as live.
         agent_name: Identity both heartbeats and spans group under
             (``RIUS_AGENT_NAME``), stamped on the resource as
             ``gen_ai.agent.name``; defaults to ``service_name`` so the agents
