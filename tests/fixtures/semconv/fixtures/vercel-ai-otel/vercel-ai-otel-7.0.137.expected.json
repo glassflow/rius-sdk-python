@@ -2,7 +2,7 @@
   "normalizer": {
     "package": "@glassflow-ai/rius",
     "version": "1.0.0",
-    "commit": "7128b7c61beaeabb00f96a499895e3cb7e8de80b"
+    "commit": "c039c1fc733701d4bae67254ee352c207e50994e"
   },
   "recordings": [
     {
@@ -424,12 +424,6 @@
                 }
               },
               {
-                "key": "gen_ai.client.operation.time_to_first_chunk",
-                "value": {
-                  "doubleValue": 0.001
-                }
-              },
-              {
                 "key": "gen_ai.input.messages",
                 "value": {
                   "stringValue": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Capital of France?\"}]}]"
@@ -460,6 +454,12 @@
                 }
               },
               {
+                "key": "gen_ai.request.stream",
+                "value": {
+                  "boolValue": true
+                }
+              },
+              {
                 "key": "gen_ai.response.finish_reasons",
                 "value": {
                   "arrayValue": {
@@ -481,6 +481,12 @@
                 "key": "gen_ai.response.model",
                 "value": {
                   "stringValue": "gpt-4o-mini-2024-07-18"
+                }
+              },
+              {
+                "key": "gen_ai.response.time_to_first_chunk",
+                "value": {
+                  "doubleValue": 0.001
                 }
               },
               {
@@ -506,6 +512,13 @@
                 "value": {
                   "stringValue": "LLM"
                 }
+              }
+            ],
+            "events": [
+              {
+                "timeUnixNano": "1700000000003000000",
+                "name": "gen_ai.first_token",
+                "attributes": []
               }
             ],
             "status": {}

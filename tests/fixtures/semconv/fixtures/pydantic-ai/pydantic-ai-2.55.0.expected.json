@@ -2,7 +2,7 @@
   "normalizer": {
     "package": "glassflow-rius",
     "version": "1.0.0",
-    "commit": "df42f19287225b91f10d6779c846ddab63162882"
+    "commit": "95751571902b50ccfdfc903f64102dde1a202564"
   },
   "recordings": [
     {
@@ -526,12 +526,6 @@
                 }
               },
               {
-                "key": "gen_ai.client.operation.time_to_first_chunk",
-                "value": {
-                  "doubleValue": 0.003
-                }
-              },
-              {
                 "key": "gen_ai.conversation.id",
                 "value": {
                   "stringValue": "00000000-0000-0000-0000-000000000002"
@@ -568,6 +562,12 @@
                 }
               },
               {
+                "key": "gen_ai.request.stream",
+                "value": {
+                  "boolValue": true
+                }
+              },
+              {
                 "key": "gen_ai.response.finish_reasons",
                 "value": {
                   "arrayValue": {
@@ -589,6 +589,12 @@
                 "key": "gen_ai.response.model",
                 "value": {
                   "stringValue": "gpt-4o-mini-2024-07-18"
+                }
+              },
+              {
+                "key": "gen_ai.response.time_to_first_chunk",
+                "value": {
+                  "doubleValue": 0.003
                 }
               },
               {
@@ -668,6 +674,13 @@
                 "value": {
                   "stringValue": "api.openai.com"
                 }
+              }
+            ],
+            "events": [
+              {
+                "timeUnixNano": "1700000000002000000",
+                "name": "gen_ai.first_token",
+                "attributes": []
               }
             ],
             "status": {}
