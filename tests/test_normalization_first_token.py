@@ -236,3 +236,70 @@ def test_the_anthropic_instrumentor_still_emits_no_first_token_event() -> None:
         "wrapper. If it is a first-token marker, add its name alongside "
         "OPENINFERENCE_FIRST_TOKEN_EVENT in rius/normalization.py."
     )
+
+
+# --- The metric spelling: a measured duration with no first-token event ------
+#
+# pydantic-ai and @ai-sdk/otel write the conventions' METRIC name onto the
+# chat span, in seconds, and record no event. The backend reads time to first
+# chunk from the event alone, so the exporter both maps the attribute and
+# places the event the span is missing.
+
+_METRIC = "gen_ai.client.operation.time_to_first_chunk"
+
+
+def test_the_metric_spelling_becomes_the_canonical_attribute_and_event() -> None:
+    raw = _raw_span(attributes={_METRIC: 1.5})
+    out = _export(raw)
+    attributes = dict(out.attributes or {})
+    assert _METRIC not in attributes
+    assert attributes[GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK] == 1.5
+    assert attributes[GEN_AI_REQUEST_STREAM] is True
+    assert _events(out) == [(GEN_AI_FIRST_TOKEN_EVENT, _FIRST_TOKEN_NS)]
+
+
+def test_a_canonical_duration_alone_also_gets_its_event() -> None:
+    raw = _raw_span(attributes={GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK: 1.5})
+    assert _events(_export(raw)) == [(GEN_AI_FIRST_TOKEN_EVENT, _FIRST_TOKEN_NS)]
+
+
+def test_an_existing_first_token_event_is_never_duplicated() -> None:
+    for name in (GEN_AI_FIRST_TOKEN_EVENT, OPENINFERENCE_FIRST_TOKEN_EVENT):
+        raw = _raw_span(attributes={_METRIC: 0.2}, events=[(name, _FIRST_TOKEN_NS)])
+        assert _events(_export(raw)) == [(GEN_AI_FIRST_TOKEN_EVENT, _FIRST_TOKEN_NS)]
+
+
+def test_native_values_win_over_the_metric_spelling() -> None:
+    raw = _raw_span(
+        attributes={
+            _METRIC: 9.0,
+            GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK: 1.5,
+            GEN_AI_REQUEST_STREAM: False,
+        }
+    )
+    attributes = dict(_export(raw).attributes or {})
+    assert attributes[GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK] == 1.5
+    assert attributes[GEN_AI_REQUEST_STREAM] is False
+    assert _METRIC not in attributes
+
+
+def test_the_event_never_lands_after_the_span_ends() -> None:
+    collected = InMemorySpanExporter()
+    provider = TracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(collected))
+    span = provider.get_tracer("test").start_span(
+        "chat", attributes={_METRIC: 5.0}, start_time=_START_NS
+    )
+    span.end(end_time=_START_NS + 1_000_000)
+    (raw,) = collected.get_finished_spans()
+    provider.shutdown()
+    assert _events(_export(raw)) == [(GEN_AI_FIRST_TOKEN_EVENT, _START_NS + 1_000_000)]
+
+
+@pytest.mark.parametrize("value", [-1.0, "1.5", True, float("nan")])
+def test_an_unusable_duration_is_dropped_without_an_event(value: Any) -> None:
+    out = _export(_raw_span(attributes={_METRIC: value}))
+    attributes = dict(out.attributes or {})
+    assert GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK not in attributes
+    assert GEN_AI_REQUEST_STREAM not in attributes
+    assert _events(out) == []

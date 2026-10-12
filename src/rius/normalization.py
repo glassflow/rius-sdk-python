@@ -445,6 +445,55 @@ def normalize_first_token_event(
     return tuple(rebuilt), added
 
 
+#: The GenAI conventions' METRIC name for time to first chunk. pydantic-ai and
+#: the Vercel AI SDK's @ai-sdk/otel write it onto the chat span as an
+#: attribute, in seconds, with no first-token event. Spelled here rather than
+#: in semconv.py for the reason gen_ai.system is: a source spelling we map and
+#: never emit.
+GEN_AI_CLIENT_TIME_TO_FIRST_CHUNK = "gen_ai.client.operation.time_to_first_chunk"
+
+
+def first_chunk_from_metric(raw: Any) -> Mapping[str, Any]:
+    """The span attribute the metric spelling stands for, plus the stream flag.
+
+    Same unit (seconds). Only a streamed response has a first chunk, so the
+    request streamed: the inference ``record_first_token`` makes.
+    """
+    seconds = _number(raw)
+    if seconds is SKIP or seconds < 0:
+        return {}
+    return {GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK: seconds, GEN_AI_REQUEST_STREAM: True}
+
+
+def first_token_event_from_duration(
+    span: ReadableSpan, attributes: Mapping[str, Any]
+) -> tuple[Event, ...] | None:
+    """A ``gen_ai.first_token`` event for a span that measured TTFT but has none.
+
+    The backend reads time to first chunk from the first-token event alone,
+    so a span that carries only the measured duration (pydantic-ai,
+    @ai-sdk/otel) would show no TTFT at all. The event is placed at the span's
+    start plus that duration, so the event and the attribute agree. Never
+    later than the span's end: a duration measured on another clock can
+    overshoot a span that ended right after its first chunk.
+
+    Returns the span's events with the new one appended, or None when the
+    span already has a first-token event (of either spelling) or no usable
+    duration.
+    """
+    events = span.events or ()
+    if any(e.name in (GEN_AI_FIRST_TOKEN_EVENT, OPENINFERENCE_FIRST_TOKEN_EVENT) for e in events):
+        return None
+    seconds = _number(attributes.get(GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK))
+    start_ns = span.start_time
+    if seconds is SKIP or seconds < 0 or not isinstance(start_ns, int):
+        return None
+    timestamp = start_ns + round(seconds * 1e9)
+    if isinstance(span.end_time, int):
+        timestamp = min(timestamp, span.end_time)
+    return (*events, Event(GEN_AI_FIRST_TOKEN_EVENT, {}, timestamp))
+
+
 def error_type_from_exception_event(span: ReadableSpan) -> dict[str, Any]:
     """``error.type`` for a failed span, from its OTel ``exception`` event.
 
@@ -974,6 +1023,13 @@ class NormalizingSpanExporter(SpanExporter):
             for key, value in event_attributes.items():
                 base.setdefault(key, value)
             new_attributes = base
+        # Last, on the final attributes: the duration may come from the table
+        # (the metric spelling) or from the span itself.
+        synthesized = first_token_event_from_duration(
+            span, (span.attributes or {}) if new_attributes is None else new_attributes
+        )
+        if synthesized is not None:
+            new_events = synthesized
         if new_attributes is None and new_events is None:
             return span
         normalized = copy.copy(span)
@@ -1434,6 +1490,11 @@ OPENINFERENCE_RULES: tuple[AnyRule, ...] = (
         GEN_AI_USAGE_REASONING_OUTPUT_TOKENS,
         to_int,
     ),
+    # Time to first chunk under the conventions' metric name, which
+    # pydantic-ai and @ai-sdk/otel write as a span attribute. The exporter
+    # then gives such a span the first-token event it lacks
+    # (first_token_event_from_duration).
+    ExpandingRule(GEN_AI_CLIENT_TIME_TO_FIRST_CHUNK, first_chunk_from_metric),
     # The request bag: the dedicated model rules above take precedence over
     # its `model` member.
     ExpandingRule(LLM_INVOCATION_PARAMETERS, openinference_invocation_parameters),
