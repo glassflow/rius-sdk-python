@@ -338,6 +338,62 @@ def test_native_provider_wins_over_llm_system() -> None:
     assert _normalize(attributes) == attributes
 
 
+# --- routed model names -----------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("provider", "model", "expected"),
+    [
+        # LiteLLM records the model as routed: the prefix is the provider.
+        ("openai", "openai/gpt-4o-mini", "gpt-4o-mini"),
+        ("anthropic", "anthropic/claude-haiku-4-5-20251001", "claude-haiku-4-5-20251001"),
+        # compared under the registry's spelling
+        ("vertex_ai", "vertex_ai/gemini-2.5-flash", "gemini-2.5-flash"),
+        # a prefix naming anyone else is part of the name
+        ("openai", "openai/google/gemini-2.5-flash", "google/gemini-2.5-flash"),
+        ("openai", "google/gemini-2.5-flash", "google/gemini-2.5-flash"),
+        ("anthropic", "openai/gpt-4o-mini", "openai/gpt-4o-mini"),
+        # nothing after the slash, or no slash
+        ("openai", "openai/", "openai/"),
+        ("openai", "gpt-4o-mini", "gpt-4o-mini"),
+    ],
+)
+def test_a_routing_prefix_naming_the_provider_is_dropped(
+    provider: str, model: str, expected: str
+) -> None:
+    raw = {"llm.provider": provider, LLM_INVOCATION_PARAMETERS: json.dumps({"model": model})}
+    assert _normalize(raw)[GEN_AI_REQUEST_MODEL] == expected
+
+
+def test_a_routed_model_keeps_its_prefix_without_a_provider() -> None:
+    raw = {LLM_INVOCATION_PARAMETERS: json.dumps({"model": "openai/gpt-4o-mini"})}
+    assert _normalize(raw)[GEN_AI_REQUEST_MODEL] == "openai/gpt-4o-mini"
+
+
+def test_a_native_provider_strips_a_mapped_model() -> None:
+    raw = {
+        GEN_AI_PROVIDER_NAME: "openai",
+        LLM_INVOCATION_PARAMETERS: json.dumps({"model": "openai/gpt-4o-mini"}),
+    }
+    assert _normalize(raw)[GEN_AI_REQUEST_MODEL] == "gpt-4o-mini"
+
+
+def test_a_native_model_is_never_stripped() -> None:
+    """The producer named it; that name is its own choice."""
+    attributes = {GEN_AI_PROVIDER_NAME: "openai", GEN_AI_REQUEST_MODEL: "openai/gpt-4o-mini"}
+    assert _normalize(attributes) == attributes
+
+
+def test_the_start_time_additions_already_strip() -> None:
+    """The processor writes additions onto the live span at start; by export
+    the model counts as native, so the start-time value must already be bare."""
+    raw = {
+        "llm.provider": "openai",
+        LLM_INVOCATION_PARAMETERS: json.dumps({"model": "openai/gpt-4o-mini"}),
+    }
+    assert DEFAULT_TABLE.additions(raw)[GEN_AI_REQUEST_MODEL] == "gpt-4o-mini"
+
+
 # --- invocation parameters --------------------------------------------------
 
 
