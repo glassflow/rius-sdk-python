@@ -1,0 +1,33 @@
+{
+  "family": "rius-python",
+  "control": true,
+  "about": "A control: what the rius Python SDK itself exports (its native spans and its MCP client wrapper), captured at the SDK's exporter, so the spans are already normalized. Normalizing them again must change nothing, which check_fixtures enforces: the expected result equals the recording. No network, no API keys, no model calls; MCP tools run on an in-process server. mcp 2.x traces itself, so only spans from the SDK's own scope (rius) are recorded. The SDK measures time to first chunk with the real clock; the recorder sets gen_ai.response.time_to_first_chunk to the distance between the span's start and its first-token event on the recording's canonical timeline, so the attribute and the event agree and the value is identical across runs.",
+  "record": "python record.py <recording.json> <environment.json>, in a virtualenv holding exactly the pins below",
+  "recordings": {
+    "rius-python-1.0.0.json": {
+      "python": "3.13.7",
+      "packages": {
+        "glassflow-rius": "1.0.0",
+        "mcp": "2.3.0",
+        "opentelemetry-api": "1.45.1",
+        "opentelemetry-sdk": "1.45.1"
+      },
+      "scenarios": {
+        "generation_chat": "start_as_current_generation with input messages, request parameters, output, response model and id, finish reason, and usage with cache-read and reasoning counts.",
+        "generation_stream": "A generation that records its first token: the gen_ai.first_token event, gen_ai.request.stream and time to first chunk.",
+        "generation_error": "A generation whose body raises: ERROR status, an exception event and error.type.",
+        "agent_tools": "An AGENT-kind observe wrapping chat (tool call), the tool (TOOL-kind observe), chat (answer), inside a session and a user scope: session.id and user.id on every span.",
+        "retrieval": "A RETRIEVER span with a data source, top_k and two retrieved documents.",
+        "chain": "A plain observe on a function: a CHAIN span with its input and output.",
+        "mcp_tool_call": "One MCP tools/call through the SDK's client wrapper: an execute_tool CLIENT span carrying mcp.method.name.",
+        "mcp_tool_error": "An MCP tool that raises: the server answers with an error result, and the span ends ERROR with error.type tool_error.",
+        "mcp_in_agent": "The same tool call inside an AGENT span: gen_ai.agent.name on the tool span is the calling agent."
+      },
+      "expected": {
+        "file": "rius-python-1.0.0.expected.json",
+        "source": "python-sdk"
+      },
+      "verified": "Re-recorded 2026-10-12 several times in a row in the pinned environment: byte-identical."
+    }
+  }
+}

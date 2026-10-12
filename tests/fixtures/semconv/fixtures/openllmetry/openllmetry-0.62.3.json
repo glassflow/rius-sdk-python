@@ -1,0 +1,2055 @@
+{
+  "recordings": [
+    {
+      "scenario": "openai_chat",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "openllmetry-recorder"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "python"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.44.0"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "opentelemetry.instrumentation.openai.v1",
+            "version": "0.62.3"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "openai.chat",
+            "kind": "SPAN_KIND_CLIENT",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000001000000",
+            "attributes": [
+              {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"role\": \"system\", \"parts\": [{\"content\": \"be terse\", \"type\": \"text\"}]}, {\"role\": \"user\", \"parts\": [{\"content\": \"hi\", \"type\": \"text\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.is_streaming",
+                "value": {
+                  "boolValue": false
+                }
+              },
+              {
+                "key": "gen_ai.openai.api_base",
+                "value": {
+                  "stringValue": "https://api.openai.com/v1/"
+                }
+              },
+              {
+                "key": "gen_ai.openai.response.system_fingerprint",
+                "value": {
+                  "stringValue": "fp_rec"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "chat"
+                }
+              },
+              {
+                "key": "gen_ai.output.messages",
+                "value": {
+                  "stringValue": "[{\"role\": \"assistant\", \"parts\": [{\"content\": \"yo\", \"type\": \"text\"}], \"finish_reason\": \"stop\"}]"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "gen_ai.request.max_tokens",
+                "value": {
+                  "intValue": "64"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-4o"
+                }
+              },
+              {
+                "key": "gen_ai.request.temperature",
+                "value": {
+                  "doubleValue": 0.1
+                }
+              },
+              {
+                "key": "gen_ai.response.finish_reasons",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "stop"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "gen_ai.response.id",
+                "value": {
+                  "stringValue": "chatcmpl-rec1"
+                }
+              },
+              {
+                "key": "gen_ai.response.model",
+                "value": {
+                  "stringValue": "gpt-4o-2024-08-06"
+                }
+              },
+              {
+                "key": "gen_ai.usage.cache_read.input_tokens",
+                "value": {
+                  "intValue": "10"
+                }
+              },
+              {
+                "key": "gen_ai.usage.input_tokens",
+                "value": {
+                  "intValue": "42"
+                }
+              },
+              {
+                "key": "gen_ai.usage.output_tokens",
+                "value": {
+                  "intValue": "7"
+                }
+              },
+              {
+                "key": "gen_ai.usage.reasoning_tokens",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "gen_ai.usage.total_tokens",
+                "value": {
+                  "intValue": "49"
+                }
+              }
+            ],
+            "status": {}
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "openai_chat_stream",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "openllmetry-recorder"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "python"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.44.0"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "opentelemetry.instrumentation.openai.v1",
+            "version": "0.62.3"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "openai.chat",
+            "kind": "SPAN_KIND_CLIENT",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000006000000",
+            "attributes": [
+              {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"role\": \"user\", \"parts\": [{\"content\": \"hi\", \"type\": \"text\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.is_streaming",
+                "value": {
+                  "boolValue": true
+                }
+              },
+              {
+                "key": "gen_ai.openai.api_base",
+                "value": {
+                  "stringValue": "https://api.openai.com/v1/"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "chat"
+                }
+              },
+              {
+                "key": "gen_ai.output.messages",
+                "value": {
+                  "stringValue": "[{\"role\": \"assistant\", \"parts\": [{\"content\": \"yo\", \"type\": \"text\"}], \"finish_reason\": \"stop\"}]"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-4o"
+                }
+              },
+              {
+                "key": "gen_ai.response.finish_reasons",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "stop"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "gen_ai.response.id",
+                "value": {
+                  "stringValue": "chatcmpl-rec2"
+                }
+              },
+              {
+                "key": "gen_ai.response.model",
+                "value": {
+                  "stringValue": "gpt-4o-2024-08-06"
+                }
+              },
+              {
+                "key": "gen_ai.usage.input_tokens",
+                "value": {
+                  "intValue": "12"
+                }
+              },
+              {
+                "key": "gen_ai.usage.output_tokens",
+                "value": {
+                  "intValue": "2"
+                }
+              },
+              {
+                "key": "gen_ai.usage.total_tokens",
+                "value": {
+                  "intValue": "14"
+                }
+              }
+            ],
+            "events": [
+              {
+                "timeUnixNano": "1700000000001000000",
+                "name": "gen_ai.content.completion.chunk",
+                "attributes": []
+              },
+              {
+                "timeUnixNano": "1700000000002000000",
+                "name": "gen_ai.content.completion.chunk",
+                "attributes": []
+              },
+              {
+                "timeUnixNano": "1700000000003000000",
+                "name": "gen_ai.content.completion.chunk",
+                "attributes": []
+              },
+              {
+                "timeUnixNano": "1700000000004000000",
+                "name": "gen_ai.content.completion.chunk",
+                "attributes": []
+              },
+              {
+                "timeUnixNano": "1700000000005000000",
+                "name": "gen_ai.content.completion.chunk",
+                "attributes": []
+              }
+            ],
+            "status": {
+              "code": "STATUS_CODE_OK"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "openai_tool_call",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "openllmetry-recorder"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "python"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.44.0"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "opentelemetry.instrumentation.openai.v1",
+            "version": "0.62.3"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "openai.chat",
+            "kind": "SPAN_KIND_CLIENT",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000001000000",
+            "attributes": [
+              {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"role\": \"user\", \"parts\": [{\"content\": \"weather in Paris?\", \"type\": \"text\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.is_streaming",
+                "value": {
+                  "boolValue": false
+                }
+              },
+              {
+                "key": "gen_ai.openai.api_base",
+                "value": {
+                  "stringValue": "https://api.openai.com/v1/"
+                }
+              },
+              {
+                "key": "gen_ai.openai.response.system_fingerprint",
+                "value": {
+                  "stringValue": "fp_rec"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "chat"
+                }
+              },
+              {
+                "key": "gen_ai.output.messages",
+                "value": {
+                  "stringValue": "[{\"role\": \"assistant\", \"parts\": [{\"type\": \"tool_call\", \"name\": \"get_weather\", \"id\": \"call_abc\", \"arguments\": {\"city\": \"Paris\"}}], \"finish_reason\": \"tool_call\"}]"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-4o"
+                }
+              },
+              {
+                "key": "gen_ai.response.finish_reasons",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "tool_call"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "gen_ai.response.id",
+                "value": {
+                  "stringValue": "chatcmpl-rec1"
+                }
+              },
+              {
+                "key": "gen_ai.response.model",
+                "value": {
+                  "stringValue": "gpt-4o-2024-08-06"
+                }
+              },
+              {
+                "key": "gen_ai.tool.definitions",
+                "value": {
+                  "stringValue": "[{\"type\": \"function\", \"name\": \"get_weather\", \"description\": \"Get the weather for a city\", \"parameters\": {\"type\": \"object\", \"properties\": {\"city\": {\"type\": \"string\"}}, \"required\": [\"city\"]}}]"
+                }
+              },
+              {
+                "key": "gen_ai.usage.cache_read.input_tokens",
+                "value": {
+                  "intValue": "10"
+                }
+              },
+              {
+                "key": "gen_ai.usage.input_tokens",
+                "value": {
+                  "intValue": "42"
+                }
+              },
+              {
+                "key": "gen_ai.usage.output_tokens",
+                "value": {
+                  "intValue": "7"
+                }
+              },
+              {
+                "key": "gen_ai.usage.reasoning_tokens",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "gen_ai.usage.total_tokens",
+                "value": {
+                  "intValue": "49"
+                }
+              }
+            ],
+            "status": {}
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "openai_tool_response",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "openllmetry-recorder"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "python"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.44.0"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "opentelemetry.instrumentation.openai.v1",
+            "version": "0.62.3"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "openai.chat",
+            "kind": "SPAN_KIND_CLIENT",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000001000000",
+            "attributes": [
+              {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"role\": \"user\", \"parts\": [{\"content\": \"weather in Paris?\", \"type\": \"text\"}]}, {\"role\": \"assistant\", \"parts\": [{\"type\": \"tool_call\", \"name\": \"get_weather\", \"id\": \"call_abc\", \"arguments\": {\"city\": \"Paris\"}}]}, {\"role\": \"tool\", \"parts\": [{\"type\": \"tool_call_response\", \"id\": \"call_abc\", \"response\": \"sunny, 22C\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.is_streaming",
+                "value": {
+                  "boolValue": false
+                }
+              },
+              {
+                "key": "gen_ai.openai.api_base",
+                "value": {
+                  "stringValue": "https://api.openai.com/v1/"
+                }
+              },
+              {
+                "key": "gen_ai.openai.response.system_fingerprint",
+                "value": {
+                  "stringValue": "fp_rec"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "chat"
+                }
+              },
+              {
+                "key": "gen_ai.output.messages",
+                "value": {
+                  "stringValue": "[{\"role\": \"assistant\", \"parts\": [{\"content\": \"It is sunny in Paris.\", \"type\": \"text\"}], \"finish_reason\": \"stop\"}]"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-4o"
+                }
+              },
+              {
+                "key": "gen_ai.response.finish_reasons",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "stop"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "gen_ai.response.id",
+                "value": {
+                  "stringValue": "chatcmpl-rec1"
+                }
+              },
+              {
+                "key": "gen_ai.response.model",
+                "value": {
+                  "stringValue": "gpt-4o-2024-08-06"
+                }
+              },
+              {
+                "key": "gen_ai.tool.definitions",
+                "value": {
+                  "stringValue": "[{\"type\": \"function\", \"name\": \"get_weather\", \"description\": \"Get the weather for a city\", \"parameters\": {\"type\": \"object\", \"properties\": {\"city\": {\"type\": \"string\"}}, \"required\": [\"city\"]}}]"
+                }
+              },
+              {
+                "key": "gen_ai.usage.cache_read.input_tokens",
+                "value": {
+                  "intValue": "10"
+                }
+              },
+              {
+                "key": "gen_ai.usage.input_tokens",
+                "value": {
+                  "intValue": "42"
+                }
+              },
+              {
+                "key": "gen_ai.usage.output_tokens",
+                "value": {
+                  "intValue": "7"
+                }
+              },
+              {
+                "key": "gen_ai.usage.reasoning_tokens",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "gen_ai.usage.total_tokens",
+                "value": {
+                  "intValue": "49"
+                }
+              }
+            ],
+            "status": {}
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "openai_error",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "openllmetry-recorder"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "python"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.44.0"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "opentelemetry.instrumentation.openai.v1",
+            "version": "0.62.3"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "openai.chat",
+            "kind": "SPAN_KIND_CLIENT",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000002000000",
+            "attributes": [
+              {
+                "key": "error.type",
+                "value": {
+                  "stringValue": "BadRequestError"
+                }
+              },
+              {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"role\": \"user\", \"parts\": [{\"content\": \"hi\", \"type\": \"text\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.is_streaming",
+                "value": {
+                  "boolValue": false
+                }
+              },
+              {
+                "key": "gen_ai.openai.api_base",
+                "value": {
+                  "stringValue": "https://api.openai.com/v1/"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "chat"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-nope"
+                }
+              }
+            ],
+            "events": [
+              {
+                "timeUnixNano": "1700000000001000000",
+                "name": "exception",
+                "attributes": [
+                  {
+                    "key": "exception.escaped",
+                    "value": {
+                      "stringValue": "False"
+                    }
+                  },
+                  {
+                    "key": "exception.message",
+                    "value": {
+                      "stringValue": "Error code: 400 - {'error': {'message': 'Invalid model', 'type': 'invalid_request_error', 'param': 'model', 'code': 'model_not_found'}}"
+                    }
+                  },
+                  {
+                    "key": "exception.stacktrace",
+                    "value": {
+                      "stringValue": "<stacktrace elided>"
+                    }
+                  },
+                  {
+                    "key": "exception.type",
+                    "value": {
+                      "stringValue": "openai.BadRequestError"
+                    }
+                  }
+                ]
+              }
+            ],
+            "status": {
+              "message": "Error code: 400 - {'error': {'message': 'Invalid model', 'type': 'invalid_request_error', 'param': 'model', 'code': 'model_not_found'}}",
+              "code": "STATUS_CODE_ERROR"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "openai_embeddings",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "openllmetry-recorder"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "python"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.44.0"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "opentelemetry.instrumentation.openai.v1",
+            "version": "0.62.3"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "openai.embeddings",
+            "kind": "SPAN_KIND_CLIENT",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000001000000",
+            "attributes": [
+              {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"role\": \"user\", \"parts\": [{\"type\": \"text\", \"content\": \"hello world\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.is_streaming",
+                "value": {
+                  "boolValue": false
+                }
+              },
+              {
+                "key": "gen_ai.openai.api_base",
+                "value": {
+                  "stringValue": "https://api.openai.com/v1/"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "embeddings"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "text-embedding-3-small"
+                }
+              },
+              {
+                "key": "gen_ai.response.model",
+                "value": {
+                  "stringValue": "text-embedding-3-small"
+                }
+              },
+              {
+                "key": "gen_ai.usage.cache_read.input_tokens",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "gen_ai.usage.input_tokens",
+                "value": {
+                  "intValue": "4"
+                }
+              },
+              {
+                "key": "gen_ai.usage.total_tokens",
+                "value": {
+                  "intValue": "4"
+                }
+              }
+            ],
+            "status": {}
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "anthropic_chat",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "openllmetry-recorder"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "python"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.44.0"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "opentelemetry.instrumentation.anthropic",
+            "version": "0.62.3"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "anthropic.chat",
+            "kind": "SPAN_KIND_CLIENT",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000001000000",
+            "attributes": [
+              {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"role\": \"user\", \"parts\": [{\"type\": \"text\", \"content\": \"hi\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "chat"
+                }
+              },
+              {
+                "key": "gen_ai.output.messages",
+                "value": {
+                  "stringValue": "[{\"role\": \"assistant\", \"parts\": [{\"type\": \"text\", \"content\": \"yo\"}], \"finish_reason\": \"stop\"}]"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "anthropic"
+                }
+              },
+              {
+                "key": "gen_ai.request.max_tokens",
+                "value": {
+                  "intValue": "64"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "claude-sonnet-4-5"
+                }
+              },
+              {
+                "key": "gen_ai.response.finish_reasons",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "stop"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "gen_ai.response.id",
+                "value": {
+                  "stringValue": "msg_rec1"
+                }
+              },
+              {
+                "key": "gen_ai.response.model",
+                "value": {
+                  "stringValue": "claude-sonnet-4-5-20250929"
+                }
+              },
+              {
+                "key": "gen_ai.system_instructions",
+                "value": {
+                  "stringValue": "[{\"type\": \"text\", \"content\": \"be terse\"}]"
+                }
+              },
+              {
+                "key": "gen_ai.usage.cache_creation.input_tokens",
+                "value": {
+                  "intValue": "3"
+                }
+              },
+              {
+                "key": "gen_ai.usage.cache_read.input_tokens",
+                "value": {
+                  "intValue": "5"
+                }
+              },
+              {
+                "key": "gen_ai.usage.input_tokens",
+                "value": {
+                  "intValue": "38"
+                }
+              },
+              {
+                "key": "gen_ai.usage.output_tokens",
+                "value": {
+                  "intValue": "9"
+                }
+              },
+              {
+                "key": "gen_ai.usage.total_tokens",
+                "value": {
+                  "intValue": "47"
+                }
+              }
+            ],
+            "status": {
+              "code": "STATUS_CODE_OK"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "anthropic_chat_stream",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "openllmetry-recorder"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "python"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.44.0"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "opentelemetry.instrumentation.anthropic",
+            "version": "0.62.3"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "anthropic.chat",
+            "kind": "SPAN_KIND_CLIENT",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000001000000",
+            "attributes": [
+              {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"role\": \"user\", \"parts\": [{\"type\": \"text\", \"content\": \"hi\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.is_streaming",
+                "value": {
+                  "boolValue": true
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "chat"
+                }
+              },
+              {
+                "key": "gen_ai.output.messages",
+                "value": {
+                  "stringValue": "[{\"role\": \"assistant\", \"parts\": [{\"type\": \"text\", \"content\": \"yo\"}], \"finish_reason\": \"stop\"}]"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "anthropic"
+                }
+              },
+              {
+                "key": "gen_ai.request.max_tokens",
+                "value": {
+                  "intValue": "64"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "claude-sonnet-4-5"
+                }
+              },
+              {
+                "key": "gen_ai.response.finish_reasons",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "stop"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "gen_ai.response.id",
+                "value": {
+                  "stringValue": "msg_rec1"
+                }
+              },
+              {
+                "key": "gen_ai.response.model",
+                "value": {
+                  "stringValue": "claude-sonnet-4-5-20250929"
+                }
+              },
+              {
+                "key": "gen_ai.usage.cache_creation.input_tokens",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "gen_ai.usage.cache_read.input_tokens",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "gen_ai.usage.input_tokens",
+                "value": {
+                  "intValue": "12"
+                }
+              },
+              {
+                "key": "gen_ai.usage.output_tokens",
+                "value": {
+                  "intValue": "3"
+                }
+              },
+              {
+                "key": "gen_ai.usage.total_tokens",
+                "value": {
+                  "intValue": "15"
+                }
+              }
+            ],
+            "status": {
+              "code": "STATUS_CODE_OK"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "anthropic_tool_call",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "openllmetry-recorder"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "python"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.44.0"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "opentelemetry.instrumentation.anthropic",
+            "version": "0.62.3"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "anthropic.chat",
+            "kind": "SPAN_KIND_CLIENT",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000001000000",
+            "attributes": [
+              {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"role\": \"user\", \"parts\": [{\"type\": \"text\", \"content\": \"weather in Paris?\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "chat"
+                }
+              },
+              {
+                "key": "gen_ai.output.messages",
+                "value": {
+                  "stringValue": "[{\"role\": \"assistant\", \"parts\": [{\"type\": \"text\", \"content\": \"Let me check.\"}, {\"type\": \"tool_call\", \"id\": \"toolu_abc\", \"name\": \"get_weather\", \"arguments\": {\"city\": \"Paris\"}}], \"finish_reason\": \"tool_call\"}]"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "anthropic"
+                }
+              },
+              {
+                "key": "gen_ai.request.max_tokens",
+                "value": {
+                  "intValue": "64"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "claude-sonnet-4-5"
+                }
+              },
+              {
+                "key": "gen_ai.response.finish_reasons",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "tool_call"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "gen_ai.response.id",
+                "value": {
+                  "stringValue": "msg_rec1"
+                }
+              },
+              {
+                "key": "gen_ai.response.model",
+                "value": {
+                  "stringValue": "claude-sonnet-4-5-20250929"
+                }
+              },
+              {
+                "key": "gen_ai.tool.definitions",
+                "value": {
+                  "stringValue": "[{\"name\": \"get_weather\", \"description\": \"Get the weather for a city\", \"input_schema\": {\"type\": \"object\", \"properties\": {\"city\": {\"type\": \"string\"}}, \"required\": [\"city\"]}}]"
+                }
+              },
+              {
+                "key": "gen_ai.usage.cache_creation.input_tokens",
+                "value": {
+                  "intValue": "3"
+                }
+              },
+              {
+                "key": "gen_ai.usage.cache_read.input_tokens",
+                "value": {
+                  "intValue": "5"
+                }
+              },
+              {
+                "key": "gen_ai.usage.input_tokens",
+                "value": {
+                  "intValue": "38"
+                }
+              },
+              {
+                "key": "gen_ai.usage.output_tokens",
+                "value": {
+                  "intValue": "9"
+                }
+              },
+              {
+                "key": "gen_ai.usage.total_tokens",
+                "value": {
+                  "intValue": "47"
+                }
+              }
+            ],
+            "status": {
+              "code": "STATUS_CODE_OK"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "anthropic_tool_response",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "openllmetry-recorder"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "python"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.44.0"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "opentelemetry.instrumentation.anthropic",
+            "version": "0.62.3"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "anthropic.chat",
+            "kind": "SPAN_KIND_CLIENT",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000001000000",
+            "attributes": [
+              {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"role\": \"user\", \"parts\": [{\"type\": \"text\", \"content\": \"weather in Paris?\"}]}, {\"role\": \"assistant\", \"parts\": [{\"type\": \"tool_call\", \"id\": \"toolu_abc\", \"name\": \"get_weather\", \"arguments\": {\"city\": \"Paris\"}}]}, {\"role\": \"user\", \"parts\": [{\"type\": \"tool_call_response\", \"id\": \"toolu_abc\", \"response\": \"sunny, 22C\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "chat"
+                }
+              },
+              {
+                "key": "gen_ai.output.messages",
+                "value": {
+                  "stringValue": "[{\"role\": \"assistant\", \"parts\": [{\"type\": \"text\", \"content\": \"It is sunny in Paris.\"}], \"finish_reason\": \"stop\"}]"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "anthropic"
+                }
+              },
+              {
+                "key": "gen_ai.request.max_tokens",
+                "value": {
+                  "intValue": "64"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "claude-sonnet-4-5"
+                }
+              },
+              {
+                "key": "gen_ai.response.finish_reasons",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "stop"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "gen_ai.response.id",
+                "value": {
+                  "stringValue": "msg_rec1"
+                }
+              },
+              {
+                "key": "gen_ai.response.model",
+                "value": {
+                  "stringValue": "claude-sonnet-4-5-20250929"
+                }
+              },
+              {
+                "key": "gen_ai.tool.definitions",
+                "value": {
+                  "stringValue": "[{\"name\": \"get_weather\", \"description\": \"Get the weather for a city\", \"input_schema\": {\"type\": \"object\", \"properties\": {\"city\": {\"type\": \"string\"}}, \"required\": [\"city\"]}}]"
+                }
+              },
+              {
+                "key": "gen_ai.usage.cache_creation.input_tokens",
+                "value": {
+                  "intValue": "3"
+                }
+              },
+              {
+                "key": "gen_ai.usage.cache_read.input_tokens",
+                "value": {
+                  "intValue": "5"
+                }
+              },
+              {
+                "key": "gen_ai.usage.input_tokens",
+                "value": {
+                  "intValue": "38"
+                }
+              },
+              {
+                "key": "gen_ai.usage.output_tokens",
+                "value": {
+                  "intValue": "9"
+                }
+              },
+              {
+                "key": "gen_ai.usage.total_tokens",
+                "value": {
+                  "intValue": "47"
+                }
+              }
+            ],
+            "status": {
+              "code": "STATUS_CODE_OK"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "anthropic_error",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "openllmetry-recorder"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "python"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.44.0"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "opentelemetry.instrumentation.anthropic",
+            "version": "0.62.3"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "anthropic.chat",
+            "kind": "SPAN_KIND_CLIENT",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000002000000",
+            "attributes": [
+              {
+                "key": "error.type",
+                "value": {
+                  "stringValue": "BadRequestError"
+                }
+              },
+              {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"role\": \"user\", \"parts\": [{\"type\": \"text\", \"content\": \"hi\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "chat"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "anthropic"
+                }
+              },
+              {
+                "key": "gen_ai.request.max_tokens",
+                "value": {
+                  "intValue": "64"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "claude-nope"
+                }
+              }
+            ],
+            "events": [
+              {
+                "timeUnixNano": "1700000000001000000",
+                "name": "exception",
+                "attributes": [
+                  {
+                    "key": "exception.escaped",
+                    "value": {
+                      "stringValue": "False"
+                    }
+                  },
+                  {
+                    "key": "exception.message",
+                    "value": {
+                      "stringValue": "Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'model: not found'}}"
+                    }
+                  },
+                  {
+                    "key": "exception.stacktrace",
+                    "value": {
+                      "stringValue": "<stacktrace elided>"
+                    }
+                  },
+                  {
+                    "key": "exception.type",
+                    "value": {
+                      "stringValue": "anthropic.BadRequestError"
+                    }
+                  }
+                ]
+              }
+            ],
+            "status": {
+              "message": "Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'model: not found'}}",
+              "code": "STATUS_CODE_ERROR"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "traceloop_decorators",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "openllmetry-recorder"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "python"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.44.0"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "traceloop.tracer",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "weather_workflow.workflow",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000009000000",
+            "attributes": [
+              {
+                "key": "traceloop.entity.input",
+                "value": {
+                  "stringValue": "{\"args\": [\"weather?\"], \"kwargs\": {}}"
+                }
+              },
+              {
+                "key": "traceloop.entity.name",
+                "value": {
+                  "stringValue": "weather_workflow"
+                }
+              },
+              {
+                "key": "traceloop.entity.output",
+                "value": {
+                  "stringValue": "\"ok\""
+                }
+              },
+              {
+                "key": "traceloop.span.kind",
+                "value": {
+                  "stringValue": "workflow"
+                }
+              },
+              {
+                "key": "traceloop.workflow.name",
+                "value": {
+                  "stringValue": "weather_workflow"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "traceloop.tracer",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000002",
+            "parentSpanId": "0000000000000001",
+            "name": "weather_agent.agent",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000001000000",
+            "endTimeUnixNano": "1700000000008000000",
+            "attributes": [
+              {
+                "key": "gen_ai.agent.name",
+                "value": {
+                  "stringValue": "weather_agent"
+                }
+              },
+              {
+                "key": "traceloop.entity.input",
+                "value": {
+                  "stringValue": "{\"args\": [\"weather?\"], \"kwargs\": {}}"
+                }
+              },
+              {
+                "key": "traceloop.entity.name",
+                "value": {
+                  "stringValue": "weather_agent"
+                }
+              },
+              {
+                "key": "traceloop.entity.output",
+                "value": {
+                  "stringValue": "\"ok\""
+                }
+              },
+              {
+                "key": "traceloop.span.kind",
+                "value": {
+                  "stringValue": "agent"
+                }
+              },
+              {
+                "key": "traceloop.workflow.name",
+                "value": {
+                  "stringValue": "weather_workflow"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "traceloop.tracer",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000003",
+            "parentSpanId": "0000000000000002",
+            "name": "get_weather.tool",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000002000000",
+            "endTimeUnixNano": "1700000000003000000",
+            "attributes": [
+              {
+                "key": "gen_ai.agent.name",
+                "value": {
+                  "stringValue": "weather_agent"
+                }
+              },
+              {
+                "key": "gen_ai.tool.name",
+                "value": {
+                  "stringValue": "get_weather"
+                }
+              },
+              {
+                "key": "traceloop.entity.input",
+                "value": {
+                  "stringValue": "{\"args\": [\"Paris\"], \"kwargs\": {}}"
+                }
+              },
+              {
+                "key": "traceloop.entity.name",
+                "value": {
+                  "stringValue": "get_weather"
+                }
+              },
+              {
+                "key": "traceloop.entity.output",
+                "value": {
+                  "stringValue": "\"sunny in Paris\""
+                }
+              },
+              {
+                "key": "traceloop.span.kind",
+                "value": {
+                  "stringValue": "tool"
+                }
+              },
+              {
+                "key": "traceloop.workflow.name",
+                "value": {
+                  "stringValue": "weather_workflow"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "traceloop.tracer",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000004",
+            "parentSpanId": "0000000000000002",
+            "name": "summarize.task",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000004000000",
+            "endTimeUnixNano": "1700000000007000000",
+            "attributes": [
+              {
+                "key": "gen_ai.agent.name",
+                "value": {
+                  "stringValue": "weather_agent"
+                }
+              },
+              {
+                "key": "traceloop.entity.input",
+                "value": {
+                  "stringValue": "{\"args\": [\"weather?\"], \"kwargs\": {}}"
+                }
+              },
+              {
+                "key": "traceloop.entity.name",
+                "value": {
+                  "stringValue": "summarize"
+                }
+              },
+              {
+                "key": "traceloop.entity.output",
+                "value": {
+                  "stringValue": "\"ok\""
+                }
+              },
+              {
+                "key": "traceloop.span.kind",
+                "value": {
+                  "stringValue": "task"
+                }
+              },
+              {
+                "key": "traceloop.workflow.name",
+                "value": {
+                  "stringValue": "weather_workflow"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "opentelemetry.instrumentation.openai.v1",
+            "version": "0.62.3"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000005",
+            "parentSpanId": "0000000000000004",
+            "name": "openai.chat",
+            "kind": "SPAN_KIND_CLIENT",
+            "startTimeUnixNano": "1700000000005000000",
+            "endTimeUnixNano": "1700000000006000000",
+            "attributes": [
+              {
+                "key": "gen_ai.agent.name",
+                "value": {
+                  "stringValue": "weather_agent"
+                }
+              },
+              {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"role\": \"user\", \"parts\": [{\"content\": \"weather?\", \"type\": \"text\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.is_streaming",
+                "value": {
+                  "boolValue": false
+                }
+              },
+              {
+                "key": "gen_ai.openai.api_base",
+                "value": {
+                  "stringValue": "https://api.openai.com/v1/"
+                }
+              },
+              {
+                "key": "gen_ai.openai.response.system_fingerprint",
+                "value": {
+                  "stringValue": "fp_rec"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "chat"
+                }
+              },
+              {
+                "key": "gen_ai.output.messages",
+                "value": {
+                  "stringValue": "[{\"role\": \"assistant\", \"parts\": [{\"content\": \"22C\", \"type\": \"text\"}], \"finish_reason\": \"stop\"}]"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-4o"
+                }
+              },
+              {
+                "key": "gen_ai.response.finish_reasons",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "stop"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "gen_ai.response.id",
+                "value": {
+                  "stringValue": "chatcmpl-rec1"
+                }
+              },
+              {
+                "key": "gen_ai.response.model",
+                "value": {
+                  "stringValue": "gpt-4o-2024-08-06"
+                }
+              },
+              {
+                "key": "gen_ai.usage.cache_read.input_tokens",
+                "value": {
+                  "intValue": "10"
+                }
+              },
+              {
+                "key": "gen_ai.usage.input_tokens",
+                "value": {
+                  "intValue": "42"
+                }
+              },
+              {
+                "key": "gen_ai.usage.output_tokens",
+                "value": {
+                  "intValue": "7"
+                }
+              },
+              {
+                "key": "gen_ai.usage.reasoning_tokens",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "gen_ai.usage.total_tokens",
+                "value": {
+                  "intValue": "49"
+                }
+              },
+              {
+                "key": "traceloop.entity.path",
+                "value": {
+                  "stringValue": "summarize"
+                }
+              },
+              {
+                "key": "traceloop.workflow.name",
+                "value": {
+                  "stringValue": "weather_workflow"
+                }
+              }
+            ],
+            "status": {}
+          }
+        }
+      ]
+    }
+  ]
+}

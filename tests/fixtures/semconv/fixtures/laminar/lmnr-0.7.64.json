@@ -1,0 +1,4321 @@
+{
+  "recordings": [
+    {
+      "scenario": "chat_tool_calls",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "record.py"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "lmnr.tracer",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "conversation",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000021000000",
+            "attributes": [
+              {
+                "key": "lmnr.association.properties.session_id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "lmnr.span.ids_path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000002"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_source",
+                "value": {
+                  "stringValue": "python"
+                }
+              },
+              {
+                "key": "lmnr.span.language_version",
+                "value": {
+                  "stringValue": "python@3.12"
+                }
+              },
+              {
+                "key": "lmnr.span.parent_ids_path",
+                "value": {
+                  "arrayValue": {}
+                }
+              },
+              {
+                "key": "lmnr.span.parent_path",
+                "value": {
+                  "arrayValue": {}
+                }
+              },
+              {
+                "key": "lmnr.span.path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "conversation"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.sdk_version",
+                "value": {
+                  "stringValue": "0.7.64"
+                }
+              },
+              {
+                "key": "lmnr.span.type",
+                "value": {
+                  "stringValue": "DEFAULT"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "lmnr.tracer",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000002",
+            "parentSpanId": "0000000000000001",
+            "name": "conversation.send_message",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000001000000",
+            "endTimeUnixNano": "1700000000002000000",
+            "attributes": [
+              {
+                "key": "lmnr.association.properties.session_id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "lmnr.span.ids_path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000002"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000003"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.input",
+                "value": {
+                  "stringValue": "{\"message\":\"Print 'hello from openhands' in the terminal, then finish.\"}"
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_source",
+                "value": {
+                  "stringValue": "python"
+                }
+              },
+              {
+                "key": "lmnr.span.language_version",
+                "value": {
+                  "stringValue": "python@3.12"
+                }
+              },
+              {
+                "key": "lmnr.span.path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "conversation"
+                      },
+                      {
+                        "stringValue": "conversation.send_message"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.sdk_version",
+                "value": {
+                  "stringValue": "0.7.64"
+                }
+              },
+              {
+                "key": "lmnr.span.type",
+                "value": {
+                  "stringValue": "DEFAULT"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "lmnr.tracer",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000003",
+            "parentSpanId": "0000000000000001",
+            "name": "conversation.run",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000003000000",
+            "endTimeUnixNano": "1700000000020000000",
+            "attributes": [
+              {
+                "key": "lmnr.association.properties.session_id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "lmnr.span.ids_path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000002"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000004"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.input",
+                "value": {
+                  "stringValue": "{}"
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_source",
+                "value": {
+                  "stringValue": "python"
+                }
+              },
+              {
+                "key": "lmnr.span.language_version",
+                "value": {
+                  "stringValue": "python@3.12"
+                }
+              },
+              {
+                "key": "lmnr.span.path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "conversation"
+                      },
+                      {
+                        "stringValue": "conversation.run"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.sdk_version",
+                "value": {
+                  "stringValue": "0.7.64"
+                }
+              },
+              {
+                "key": "lmnr.span.type",
+                "value": {
+                  "stringValue": "DEFAULT"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "lmnr.tracer",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000004",
+            "parentSpanId": "0000000000000003",
+            "name": "agent.step",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000004000000",
+            "endTimeUnixNano": "1700000000011000000",
+            "attributes": [
+              {
+                "key": "lmnr.association.properties.session_id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "lmnr.span.ids_path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000002"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000004"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000005"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.input",
+                "value": {
+                  "stringValue": "{\"on_token\":null,\"conversation\":\"<openhands.sdk.conversation.impl.local_conversation.LocalConversation object at 0x0>\"}"
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_source",
+                "value": {
+                  "stringValue": "python"
+                }
+              },
+              {
+                "key": "lmnr.span.language_version",
+                "value": {
+                  "stringValue": "python@3.12"
+                }
+              },
+              {
+                "key": "lmnr.span.path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "conversation"
+                      },
+                      {
+                        "stringValue": "conversation.run"
+                      },
+                      {
+                        "stringValue": "agent.step"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.sdk_version",
+                "value": {
+                  "stringValue": "0.7.64"
+                }
+              },
+              {
+                "key": "lmnr.span.type",
+                "value": {
+                  "stringValue": "DEFAULT"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "lmnr.tracer",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000005",
+            "parentSpanId": "0000000000000004",
+            "name": "llm.openai/fake",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000005000000",
+            "endTimeUnixNano": "1700000000008000000",
+            "attributes": [
+              {
+                "key": "gen_ai.usage.cache_creation_input_tokens",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "gen_ai.usage.cache_read_input_tokens",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "lmnr.association.properties.session_id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "lmnr.span.ids_path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000002"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000004"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000005"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000006"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_source",
+                "value": {
+                  "stringValue": "python"
+                }
+              },
+              {
+                "key": "lmnr.span.language_version",
+                "value": {
+                  "stringValue": "python@3.12"
+                }
+              },
+              {
+                "key": "lmnr.span.parent_ids_path",
+                "value": {
+                  "arrayValue": {}
+                }
+              },
+              {
+                "key": "lmnr.span.parent_path",
+                "value": {
+                  "arrayValue": {}
+                }
+              },
+              {
+                "key": "lmnr.span.path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "conversation"
+                      },
+                      {
+                        "stringValue": "conversation.run"
+                      },
+                      {
+                        "stringValue": "agent.step"
+                      },
+                      {
+                        "stringValue": "llm.openai/fake"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.sdk_version",
+                "value": {
+                  "stringValue": "0.7.64"
+                }
+              },
+              {
+                "key": "lmnr.span.type",
+                "value": {
+                  "stringValue": "LLM"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "lmnr.tracer",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000006",
+            "parentSpanId": "0000000000000005",
+            "name": "litellm.completion",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000006000000",
+            "endTimeUnixNano": "1700000000007000000",
+            "attributes": [
+              {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"content\":[{\"type\":\"text\",\"text\":\"<SOUL>\\nYou are OpenHands agent, a helpful AI assistant that can interact with a computer to solve tasks.\\n</SOUL>\\n\\n<ROLE>\\n* Your primary role is to assist users ...<15068 chars truncated>\"}],\"role\":\"system\"},{\"content\":[{\"type\":\"text\",\"text\":\"Print 'hello from openhands' in the terminal, then finish.\"}],\"role\":\"user\"}]"
+                }
+              },
+              {
+                "key": "gen_ai.output.messages",
+                "value": {
+                  "stringValue": "[{\"content\":null,\"role\":\"assistant\",\"tool_calls\":[{\"function\":{\"arguments\":\"{\\\"command\\\": \\\"echo hello from openhands\\\", \\\"summary\\\": \\\"Say hello\\\", \\\"security_risk\\\": \\\"LOW\\\"}\",\"name\":\"terminal\"},\"id\":\"call_1\",\"type\":\"function\"}],\"function_call\":null,\"provider_specific_fields\":{\"refusal\":null}}]"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "fake"
+                }
+              },
+              {
+                "key": "gen_ai.request.reasoning_effort",
+                "value": {
+                  "stringValue": "high"
+                }
+              },
+              {
+                "key": "gen_ai.response.id",
+                "value": {
+                  "stringValue": "chatcmpl-rec-0"
+                }
+              },
+              {
+                "key": "gen_ai.response.model",
+                "value": {
+                  "stringValue": "fake"
+                }
+              },
+              {
+                "key": "gen_ai.system",
+                "value": {
+                  "stringValue": "litellm"
+                }
+              },
+              {
+                "key": "gen_ai.tool.definitions",
+                "value": {
+                  "stringValue": "[{\"type\":\"function\",\"function\":{\"name\":\"terminal\",\"description\":\"Execute a shell command in the terminal within a persistent shell session.\\n\\n\\n### Command Execution\\n* One command at a time: You can only execute one shell comma...<1603 chars truncated>\",\"parameters\":{\"type\":\"object\",\"properties\":{\"security_risk\":{\"type\":\"string\",\"description\":\"Security risk levels for actions.\\n\\nBased on OpenHands security risk levels but adapted for agent-sdk.\\nInteger values allow for easy comparison and ordering.\",\"enum\":[\"UNKNOWN\",\"LOW\",\"MEDIUM\",\"HIGH\"]},\"summary\":{\"type\":\"string\",\"description\":\"A concise summary (approximately 10 words) describing what this specific action does. Focus on the key operation and target. Example: 'List all Python files in ...<18 chars truncated>\"},\"command\":{\"type\":\"string\",\"description\":\"The shell command to execute. Can be empty string to view additional logs when the previous exit code is `-1`. Can be a special key name when `is_input` is True...<360 chars truncated>\"},\"is_input\":{\"type\":\"boolean\",\"description\":\"If True, the command is an input to the running process. If False, the command is executed in the terminal session. Default is False.\"},\"timeout\":{\"type\":\"number\",\"description\":\"Optional. Sets a maximum time limit (in seconds) for running the command. If the command takes longer than this limit, you’ll be asked whether to continue or st...<283 chars truncated>\"},\"reset\":{\"type\":\"boolean\",\"description\":\"If True, reset the terminal by creating a new session. Use this only when the terminal becomes unresponsive. Note that all previously set environment variables ...<78 chars truncated>\"}},\"required\":[\"command\"]}}},{\"type\":\"function\",\"function\":{\"name\":\"file_editor\",\"description\":\"Custom editing tool for viewing, creating and editing files in plain-text format\\n* State is persistent across command calls and discussions with the user\\n* If `...<1966 chars truncated>\",\"parameters\":{\"type\":\"object\",\"properties\":{\"security_risk\":{\"type\":\"string\",\"description\":\"Security risk levels for actions.\\n\\nBased on OpenHands security risk levels but adapted for agent-sdk.\\nInteger values allow for easy comparison and ordering.\",\"enum\":[\"UNKNOWN\",\"LOW\",\"MEDIUM\",\"HIGH\"]},\"summary\":{\"type\":\"string\",\"description\":\"A concise summary (approximately 10 words) describing what this specific action does. Focus on the key operation and target. Example: 'List all Python files in ...<18 chars truncated>\"},\"command\":{\"type\":\"string\",\"description\":\"The commands to run. Allowed options are: `view`, `create`, `str_replace`, `insert`, `undo_edit`.\",\"enum\":[\"view\",\"create\",\"str_replace\",\"insert\",\"undo_edit\"]},\"path\":{\"type\":\"string\",\"description\":\"Absolute path to file or directory.\"},\"file_text\":{\"type\":\"string\",\"description\":\"Required parameter of `create` command, with the content of the file to be created.\"},\"old_str\":{\"type\":\"string\",\"description\":\"Required parameter of `str_replace` command containing the string in `path` to replace.\"},\"new_str\":{\"type\":\"string\",\"description\":\"Optional parameter of `str_replace` command containing the new string (if not given, no string will be added). Required parameter of `insert` command containing...<22 chars truncated>\"},\"insert_line\":{\"type\":\"integer\",\"description\":\"Required parameter of `insert` command. The `new_str` will be inserted AFTER the line `insert_line` of `path`.\"},\"view_range\":{\"type\":\"array\",\"items\":{\"type\":\"integer\"},\"description\":\"Optional parameter of `view` command when `path` points to a file. If none is given, the full file is shown. If provided, the file will be shown in the indicate...<170 chars truncated>\"}},\"required\":[\"command\",\"path\"]}}},{\"type\":\"function\",\"function\":{\"name\":\"finish\",\"description\":\"Signals the completion of the current task or conversation.\\n\\nUse this tool when:\\n- You have successfully completed the user's requested task\\n- You cannot procee...<282 chars truncated>\",\"parameters\":{\"type\":\"object\",\"properties\":{\"summary\":{\"type\":\"string\",\"description\":\"A concise summary (approximately 10 words) describing what this specific action does. Focus on the key operation and target. Example: 'List all Python files in ...<18 chars truncated>\"},\"message\":{\"type\":\"string\",\"description\":\"Final message to send to the user.\"}},\"required\":[\"message\"]}}},{\"type\":\"function\",\"function\":{\"name\":\"think\",\"description\":\"Use the tool to think about something. It will not obtain new information or make any changes to the repository, but just log the thought. Use it when complex r...<779 chars truncated>\",\"parameters\":{\"type\":\"object\",\"properties\":{\"summary\":{\"type\":\"string\",\"description\":\"A concise summary (approximately 10 words) describing what this specific action does. Focus on the key operation and target. Example: 'List all Python files in ...<18 chars truncated>\"},\"thought\":{\"type\":\"string\",\"description\":\"The thought to log.\"}},\"required\":[\"thought\"]}}}]"
+                }
+              },
+              {
+                "key": "gen_ai.usage.input_tokens",
+                "value": {
+                  "intValue": "1200"
+                }
+              },
+              {
+                "key": "gen_ai.usage.output_tokens",
+                "value": {
+                  "intValue": "40"
+                }
+              },
+              {
+                "key": "llm.usage.total_tokens",
+                "value": {
+                  "intValue": "1240"
+                }
+              },
+              {
+                "key": "lmnr.association.properties.session_id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "lmnr.span.ids_path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000002"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000004"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000005"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000006"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000007"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_scope.name",
+                "value": {
+                  "stringValue": "litellm"
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_scope.version",
+                "value": {
+                  "stringValue": "1.103.0"
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_source",
+                "value": {
+                  "stringValue": "python"
+                }
+              },
+              {
+                "key": "lmnr.span.language_version",
+                "value": {
+                  "stringValue": "python@3.12"
+                }
+              },
+              {
+                "key": "lmnr.span.parent_ids_path",
+                "value": {
+                  "arrayValue": {}
+                }
+              },
+              {
+                "key": "lmnr.span.parent_path",
+                "value": {
+                  "arrayValue": {}
+                }
+              },
+              {
+                "key": "lmnr.span.path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "conversation"
+                      },
+                      {
+                        "stringValue": "conversation.run"
+                      },
+                      {
+                        "stringValue": "agent.step"
+                      },
+                      {
+                        "stringValue": "llm.openai/fake"
+                      },
+                      {
+                        "stringValue": "litellm.completion"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.sdk_version",
+                "value": {
+                  "stringValue": "0.7.64"
+                }
+              },
+              {
+                "key": "lmnr.span.type",
+                "value": {
+                  "stringValue": "LLM"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "lmnr.tracer",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000007",
+            "parentSpanId": "0000000000000004",
+            "name": "TerminalAction",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000009000000",
+            "endTimeUnixNano": "1700000000010000000",
+            "attributes": [
+              {
+                "key": "lmnr.association.properties.metadata.tool_call_id",
+                "value": {
+                  "stringValue": "call_1"
+                }
+              },
+              {
+                "key": "lmnr.association.properties.session_id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "lmnr.span.ids_path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000002"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000004"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000005"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000008"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.input",
+                "value": {
+                  "stringValue": "{\"action\":{\"command\":\"echo hello from openhands\",\"is_input\":false,\"timeout\":null,\"reset\":false,\"kind\":\"TerminalAction\"}}"
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_source",
+                "value": {
+                  "stringValue": "python"
+                }
+              },
+              {
+                "key": "lmnr.span.language_version",
+                "value": {
+                  "stringValue": "python@3.12"
+                }
+              },
+              {
+                "key": "lmnr.span.output",
+                "value": {
+                  "stringValue": "{\"content\":[{\"cache_prompt\":false,\"type\":\"text\",\"text\":\"hello from openhands\"}],\"is_error\":false,\"command\":\"echo hello from openhands\",\"exit_code\":0,\"timeout\":false,\"metadata\":{\"exit_code\":0,\"pid\":-1,\"username\":\"<username>\",\"hostname\":\"<hostname>\",\"working_dir\":\"/workspace\",\"py_interpreter_path\":\"\",\"prefix\":\"\",\"suffix\":\"\\n[The command completed with exit code 0.]\"},\"full_output_save_dir\":null,\"kind\":\"TerminalObservation\"}"
+                }
+              },
+              {
+                "key": "lmnr.span.path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "conversation"
+                      },
+                      {
+                        "stringValue": "conversation.run"
+                      },
+                      {
+                        "stringValue": "agent.step"
+                      },
+                      {
+                        "stringValue": "TerminalAction"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.sdk_version",
+                "value": {
+                  "stringValue": "0.7.64"
+                }
+              },
+              {
+                "key": "lmnr.span.type",
+                "value": {
+                  "stringValue": "TOOL"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "lmnr.tracer",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000008",
+            "parentSpanId": "0000000000000003",
+            "name": "agent.step",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000012000000",
+            "endTimeUnixNano": "1700000000019000000",
+            "attributes": [
+              {
+                "key": "lmnr.association.properties.session_id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "lmnr.span.ids_path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000002"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000004"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000009"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.input",
+                "value": {
+                  "stringValue": "{\"on_token\":null,\"conversation\":\"<openhands.sdk.conversation.impl.local_conversation.LocalConversation object at 0x0>\"}"
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_source",
+                "value": {
+                  "stringValue": "python"
+                }
+              },
+              {
+                "key": "lmnr.span.language_version",
+                "value": {
+                  "stringValue": "python@3.12"
+                }
+              },
+              {
+                "key": "lmnr.span.path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "conversation"
+                      },
+                      {
+                        "stringValue": "conversation.run"
+                      },
+                      {
+                        "stringValue": "agent.step"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.sdk_version",
+                "value": {
+                  "stringValue": "0.7.64"
+                }
+              },
+              {
+                "key": "lmnr.span.type",
+                "value": {
+                  "stringValue": "DEFAULT"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "lmnr.tracer",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000009",
+            "parentSpanId": "0000000000000008",
+            "name": "llm.openai/fake",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000013000000",
+            "endTimeUnixNano": "1700000000016000000",
+            "attributes": [
+              {
+                "key": "gen_ai.usage.cache_creation_input_tokens",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "gen_ai.usage.cache_read_input_tokens",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "lmnr.association.properties.session_id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "lmnr.span.ids_path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000002"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000004"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000009"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000010"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_source",
+                "value": {
+                  "stringValue": "python"
+                }
+              },
+              {
+                "key": "lmnr.span.language_version",
+                "value": {
+                  "stringValue": "python@3.12"
+                }
+              },
+              {
+                "key": "lmnr.span.parent_ids_path",
+                "value": {
+                  "arrayValue": {}
+                }
+              },
+              {
+                "key": "lmnr.span.parent_path",
+                "value": {
+                  "arrayValue": {}
+                }
+              },
+              {
+                "key": "lmnr.span.path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "conversation"
+                      },
+                      {
+                        "stringValue": "conversation.run"
+                      },
+                      {
+                        "stringValue": "agent.step"
+                      },
+                      {
+                        "stringValue": "llm.openai/fake"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.sdk_version",
+                "value": {
+                  "stringValue": "0.7.64"
+                }
+              },
+              {
+                "key": "lmnr.span.type",
+                "value": {
+                  "stringValue": "LLM"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "lmnr.tracer",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "000000000000000a",
+            "parentSpanId": "0000000000000009",
+            "name": "litellm.completion",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000014000000",
+            "endTimeUnixNano": "1700000000015000000",
+            "attributes": [
+              {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"content\":[{\"type\":\"text\",\"text\":\"<SOUL>\\nYou are OpenHands agent, a helpful AI assistant that can interact with a computer to solve tasks.\\n</SOUL>\\n\\n<ROLE>\\n* Your primary role is to assist users ...<15068 chars truncated>\"}],\"role\":\"system\"},{\"content\":[{\"type\":\"text\",\"text\":\"Print 'hello from openhands' in the terminal, then finish.\"}],\"role\":\"user\"},{\"role\":\"assistant\",\"tool_calls\":[{\"id\":\"call_1\",\"type\":\"function\",\"function\":{\"name\":\"terminal\",\"arguments\":\"{\\\"command\\\": \\\"echo hello from openhands\\\", \\\"summary\\\": \\\"Say hello\\\", \\\"security_risk\\\": \\\"LOW\\\"}\"}}]},{\"content\":[{\"type\":\"text\",\"text\":\"hello from openhands\\n[The command completed with exit code 0.]\\n[Current working directory: /workspace]\\n[Command finished with exit code 0]\"}],\"role\":\"tool\",\"tool_call_id\":\"call_1\",\"name\":\"terminal\"}]"
+                }
+              },
+              {
+                "key": "gen_ai.output.messages",
+                "value": {
+                  "stringValue": "[{\"content\":null,\"role\":\"assistant\",\"tool_calls\":[{\"function\":{\"arguments\":\"{\\\"message\\\": \\\"Printed the greeting.\\\", \\\"summary\\\": \\\"Finish\\\", \\\"security_risk\\\": \\\"LOW\\\"}\",\"name\":\"finish\"},\"id\":\"call_2\",\"type\":\"function\"}],\"function_call\":null,\"provider_specific_fields\":{\"refusal\":null}}]"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "fake"
+                }
+              },
+              {
+                "key": "gen_ai.request.reasoning_effort",
+                "value": {
+                  "stringValue": "high"
+                }
+              },
+              {
+                "key": "gen_ai.response.id",
+                "value": {
+                  "stringValue": "chatcmpl-rec-1"
+                }
+              },
+              {
+                "key": "gen_ai.response.model",
+                "value": {
+                  "stringValue": "fake"
+                }
+              },
+              {
+                "key": "gen_ai.system",
+                "value": {
+                  "stringValue": "litellm"
+                }
+              },
+              {
+                "key": "gen_ai.tool.definitions",
+                "value": {
+                  "stringValue": "[{\"type\":\"function\",\"function\":{\"name\":\"terminal\",\"description\":\"Execute a shell command in the terminal within a persistent shell session.\\n\\n\\n### Command Execution\\n* One command at a time: You can only execute one shell comma...<1603 chars truncated>\",\"parameters\":{\"type\":\"object\",\"properties\":{\"security_risk\":{\"type\":\"string\",\"description\":\"Security risk levels for actions.\\n\\nBased on OpenHands security risk levels but adapted for agent-sdk.\\nInteger values allow for easy comparison and ordering.\",\"enum\":[\"UNKNOWN\",\"LOW\",\"MEDIUM\",\"HIGH\"]},\"summary\":{\"type\":\"string\",\"description\":\"A concise summary (approximately 10 words) describing what this specific action does. Focus on the key operation and target. Example: 'List all Python files in ...<18 chars truncated>\"},\"command\":{\"type\":\"string\",\"description\":\"The shell command to execute. Can be empty string to view additional logs when the previous exit code is `-1`. Can be a special key name when `is_input` is True...<360 chars truncated>\"},\"is_input\":{\"type\":\"boolean\",\"description\":\"If True, the command is an input to the running process. If False, the command is executed in the terminal session. Default is False.\"},\"timeout\":{\"type\":\"number\",\"description\":\"Optional. Sets a maximum time limit (in seconds) for running the command. If the command takes longer than this limit, you’ll be asked whether to continue or st...<283 chars truncated>\"},\"reset\":{\"type\":\"boolean\",\"description\":\"If True, reset the terminal by creating a new session. Use this only when the terminal becomes unresponsive. Note that all previously set environment variables ...<78 chars truncated>\"}},\"required\":[\"command\"]}}},{\"type\":\"function\",\"function\":{\"name\":\"file_editor\",\"description\":\"Custom editing tool for viewing, creating and editing files in plain-text format\\n* State is persistent across command calls and discussions with the user\\n* If `...<1966 chars truncated>\",\"parameters\":{\"type\":\"object\",\"properties\":{\"security_risk\":{\"type\":\"string\",\"description\":\"Security risk levels for actions.\\n\\nBased on OpenHands security risk levels but adapted for agent-sdk.\\nInteger values allow for easy comparison and ordering.\",\"enum\":[\"UNKNOWN\",\"LOW\",\"MEDIUM\",\"HIGH\"]},\"summary\":{\"type\":\"string\",\"description\":\"A concise summary (approximately 10 words) describing what this specific action does. Focus on the key operation and target. Example: 'List all Python files in ...<18 chars truncated>\"},\"command\":{\"type\":\"string\",\"description\":\"The commands to run. Allowed options are: `view`, `create`, `str_replace`, `insert`, `undo_edit`.\",\"enum\":[\"view\",\"create\",\"str_replace\",\"insert\",\"undo_edit\"]},\"path\":{\"type\":\"string\",\"description\":\"Absolute path to file or directory.\"},\"file_text\":{\"type\":\"string\",\"description\":\"Required parameter of `create` command, with the content of the file to be created.\"},\"old_str\":{\"type\":\"string\",\"description\":\"Required parameter of `str_replace` command containing the string in `path` to replace.\"},\"new_str\":{\"type\":\"string\",\"description\":\"Optional parameter of `str_replace` command containing the new string (if not given, no string will be added). Required parameter of `insert` command containing...<22 chars truncated>\"},\"insert_line\":{\"type\":\"integer\",\"description\":\"Required parameter of `insert` command. The `new_str` will be inserted AFTER the line `insert_line` of `path`.\"},\"view_range\":{\"type\":\"array\",\"items\":{\"type\":\"integer\"},\"description\":\"Optional parameter of `view` command when `path` points to a file. If none is given, the full file is shown. If provided, the file will be shown in the indicate...<170 chars truncated>\"}},\"required\":[\"command\",\"path\"]}}},{\"type\":\"function\",\"function\":{\"name\":\"finish\",\"description\":\"Signals the completion of the current task or conversation.\\n\\nUse this tool when:\\n- You have successfully completed the user's requested task\\n- You cannot procee...<282 chars truncated>\",\"parameters\":{\"type\":\"object\",\"properties\":{\"summary\":{\"type\":\"string\",\"description\":\"A concise summary (approximately 10 words) describing what this specific action does. Focus on the key operation and target. Example: 'List all Python files in ...<18 chars truncated>\"},\"message\":{\"type\":\"string\",\"description\":\"Final message to send to the user.\"}},\"required\":[\"message\"]}}},{\"type\":\"function\",\"function\":{\"name\":\"think\",\"description\":\"Use the tool to think about something. It will not obtain new information or make any changes to the repository, but just log the thought. Use it when complex r...<779 chars truncated>\",\"parameters\":{\"type\":\"object\",\"properties\":{\"summary\":{\"type\":\"string\",\"description\":\"A concise summary (approximately 10 words) describing what this specific action does. Focus on the key operation and target. Example: 'List all Python files in ...<18 chars truncated>\"},\"thought\":{\"type\":\"string\",\"description\":\"The thought to log.\"}},\"required\":[\"thought\"]}}}]"
+                }
+              },
+              {
+                "key": "gen_ai.usage.input_tokens",
+                "value": {
+                  "intValue": "1250"
+                }
+              },
+              {
+                "key": "gen_ai.usage.output_tokens",
+                "value": {
+                  "intValue": "40"
+                }
+              },
+              {
+                "key": "llm.usage.total_tokens",
+                "value": {
+                  "intValue": "1290"
+                }
+              },
+              {
+                "key": "lmnr.association.properties.session_id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "lmnr.span.ids_path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000002"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000004"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000009"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000010"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000011"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_scope.name",
+                "value": {
+                  "stringValue": "litellm"
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_scope.version",
+                "value": {
+                  "stringValue": "1.103.0"
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_source",
+                "value": {
+                  "stringValue": "python"
+                }
+              },
+              {
+                "key": "lmnr.span.language_version",
+                "value": {
+                  "stringValue": "python@3.12"
+                }
+              },
+              {
+                "key": "lmnr.span.parent_ids_path",
+                "value": {
+                  "arrayValue": {}
+                }
+              },
+              {
+                "key": "lmnr.span.parent_path",
+                "value": {
+                  "arrayValue": {}
+                }
+              },
+              {
+                "key": "lmnr.span.path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "conversation"
+                      },
+                      {
+                        "stringValue": "conversation.run"
+                      },
+                      {
+                        "stringValue": "agent.step"
+                      },
+                      {
+                        "stringValue": "llm.openai/fake"
+                      },
+                      {
+                        "stringValue": "litellm.completion"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.sdk_version",
+                "value": {
+                  "stringValue": "0.7.64"
+                }
+              },
+              {
+                "key": "lmnr.span.type",
+                "value": {
+                  "stringValue": "LLM"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "lmnr.tracer",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "000000000000000b",
+            "parentSpanId": "0000000000000008",
+            "name": "FinishAction",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000017000000",
+            "endTimeUnixNano": "1700000000018000000",
+            "attributes": [
+              {
+                "key": "lmnr.association.properties.metadata.tool_call_id",
+                "value": {
+                  "stringValue": "call_2"
+                }
+              },
+              {
+                "key": "lmnr.association.properties.session_id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "lmnr.span.ids_path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000002"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000004"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000009"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000012"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.input",
+                "value": {
+                  "stringValue": "{\"action\":{\"message\":\"Printed the greeting.\",\"kind\":\"FinishAction\"}}"
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_source",
+                "value": {
+                  "stringValue": "python"
+                }
+              },
+              {
+                "key": "lmnr.span.language_version",
+                "value": {
+                  "stringValue": "python@3.12"
+                }
+              },
+              {
+                "key": "lmnr.span.output",
+                "value": {
+                  "stringValue": "{\"content\":[{\"cache_prompt\":false,\"type\":\"text\",\"text\":\"Printed the greeting.\"}],\"is_error\":false,\"kind\":\"FinishObservation\"}"
+                }
+              },
+              {
+                "key": "lmnr.span.path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "conversation"
+                      },
+                      {
+                        "stringValue": "conversation.run"
+                      },
+                      {
+                        "stringValue": "agent.step"
+                      },
+                      {
+                        "stringValue": "FinishAction"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.sdk_version",
+                "value": {
+                  "stringValue": "0.7.64"
+                }
+              },
+              {
+                "key": "lmnr.span.type",
+                "value": {
+                  "stringValue": "TOOL"
+                }
+              }
+            ],
+            "status": {}
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "llm_error",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "record.py"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "lmnr.tracer",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "conversation",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000017000000",
+            "attributes": [
+              {
+                "key": "lmnr.association.properties.session_id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "lmnr.span.ids_path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000002"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_source",
+                "value": {
+                  "stringValue": "python"
+                }
+              },
+              {
+                "key": "lmnr.span.language_version",
+                "value": {
+                  "stringValue": "python@3.12"
+                }
+              },
+              {
+                "key": "lmnr.span.parent_ids_path",
+                "value": {
+                  "arrayValue": {}
+                }
+              },
+              {
+                "key": "lmnr.span.parent_path",
+                "value": {
+                  "arrayValue": {}
+                }
+              },
+              {
+                "key": "lmnr.span.path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "conversation"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.sdk_version",
+                "value": {
+                  "stringValue": "0.7.64"
+                }
+              },
+              {
+                "key": "lmnr.span.type",
+                "value": {
+                  "stringValue": "DEFAULT"
+                }
+              }
+            ],
+            "events": [
+              {
+                "timeUnixNano": "1700000000016000000",
+                "name": "exception",
+                "attributes": [
+                  {
+                    "key": "exception.escaped",
+                    "value": {
+                      "stringValue": "False"
+                    }
+                  },
+                  {
+                    "key": "exception.message",
+                    "value": {
+                      "stringValue": "Conversation run failed for id=00000000-0000-0000-0000-000000000001: litellm.AuthenticationError: AuthenticationError: OpenAIException - Incorrect API key provided: sk-fake."
+                    }
+                  },
+                  {
+                    "key": "exception.stacktrace",
+                    "value": {
+                      "stringValue": "<stacktrace elided>"
+                    }
+                  },
+                  {
+                    "key": "exception.type",
+                    "value": {
+                      "stringValue": "openhands.sdk.conversation.exceptions.ConversationRunError"
+                    }
+                  },
+                  {
+                    "key": "lmnr.event.session_id",
+                    "value": {
+                      "stringValue": "00000000-0000-0000-0000-000000000001"
+                    }
+                  }
+                ]
+              }
+            ],
+            "status": {
+              "message": "ConversationRunError: Conversation run failed for id=00000000-0000-0000-0000-000000000001: litellm.AuthenticationError: AuthenticationError: OpenAIException - Incorrect API key provided: sk-fake.",
+              "code": "STATUS_CODE_ERROR"
+            }
+          }
+        },
+        {
+          "scope": {
+            "name": "lmnr.tracer",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000002",
+            "parentSpanId": "0000000000000001",
+            "name": "conversation.send_message",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000001000000",
+            "endTimeUnixNano": "1700000000002000000",
+            "attributes": [
+              {
+                "key": "lmnr.association.properties.session_id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "lmnr.span.ids_path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000002"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000003"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.input",
+                "value": {
+                  "stringValue": "{\"message\":\"Print 'hello from openhands' in the terminal, then finish.\"}"
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_source",
+                "value": {
+                  "stringValue": "python"
+                }
+              },
+              {
+                "key": "lmnr.span.language_version",
+                "value": {
+                  "stringValue": "python@3.12"
+                }
+              },
+              {
+                "key": "lmnr.span.path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "conversation"
+                      },
+                      {
+                        "stringValue": "conversation.send_message"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.sdk_version",
+                "value": {
+                  "stringValue": "0.7.64"
+                }
+              },
+              {
+                "key": "lmnr.span.type",
+                "value": {
+                  "stringValue": "DEFAULT"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "lmnr.tracer",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000003",
+            "parentSpanId": "0000000000000001",
+            "name": "conversation.run",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000003000000",
+            "endTimeUnixNano": "1700000000015000000",
+            "attributes": [
+              {
+                "key": "lmnr.association.properties.session_id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "lmnr.span.ids_path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000002"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000004"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.input",
+                "value": {
+                  "stringValue": "{}"
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_source",
+                "value": {
+                  "stringValue": "python"
+                }
+              },
+              {
+                "key": "lmnr.span.language_version",
+                "value": {
+                  "stringValue": "python@3.12"
+                }
+              },
+              {
+                "key": "lmnr.span.path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "conversation"
+                      },
+                      {
+                        "stringValue": "conversation.run"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.sdk_version",
+                "value": {
+                  "stringValue": "0.7.64"
+                }
+              },
+              {
+                "key": "lmnr.span.type",
+                "value": {
+                  "stringValue": "DEFAULT"
+                }
+              }
+            ],
+            "events": [
+              {
+                "timeUnixNano": "1700000000014000000",
+                "name": "exception",
+                "attributes": [
+                  {
+                    "key": "exception.escaped",
+                    "value": {
+                      "stringValue": "True"
+                    }
+                  },
+                  {
+                    "key": "exception.message",
+                    "value": {
+                      "stringValue": "Conversation run failed for id=00000000-0000-0000-0000-000000000001: litellm.AuthenticationError: AuthenticationError: OpenAIException - Incorrect API key provided: sk-fake."
+                    }
+                  },
+                  {
+                    "key": "exception.stacktrace",
+                    "value": {
+                      "stringValue": "<stacktrace elided>"
+                    }
+                  },
+                  {
+                    "key": "exception.type",
+                    "value": {
+                      "stringValue": "openhands.sdk.conversation.exceptions.ConversationRunError"
+                    }
+                  },
+                  {
+                    "key": "lmnr.event.session_id",
+                    "value": {
+                      "stringValue": "00000000-0000-0000-0000-000000000001"
+                    }
+                  }
+                ]
+              }
+            ],
+            "status": {
+              "message": "Conversation run failed for id=00000000-0000-0000-0000-000000000001: litellm.AuthenticationError: AuthenticationError: OpenAIException - Incorrect API key provided: sk-fake.",
+              "code": "STATUS_CODE_ERROR"
+            }
+          }
+        },
+        {
+          "scope": {
+            "name": "lmnr.tracer",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000004",
+            "parentSpanId": "0000000000000003",
+            "name": "agent.step",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000004000000",
+            "endTimeUnixNano": "1700000000013000000",
+            "attributes": [
+              {
+                "key": "lmnr.association.properties.session_id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "lmnr.span.ids_path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000002"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000004"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000005"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.input",
+                "value": {
+                  "stringValue": "{\"on_token\":null,\"conversation\":\"<openhands.sdk.conversation.impl.local_conversation.LocalConversation object at 0x0>\"}"
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_source",
+                "value": {
+                  "stringValue": "python"
+                }
+              },
+              {
+                "key": "lmnr.span.language_version",
+                "value": {
+                  "stringValue": "python@3.12"
+                }
+              },
+              {
+                "key": "lmnr.span.path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "conversation"
+                      },
+                      {
+                        "stringValue": "conversation.run"
+                      },
+                      {
+                        "stringValue": "agent.step"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.sdk_version",
+                "value": {
+                  "stringValue": "0.7.64"
+                }
+              },
+              {
+                "key": "lmnr.span.type",
+                "value": {
+                  "stringValue": "DEFAULT"
+                }
+              }
+            ],
+            "events": [
+              {
+                "timeUnixNano": "1700000000012000000",
+                "name": "exception",
+                "attributes": [
+                  {
+                    "key": "exception.escaped",
+                    "value": {
+                      "stringValue": "True"
+                    }
+                  },
+                  {
+                    "key": "exception.message",
+                    "value": {
+                      "stringValue": "litellm.AuthenticationError: AuthenticationError: OpenAIException - Incorrect API key provided: sk-fake."
+                    }
+                  },
+                  {
+                    "key": "exception.stacktrace",
+                    "value": {
+                      "stringValue": "<stacktrace elided>"
+                    }
+                  },
+                  {
+                    "key": "exception.type",
+                    "value": {
+                      "stringValue": "openhands.sdk.llm.exceptions.types.LLMAuthenticationError"
+                    }
+                  },
+                  {
+                    "key": "lmnr.event.session_id",
+                    "value": {
+                      "stringValue": "00000000-0000-0000-0000-000000000001"
+                    }
+                  }
+                ]
+              }
+            ],
+            "status": {
+              "message": "litellm.AuthenticationError: AuthenticationError: OpenAIException - Incorrect API key provided: sk-fake.",
+              "code": "STATUS_CODE_ERROR"
+            }
+          }
+        },
+        {
+          "scope": {
+            "name": "lmnr.tracer",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000005",
+            "parentSpanId": "0000000000000004",
+            "name": "llm.openai/fake",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000005000000",
+            "endTimeUnixNano": "1700000000011000000",
+            "attributes": [
+              {
+                "key": "lmnr.association.properties.session_id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "lmnr.span.ids_path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000002"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000004"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000005"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000006"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_source",
+                "value": {
+                  "stringValue": "python"
+                }
+              },
+              {
+                "key": "lmnr.span.language_version",
+                "value": {
+                  "stringValue": "python@3.12"
+                }
+              },
+              {
+                "key": "lmnr.span.parent_ids_path",
+                "value": {
+                  "arrayValue": {}
+                }
+              },
+              {
+                "key": "lmnr.span.parent_path",
+                "value": {
+                  "arrayValue": {}
+                }
+              },
+              {
+                "key": "lmnr.span.path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "conversation"
+                      },
+                      {
+                        "stringValue": "conversation.run"
+                      },
+                      {
+                        "stringValue": "agent.step"
+                      },
+                      {
+                        "stringValue": "llm.openai/fake"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.sdk_version",
+                "value": {
+                  "stringValue": "0.7.64"
+                }
+              },
+              {
+                "key": "lmnr.span.type",
+                "value": {
+                  "stringValue": "LLM"
+                }
+              }
+            ],
+            "events": [
+              {
+                "timeUnixNano": "1700000000010000000",
+                "name": "exception",
+                "attributes": [
+                  {
+                    "key": "exception.escaped",
+                    "value": {
+                      "stringValue": "False"
+                    }
+                  },
+                  {
+                    "key": "exception.message",
+                    "value": {
+                      "stringValue": "litellm.AuthenticationError: AuthenticationError: OpenAIException - Incorrect API key provided: sk-fake."
+                    }
+                  },
+                  {
+                    "key": "exception.stacktrace",
+                    "value": {
+                      "stringValue": "<stacktrace elided>"
+                    }
+                  },
+                  {
+                    "key": "exception.type",
+                    "value": {
+                      "stringValue": "litellm.exceptions.AuthenticationError"
+                    }
+                  }
+                ]
+              }
+            ],
+            "status": {
+              "message": "AuthenticationError: litellm.AuthenticationError: AuthenticationError: OpenAIException - Incorrect API key provided: sk-fake.",
+              "code": "STATUS_CODE_ERROR"
+            }
+          }
+        },
+        {
+          "scope": {
+            "name": "lmnr.tracer",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000006",
+            "parentSpanId": "0000000000000005",
+            "name": "litellm.completion",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000006000000",
+            "endTimeUnixNano": "1700000000009000000",
+            "attributes": [
+              {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"content\":[{\"type\":\"text\",\"text\":\"<SOUL>\\nYou are OpenHands agent, a helpful AI assistant that can interact with a computer to solve tasks.\\n</SOUL>\\n\\n<ROLE>\\n* Your primary role is to assist users ...<15068 chars truncated>\"}],\"role\":\"system\"},{\"content\":[{\"type\":\"text\",\"text\":\"Print 'hello from openhands' in the terminal, then finish.\"}],\"role\":\"user\"}]"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "fake"
+                }
+              },
+              {
+                "key": "gen_ai.request.reasoning_effort",
+                "value": {
+                  "stringValue": "high"
+                }
+              },
+              {
+                "key": "gen_ai.system",
+                "value": {
+                  "stringValue": "litellm"
+                }
+              },
+              {
+                "key": "gen_ai.tool.definitions",
+                "value": {
+                  "stringValue": "[{\"type\":\"function\",\"function\":{\"name\":\"terminal\",\"description\":\"Execute a shell command in the terminal within a persistent shell session.\\n\\n\\n### Command Execution\\n* One command at a time: You can only execute one shell comma...<1603 chars truncated>\",\"parameters\":{\"type\":\"object\",\"properties\":{\"security_risk\":{\"type\":\"string\",\"description\":\"Security risk levels for actions.\\n\\nBased on OpenHands security risk levels but adapted for agent-sdk.\\nInteger values allow for easy comparison and ordering.\",\"enum\":[\"UNKNOWN\",\"LOW\",\"MEDIUM\",\"HIGH\"]},\"summary\":{\"type\":\"string\",\"description\":\"A concise summary (approximately 10 words) describing what this specific action does. Focus on the key operation and target. Example: 'List all Python files in ...<18 chars truncated>\"},\"command\":{\"type\":\"string\",\"description\":\"The shell command to execute. Can be empty string to view additional logs when the previous exit code is `-1`. Can be a special key name when `is_input` is True...<360 chars truncated>\"},\"is_input\":{\"type\":\"boolean\",\"description\":\"If True, the command is an input to the running process. If False, the command is executed in the terminal session. Default is False.\"},\"timeout\":{\"type\":\"number\",\"description\":\"Optional. Sets a maximum time limit (in seconds) for running the command. If the command takes longer than this limit, you’ll be asked whether to continue or st...<283 chars truncated>\"},\"reset\":{\"type\":\"boolean\",\"description\":\"If True, reset the terminal by creating a new session. Use this only when the terminal becomes unresponsive. Note that all previously set environment variables ...<78 chars truncated>\"}},\"required\":[\"command\"]}}},{\"type\":\"function\",\"function\":{\"name\":\"file_editor\",\"description\":\"Custom editing tool for viewing, creating and editing files in plain-text format\\n* State is persistent across command calls and discussions with the user\\n* If `...<1966 chars truncated>\",\"parameters\":{\"type\":\"object\",\"properties\":{\"security_risk\":{\"type\":\"string\",\"description\":\"Security risk levels for actions.\\n\\nBased on OpenHands security risk levels but adapted for agent-sdk.\\nInteger values allow for easy comparison and ordering.\",\"enum\":[\"UNKNOWN\",\"LOW\",\"MEDIUM\",\"HIGH\"]},\"summary\":{\"type\":\"string\",\"description\":\"A concise summary (approximately 10 words) describing what this specific action does. Focus on the key operation and target. Example: 'List all Python files in ...<18 chars truncated>\"},\"command\":{\"type\":\"string\",\"description\":\"The commands to run. Allowed options are: `view`, `create`, `str_replace`, `insert`, `undo_edit`.\",\"enum\":[\"view\",\"create\",\"str_replace\",\"insert\",\"undo_edit\"]},\"path\":{\"type\":\"string\",\"description\":\"Absolute path to file or directory.\"},\"file_text\":{\"type\":\"string\",\"description\":\"Required parameter of `create` command, with the content of the file to be created.\"},\"old_str\":{\"type\":\"string\",\"description\":\"Required parameter of `str_replace` command containing the string in `path` to replace.\"},\"new_str\":{\"type\":\"string\",\"description\":\"Optional parameter of `str_replace` command containing the new string (if not given, no string will be added). Required parameter of `insert` command containing...<22 chars truncated>\"},\"insert_line\":{\"type\":\"integer\",\"description\":\"Required parameter of `insert` command. The `new_str` will be inserted AFTER the line `insert_line` of `path`.\"},\"view_range\":{\"type\":\"array\",\"items\":{\"type\":\"integer\"},\"description\":\"Optional parameter of `view` command when `path` points to a file. If none is given, the full file is shown. If provided, the file will be shown in the indicate...<170 chars truncated>\"}},\"required\":[\"command\",\"path\"]}}},{\"type\":\"function\",\"function\":{\"name\":\"finish\",\"description\":\"Signals the completion of the current task or conversation.\\n\\nUse this tool when:\\n- You have successfully completed the user's requested task\\n- You cannot procee...<282 chars truncated>\",\"parameters\":{\"type\":\"object\",\"properties\":{\"summary\":{\"type\":\"string\",\"description\":\"A concise summary (approximately 10 words) describing what this specific action does. Focus on the key operation and target. Example: 'List all Python files in ...<18 chars truncated>\"},\"message\":{\"type\":\"string\",\"description\":\"Final message to send to the user.\"}},\"required\":[\"message\"]}}},{\"type\":\"function\",\"function\":{\"name\":\"think\",\"description\":\"Use the tool to think about something. It will not obtain new information or make any changes to the repository, but just log the thought. Use it when complex r...<779 chars truncated>\",\"parameters\":{\"type\":\"object\",\"properties\":{\"summary\":{\"type\":\"string\",\"description\":\"A concise summary (approximately 10 words) describing what this specific action does. Focus on the key operation and target. Example: 'List all Python files in ...<18 chars truncated>\"},\"thought\":{\"type\":\"string\",\"description\":\"The thought to log.\"}},\"required\":[\"thought\"]}}}]"
+                }
+              },
+              {
+                "key": "lmnr.association.properties.session_id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "lmnr.span.ids_path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000002"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000004"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000005"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000006"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000007"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_scope.name",
+                "value": {
+                  "stringValue": "litellm"
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_scope.version",
+                "value": {
+                  "stringValue": "1.103.0"
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_source",
+                "value": {
+                  "stringValue": "python"
+                }
+              },
+              {
+                "key": "lmnr.span.language_version",
+                "value": {
+                  "stringValue": "python@3.12"
+                }
+              },
+              {
+                "key": "lmnr.span.parent_ids_path",
+                "value": {
+                  "arrayValue": {}
+                }
+              },
+              {
+                "key": "lmnr.span.parent_path",
+                "value": {
+                  "arrayValue": {}
+                }
+              },
+              {
+                "key": "lmnr.span.path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "conversation"
+                      },
+                      {
+                        "stringValue": "conversation.run"
+                      },
+                      {
+                        "stringValue": "agent.step"
+                      },
+                      {
+                        "stringValue": "llm.openai/fake"
+                      },
+                      {
+                        "stringValue": "litellm.completion"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.sdk_version",
+                "value": {
+                  "stringValue": "0.7.64"
+                }
+              },
+              {
+                "key": "lmnr.span.type",
+                "value": {
+                  "stringValue": "LLM"
+                }
+              }
+            ],
+            "events": [
+              {
+                "timeUnixNano": "1700000000007000000",
+                "name": "exception",
+                "attributes": [
+                  {
+                    "key": "exception.escaped",
+                    "value": {
+                      "stringValue": "False"
+                    }
+                  },
+                  {
+                    "key": "exception.message",
+                    "value": {
+                      "stringValue": "litellm.AuthenticationError: AuthenticationError: OpenAIException - Incorrect API key provided: sk-fake."
+                    }
+                  },
+                  {
+                    "key": "exception.stacktrace",
+                    "value": {
+                      "stringValue": "<stacktrace elided>"
+                    }
+                  },
+                  {
+                    "key": "exception.type",
+                    "value": {
+                      "stringValue": "litellm.exceptions.AuthenticationError"
+                    }
+                  },
+                  {
+                    "key": "lmnr.event.session_id",
+                    "value": {
+                      "stringValue": "00000000-0000-0000-0000-000000000001"
+                    }
+                  }
+                ]
+              },
+              {
+                "timeUnixNano": "1700000000008000000",
+                "name": "exception",
+                "attributes": [
+                  {
+                    "key": "exception.escaped",
+                    "value": {
+                      "stringValue": "False"
+                    }
+                  },
+                  {
+                    "key": "exception.message",
+                    "value": {
+                      "stringValue": "litellm.AuthenticationError: AuthenticationError: OpenAIException - Incorrect API key provided: sk-fake."
+                    }
+                  },
+                  {
+                    "key": "exception.stacktrace",
+                    "value": {
+                      "stringValue": "<stacktrace elided>"
+                    }
+                  },
+                  {
+                    "key": "exception.type",
+                    "value": {
+                      "stringValue": "litellm.exceptions.AuthenticationError"
+                    }
+                  }
+                ]
+              }
+            ],
+            "status": {
+              "message": "litellm.AuthenticationError: AuthenticationError: OpenAIException - Incorrect API key provided: sk-fake.",
+              "code": "STATUS_CODE_ERROR"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "responses_api_wrapper_only",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "record.py"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "lmnr.tracer",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "conversation",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000017000000",
+            "attributes": [
+              {
+                "key": "lmnr.association.properties.session_id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "lmnr.span.ids_path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000002"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_source",
+                "value": {
+                  "stringValue": "python"
+                }
+              },
+              {
+                "key": "lmnr.span.language_version",
+                "value": {
+                  "stringValue": "python@3.12"
+                }
+              },
+              {
+                "key": "lmnr.span.parent_ids_path",
+                "value": {
+                  "arrayValue": {}
+                }
+              },
+              {
+                "key": "lmnr.span.parent_path",
+                "value": {
+                  "arrayValue": {}
+                }
+              },
+              {
+                "key": "lmnr.span.path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "conversation"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.sdk_version",
+                "value": {
+                  "stringValue": "0.7.64"
+                }
+              },
+              {
+                "key": "lmnr.span.type",
+                "value": {
+                  "stringValue": "DEFAULT"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "lmnr.tracer",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000002",
+            "parentSpanId": "0000000000000001",
+            "name": "conversation.send_message",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000001000000",
+            "endTimeUnixNano": "1700000000002000000",
+            "attributes": [
+              {
+                "key": "lmnr.association.properties.session_id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "lmnr.span.ids_path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000002"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000003"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.input",
+                "value": {
+                  "stringValue": "{\"message\":\"Print 'hello from openhands' in the terminal, then finish.\"}"
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_source",
+                "value": {
+                  "stringValue": "python"
+                }
+              },
+              {
+                "key": "lmnr.span.language_version",
+                "value": {
+                  "stringValue": "python@3.12"
+                }
+              },
+              {
+                "key": "lmnr.span.path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "conversation"
+                      },
+                      {
+                        "stringValue": "conversation.send_message"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.sdk_version",
+                "value": {
+                  "stringValue": "0.7.64"
+                }
+              },
+              {
+                "key": "lmnr.span.type",
+                "value": {
+                  "stringValue": "DEFAULT"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "lmnr.tracer",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000003",
+            "parentSpanId": "0000000000000001",
+            "name": "conversation.run",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000003000000",
+            "endTimeUnixNano": "1700000000016000000",
+            "attributes": [
+              {
+                "key": "lmnr.association.properties.session_id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "lmnr.span.ids_path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000002"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000004"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.input",
+                "value": {
+                  "stringValue": "{}"
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_source",
+                "value": {
+                  "stringValue": "python"
+                }
+              },
+              {
+                "key": "lmnr.span.language_version",
+                "value": {
+                  "stringValue": "python@3.12"
+                }
+              },
+              {
+                "key": "lmnr.span.path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "conversation"
+                      },
+                      {
+                        "stringValue": "conversation.run"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.sdk_version",
+                "value": {
+                  "stringValue": "0.7.64"
+                }
+              },
+              {
+                "key": "lmnr.span.type",
+                "value": {
+                  "stringValue": "DEFAULT"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "lmnr.tracer",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000004",
+            "parentSpanId": "0000000000000003",
+            "name": "agent.step",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000004000000",
+            "endTimeUnixNano": "1700000000009000000",
+            "attributes": [
+              {
+                "key": "lmnr.association.properties.session_id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "lmnr.span.ids_path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000002"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000004"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000005"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.input",
+                "value": {
+                  "stringValue": "{\"on_token\":null,\"conversation\":\"<openhands.sdk.conversation.impl.local_conversation.LocalConversation object at 0x0>\"}"
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_source",
+                "value": {
+                  "stringValue": "python"
+                }
+              },
+              {
+                "key": "lmnr.span.language_version",
+                "value": {
+                  "stringValue": "python@3.12"
+                }
+              },
+              {
+                "key": "lmnr.span.path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "conversation"
+                      },
+                      {
+                        "stringValue": "conversation.run"
+                      },
+                      {
+                        "stringValue": "agent.step"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.sdk_version",
+                "value": {
+                  "stringValue": "0.7.64"
+                }
+              },
+              {
+                "key": "lmnr.span.type",
+                "value": {
+                  "stringValue": "DEFAULT"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "lmnr.tracer",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000005",
+            "parentSpanId": "0000000000000004",
+            "name": "llm.openai/fake",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000005000000",
+            "endTimeUnixNano": "1700000000006000000",
+            "attributes": [
+              {
+                "key": "gen_ai.usage.cache_creation_input_tokens",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "gen_ai.usage.cache_read_input_tokens",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "lmnr.association.properties.session_id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "lmnr.span.ids_path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000002"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000004"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000005"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000006"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_source",
+                "value": {
+                  "stringValue": "python"
+                }
+              },
+              {
+                "key": "lmnr.span.language_version",
+                "value": {
+                  "stringValue": "python@3.12"
+                }
+              },
+              {
+                "key": "lmnr.span.parent_ids_path",
+                "value": {
+                  "arrayValue": {}
+                }
+              },
+              {
+                "key": "lmnr.span.parent_path",
+                "value": {
+                  "arrayValue": {}
+                }
+              },
+              {
+                "key": "lmnr.span.path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "conversation"
+                      },
+                      {
+                        "stringValue": "conversation.run"
+                      },
+                      {
+                        "stringValue": "agent.step"
+                      },
+                      {
+                        "stringValue": "llm.openai/fake"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.sdk_version",
+                "value": {
+                  "stringValue": "0.7.64"
+                }
+              },
+              {
+                "key": "lmnr.span.type",
+                "value": {
+                  "stringValue": "LLM"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "lmnr.tracer",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000006",
+            "parentSpanId": "0000000000000004",
+            "name": "TerminalAction",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000007000000",
+            "endTimeUnixNano": "1700000000008000000",
+            "attributes": [
+              {
+                "key": "lmnr.association.properties.metadata.tool_call_id",
+                "value": {
+                  "stringValue": "call_1"
+                }
+              },
+              {
+                "key": "lmnr.association.properties.session_id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "lmnr.span.ids_path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000002"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000004"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000005"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000007"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.input",
+                "value": {
+                  "stringValue": "{\"action\":{\"command\":\"echo hello from openhands\",\"is_input\":false,\"timeout\":null,\"reset\":false,\"kind\":\"TerminalAction\"}}"
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_source",
+                "value": {
+                  "stringValue": "python"
+                }
+              },
+              {
+                "key": "lmnr.span.language_version",
+                "value": {
+                  "stringValue": "python@3.12"
+                }
+              },
+              {
+                "key": "lmnr.span.output",
+                "value": {
+                  "stringValue": "{\"content\":[{\"cache_prompt\":false,\"type\":\"text\",\"text\":\"hello from openhands\"}],\"is_error\":false,\"command\":\"echo hello from openhands\",\"exit_code\":0,\"timeout\":false,\"metadata\":{\"exit_code\":0,\"pid\":-1,\"username\":\"<username>\",\"hostname\":\"<hostname>\",\"working_dir\":\"/workspace\",\"py_interpreter_path\":\"\",\"prefix\":\"\",\"suffix\":\"\\n[The command completed with exit code 0.]\"},\"full_output_save_dir\":null,\"kind\":\"TerminalObservation\"}"
+                }
+              },
+              {
+                "key": "lmnr.span.path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "conversation"
+                      },
+                      {
+                        "stringValue": "conversation.run"
+                      },
+                      {
+                        "stringValue": "agent.step"
+                      },
+                      {
+                        "stringValue": "TerminalAction"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.sdk_version",
+                "value": {
+                  "stringValue": "0.7.64"
+                }
+              },
+              {
+                "key": "lmnr.span.type",
+                "value": {
+                  "stringValue": "TOOL"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "lmnr.tracer",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000007",
+            "parentSpanId": "0000000000000003",
+            "name": "agent.step",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000010000000",
+            "endTimeUnixNano": "1700000000015000000",
+            "attributes": [
+              {
+                "key": "lmnr.association.properties.session_id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "lmnr.span.ids_path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000002"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000004"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000008"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.input",
+                "value": {
+                  "stringValue": "{\"on_token\":null,\"conversation\":\"<openhands.sdk.conversation.impl.local_conversation.LocalConversation object at 0x0>\"}"
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_source",
+                "value": {
+                  "stringValue": "python"
+                }
+              },
+              {
+                "key": "lmnr.span.language_version",
+                "value": {
+                  "stringValue": "python@3.12"
+                }
+              },
+              {
+                "key": "lmnr.span.path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "conversation"
+                      },
+                      {
+                        "stringValue": "conversation.run"
+                      },
+                      {
+                        "stringValue": "agent.step"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.sdk_version",
+                "value": {
+                  "stringValue": "0.7.64"
+                }
+              },
+              {
+                "key": "lmnr.span.type",
+                "value": {
+                  "stringValue": "DEFAULT"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "lmnr.tracer",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000008",
+            "parentSpanId": "0000000000000007",
+            "name": "llm.openai/fake",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000011000000",
+            "endTimeUnixNano": "1700000000012000000",
+            "attributes": [
+              {
+                "key": "gen_ai.usage.cache_creation_input_tokens",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "gen_ai.usage.cache_read_input_tokens",
+                "value": {
+                  "intValue": "1024"
+                }
+              },
+              {
+                "key": "lmnr.association.properties.session_id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "lmnr.span.ids_path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000002"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000004"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000008"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000009"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_source",
+                "value": {
+                  "stringValue": "python"
+                }
+              },
+              {
+                "key": "lmnr.span.language_version",
+                "value": {
+                  "stringValue": "python@3.12"
+                }
+              },
+              {
+                "key": "lmnr.span.parent_ids_path",
+                "value": {
+                  "arrayValue": {}
+                }
+              },
+              {
+                "key": "lmnr.span.parent_path",
+                "value": {
+                  "arrayValue": {}
+                }
+              },
+              {
+                "key": "lmnr.span.path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "conversation"
+                      },
+                      {
+                        "stringValue": "conversation.run"
+                      },
+                      {
+                        "stringValue": "agent.step"
+                      },
+                      {
+                        "stringValue": "llm.openai/fake"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.sdk_version",
+                "value": {
+                  "stringValue": "0.7.64"
+                }
+              },
+              {
+                "key": "lmnr.span.type",
+                "value": {
+                  "stringValue": "LLM"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "lmnr.tracer",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000009",
+            "parentSpanId": "0000000000000007",
+            "name": "FinishAction",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000013000000",
+            "endTimeUnixNano": "1700000000014000000",
+            "attributes": [
+              {
+                "key": "lmnr.association.properties.metadata.tool_call_id",
+                "value": {
+                  "stringValue": "call_2"
+                }
+              },
+              {
+                "key": "lmnr.association.properties.session_id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "lmnr.span.ids_path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000002"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000004"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000008"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000010"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.input",
+                "value": {
+                  "stringValue": "{\"action\":{\"message\":\"Printed the greeting.\",\"kind\":\"FinishAction\"}}"
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_source",
+                "value": {
+                  "stringValue": "python"
+                }
+              },
+              {
+                "key": "lmnr.span.language_version",
+                "value": {
+                  "stringValue": "python@3.12"
+                }
+              },
+              {
+                "key": "lmnr.span.output",
+                "value": {
+                  "stringValue": "{\"content\":[{\"cache_prompt\":false,\"type\":\"text\",\"text\":\"Printed the greeting.\"}],\"is_error\":false,\"kind\":\"FinishObservation\"}"
+                }
+              },
+              {
+                "key": "lmnr.span.path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "conversation"
+                      },
+                      {
+                        "stringValue": "conversation.run"
+                      },
+                      {
+                        "stringValue": "agent.step"
+                      },
+                      {
+                        "stringValue": "FinishAction"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.sdk_version",
+                "value": {
+                  "stringValue": "0.7.64"
+                }
+              },
+              {
+                "key": "lmnr.span.type",
+                "value": {
+                  "stringValue": "TOOL"
+                }
+              }
+            ],
+            "status": {}
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "agent_metadata",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "record.py"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "lmnr.tracer",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "conversation",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000021000000",
+            "attributes": [
+              {
+                "key": "lmnr.association.properties.metadata.agent.name",
+                "value": {
+                  "stringValue": "billing-agent"
+                }
+              },
+              {
+                "key": "lmnr.association.properties.session_id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "lmnr.span.ids_path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000002"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_source",
+                "value": {
+                  "stringValue": "python"
+                }
+              },
+              {
+                "key": "lmnr.span.language_version",
+                "value": {
+                  "stringValue": "python@3.12"
+                }
+              },
+              {
+                "key": "lmnr.span.parent_ids_path",
+                "value": {
+                  "arrayValue": {}
+                }
+              },
+              {
+                "key": "lmnr.span.parent_path",
+                "value": {
+                  "arrayValue": {}
+                }
+              },
+              {
+                "key": "lmnr.span.path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "conversation"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.sdk_version",
+                "value": {
+                  "stringValue": "0.7.64"
+                }
+              },
+              {
+                "key": "lmnr.span.type",
+                "value": {
+                  "stringValue": "DEFAULT"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "lmnr.tracer",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000002",
+            "parentSpanId": "0000000000000001",
+            "name": "conversation.send_message",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000001000000",
+            "endTimeUnixNano": "1700000000002000000",
+            "attributes": [
+              {
+                "key": "lmnr.association.properties.metadata.agent.name",
+                "value": {
+                  "stringValue": "billing-agent"
+                }
+              },
+              {
+                "key": "lmnr.association.properties.session_id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "lmnr.span.ids_path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000002"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000003"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.input",
+                "value": {
+                  "stringValue": "{\"message\":\"Print 'hello from openhands' in the terminal, then finish.\"}"
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_source",
+                "value": {
+                  "stringValue": "python"
+                }
+              },
+              {
+                "key": "lmnr.span.language_version",
+                "value": {
+                  "stringValue": "python@3.12"
+                }
+              },
+              {
+                "key": "lmnr.span.path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "conversation"
+                      },
+                      {
+                        "stringValue": "conversation.send_message"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.sdk_version",
+                "value": {
+                  "stringValue": "0.7.64"
+                }
+              },
+              {
+                "key": "lmnr.span.type",
+                "value": {
+                  "stringValue": "DEFAULT"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "lmnr.tracer",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000003",
+            "parentSpanId": "0000000000000001",
+            "name": "conversation.run",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000003000000",
+            "endTimeUnixNano": "1700000000020000000",
+            "attributes": [
+              {
+                "key": "lmnr.association.properties.metadata.agent.name",
+                "value": {
+                  "stringValue": "billing-agent"
+                }
+              },
+              {
+                "key": "lmnr.association.properties.session_id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "lmnr.span.ids_path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000002"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000004"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.input",
+                "value": {
+                  "stringValue": "{}"
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_source",
+                "value": {
+                  "stringValue": "python"
+                }
+              },
+              {
+                "key": "lmnr.span.language_version",
+                "value": {
+                  "stringValue": "python@3.12"
+                }
+              },
+              {
+                "key": "lmnr.span.path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "conversation"
+                      },
+                      {
+                        "stringValue": "conversation.run"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.sdk_version",
+                "value": {
+                  "stringValue": "0.7.64"
+                }
+              },
+              {
+                "key": "lmnr.span.type",
+                "value": {
+                  "stringValue": "DEFAULT"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "lmnr.tracer",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000004",
+            "parentSpanId": "0000000000000003",
+            "name": "agent.step",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000004000000",
+            "endTimeUnixNano": "1700000000011000000",
+            "attributes": [
+              {
+                "key": "lmnr.association.properties.metadata.agent.name",
+                "value": {
+                  "stringValue": "billing-agent"
+                }
+              },
+              {
+                "key": "lmnr.association.properties.session_id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "lmnr.span.ids_path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000002"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000004"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000005"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.input",
+                "value": {
+                  "stringValue": "{\"on_token\":null,\"conversation\":\"<openhands.sdk.conversation.impl.local_conversation.LocalConversation object at 0x0>\"}"
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_source",
+                "value": {
+                  "stringValue": "python"
+                }
+              },
+              {
+                "key": "lmnr.span.language_version",
+                "value": {
+                  "stringValue": "python@3.12"
+                }
+              },
+              {
+                "key": "lmnr.span.path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "conversation"
+                      },
+                      {
+                        "stringValue": "conversation.run"
+                      },
+                      {
+                        "stringValue": "agent.step"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.sdk_version",
+                "value": {
+                  "stringValue": "0.7.64"
+                }
+              },
+              {
+                "key": "lmnr.span.type",
+                "value": {
+                  "stringValue": "DEFAULT"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "lmnr.tracer",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000005",
+            "parentSpanId": "0000000000000004",
+            "name": "llm.openai/fake",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000005000000",
+            "endTimeUnixNano": "1700000000008000000",
+            "attributes": [
+              {
+                "key": "gen_ai.usage.cache_creation_input_tokens",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "gen_ai.usage.cache_read_input_tokens",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "lmnr.association.properties.metadata.agent.name",
+                "value": {
+                  "stringValue": "billing-agent"
+                }
+              },
+              {
+                "key": "lmnr.association.properties.session_id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "lmnr.span.ids_path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000002"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000004"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000005"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000006"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_source",
+                "value": {
+                  "stringValue": "python"
+                }
+              },
+              {
+                "key": "lmnr.span.language_version",
+                "value": {
+                  "stringValue": "python@3.12"
+                }
+              },
+              {
+                "key": "lmnr.span.parent_ids_path",
+                "value": {
+                  "arrayValue": {}
+                }
+              },
+              {
+                "key": "lmnr.span.parent_path",
+                "value": {
+                  "arrayValue": {}
+                }
+              },
+              {
+                "key": "lmnr.span.path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "conversation"
+                      },
+                      {
+                        "stringValue": "conversation.run"
+                      },
+                      {
+                        "stringValue": "agent.step"
+                      },
+                      {
+                        "stringValue": "llm.openai/fake"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.sdk_version",
+                "value": {
+                  "stringValue": "0.7.64"
+                }
+              },
+              {
+                "key": "lmnr.span.type",
+                "value": {
+                  "stringValue": "LLM"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "lmnr.tracer",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000006",
+            "parentSpanId": "0000000000000005",
+            "name": "litellm.completion",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000006000000",
+            "endTimeUnixNano": "1700000000007000000",
+            "attributes": [
+              {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"content\":[{\"type\":\"text\",\"text\":\"<SOUL>\\nYou are OpenHands agent, a helpful AI assistant that can interact with a computer to solve tasks.\\n</SOUL>\\n\\n<ROLE>\\n* Your primary role is to assist users ...<15068 chars truncated>\"}],\"role\":\"system\"},{\"content\":[{\"type\":\"text\",\"text\":\"Print 'hello from openhands' in the terminal, then finish.\"}],\"role\":\"user\"}]"
+                }
+              },
+              {
+                "key": "gen_ai.output.messages",
+                "value": {
+                  "stringValue": "[{\"content\":null,\"role\":\"assistant\",\"tool_calls\":[{\"function\":{\"arguments\":\"{\\\"command\\\": \\\"echo hello from openhands\\\", \\\"summary\\\": \\\"Say hello\\\", \\\"security_risk\\\": \\\"LOW\\\"}\",\"name\":\"terminal\"},\"id\":\"call_1\",\"type\":\"function\"}],\"function_call\":null,\"provider_specific_fields\":{\"refusal\":null}}]"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "fake"
+                }
+              },
+              {
+                "key": "gen_ai.request.reasoning_effort",
+                "value": {
+                  "stringValue": "high"
+                }
+              },
+              {
+                "key": "gen_ai.response.id",
+                "value": {
+                  "stringValue": "chatcmpl-rec-0"
+                }
+              },
+              {
+                "key": "gen_ai.response.model",
+                "value": {
+                  "stringValue": "fake"
+                }
+              },
+              {
+                "key": "gen_ai.system",
+                "value": {
+                  "stringValue": "litellm"
+                }
+              },
+              {
+                "key": "gen_ai.tool.definitions",
+                "value": {
+                  "stringValue": "[{\"type\":\"function\",\"function\":{\"name\":\"terminal\",\"description\":\"Execute a shell command in the terminal within a persistent shell session.\\n\\n\\n### Command Execution\\n* One command at a time: You can only execute one shell comma...<1603 chars truncated>\",\"parameters\":{\"type\":\"object\",\"properties\":{\"security_risk\":{\"type\":\"string\",\"description\":\"Security risk levels for actions.\\n\\nBased on OpenHands security risk levels but adapted for agent-sdk.\\nInteger values allow for easy comparison and ordering.\",\"enum\":[\"UNKNOWN\",\"LOW\",\"MEDIUM\",\"HIGH\"]},\"summary\":{\"type\":\"string\",\"description\":\"A concise summary (approximately 10 words) describing what this specific action does. Focus on the key operation and target. Example: 'List all Python files in ...<18 chars truncated>\"},\"command\":{\"type\":\"string\",\"description\":\"The shell command to execute. Can be empty string to view additional logs when the previous exit code is `-1`. Can be a special key name when `is_input` is True...<360 chars truncated>\"},\"is_input\":{\"type\":\"boolean\",\"description\":\"If True, the command is an input to the running process. If False, the command is executed in the terminal session. Default is False.\"},\"timeout\":{\"type\":\"number\",\"description\":\"Optional. Sets a maximum time limit (in seconds) for running the command. If the command takes longer than this limit, you’ll be asked whether to continue or st...<283 chars truncated>\"},\"reset\":{\"type\":\"boolean\",\"description\":\"If True, reset the terminal by creating a new session. Use this only when the terminal becomes unresponsive. Note that all previously set environment variables ...<78 chars truncated>\"}},\"required\":[\"command\"]}}},{\"type\":\"function\",\"function\":{\"name\":\"file_editor\",\"description\":\"Custom editing tool for viewing, creating and editing files in plain-text format\\n* State is persistent across command calls and discussions with the user\\n* If `...<1966 chars truncated>\",\"parameters\":{\"type\":\"object\",\"properties\":{\"security_risk\":{\"type\":\"string\",\"description\":\"Security risk levels for actions.\\n\\nBased on OpenHands security risk levels but adapted for agent-sdk.\\nInteger values allow for easy comparison and ordering.\",\"enum\":[\"UNKNOWN\",\"LOW\",\"MEDIUM\",\"HIGH\"]},\"summary\":{\"type\":\"string\",\"description\":\"A concise summary (approximately 10 words) describing what this specific action does. Focus on the key operation and target. Example: 'List all Python files in ...<18 chars truncated>\"},\"command\":{\"type\":\"string\",\"description\":\"The commands to run. Allowed options are: `view`, `create`, `str_replace`, `insert`, `undo_edit`.\",\"enum\":[\"view\",\"create\",\"str_replace\",\"insert\",\"undo_edit\"]},\"path\":{\"type\":\"string\",\"description\":\"Absolute path to file or directory.\"},\"file_text\":{\"type\":\"string\",\"description\":\"Required parameter of `create` command, with the content of the file to be created.\"},\"old_str\":{\"type\":\"string\",\"description\":\"Required parameter of `str_replace` command containing the string in `path` to replace.\"},\"new_str\":{\"type\":\"string\",\"description\":\"Optional parameter of `str_replace` command containing the new string (if not given, no string will be added). Required parameter of `insert` command containing...<22 chars truncated>\"},\"insert_line\":{\"type\":\"integer\",\"description\":\"Required parameter of `insert` command. The `new_str` will be inserted AFTER the line `insert_line` of `path`.\"},\"view_range\":{\"type\":\"array\",\"items\":{\"type\":\"integer\"},\"description\":\"Optional parameter of `view` command when `path` points to a file. If none is given, the full file is shown. If provided, the file will be shown in the indicate...<170 chars truncated>\"}},\"required\":[\"command\",\"path\"]}}},{\"type\":\"function\",\"function\":{\"name\":\"finish\",\"description\":\"Signals the completion of the current task or conversation.\\n\\nUse this tool when:\\n- You have successfully completed the user's requested task\\n- You cannot procee...<282 chars truncated>\",\"parameters\":{\"type\":\"object\",\"properties\":{\"summary\":{\"type\":\"string\",\"description\":\"A concise summary (approximately 10 words) describing what this specific action does. Focus on the key operation and target. Example: 'List all Python files in ...<18 chars truncated>\"},\"message\":{\"type\":\"string\",\"description\":\"Final message to send to the user.\"}},\"required\":[\"message\"]}}},{\"type\":\"function\",\"function\":{\"name\":\"think\",\"description\":\"Use the tool to think about something. It will not obtain new information or make any changes to the repository, but just log the thought. Use it when complex r...<779 chars truncated>\",\"parameters\":{\"type\":\"object\",\"properties\":{\"summary\":{\"type\":\"string\",\"description\":\"A concise summary (approximately 10 words) describing what this specific action does. Focus on the key operation and target. Example: 'List all Python files in ...<18 chars truncated>\"},\"thought\":{\"type\":\"string\",\"description\":\"The thought to log.\"}},\"required\":[\"thought\"]}}}]"
+                }
+              },
+              {
+                "key": "gen_ai.usage.input_tokens",
+                "value": {
+                  "intValue": "1200"
+                }
+              },
+              {
+                "key": "gen_ai.usage.output_tokens",
+                "value": {
+                  "intValue": "40"
+                }
+              },
+              {
+                "key": "llm.usage.total_tokens",
+                "value": {
+                  "intValue": "1240"
+                }
+              },
+              {
+                "key": "lmnr.association.properties.metadata.agent.name",
+                "value": {
+                  "stringValue": "billing-agent"
+                }
+              },
+              {
+                "key": "lmnr.association.properties.session_id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "lmnr.span.ids_path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000002"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000004"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000005"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000006"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000007"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_scope.name",
+                "value": {
+                  "stringValue": "litellm"
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_scope.version",
+                "value": {
+                  "stringValue": "1.103.0"
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_source",
+                "value": {
+                  "stringValue": "python"
+                }
+              },
+              {
+                "key": "lmnr.span.language_version",
+                "value": {
+                  "stringValue": "python@3.12"
+                }
+              },
+              {
+                "key": "lmnr.span.parent_ids_path",
+                "value": {
+                  "arrayValue": {}
+                }
+              },
+              {
+                "key": "lmnr.span.parent_path",
+                "value": {
+                  "arrayValue": {}
+                }
+              },
+              {
+                "key": "lmnr.span.path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "conversation"
+                      },
+                      {
+                        "stringValue": "conversation.run"
+                      },
+                      {
+                        "stringValue": "agent.step"
+                      },
+                      {
+                        "stringValue": "llm.openai/fake"
+                      },
+                      {
+                        "stringValue": "litellm.completion"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.sdk_version",
+                "value": {
+                  "stringValue": "0.7.64"
+                }
+              },
+              {
+                "key": "lmnr.span.type",
+                "value": {
+                  "stringValue": "LLM"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "lmnr.tracer",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000007",
+            "parentSpanId": "0000000000000004",
+            "name": "TerminalAction",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000009000000",
+            "endTimeUnixNano": "1700000000010000000",
+            "attributes": [
+              {
+                "key": "lmnr.association.properties.metadata.agent.name",
+                "value": {
+                  "stringValue": "billing-agent"
+                }
+              },
+              {
+                "key": "lmnr.association.properties.metadata.tool_call_id",
+                "value": {
+                  "stringValue": "call_1"
+                }
+              },
+              {
+                "key": "lmnr.association.properties.session_id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "lmnr.span.ids_path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000002"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000004"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000005"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000008"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.input",
+                "value": {
+                  "stringValue": "{\"action\":{\"command\":\"echo hello from openhands\",\"is_input\":false,\"timeout\":null,\"reset\":false,\"kind\":\"TerminalAction\"}}"
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_source",
+                "value": {
+                  "stringValue": "python"
+                }
+              },
+              {
+                "key": "lmnr.span.language_version",
+                "value": {
+                  "stringValue": "python@3.12"
+                }
+              },
+              {
+                "key": "lmnr.span.output",
+                "value": {
+                  "stringValue": "{\"content\":[{\"cache_prompt\":false,\"type\":\"text\",\"text\":\"hello from openhands\"}],\"is_error\":false,\"command\":\"echo hello from openhands\",\"exit_code\":0,\"timeout\":false,\"metadata\":{\"exit_code\":0,\"pid\":-1,\"username\":\"<username>\",\"hostname\":\"<hostname>\",\"working_dir\":\"/workspace\",\"py_interpreter_path\":\"\",\"prefix\":\"\",\"suffix\":\"\\n[The command completed with exit code 0.]\"},\"full_output_save_dir\":null,\"kind\":\"TerminalObservation\"}"
+                }
+              },
+              {
+                "key": "lmnr.span.path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "conversation"
+                      },
+                      {
+                        "stringValue": "conversation.run"
+                      },
+                      {
+                        "stringValue": "agent.step"
+                      },
+                      {
+                        "stringValue": "TerminalAction"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.sdk_version",
+                "value": {
+                  "stringValue": "0.7.64"
+                }
+              },
+              {
+                "key": "lmnr.span.type",
+                "value": {
+                  "stringValue": "TOOL"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "lmnr.tracer",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000008",
+            "parentSpanId": "0000000000000003",
+            "name": "agent.step",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000012000000",
+            "endTimeUnixNano": "1700000000019000000",
+            "attributes": [
+              {
+                "key": "lmnr.association.properties.metadata.agent.name",
+                "value": {
+                  "stringValue": "billing-agent"
+                }
+              },
+              {
+                "key": "lmnr.association.properties.session_id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "lmnr.span.ids_path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000002"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000004"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000009"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.input",
+                "value": {
+                  "stringValue": "{\"on_token\":null,\"conversation\":\"<openhands.sdk.conversation.impl.local_conversation.LocalConversation object at 0x0>\"}"
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_source",
+                "value": {
+                  "stringValue": "python"
+                }
+              },
+              {
+                "key": "lmnr.span.language_version",
+                "value": {
+                  "stringValue": "python@3.12"
+                }
+              },
+              {
+                "key": "lmnr.span.path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "conversation"
+                      },
+                      {
+                        "stringValue": "conversation.run"
+                      },
+                      {
+                        "stringValue": "agent.step"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.sdk_version",
+                "value": {
+                  "stringValue": "0.7.64"
+                }
+              },
+              {
+                "key": "lmnr.span.type",
+                "value": {
+                  "stringValue": "DEFAULT"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "lmnr.tracer",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000009",
+            "parentSpanId": "0000000000000008",
+            "name": "llm.openai/fake",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000013000000",
+            "endTimeUnixNano": "1700000000016000000",
+            "attributes": [
+              {
+                "key": "gen_ai.usage.cache_creation_input_tokens",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "gen_ai.usage.cache_read_input_tokens",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "lmnr.association.properties.metadata.agent.name",
+                "value": {
+                  "stringValue": "billing-agent"
+                }
+              },
+              {
+                "key": "lmnr.association.properties.session_id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "lmnr.span.ids_path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000002"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000004"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000009"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000010"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_source",
+                "value": {
+                  "stringValue": "python"
+                }
+              },
+              {
+                "key": "lmnr.span.language_version",
+                "value": {
+                  "stringValue": "python@3.12"
+                }
+              },
+              {
+                "key": "lmnr.span.parent_ids_path",
+                "value": {
+                  "arrayValue": {}
+                }
+              },
+              {
+                "key": "lmnr.span.parent_path",
+                "value": {
+                  "arrayValue": {}
+                }
+              },
+              {
+                "key": "lmnr.span.path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "conversation"
+                      },
+                      {
+                        "stringValue": "conversation.run"
+                      },
+                      {
+                        "stringValue": "agent.step"
+                      },
+                      {
+                        "stringValue": "llm.openai/fake"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.sdk_version",
+                "value": {
+                  "stringValue": "0.7.64"
+                }
+              },
+              {
+                "key": "lmnr.span.type",
+                "value": {
+                  "stringValue": "LLM"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "lmnr.tracer",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "000000000000000a",
+            "parentSpanId": "0000000000000009",
+            "name": "litellm.completion",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000014000000",
+            "endTimeUnixNano": "1700000000015000000",
+            "attributes": [
+              {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"content\":[{\"type\":\"text\",\"text\":\"<SOUL>\\nYou are OpenHands agent, a helpful AI assistant that can interact with a computer to solve tasks.\\n</SOUL>\\n\\n<ROLE>\\n* Your primary role is to assist users ...<15068 chars truncated>\"}],\"role\":\"system\"},{\"content\":[{\"type\":\"text\",\"text\":\"Print 'hello from openhands' in the terminal, then finish.\"}],\"role\":\"user\"},{\"role\":\"assistant\",\"tool_calls\":[{\"id\":\"call_1\",\"type\":\"function\",\"function\":{\"name\":\"terminal\",\"arguments\":\"{\\\"command\\\": \\\"echo hello from openhands\\\", \\\"summary\\\": \\\"Say hello\\\", \\\"security_risk\\\": \\\"LOW\\\"}\"}}]},{\"content\":[{\"type\":\"text\",\"text\":\"hello from openhands\\n[The command completed with exit code 0.]\\n[Current working directory: /workspace]\\n[Command finished with exit code 0]\"}],\"role\":\"tool\",\"tool_call_id\":\"call_1\",\"name\":\"terminal\"}]"
+                }
+              },
+              {
+                "key": "gen_ai.output.messages",
+                "value": {
+                  "stringValue": "[{\"content\":null,\"role\":\"assistant\",\"tool_calls\":[{\"function\":{\"arguments\":\"{\\\"message\\\": \\\"Printed the greeting.\\\", \\\"summary\\\": \\\"Finish\\\", \\\"security_risk\\\": \\\"LOW\\\"}\",\"name\":\"finish\"},\"id\":\"call_2\",\"type\":\"function\"}],\"function_call\":null,\"provider_specific_fields\":{\"refusal\":null}}]"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "fake"
+                }
+              },
+              {
+                "key": "gen_ai.request.reasoning_effort",
+                "value": {
+                  "stringValue": "high"
+                }
+              },
+              {
+                "key": "gen_ai.response.id",
+                "value": {
+                  "stringValue": "chatcmpl-rec-1"
+                }
+              },
+              {
+                "key": "gen_ai.response.model",
+                "value": {
+                  "stringValue": "fake"
+                }
+              },
+              {
+                "key": "gen_ai.system",
+                "value": {
+                  "stringValue": "litellm"
+                }
+              },
+              {
+                "key": "gen_ai.tool.definitions",
+                "value": {
+                  "stringValue": "[{\"type\":\"function\",\"function\":{\"name\":\"terminal\",\"description\":\"Execute a shell command in the terminal within a persistent shell session.\\n\\n\\n### Command Execution\\n* One command at a time: You can only execute one shell comma...<1603 chars truncated>\",\"parameters\":{\"type\":\"object\",\"properties\":{\"security_risk\":{\"type\":\"string\",\"description\":\"Security risk levels for actions.\\n\\nBased on OpenHands security risk levels but adapted for agent-sdk.\\nInteger values allow for easy comparison and ordering.\",\"enum\":[\"UNKNOWN\",\"LOW\",\"MEDIUM\",\"HIGH\"]},\"summary\":{\"type\":\"string\",\"description\":\"A concise summary (approximately 10 words) describing what this specific action does. Focus on the key operation and target. Example: 'List all Python files in ...<18 chars truncated>\"},\"command\":{\"type\":\"string\",\"description\":\"The shell command to execute. Can be empty string to view additional logs when the previous exit code is `-1`. Can be a special key name when `is_input` is True...<360 chars truncated>\"},\"is_input\":{\"type\":\"boolean\",\"description\":\"If True, the command is an input to the running process. If False, the command is executed in the terminal session. Default is False.\"},\"timeout\":{\"type\":\"number\",\"description\":\"Optional. Sets a maximum time limit (in seconds) for running the command. If the command takes longer than this limit, you’ll be asked whether to continue or st...<283 chars truncated>\"},\"reset\":{\"type\":\"boolean\",\"description\":\"If True, reset the terminal by creating a new session. Use this only when the terminal becomes unresponsive. Note that all previously set environment variables ...<78 chars truncated>\"}},\"required\":[\"command\"]}}},{\"type\":\"function\",\"function\":{\"name\":\"file_editor\",\"description\":\"Custom editing tool for viewing, creating and editing files in plain-text format\\n* State is persistent across command calls and discussions with the user\\n* If `...<1966 chars truncated>\",\"parameters\":{\"type\":\"object\",\"properties\":{\"security_risk\":{\"type\":\"string\",\"description\":\"Security risk levels for actions.\\n\\nBased on OpenHands security risk levels but adapted for agent-sdk.\\nInteger values allow for easy comparison and ordering.\",\"enum\":[\"UNKNOWN\",\"LOW\",\"MEDIUM\",\"HIGH\"]},\"summary\":{\"type\":\"string\",\"description\":\"A concise summary (approximately 10 words) describing what this specific action does. Focus on the key operation and target. Example: 'List all Python files in ...<18 chars truncated>\"},\"command\":{\"type\":\"string\",\"description\":\"The commands to run. Allowed options are: `view`, `create`, `str_replace`, `insert`, `undo_edit`.\",\"enum\":[\"view\",\"create\",\"str_replace\",\"insert\",\"undo_edit\"]},\"path\":{\"type\":\"string\",\"description\":\"Absolute path to file or directory.\"},\"file_text\":{\"type\":\"string\",\"description\":\"Required parameter of `create` command, with the content of the file to be created.\"},\"old_str\":{\"type\":\"string\",\"description\":\"Required parameter of `str_replace` command containing the string in `path` to replace.\"},\"new_str\":{\"type\":\"string\",\"description\":\"Optional parameter of `str_replace` command containing the new string (if not given, no string will be added). Required parameter of `insert` command containing...<22 chars truncated>\"},\"insert_line\":{\"type\":\"integer\",\"description\":\"Required parameter of `insert` command. The `new_str` will be inserted AFTER the line `insert_line` of `path`.\"},\"view_range\":{\"type\":\"array\",\"items\":{\"type\":\"integer\"},\"description\":\"Optional parameter of `view` command when `path` points to a file. If none is given, the full file is shown. If provided, the file will be shown in the indicate...<170 chars truncated>\"}},\"required\":[\"command\",\"path\"]}}},{\"type\":\"function\",\"function\":{\"name\":\"finish\",\"description\":\"Signals the completion of the current task or conversation.\\n\\nUse this tool when:\\n- You have successfully completed the user's requested task\\n- You cannot procee...<282 chars truncated>\",\"parameters\":{\"type\":\"object\",\"properties\":{\"summary\":{\"type\":\"string\",\"description\":\"A concise summary (approximately 10 words) describing what this specific action does. Focus on the key operation and target. Example: 'List all Python files in ...<18 chars truncated>\"},\"message\":{\"type\":\"string\",\"description\":\"Final message to send to the user.\"}},\"required\":[\"message\"]}}},{\"type\":\"function\",\"function\":{\"name\":\"think\",\"description\":\"Use the tool to think about something. It will not obtain new information or make any changes to the repository, but just log the thought. Use it when complex r...<779 chars truncated>\",\"parameters\":{\"type\":\"object\",\"properties\":{\"summary\":{\"type\":\"string\",\"description\":\"A concise summary (approximately 10 words) describing what this specific action does. Focus on the key operation and target. Example: 'List all Python files in ...<18 chars truncated>\"},\"thought\":{\"type\":\"string\",\"description\":\"The thought to log.\"}},\"required\":[\"thought\"]}}}]"
+                }
+              },
+              {
+                "key": "gen_ai.usage.input_tokens",
+                "value": {
+                  "intValue": "1250"
+                }
+              },
+              {
+                "key": "gen_ai.usage.output_tokens",
+                "value": {
+                  "intValue": "40"
+                }
+              },
+              {
+                "key": "llm.usage.total_tokens",
+                "value": {
+                  "intValue": "1290"
+                }
+              },
+              {
+                "key": "lmnr.association.properties.metadata.agent.name",
+                "value": {
+                  "stringValue": "billing-agent"
+                }
+              },
+              {
+                "key": "lmnr.association.properties.session_id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "lmnr.span.ids_path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000002"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000004"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000009"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000010"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000011"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_scope.name",
+                "value": {
+                  "stringValue": "litellm"
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_scope.version",
+                "value": {
+                  "stringValue": "1.103.0"
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_source",
+                "value": {
+                  "stringValue": "python"
+                }
+              },
+              {
+                "key": "lmnr.span.language_version",
+                "value": {
+                  "stringValue": "python@3.12"
+                }
+              },
+              {
+                "key": "lmnr.span.parent_ids_path",
+                "value": {
+                  "arrayValue": {}
+                }
+              },
+              {
+                "key": "lmnr.span.parent_path",
+                "value": {
+                  "arrayValue": {}
+                }
+              },
+              {
+                "key": "lmnr.span.path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "conversation"
+                      },
+                      {
+                        "stringValue": "conversation.run"
+                      },
+                      {
+                        "stringValue": "agent.step"
+                      },
+                      {
+                        "stringValue": "llm.openai/fake"
+                      },
+                      {
+                        "stringValue": "litellm.completion"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.sdk_version",
+                "value": {
+                  "stringValue": "0.7.64"
+                }
+              },
+              {
+                "key": "lmnr.span.type",
+                "value": {
+                  "stringValue": "LLM"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "lmnr.tracer",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "000000000000000b",
+            "parentSpanId": "0000000000000008",
+            "name": "FinishAction",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000017000000",
+            "endTimeUnixNano": "1700000000018000000",
+            "attributes": [
+              {
+                "key": "lmnr.association.properties.metadata.agent.name",
+                "value": {
+                  "stringValue": "billing-agent"
+                }
+              },
+              {
+                "key": "lmnr.association.properties.metadata.tool_call_id",
+                "value": {
+                  "stringValue": "call_2"
+                }
+              },
+              {
+                "key": "lmnr.association.properties.session_id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "lmnr.span.ids_path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000002"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000004"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000009"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000012"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.input",
+                "value": {
+                  "stringValue": "{\"action\":{\"message\":\"Printed the greeting.\",\"kind\":\"FinishAction\"}}"
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_source",
+                "value": {
+                  "stringValue": "python"
+                }
+              },
+              {
+                "key": "lmnr.span.language_version",
+                "value": {
+                  "stringValue": "python@3.12"
+                }
+              },
+              {
+                "key": "lmnr.span.output",
+                "value": {
+                  "stringValue": "{\"content\":[{\"cache_prompt\":false,\"type\":\"text\",\"text\":\"Printed the greeting.\"}],\"is_error\":false,\"kind\":\"FinishObservation\"}"
+                }
+              },
+              {
+                "key": "lmnr.span.path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "conversation"
+                      },
+                      {
+                        "stringValue": "conversation.run"
+                      },
+                      {
+                        "stringValue": "agent.step"
+                      },
+                      {
+                        "stringValue": "FinishAction"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.sdk_version",
+                "value": {
+                  "stringValue": "0.7.64"
+                }
+              },
+              {
+                "key": "lmnr.span.type",
+                "value": {
+                  "stringValue": "TOOL"
+                }
+              }
+            ],
+            "status": {}
+          }
+        }
+      ]
+    }
+  ]
+}

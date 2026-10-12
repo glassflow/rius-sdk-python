@@ -1,0 +1,1369 @@
+{
+  "recordings": [
+    {
+      "scenario": "generation_chat",
+      "resource": {
+        "attributes": [
+          {
+            "key": "gen_ai.agent.name",
+            "value": {
+              "stringValue": "weather-agent"
+            }
+          },
+          {
+            "key": "rius.main_agent.name",
+            "value": {
+              "stringValue": "weather-agent"
+            }
+          },
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "00000000-0000-0000-0000-000000000001"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          },
+          {
+            "key": "telemetry.distro.name",
+            "value": {
+              "stringValue": "glassflow-rius"
+            }
+          },
+          {
+            "key": "telemetry.distro.version",
+            "value": {
+              "stringValue": "1.0.0"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "rius",
+            "version": "1.0.0"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "chat gpt-4o-mini",
+            "kind": "SPAN_KIND_CLIENT",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000001000000",
+            "attributes": [
+              {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"system\",\"parts\":[{\"type\":\"text\",\"content\":\"Answer in one word.\"}]},{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Capital of France?\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "chat"
+                }
+              },
+              {
+                "key": "gen_ai.output.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"Paris.\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "gen_ai.request.max_tokens",
+                "value": {
+                  "intValue": "64"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "gen_ai.request.seed",
+                "value": {
+                  "intValue": "7"
+                }
+              },
+              {
+                "key": "gen_ai.request.temperature",
+                "value": {
+                  "doubleValue": 0.2
+                }
+              },
+              {
+                "key": "gen_ai.response.finish_reasons",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "stop"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "gen_ai.response.id",
+                "value": {
+                  "stringValue": "chatcmpl-rec1"
+                }
+              },
+              {
+                "key": "gen_ai.response.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini-2024-07-18"
+                }
+              },
+              {
+                "key": "gen_ai.usage.cache_read.input_tokens",
+                "value": {
+                  "intValue": "16"
+                }
+              },
+              {
+                "key": "gen_ai.usage.input_tokens",
+                "value": {
+                  "intValue": "42"
+                }
+              },
+              {
+                "key": "gen_ai.usage.output_tokens",
+                "value": {
+                  "intValue": "9"
+                }
+              },
+              {
+                "key": "gen_ai.usage.reasoning.output_tokens",
+                "value": {
+                  "intValue": "3"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "LLM"
+                }
+              },
+              {
+                "key": "rius.context.sizes",
+                "value": {
+                  "stringValue": "{\"version\":1,\"input_messages\":[{\"role\":\"system\",\"parts\":[{\"type\":\"text\",\"bytes\":19}]},{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"bytes\":18}]}],\"output_messages\":[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"bytes\":6}]}]}"
+                }
+              }
+            ],
+            "status": {}
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "generation_stream",
+      "resource": {
+        "attributes": [
+          {
+            "key": "gen_ai.agent.name",
+            "value": {
+              "stringValue": "weather-agent"
+            }
+          },
+          {
+            "key": "rius.main_agent.name",
+            "value": {
+              "stringValue": "weather-agent"
+            }
+          },
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "00000000-0000-0000-0000-000000000001"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          },
+          {
+            "key": "telemetry.distro.name",
+            "value": {
+              "stringValue": "glassflow-rius"
+            }
+          },
+          {
+            "key": "telemetry.distro.version",
+            "value": {
+              "stringValue": "1.0.0"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "rius",
+            "version": "1.0.0"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "chat claude-haiku-4-5",
+            "kind": "SPAN_KIND_CLIENT",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000002000000",
+            "attributes": [
+              {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"system\",\"parts\":[{\"type\":\"text\",\"content\":\"Answer in one word.\"}]},{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Capital of France?\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "chat"
+                }
+              },
+              {
+                "key": "gen_ai.output.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"Paris.\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "anthropic"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "claude-haiku-4-5"
+                }
+              },
+              {
+                "key": "gen_ai.request.stream",
+                "value": {
+                  "boolValue": true
+                }
+              },
+              {
+                "key": "gen_ai.response.finish_reasons",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "end_turn"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "gen_ai.response.time_to_first_chunk",
+                "value": {
+                  "doubleValue": 0.001
+                }
+              },
+              {
+                "key": "gen_ai.usage.input_tokens",
+                "value": {
+                  "intValue": "20"
+                }
+              },
+              {
+                "key": "gen_ai.usage.output_tokens",
+                "value": {
+                  "intValue": "4"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "LLM"
+                }
+              },
+              {
+                "key": "rius.context.sizes",
+                "value": {
+                  "stringValue": "{\"version\":1,\"input_messages\":[{\"role\":\"system\",\"parts\":[{\"type\":\"text\",\"bytes\":19}]},{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"bytes\":18}]}],\"output_messages\":[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"bytes\":6}]}]}"
+                }
+              }
+            ],
+            "events": [
+              {
+                "timeUnixNano": "1700000000001000000",
+                "name": "gen_ai.first_token",
+                "attributes": []
+              }
+            ],
+            "status": {}
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "generation_error",
+      "resource": {
+        "attributes": [
+          {
+            "key": "gen_ai.agent.name",
+            "value": {
+              "stringValue": "weather-agent"
+            }
+          },
+          {
+            "key": "rius.main_agent.name",
+            "value": {
+              "stringValue": "weather-agent"
+            }
+          },
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "00000000-0000-0000-0000-000000000001"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          },
+          {
+            "key": "telemetry.distro.name",
+            "value": {
+              "stringValue": "glassflow-rius"
+            }
+          },
+          {
+            "key": "telemetry.distro.version",
+            "value": {
+              "stringValue": "1.0.0"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "rius",
+            "version": "1.0.0"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "chat gpt-nope",
+            "kind": "SPAN_KIND_CLIENT",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000002000000",
+            "attributes": [
+              {
+                "key": "error.type",
+                "value": {
+                  "stringValue": "Error"
+                }
+              },
+              {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"system\",\"parts\":[{\"type\":\"text\",\"content\":\"Answer in one word.\"}]},{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Capital of France?\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "chat"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-nope"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "LLM"
+                }
+              },
+              {
+                "key": "rius.context.sizes",
+                "value": {
+                  "stringValue": "{\"version\":1,\"input_messages\":[{\"role\":\"system\",\"parts\":[{\"type\":\"text\",\"bytes\":19}]},{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"bytes\":18}]}]}"
+                }
+              }
+            ],
+            "events": [
+              {
+                "timeUnixNano": "1700000000001000000",
+                "name": "exception",
+                "attributes": [
+                  {
+                    "key": "exception.message",
+                    "value": {
+                      "stringValue": "The model `gpt-nope` does not exist."
+                    }
+                  },
+                  {
+                    "key": "exception.stacktrace",
+                    "value": {
+                      "stringValue": "<stacktrace elided>"
+                    }
+                  },
+                  {
+                    "key": "exception.type",
+                    "value": {
+                      "stringValue": "Error"
+                    }
+                  }
+                ]
+              }
+            ],
+            "status": {
+              "code": "STATUS_CODE_ERROR",
+              "message": "The model `gpt-nope` does not exist."
+            }
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "agent_tools",
+      "resource": {
+        "attributes": [
+          {
+            "key": "gen_ai.agent.name",
+            "value": {
+              "stringValue": "weather-agent"
+            }
+          },
+          {
+            "key": "rius.main_agent.name",
+            "value": {
+              "stringValue": "weather-agent"
+            }
+          },
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "00000000-0000-0000-0000-000000000001"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          },
+          {
+            "key": "telemetry.distro.name",
+            "value": {
+              "stringValue": "glassflow-rius"
+            }
+          },
+          {
+            "key": "telemetry.distro.version",
+            "value": {
+              "stringValue": "1.0.0"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "rius",
+            "version": "1.0.0"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "invoke_agent weather-agent",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000007000000",
+            "attributes": [
+              {
+                "key": "gen_ai.agent.name",
+                "value": {
+                  "stringValue": "weather-agent"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "invoke_agent"
+                }
+              },
+              {
+                "key": "input.value",
+                "value": {
+                  "stringValue": "{\"args\":[\"Weather in Paris?\"],\"kwargs\":{}}"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "AGENT"
+                }
+              },
+              {
+                "key": "output.value",
+                "value": {
+                  "stringValue": "Sunny, 22C."
+                }
+              },
+              {
+                "key": "session.id",
+                "value": {
+                  "stringValue": "session-rec1"
+                }
+              },
+              {
+                "key": "user.id",
+                "value": {
+                  "stringValue": "user-rec1"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "rius",
+            "version": "1.0.0"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000002",
+            "parentSpanId": "0000000000000001",
+            "name": "chat gpt-4o-mini",
+            "kind": "SPAN_KIND_CLIENT",
+            "startTimeUnixNano": "1700000000001000000",
+            "endTimeUnixNano": "1700000000002000000",
+            "attributes": [
+              {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Weather in Paris?\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "chat"
+                }
+              },
+              {
+                "key": "gen_ai.output.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"call_rec1\",\"name\":\"get_weather\",\"arguments\":\"{\\\"city\\\": \\\"Paris\\\"}\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "gen_ai.response.finish_reasons",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "tool_calls"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "gen_ai.tool.definitions",
+                "value": {
+                  "stringValue": "[{\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"description\":\"Current weather for a city.\",\"parameters\":{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"]}}}]"
+                }
+              },
+              {
+                "key": "gen_ai.usage.input_tokens",
+                "value": {
+                  "intValue": "60"
+                }
+              },
+              {
+                "key": "gen_ai.usage.output_tokens",
+                "value": {
+                  "intValue": "12"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "LLM"
+                }
+              },
+              {
+                "key": "rius.context.sizes",
+                "value": {
+                  "stringValue": "{\"version\":1,\"tool_definitions\":[{\"name\":\"get_weather\",\"bytes\":188}],\"input_messages\":[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"bytes\":17}]}],\"output_messages\":[{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"tool\":\"get_weather\",\"bytes\":94}]}]}"
+                }
+              },
+              {
+                "key": "session.id",
+                "value": {
+                  "stringValue": "session-rec1"
+                }
+              },
+              {
+                "key": "user.id",
+                "value": {
+                  "stringValue": "user-rec1"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "rius",
+            "version": "1.0.0"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000003",
+            "parentSpanId": "0000000000000001",
+            "name": "execute_tool get_weather",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000003000000",
+            "endTimeUnixNano": "1700000000004000000",
+            "attributes": [
+              {
+                "key": "gen_ai.agent.name",
+                "value": {
+                  "stringValue": "weather-agent"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "execute_tool"
+                }
+              },
+              {
+                "key": "gen_ai.tool.name",
+                "value": {
+                  "stringValue": "get_weather"
+                }
+              },
+              {
+                "key": "input.value",
+                "value": {
+                  "stringValue": "{\"args\":[\"Paris\"],\"kwargs\":{}}"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "TOOL"
+                }
+              },
+              {
+                "key": "output.value",
+                "value": {
+                  "stringValue": "sunny, 22C"
+                }
+              },
+              {
+                "key": "session.id",
+                "value": {
+                  "stringValue": "session-rec1"
+                }
+              },
+              {
+                "key": "user.id",
+                "value": {
+                  "stringValue": "user-rec1"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "rius",
+            "version": "1.0.0"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000004",
+            "parentSpanId": "0000000000000001",
+            "name": "chat gpt-4o-mini",
+            "kind": "SPAN_KIND_CLIENT",
+            "startTimeUnixNano": "1700000000005000000",
+            "endTimeUnixNano": "1700000000006000000",
+            "attributes": [
+              {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Weather in Paris?\"}]},{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"call_rec1\",\"name\":\"get_weather\",\"arguments\":\"{\\\"city\\\": \\\"Paris\\\"}\"}]},{\"role\":\"tool\",\"parts\":[{\"type\":\"tool_call_response\",\"id\":\"call_rec1\",\"response\":\"sunny, 22C\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "chat"
+                }
+              },
+              {
+                "key": "gen_ai.output.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"Sunny, 22C.\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "gen_ai.response.finish_reasons",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "stop"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "gen_ai.tool.definitions",
+                "value": {
+                  "stringValue": "[{\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"description\":\"Current weather for a city.\",\"parameters\":{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"]}}}]"
+                }
+              },
+              {
+                "key": "gen_ai.usage.input_tokens",
+                "value": {
+                  "intValue": "80"
+                }
+              },
+              {
+                "key": "gen_ai.usage.output_tokens",
+                "value": {
+                  "intValue": "6"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "LLM"
+                }
+              },
+              {
+                "key": "rius.context.sizes",
+                "value": {
+                  "stringValue": "{\"version\":1,\"tool_definitions\":[{\"name\":\"get_weather\",\"bytes\":188}],\"input_messages\":[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"bytes\":17}]},{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"tool\":\"get_weather\",\"bytes\":94}]},{\"role\":\"tool\",\"parts\":[{\"type\":\"tool_call_response\",\"tool\":\"get_weather\",\"bytes\":70}]}],\"output_messages\":[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"bytes\":11}]}]}"
+                }
+              },
+              {
+                "key": "session.id",
+                "value": {
+                  "stringValue": "session-rec1"
+                }
+              },
+              {
+                "key": "user.id",
+                "value": {
+                  "stringValue": "user-rec1"
+                }
+              }
+            ],
+            "status": {}
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "retrieval",
+      "resource": {
+        "attributes": [
+          {
+            "key": "gen_ai.agent.name",
+            "value": {
+              "stringValue": "weather-agent"
+            }
+          },
+          {
+            "key": "rius.main_agent.name",
+            "value": {
+              "stringValue": "weather-agent"
+            }
+          },
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "00000000-0000-0000-0000-000000000001"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          },
+          {
+            "key": "telemetry.distro.name",
+            "value": {
+              "stringValue": "glassflow-rius"
+            }
+          },
+          {
+            "key": "telemetry.distro.version",
+            "value": {
+              "stringValue": "1.0.0"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "rius",
+            "version": "1.0.0"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "retrieval product-kb",
+            "kind": "SPAN_KIND_CLIENT",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000001000000",
+            "attributes": [
+              {
+                "key": "gen_ai.data_source.id",
+                "value": {
+                  "stringValue": "product-kb"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "retrieval"
+                }
+              },
+              {
+                "key": "gen_ai.retrieval.documents",
+                "value": {
+                  "stringValue": "[{\"id\":\"doc-1\",\"content\":\"Returns are accepted within 30 days.\",\"score\":0.92},{\"id\":\"doc-2\",\"content\":\"Refunds go to the original card.\",\"score\":0.81}]"
+                }
+              },
+              {
+                "key": "gen_ai.retrieval.top_k",
+                "value": {
+                  "intValue": "2"
+                }
+              },
+              {
+                "key": "input.value",
+                "value": {
+                  "stringValue": "return policy"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "RETRIEVER"
+                }
+              }
+            ],
+            "status": {}
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "chain",
+      "resource": {
+        "attributes": [
+          {
+            "key": "gen_ai.agent.name",
+            "value": {
+              "stringValue": "weather-agent"
+            }
+          },
+          {
+            "key": "rius.main_agent.name",
+            "value": {
+              "stringValue": "weather-agent"
+            }
+          },
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "00000000-0000-0000-0000-000000000001"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          },
+          {
+            "key": "telemetry.distro.name",
+            "value": {
+              "stringValue": "glassflow-rius"
+            }
+          },
+          {
+            "key": "telemetry.distro.version",
+            "value": {
+              "stringValue": "1.0.0"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "rius",
+            "version": "1.0.0"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "plan_trip",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000001000000",
+            "attributes": [
+              {
+                "key": "input.value",
+                "value": {
+                  "stringValue": "{\"args\":[\"Paris\"],\"kwargs\":{}}"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "CHAIN"
+                }
+              },
+              {
+                "key": "output.value",
+                "value": {
+                  "stringValue": "{\"city\":\"Paris\",\"days\":2}"
+                }
+              }
+            ],
+            "status": {}
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "mcp_tool_call",
+      "resource": {
+        "attributes": [
+          {
+            "key": "gen_ai.agent.name",
+            "value": {
+              "stringValue": "weather-agent"
+            }
+          },
+          {
+            "key": "rius.main_agent.name",
+            "value": {
+              "stringValue": "weather-agent"
+            }
+          },
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "00000000-0000-0000-0000-000000000001"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          },
+          {
+            "key": "telemetry.distro.name",
+            "value": {
+              "stringValue": "glassflow-rius"
+            }
+          },
+          {
+            "key": "telemetry.distro.version",
+            "value": {
+              "stringValue": "1.0.0"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "rius",
+            "version": "1.0.0"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "execute_tool forecast",
+            "kind": "SPAN_KIND_CLIENT",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000001000000",
+            "attributes": [
+              {
+                "key": "gen_ai.agent.name",
+                "value": {
+                  "stringValue": "weather-agent"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "execute_tool"
+                }
+              },
+              {
+                "key": "gen_ai.tool.name",
+                "value": {
+                  "stringValue": "forecast"
+                }
+              },
+              {
+                "key": "input.value",
+                "value": {
+                  "stringValue": "{\"city\":\"Paris\"}"
+                }
+              },
+              {
+                "key": "mcp.method.name",
+                "value": {
+                  "stringValue": "tools/call"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "TOOL"
+                }
+              },
+              {
+                "key": "output.value",
+                "value": {
+                  "stringValue": "Paris: sunny, 24C"
+                }
+              }
+            ],
+            "status": {}
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "mcp_tool_error",
+      "resource": {
+        "attributes": [
+          {
+            "key": "gen_ai.agent.name",
+            "value": {
+              "stringValue": "weather-agent"
+            }
+          },
+          {
+            "key": "rius.main_agent.name",
+            "value": {
+              "stringValue": "weather-agent"
+            }
+          },
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "00000000-0000-0000-0000-000000000001"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          },
+          {
+            "key": "telemetry.distro.name",
+            "value": {
+              "stringValue": "glassflow-rius"
+            }
+          },
+          {
+            "key": "telemetry.distro.version",
+            "value": {
+              "stringValue": "1.0.0"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "rius",
+            "version": "1.0.0"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "execute_tool broken",
+            "kind": "SPAN_KIND_CLIENT",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000001000000",
+            "attributes": [
+              {
+                "key": "error.type",
+                "value": {
+                  "stringValue": "tool_error"
+                }
+              },
+              {
+                "key": "gen_ai.agent.name",
+                "value": {
+                  "stringValue": "weather-agent"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "execute_tool"
+                }
+              },
+              {
+                "key": "gen_ai.tool.name",
+                "value": {
+                  "stringValue": "broken"
+                }
+              },
+              {
+                "key": "input.value",
+                "value": {
+                  "stringValue": "{\"city\":\"Paris\"}"
+                }
+              },
+              {
+                "key": "mcp.method.name",
+                "value": {
+                  "stringValue": "tools/call"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "TOOL"
+                }
+              },
+              {
+                "key": "output.value",
+                "value": {
+                  "stringValue": "forecast service unavailable"
+                }
+              }
+            ],
+            "status": {
+              "code": "STATUS_CODE_ERROR",
+              "message": "tool returned an error result"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "mcp_in_agent",
+      "resource": {
+        "attributes": [
+          {
+            "key": "gen_ai.agent.name",
+            "value": {
+              "stringValue": "weather-agent"
+            }
+          },
+          {
+            "key": "rius.main_agent.name",
+            "value": {
+              "stringValue": "weather-agent"
+            }
+          },
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "00000000-0000-0000-0000-000000000001"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          },
+          {
+            "key": "telemetry.distro.name",
+            "value": {
+              "stringValue": "glassflow-rius"
+            }
+          },
+          {
+            "key": "telemetry.distro.version",
+            "value": {
+              "stringValue": "1.0.0"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "rius",
+            "version": "1.0.0"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "invoke_agent forecast-agent",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000003000000",
+            "attributes": [
+              {
+                "key": "gen_ai.agent.name",
+                "value": {
+                  "stringValue": "forecast-agent"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "invoke_agent"
+                }
+              },
+              {
+                "key": "input.value",
+                "value": {
+                  "stringValue": "{\"args\":[],\"kwargs\":{}}"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "AGENT"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "rius",
+            "version": "1.0.0"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000002",
+            "parentSpanId": "0000000000000001",
+            "name": "execute_tool forecast",
+            "kind": "SPAN_KIND_CLIENT",
+            "startTimeUnixNano": "1700000000001000000",
+            "endTimeUnixNano": "1700000000002000000",
+            "attributes": [
+              {
+                "key": "gen_ai.agent.name",
+                "value": {
+                  "stringValue": "forecast-agent"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "execute_tool"
+                }
+              },
+              {
+                "key": "gen_ai.tool.name",
+                "value": {
+                  "stringValue": "forecast"
+                }
+              },
+              {
+                "key": "input.value",
+                "value": {
+                  "stringValue": "{\"city\":\"Paris\"}"
+                }
+              },
+              {
+                "key": "mcp.method.name",
+                "value": {
+                  "stringValue": "tools/call"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "TOOL"
+                }
+              },
+              {
+                "key": "output.value",
+                "value": {
+                  "stringValue": "Paris: sunny, 24C"
+                }
+              }
+            ],
+            "status": {}
+          }
+        }
+      ]
+    }
+  ]
+}

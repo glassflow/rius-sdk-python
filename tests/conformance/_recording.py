@@ -1,4 +1,4 @@
-# Vendored from rius-semconv 567ba58f7a0935a7bc2896ab5d7e2ecb542baa00 fixtures/_recording.py by
+# Vendored from rius-semconv 50b5e05b10f1f291a88c8aaf619555fe6bf60bee fixtures/_recording.py by
 # scripts/sync-semconv-fixtures.sh. Do not edit: change it in rius-semconv.
 """Shared helpers for the recorders under fixtures/<family>/record.py.
 
@@ -113,6 +113,36 @@ def sse(events: Sequence[tuple[str | None, dict[str, Any] | str]]) -> bytes:
         payload = data if isinstance(data, str) else json.dumps(data)
         out.append(f"data: {payload}\n\n")
     return "".join(out).encode()
+
+
+def spans_from_otlp(captured: Sequence[tuple[Any, Any, Any]]) -> list[ReadableSpan]:
+    """Finished spans from OTLP protobuf captured off the wire.
+
+    For recorders that cannot hold an in-memory exporter (the instrumented app
+    runs as a child process and exports over OTLP/HTTP, as Laminar's recorder
+    does): each captured (Resource, InstrumentationScope, Span) protobuf triple
+    becomes a ReadableSpan with its own ids and times, through the same decoder
+    every consumer uses (_replay.py), so `scenario_json` can make it canonical.
+    All spans of a scenario must share one resource.
+    """
+    from _replay import scenario_spans
+
+    resources = {r.SerializeToString(deterministic=True): r for r, _, _ in captured}
+    if len(resources) > 1:
+        raise ValueError(f"expected one resource, got {len(resources)}")
+    resource = MessageToDict(next(iter(resources.values()))) if resources else {}
+    spans = []
+    for _, scope, span in captured:
+        d = MessageToDict(span)
+        # MessageToDict writes bytes as base64; the OTLP/JSON form is hex.
+        d["traceId"] = span.trace_id.hex()
+        d["spanId"] = span.span_id.hex()
+        if span.parent_span_id:
+            d["parentSpanId"] = span.parent_span_id.hex()
+        else:
+            d.pop("parentSpanId", None)
+        spans.append({"scope": {"name": scope.name, "version": scope.version}, "span": d})
+    return scenario_spans({"scenario": "", "resource": resource, "spans": spans})
 
 
 def recorder_resource() -> Resource:
