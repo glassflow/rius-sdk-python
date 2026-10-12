@@ -1159,6 +1159,16 @@ def _count(value: Any) -> Any:
     return int(value)
 
 
+def _configured_count(value: Any) -> Any:
+    """``_count``, with a negative value read as "not configured".
+
+    LlamaIndex writes ``num_output: -1`` when the request sets no output
+    budget; that is no value, not a budget of -1.
+    """
+    count = _count(value)
+    return SKIP if count is SKIP or count < 0 else count
+
+
 def _text(value: Any) -> Any:
     return value if isinstance(value, str) and value else SKIP
 
@@ -1225,6 +1235,11 @@ INVOCATION_PARAMETER_MEMBERS: tuple[tuple[str, str, Callable[[Any], Any]], ...] 
     # Every instrumentor but anthropic's keeps `model` in the bag, and it is
     # the literal request field — unlike `llm.model_name`, see below.
     ("model", GEN_AI_REQUEST_MODEL, _text),
+    # LlamaIndex fills the bag with the model's metadata, not the request's
+    # parameters, and names the model `model_name` there. LangChain's bag has
+    # `model_name` too, next to `model` with the same value; listed after
+    # `model`, it is promoted only where `model` is absent.
+    ("model_name", GEN_AI_REQUEST_MODEL, _text),
     ("temperature", GEN_AI_REQUEST_TEMPERATURE, _number),
     ("top_p", GEN_AI_REQUEST_TOP_P, _number),
     ("top_k", GEN_AI_REQUEST_TOP_K, _count),
@@ -1234,6 +1249,9 @@ INVOCATION_PARAMETER_MEMBERS: tuple[tuple[str, str, Callable[[Any], Any]], ...] 
     # which is what gen_ai.request.max_tokens means. Listed second so that a
     # request carrying both keeps the one the provider would honour.
     ("max_completion_tokens", GEN_AI_REQUEST_MAX_TOKENS, _count),
+    # LlamaIndex's metadata spelling of the same setting: the number of
+    # tokens the model is configured to generate, -1 when nothing is.
+    ("num_output", GEN_AI_REQUEST_MAX_TOKENS, _configured_count),
     ("frequency_penalty", GEN_AI_REQUEST_FREQUENCY_PENALTY, _number),
     ("presence_penalty", GEN_AI_REQUEST_PRESENCE_PENALTY, _number),
     ("seed", GEN_AI_REQUEST_SEED, _count),
