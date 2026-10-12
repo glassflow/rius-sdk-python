@@ -1329,7 +1329,15 @@ def openinference_invocation_parameters(raw: Any) -> Mapping[str, Any]:
     produced: dict[str, Any] = {}
     leftover = dict(payload)
     for member, target, convert in INVOCATION_PARAMETER_MEMBERS:
-        if member not in leftover or target in produced:
+        if member not in leftover:
+            continue
+        if target in produced:
+            # A second spelling with the same value (LangChain's model_name
+            # next to model) is a duplicate, and goes like a promoted member.
+            # Left in the bag, it would be promoted on the next pass, so
+            # normalizing twice would differ from normalizing once.
+            if convert(leftover[member]) == produced[target]:
+                del leftover[member]
             continue
         value = convert(leftover[member])
         if value is SKIP:

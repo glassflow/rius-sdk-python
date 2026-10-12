@@ -427,14 +427,27 @@ def test_llama_index_unset_output_budget_is_not_a_max_tokens() -> None:
     assert json.loads(out[LLM_INVOCATION_PARAMETERS]) == {"num_output": -1}
 
 
-def test_model_wins_over_model_name_and_model_name_stays() -> None:
-    """LangChain's bag has both, with the same value: ``model`` is the
-    request field and keeps the key, and ``model_name`` is left where it was."""
+def test_model_wins_over_a_different_model_name_which_stays() -> None:
     out = _normalize(
         {LLM_INVOCATION_PARAMETERS: json.dumps({"model": "gpt-4o", "model_name": "gpt-4o-x"})}
     )
     assert out[GEN_AI_REQUEST_MODEL] == "gpt-4o"
     assert json.loads(out[LLM_INVOCATION_PARAMETERS]) == {"model_name": "gpt-4o-x"}
+
+
+def test_a_second_spelling_with_the_same_value_is_a_duplicate() -> None:
+    """LangChain's bag has ``model_name`` next to ``model``, same value."""
+    bag = {"model": "gpt-4o", "model_name": "gpt-4o", "_type": "openai-chat"}
+    out = _normalize({LLM_INVOCATION_PARAMETERS: json.dumps(bag)})
+    assert out[GEN_AI_REQUEST_MODEL] == "gpt-4o"
+    assert json.loads(out[LLM_INVOCATION_PARAMETERS]) == {"_type": "openai-chat"}
+
+
+def test_normalizing_the_bag_twice_is_normalizing_it_once() -> None:
+    """The SDK normalizes at span start and again at export."""
+    bag = {"model": "gpt-4o", "model_name": "gpt-4o", "num_output": -1, "max_tokens": 5}
+    once = _normalize({LLM_INVOCATION_PARAMETERS: json.dumps(bag)})
+    assert _normalize(once) == once
 
 
 def test_unparseable_invocation_parameters_survive_untouched() -> None:
