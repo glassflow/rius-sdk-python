@@ -21,7 +21,12 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from rius import init
 from rius.masking import MaskingSpanExporter
 from rius.normalization import DEFAULT_TABLE, NormalizingSpanExporter, drop_embedding_vectors
-from rius.semconv import GEN_AI_OPERATION_NAME, GEN_AI_REQUEST_MODEL, GEN_AI_USAGE_INPUT_TOKENS
+from rius.semconv import (
+    GEN_AI_OPERATION_NAME,
+    GEN_AI_PROVIDER_NAME,
+    GEN_AI_REQUEST_MODEL,
+    GEN_AI_USAGE_INPUT_TOKENS,
+)
 
 _INPUT_VALUE = (
     '{"input": ["hello", "world"], "model": "text-embedding-3-small", "encoding_format": "base64"}'
@@ -83,6 +88,7 @@ def test_openai_embedding_span_golden() -> None:
         "embedding.embeddings.0.embedding.text": "hello",
         "embedding.embeddings.1.embedding.text": "world",
         "llm.token_count.total": 8,
+        GEN_AI_PROVIDER_NAME: "openai",
         GEN_AI_USAGE_INPUT_TOKENS: 8,
         GEN_AI_REQUEST_MODEL: "text-embedding-3-small",
         "openinference.span.kind": "EMBEDDING",

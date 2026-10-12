@@ -231,7 +231,6 @@ def test_source_is_mapped_and_deleted(source: str, target: str, value: Any) -> N
     "key",
     [
         "llm.model_name",
-        "llm.system",
         "llm.token_count.total",
         "llm.token_count.prompt_details.audio",
         "llm.token_count.prompt_details.cache_input",
@@ -294,6 +293,49 @@ def test_legacy_gen_ai_system_is_mapped_and_never_emitted(source_value: str, exp
 def test_llm_provider_wins_over_legacy_gen_ai_system() -> None:
     out = _normalize({"llm.provider": "azure", "gen_ai.system": "openai"})
     assert out == {GEN_AI_PROVIDER_NAME: "azure"}
+
+
+@pytest.mark.parametrize(
+    ("source_value", "expected"),
+    [
+        ("openai", "openai"),
+        ("anthropic", "anthropic"),
+        ("cohere", "cohere"),
+        ("mistralai", "mistral_ai"),
+        ("vertexai", "gcp.vertex_ai"),
+    ],
+)
+def test_llm_system_is_the_provider_when_the_host_is_unknown(
+    source_value: str, expected: str
+) -> None:
+    """An OpenAI client pointed at a gateway (Vercel AI Gateway, OpenRouter, a
+    LiteLLM proxy) gets no ``llm.provider``: the openai instrumentor sets it
+    only for hosts it recognizes. ``llm.system`` names the API the client
+    speaks, which is what the registry asks of the provider: the
+    instrumentation's best knowledge, a discriminator for the telemetry
+    flavor, allowed to differ from whoever served the request behind a proxy.
+
+    ``llm.system`` is kept: on Azure it differs from the provider, so it is a
+    fact of its own and not a duplicate.
+    """
+    out = _normalize({"llm.system": source_value})
+    assert out == {"llm.system": source_value, GEN_AI_PROVIDER_NAME: expected}
+
+
+def test_llm_provider_wins_over_llm_system() -> None:
+    """Azure OpenAI: the host names the provider, the system names the API."""
+    out = _normalize({"llm.provider": "azure", "llm.system": "openai"})
+    assert out == {"llm.system": "openai", GEN_AI_PROVIDER_NAME: "azure"}
+
+
+def test_legacy_gen_ai_system_wins_over_llm_system() -> None:
+    out = _normalize({"gen_ai.system": "az.ai.openai", "llm.system": "openai"})
+    assert out == {"llm.system": "openai", GEN_AI_PROVIDER_NAME: "azure.ai.openai"}
+
+
+def test_native_provider_wins_over_llm_system() -> None:
+    attributes = {GEN_AI_PROVIDER_NAME: "groq", "llm.system": "openai"}
+    assert _normalize(attributes) == attributes
 
 
 # --- invocation parameters --------------------------------------------------
