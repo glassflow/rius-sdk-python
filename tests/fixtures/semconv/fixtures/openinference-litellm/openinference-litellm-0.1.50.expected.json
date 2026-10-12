@@ -2,7 +2,7 @@
   "normalizer": {
     "package": "glassflow-rius",
     "version": "1.0.0",
-    "commit": "df42f19287225b91f10d6779c846ddab63162882"
+    "commit": "9140bb4"
   },
   "recordings": [
     {
@@ -88,7 +88,7 @@
               {
                 "key": "gen_ai.request.model",
                 "value": {
-                  "stringValue": "openai/gpt-4o-mini"
+                  "stringValue": "gpt-4o-mini"
                 }
               },
               {
@@ -272,7 +272,7 @@
               {
                 "key": "gen_ai.request.model",
                 "value": {
-                  "stringValue": "openai/gpt-4o-mini"
+                  "stringValue": "gpt-4o-mini"
                 }
               },
               {
@@ -462,7 +462,7 @@
               {
                 "key": "gen_ai.request.model",
                 "value": {
-                  "stringValue": "openai/gpt-4o-mini"
+                  "stringValue": "gpt-4o-mini"
                 }
               },
               {
@@ -670,7 +670,7 @@
               {
                 "key": "gen_ai.request.model",
                 "value": {
-                  "stringValue": "openai/gpt-4o-mini"
+                  "stringValue": "gpt-4o-mini"
                 }
               },
               {
@@ -866,7 +866,7 @@
               {
                 "key": "gen_ai.request.model",
                 "value": {
-                  "stringValue": "anthropic/claude-haiku-4-5-20251001"
+                  "stringValue": "claude-haiku-4-5-20251001"
                 }
               },
               {
@@ -1038,7 +1038,7 @@
               {
                 "key": "gen_ai.request.model",
                 "value": {
-                  "stringValue": "openai/gpt-nope"
+                  "stringValue": "gpt-nope"
                 }
               },
               {
