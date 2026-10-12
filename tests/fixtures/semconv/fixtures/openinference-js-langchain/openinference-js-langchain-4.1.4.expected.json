@@ -2,7 +2,7 @@
   "normalizer": {
     "package": "glassflow-rius",
     "version": "1.0.0",
-    "commit": "df42f19287225b91f10d6779c846ddab63162882"
+    "commit": "4180c8e4092d755cb93f5861a93fc192a57045c4"
   },
   "recordings": [
     {
@@ -68,12 +68,6 @@
                 }
               },
               {
-                "key": "gen_ai.request.stream",
-                "value": {
-                  "boolValue": false
-                }
-              },
-              {
                 "key": "gen_ai.request.temperature",
                 "value": {
                   "doubleValue": 0.2
@@ -125,6 +119,12 @@
                 "key": "input.value",
                 "value": {
                   "stringValue": "{\"messages\":[[{\"lc\":1,\"type\":\"constructor\",\"id\":[\"langchain_core\",\"messages\",\"SystemMessage\"],\"kwargs\":{\"content\":\"Answer in one word.\",\"additional_kwargs\":{},\"response_metadata\":{}}},{\"lc\":1,\"type\":\"constructor\",\"id\":[\"langchain_core\",\"messages\",\"HumanMessage\"],\"kwargs\":{\"content\":\"Capital of France?\",\"additional_kwargs\":{},\"response_metadata\":{}}}]]}"
+                }
+              },
+              {
+                "key": "llm.invocation_parameters",
+                "value": {
+                  "stringValue": "{\"stream\":false}"
                 }
               },
               {
@@ -228,12 +228,6 @@
                 }
               },
               {
-                "key": "gen_ai.request.stream",
-                "value": {
-                  "boolValue": false
-                }
-              },
-              {
                 "key": "gen_ai.response.finish_reasons",
                 "value": {
                   "arrayValue": {
@@ -279,6 +273,12 @@
                 "key": "input.value",
                 "value": {
                   "stringValue": "{\"messages\":[[{\"lc\":1,\"type\":\"constructor\",\"id\":[\"langchain_core\",\"messages\",\"HumanMessage\"],\"kwargs\":{\"content\":\"Capital of France?\",\"additional_kwargs\":{},\"response_metadata\":{}}}]]}"
+                }
+              },
+              {
+                "key": "llm.invocation_parameters",
+                "value": {
+                  "stringValue": "{\"stream\":false}"
                 }
               },
               {
@@ -382,12 +382,6 @@
                 }
               },
               {
-                "key": "gen_ai.request.stream",
-                "value": {
-                  "boolValue": false
-                }
-              },
-              {
                 "key": "gen_ai.response.finish_reasons",
                 "value": {
                   "arrayValue": {
@@ -444,7 +438,7 @@
               {
                 "key": "llm.invocation_parameters",
                 "value": {
-                  "stringValue": "{\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"description\":\"Current weather for a city.\",\"parameters\":{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"]}}}]}"
+                  "stringValue": "{\"stream\":false,\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"description\":\"Current weather for a city.\",\"parameters\":{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"]}}}]}"
                 }
               },
               {
@@ -554,12 +548,6 @@
                 }
               },
               {
-                "key": "gen_ai.request.stream",
-                "value": {
-                  "boolValue": false
-                }
-              },
-              {
                 "key": "gen_ai.response.finish_reasons",
                 "value": {
                   "arrayValue": {
@@ -616,7 +604,7 @@
               {
                 "key": "llm.invocation_parameters",
                 "value": {
-                  "stringValue": "{\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"description\":\"Current weather for a city.\",\"parameters\":{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"]}}}]}"
+                  "stringValue": "{\"stream\":false,\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"description\":\"Current weather for a city.\",\"parameters\":{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"]}}}]}"
                 }
               },
               {
@@ -844,12 +832,6 @@
                 }
               },
               {
-                "key": "gen_ai.request.stream",
-                "value": {
-                  "boolValue": false
-                }
-              },
-              {
                 "key": "gen_ai.response.finish_reasons",
                 "value": {
                   "arrayValue": {
@@ -895,6 +877,12 @@
                 "key": "input.value",
                 "value": {
                   "stringValue": "{\"messages\":[[{\"lc\":1,\"type\":\"constructor\",\"id\":[\"langchain_core\",\"messages\",\"SystemMessage\"],\"kwargs\":{\"content\":\"Answer in one word.\",\"additional_kwargs\":{},\"response_metadata\":{}}},{\"lc\":1,\"type\":\"constructor\",\"id\":[\"langchain_core\",\"messages\",\"HumanMessage\"],\"kwargs\":{\"content\":\"Capital of France?\",\"additional_kwargs\":{},\"response_metadata\":{}}}]]}"
+                }
+              },
+              {
+                "key": "llm.invocation_parameters",
+                "value": {
+                  "stringValue": "{\"stream\":false}"
                 }
               },
               {
@@ -992,12 +980,6 @@
                 }
               },
               {
-                "key": "gen_ai.request.stream",
-                "value": {
-                  "boolValue": false
-                }
-              },
-              {
                 "key": "input.mime_type",
                 "value": {
                   "stringValue": "application/json"
@@ -1007,6 +989,12 @@
                 "key": "input.value",
                 "value": {
                   "stringValue": "{\"messages\":[[{\"lc\":1,\"type\":\"constructor\",\"id\":[\"langchain_core\",\"messages\",\"HumanMessage\"],\"kwargs\":{\"content\":\"hi\",\"additional_kwargs\":{},\"response_metadata\":{}}}]]}"
+                }
+              },
+              {
+                "key": "llm.invocation_parameters",
+                "value": {
+                  "stringValue": "{\"stream\":false}"
                 }
               },
               {

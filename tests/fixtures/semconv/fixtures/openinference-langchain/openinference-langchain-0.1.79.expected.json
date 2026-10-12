@@ -2,7 +2,7 @@
   "normalizer": {
     "package": "glassflow-rius",
     "version": "1.0.0",
-    "commit": "510e59e54ac4bb49fa6e3892230760bd55ddcef8"
+    "commit": "4180c8e4092d755cb93f5861a93fc192a57045c4"
   },
   "recordings": [
     {
@@ -92,12 +92,6 @@
                 }
               },
               {
-                "key": "gen_ai.request.stream",
-                "value": {
-                  "boolValue": false
-                }
-              },
-              {
                 "key": "gen_ai.request.temperature",
                 "value": {
                   "doubleValue": 0.2
@@ -154,7 +148,7 @@
               {
                 "key": "llm.invocation_parameters",
                 "value": {
-                  "stringValue": "{\"_type\":\"openai-chat\",\"stop\":null}"
+                  "stringValue": "{\"stream\":false,\"_type\":\"openai-chat\",\"stop\":null}"
                 }
               },
               {
@@ -300,12 +294,6 @@
                 }
               },
               {
-                "key": "gen_ai.request.stream",
-                "value": {
-                  "boolValue": false
-                }
-              },
-              {
                 "key": "gen_ai.response.finish_reasons",
                 "value": {
                   "arrayValue": {
@@ -356,7 +344,7 @@
               {
                 "key": "llm.invocation_parameters",
                 "value": {
-                  "stringValue": "{\"_type\":\"openai-chat\",\"stop\":null}"
+                  "stringValue": "{\"stream\":false,\"_type\":\"openai-chat\",\"stop\":null}"
                 }
               },
               {
@@ -490,12 +478,6 @@
                 }
               },
               {
-                "key": "gen_ai.request.stream",
-                "value": {
-                  "boolValue": false
-                }
-              },
-              {
                 "key": "gen_ai.response.finish_reasons",
                 "value": {
                   "arrayValue": {
@@ -552,7 +534,7 @@
               {
                 "key": "llm.invocation_parameters",
                 "value": {
-                  "stringValue": "{\"_type\":\"openai-chat\",\"stop\":null,\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"description\":\"Current weather for a city.\",\"parameters\":{\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"],\"type\":\"object\"}}}]}"
+                  "stringValue": "{\"stream\":false,\"_type\":\"openai-chat\",\"stop\":null,\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"description\":\"Current weather for a city.\",\"parameters\":{\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"],\"type\":\"object\"}}}]}"
                 }
               },
               {
@@ -704,12 +686,6 @@
                 }
               },
               {
-                "key": "gen_ai.request.stream",
-                "value": {
-                  "boolValue": false
-                }
-              },
-              {
                 "key": "gen_ai.response.finish_reasons",
                 "value": {
                   "arrayValue": {
@@ -766,7 +742,7 @@
               {
                 "key": "llm.invocation_parameters",
                 "value": {
-                  "stringValue": "{\"_type\":\"openai-chat\",\"stop\":null,\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"description\":\"Current weather for a city.\",\"parameters\":{\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"],\"type\":\"object\"}}}]}"
+                  "stringValue": "{\"stream\":false,\"_type\":\"openai-chat\",\"stop\":null,\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"description\":\"Current weather for a city.\",\"parameters\":{\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"],\"type\":\"object\"}}}]}"
                 }
               },
               {
@@ -1006,12 +982,6 @@
                 }
               },
               {
-                "key": "gen_ai.request.stream",
-                "value": {
-                  "boolValue": false
-                }
-              },
-              {
                 "key": "gen_ai.response.finish_reasons",
                 "value": {
                   "arrayValue": {
@@ -1062,7 +1032,7 @@
               {
                 "key": "llm.invocation_parameters",
                 "value": {
-                  "stringValue": "{\"_type\":\"openai-chat\",\"stop\":null}"
+                  "stringValue": "{\"stream\":false,\"_type\":\"openai-chat\",\"stop\":null}"
                 }
               },
               {
@@ -1214,12 +1184,6 @@
                 }
               },
               {
-                "key": "gen_ai.request.stream",
-                "value": {
-                  "boolValue": false
-                }
-              },
-              {
                 "key": "input.mime_type",
                 "value": {
                   "stringValue": "application/json"
@@ -1234,7 +1198,7 @@
               {
                 "key": "llm.invocation_parameters",
                 "value": {
-                  "stringValue": "{\"_type\":\"openai-chat\",\"stop\":null}"
+                  "stringValue": "{\"stream\":false,\"_type\":\"openai-chat\",\"stop\":null}"
                 }
               },
               {
