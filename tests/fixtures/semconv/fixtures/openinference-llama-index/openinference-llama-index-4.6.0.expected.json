@@ -2,7 +2,7 @@
   "normalizer": {
     "package": "glassflow-rius",
     "version": "1.0.0",
-    "commit": "df42f19287225b91f10d6779c846ddab63162882"
+    "commit": "510e59e54ac4bb49fa6e3892230760bd55ddcef8"
   },
   "recordings": [
     {
@@ -80,6 +80,18 @@
                 }
               },
               {
+                "key": "gen_ai.request.max_tokens",
+                "value": {
+                  "intValue": "64"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
                 "key": "gen_ai.response.finish_reasons",
                 "value": {
                   "arrayValue": {
@@ -130,7 +142,7 @@
               {
                 "key": "llm.invocation_parameters",
                 "value": {
-                  "stringValue": "{\"context_window\":128000,\"num_output\":64,\"is_chat_model\":true,\"is_function_calling_model\":true,\"model_name\":\"gpt-4o-mini\",\"system_role\":\"system\"}"
+                  "stringValue": "{\"context_window\":128000,\"is_chat_model\":true,\"is_function_calling_model\":true,\"system_role\":\"system\"}"
                 }
               },
               {
@@ -258,6 +270,12 @@
                 }
               },
               {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
                 "key": "gen_ai.request.stream",
                 "value": {
                   "boolValue": true
@@ -320,7 +338,7 @@
               {
                 "key": "llm.invocation_parameters",
                 "value": {
-                  "stringValue": "{\"context_window\":128000,\"num_output\":-1,\"is_chat_model\":true,\"is_function_calling_model\":true,\"model_name\":\"gpt-4o-mini\",\"system_role\":\"system\"}"
+                  "stringValue": "{\"context_window\":128000,\"num_output\":-1,\"is_chat_model\":true,\"is_function_calling_model\":true,\"system_role\":\"system\"}"
                 }
               },
               {
@@ -443,6 +461,12 @@
                 }
               },
               {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
                 "key": "input.mime_type",
                 "value": {
                   "stringValue": "application/json"
@@ -457,7 +481,7 @@
               {
                 "key": "llm.invocation_parameters",
                 "value": {
-                  "stringValue": "{\"context_window\":128000,\"num_output\":-1,\"is_chat_model\":true,\"is_function_calling_model\":true,\"model_name\":\"gpt-4o-mini\",\"system_role\":\"system\"}"
+                  "stringValue": "{\"context_window\":128000,\"num_output\":-1,\"is_chat_model\":true,\"is_function_calling_model\":true,\"system_role\":\"system\"}"
                 }
               },
               {
@@ -534,6 +558,12 @@
                 }
               },
               {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
                 "key": "gen_ai.response.finish_reasons",
                 "value": {
                   "arrayValue": {
@@ -590,7 +620,7 @@
               {
                 "key": "llm.invocation_parameters",
                 "value": {
-                  "stringValue": "{\"context_window\":128000,\"num_output\":-1,\"is_chat_model\":true,\"is_function_calling_model\":true,\"model_name\":\"gpt-4o-mini\",\"system_role\":\"system\"}"
+                  "stringValue": "{\"context_window\":128000,\"num_output\":-1,\"is_chat_model\":true,\"is_function_calling_model\":true,\"system_role\":\"system\"}"
                 }
               },
               {
@@ -706,6 +736,12 @@
                 }
               },
               {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
                 "key": "input.mime_type",
                 "value": {
                   "stringValue": "application/json"
@@ -720,7 +756,7 @@
               {
                 "key": "llm.invocation_parameters",
                 "value": {
-                  "stringValue": "{\"context_window\":128000,\"num_output\":-1,\"is_chat_model\":true,\"is_function_calling_model\":true,\"model_name\":\"gpt-4o-mini\",\"system_role\":\"system\"}"
+                  "stringValue": "{\"context_window\":128000,\"num_output\":-1,\"is_chat_model\":true,\"is_function_calling_model\":true,\"system_role\":\"system\"}"
                 }
               },
               {
@@ -797,6 +833,12 @@
                 }
               },
               {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
                 "key": "gen_ai.response.finish_reasons",
                 "value": {
                   "arrayValue": {
@@ -859,7 +901,7 @@
               {
                 "key": "llm.invocation_parameters",
                 "value": {
-                  "stringValue": "{\"context_window\":128000,\"num_output\":-1,\"is_chat_model\":true,\"is_function_calling_model\":true,\"model_name\":\"gpt-4o-mini\",\"system_role\":\"system\"}"
+                  "stringValue": "{\"context_window\":128000,\"num_output\":-1,\"is_chat_model\":true,\"is_function_calling_model\":true,\"system_role\":\"system\"}"
                 }
               },
               {
@@ -987,6 +1029,12 @@
                 }
               },
               {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
                 "key": "input.mime_type",
                 "value": {
                   "stringValue": "application/json"
@@ -1001,7 +1049,7 @@
               {
                 "key": "llm.invocation_parameters",
                 "value": {
-                  "stringValue": "{\"context_window\":128000,\"num_output\":-1,\"is_chat_model\":true,\"is_function_calling_model\":true,\"model_name\":\"gpt-4o-mini\",\"system_role\":\"system\"}"
+                  "stringValue": "{\"context_window\":128000,\"num_output\":-1,\"is_chat_model\":true,\"is_function_calling_model\":true,\"system_role\":\"system\"}"
                 }
               },
               {

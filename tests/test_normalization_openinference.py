@@ -19,6 +19,7 @@ from rius.normalization import DEFAULT_TABLE, openinference_invocation_parameter
 from rius.semconv import (
     GEN_AI_OPERATION_NAME,
     GEN_AI_PROVIDER_NAME,
+    GEN_AI_REQUEST_MAX_TOKENS,
     GEN_AI_REQUEST_MODEL,
     GEN_AI_RESPONSE_FINISH_REASONS,
     GEN_AI_RESPONSE_MODEL,
@@ -395,6 +396,58 @@ def test_the_start_time_additions_already_strip() -> None:
 
 
 # --- invocation parameters --------------------------------------------------
+
+
+def test_llama_index_model_metadata_gives_the_model_and_max_tokens() -> None:
+    """LlamaIndex fills the bag with the model's metadata, not the request's
+    parameters: the model is ``model_name`` and the output budget is
+    ``num_output``. The rest of the metadata stays in the bag."""
+    bag = {
+        "context_window": 128000,
+        "num_output": 64,
+        "is_chat_model": True,
+        "model_name": "gpt-4o-mini",
+        "system_role": "system",
+    }
+    out = _normalize({LLM_INVOCATION_PARAMETERS: json.dumps(bag)})
+    assert out[GEN_AI_REQUEST_MODEL] == "gpt-4o-mini"
+    assert out[GEN_AI_REQUEST_MAX_TOKENS] == 64
+    assert json.loads(out[LLM_INVOCATION_PARAMETERS]) == {
+        "context_window": 128000,
+        "is_chat_model": True,
+        "system_role": "system",
+    }
+
+
+def test_llama_index_unset_output_budget_is_not_a_max_tokens() -> None:
+    """``num_output: -1`` is LlamaIndex saying no budget was set."""
+    bag = {"num_output": -1, "model_name": "gpt-4o-mini"}
+    out = _normalize({LLM_INVOCATION_PARAMETERS: json.dumps(bag)})
+    assert GEN_AI_REQUEST_MAX_TOKENS not in out
+    assert json.loads(out[LLM_INVOCATION_PARAMETERS]) == {"num_output": -1}
+
+
+def test_model_wins_over_a_different_model_name_which_stays() -> None:
+    out = _normalize(
+        {LLM_INVOCATION_PARAMETERS: json.dumps({"model": "gpt-4o", "model_name": "gpt-4o-x"})}
+    )
+    assert out[GEN_AI_REQUEST_MODEL] == "gpt-4o"
+    assert json.loads(out[LLM_INVOCATION_PARAMETERS]) == {"model_name": "gpt-4o-x"}
+
+
+def test_a_second_spelling_with_the_same_value_is_a_duplicate() -> None:
+    """LangChain's bag has ``model_name`` next to ``model``, same value."""
+    bag = {"model": "gpt-4o", "model_name": "gpt-4o", "_type": "openai-chat"}
+    out = _normalize({LLM_INVOCATION_PARAMETERS: json.dumps(bag)})
+    assert out[GEN_AI_REQUEST_MODEL] == "gpt-4o"
+    assert json.loads(out[LLM_INVOCATION_PARAMETERS]) == {"_type": "openai-chat"}
+
+
+def test_normalizing_the_bag_twice_is_normalizing_it_once() -> None:
+    """The SDK normalizes at span start and again at export."""
+    bag = {"model": "gpt-4o", "model_name": "gpt-4o", "num_output": -1, "max_tokens": 5}
+    once = _normalize({LLM_INVOCATION_PARAMETERS: json.dumps(bag)})
+    assert _normalize(once) == once
 
 
 def test_unparseable_invocation_parameters_survive_untouched() -> None:

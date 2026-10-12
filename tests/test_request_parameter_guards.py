@@ -30,7 +30,13 @@ def test_every_canonical_request_key_has_a_guard() -> None:
 def test_the_invocation_parameters_rule_uses_the_same_guards() -> None:
     # Only canonical targets have a native counterpart; a member promoted to
     # rius.request.* (tool_choice) has no gen_ai.request.* key to agree with.
-    canonical = [m for m in INVOCATION_PARAMETER_MEMBERS if m[1].startswith(GEN_AI_REQUEST_PREFIX)]
+    # Bag-only spellings (LlamaIndex's model metadata) have no native
+    # counterpart either, and may read a sentinel the native path never sees.
+    canonical = [
+        m
+        for m in INVOCATION_PARAMETER_MEMBERS
+        if m[1].startswith(GEN_AI_REQUEST_PREFIX) and m[0] in GEN_AI_REQUEST_PARAMETERS
+    ]
     assert canonical
     for member, target, convert in canonical:
         assert convert is REQUEST_PARAMETER_GUARDS[target], member
@@ -40,7 +46,13 @@ def test_the_native_precedence_agrees_with_the_invocation_parameters_rule() -> N
     """Where both tables list two spellings of one key, both put them in the
     same order, so a request carrying both keeps the same one either way."""
     native = list(GEN_AI_REQUEST_PARAMETERS)
-    members = [(member, target) for member, target, _ in INVOCATION_PARAMETER_MEMBERS]
+    # Bag-only spellings (LlamaIndex's model metadata) are never a caller's
+    # request parameter, so the native table has nothing to agree on there.
+    members = [
+        (member, target)
+        for member, target, _ in INVOCATION_PARAMETER_MEMBERS
+        if member in GEN_AI_REQUEST_PARAMETERS
+    ]
     for i, (first, target) in enumerate(members):
         for second, other in members[i + 1 :]:
             if other == target:

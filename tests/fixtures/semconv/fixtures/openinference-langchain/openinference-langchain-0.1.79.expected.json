@@ -2,7 +2,7 @@
   "normalizer": {
     "package": "glassflow-rius",
     "version": "1.0.0",
-    "commit": "df42f19287225b91f10d6779c846ddab63162882"
+    "commit": "510e59e54ac4bb49fa6e3892230760bd55ddcef8"
   },
   "recordings": [
     {
@@ -154,7 +154,7 @@
               {
                 "key": "llm.invocation_parameters",
                 "value": {
-                  "stringValue": "{\"model_name\":\"gpt-4o-mini\",\"_type\":\"openai-chat\",\"stop\":null}"
+                  "stringValue": "{\"_type\":\"openai-chat\",\"stop\":null}"
                 }
               },
               {
@@ -356,7 +356,7 @@
               {
                 "key": "llm.invocation_parameters",
                 "value": {
-                  "stringValue": "{\"model_name\":\"gpt-4o-mini\",\"_type\":\"openai-chat\",\"stop\":null}"
+                  "stringValue": "{\"_type\":\"openai-chat\",\"stop\":null}"
                 }
               },
               {
@@ -552,7 +552,7 @@
               {
                 "key": "llm.invocation_parameters",
                 "value": {
-                  "stringValue": "{\"model_name\":\"gpt-4o-mini\",\"_type\":\"openai-chat\",\"stop\":null,\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"description\":\"Current weather for a city.\",\"parameters\":{\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"],\"type\":\"object\"}}}]}"
+                  "stringValue": "{\"_type\":\"openai-chat\",\"stop\":null,\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"description\":\"Current weather for a city.\",\"parameters\":{\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"],\"type\":\"object\"}}}]}"
                 }
               },
               {
@@ -766,7 +766,7 @@
               {
                 "key": "llm.invocation_parameters",
                 "value": {
-                  "stringValue": "{\"model_name\":\"gpt-4o-mini\",\"_type\":\"openai-chat\",\"stop\":null,\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"description\":\"Current weather for a city.\",\"parameters\":{\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"],\"type\":\"object\"}}}]}"
+                  "stringValue": "{\"_type\":\"openai-chat\",\"stop\":null,\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"description\":\"Current weather for a city.\",\"parameters\":{\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"],\"type\":\"object\"}}}]}"
                 }
               },
               {
@@ -1062,7 +1062,7 @@
               {
                 "key": "llm.invocation_parameters",
                 "value": {
-                  "stringValue": "{\"model_name\":\"gpt-4o-mini\",\"_type\":\"openai-chat\",\"stop\":null}"
+                  "stringValue": "{\"_type\":\"openai-chat\",\"stop\":null}"
                 }
               },
               {
@@ -1234,7 +1234,7 @@
               {
                 "key": "llm.invocation_parameters",
                 "value": {
-                  "stringValue": "{\"model_name\":\"gpt-nope\",\"_type\":\"openai-chat\",\"stop\":null}"
+                  "stringValue": "{\"_type\":\"openai-chat\",\"stop\":null}"
                 }
               },
               {
