@@ -1,0 +1,33 @@
+{
+  "family": "rius-typescript",
+  "control": true,
+  "about": "A control, the TypeScript counterpart of ../rius-python with the same scenarios: what the rius TypeScript SDK itself exports (its native spans and its MCP client wrapper), captured at the SDK's exporter, so the spans are already normalized. Normalizing them again must change nothing, which check_fixtures enforces: the expected result equals the recording. No network, no API keys, no model calls; MCP tools run on an in-process server over InMemoryTransport. Every clock reading advances one tick (deterministicClock), since OpenTelemetry's anchored clock can otherwise order close moments differently from run to run. The SDK measures time to first chunk with the real clock; the recorder sets gen_ai.response.time_to_first_chunk to the distance between the span's start and its first-token event on the recording's canonical timeline, so the attribute and the event agree and the value is identical across runs.",
+  "record": "npm ci, then node record.mjs <recording.json> <environment.json>",
+  "recordings": {
+    "rius-typescript-1.0.0.json": {
+      "node": "24.2.0",
+      "packages": {
+        "@glassflow-ai/rius": "1.0.0",
+        "@modelcontextprotocol/sdk": "1.32.1",
+        "@opentelemetry/api": "1.9.1",
+        "@opentelemetry/sdk-trace-base": "2.12.0"
+      },
+      "scenarios": {
+        "generation_chat": "startAsCurrentGeneration with input messages, request parameters, output, response model and id, finish reason, and usage with cache-read and reasoning counts.",
+        "generation_stream": "A generation that records its first token: the gen_ai.first_token event, gen_ai.request.stream and time to first chunk.",
+        "generation_error": "A generation whose body raises: ERROR status, an exception event and error.type.",
+        "agent_tools": "An AGENT-kind observe wrapping chat (tool call), the tool (TOOL-kind observe), chat (answer), inside a session and a user scope: session.id and user.id on every span.",
+        "retrieval": "A RETRIEVER span with a data source, top_k and two retrieved documents.",
+        "chain": "A plain observe on a function: a CHAIN span with its input and output.",
+        "mcp_tool_call": "One MCP tools/call through the SDK's client wrapper: an execute_tool CLIENT span carrying mcp.method.name.",
+        "mcp_tool_error": "An MCP tool that throws: the server answers with an error result, and the span ends ERROR with error.type tool_error.",
+        "mcp_in_agent": "The same tool call inside an AGENT span: gen_ai.agent.name on the tool span is the calling agent."
+      },
+      "expected": {
+        "file": "rius-typescript-1.0.0.expected.json",
+        "source": "python-sdk"
+      },
+      "verified": "Re-recorded 2026-10-12 several times in a row in the pinned environment: byte-identical."
+    }
+  }
+}

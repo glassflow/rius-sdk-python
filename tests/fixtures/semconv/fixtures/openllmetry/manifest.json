@@ -1,0 +1,116 @@
+{
+  "family": "openllmetry",
+  "about": "Real OpenLLMetry (traceloop-sdk) spans from its OpenAI and Anthropic instrumentors and its decorators, recorded against mocked providers through an httpx/httpx2 mock transport: no network, no API keys, no rius SDK. Three releases, chosen for what changed between them (see each note). Moved here from argus-core's sink testdata, where Kiran first recorded them; the scenarios and responses are unchanged. Only the sink normalizes this family, so the expected result is the row the sink stores.",
+  "record": "python record.py <recording.json> <environment.json>, in a virtualenv holding exactly the pins below",
+  "other_bundled_instrumentors": "traceloop-sdk does not pin its other bundled instrumentors, so the resolver installed newer ones; none of them is exercised here.",
+  "recordings": {
+    "openllmetry-0.47.5.json": {
+      "python": "3.13.7",
+      "packages": {
+        "traceloop-sdk": "0.47.5",
+        "opentelemetry-instrumentation-openai": "0.47.5",
+        "opentelemetry-instrumentation-anthropic": "0.47.5",
+        "opentelemetry-semantic-conventions-ai": "0.4.16",
+        "opentelemetry-api": "1.38.0",
+        "opentelemetry-sdk": "1.38.0",
+        "openai": "2.5.0",
+        "anthropic": "0.71.0",
+        "httpx": "0.28.1"
+      },
+      "note": "The last release whose usage keys are gen_ai.usage.prompt_tokens / completion_tokens (0.48.0 moved to input_tokens / output_tokens). Needs the OTel SDK of its time: opentelemetry-api/sdk 1.38.0, since 1.44 removed the opentelemetry._events module it imports. The venv pinned opentelemetry-api, -sdk, -proto and the otlp exporters at 1.38.0 and opentelemetry-instrumentation / -semantic-conventions at 0.59b0.",
+      "scenarios": {
+        "openai_chat": "OpenAI chat completion with a system and a user message.",
+        "openai_chat_stream": "Streaming OpenAI chat completion with usage on the final chunk.",
+        "openai_tool_call": "OpenAI chat completion offering a tool; the response is a tool call.",
+        "openai_tool_response": "The follow-up: the tool call and its result in the input, a text answer out.",
+        "openai_error": "OpenAI answers 400.",
+        "openai_embeddings": "One OpenAI embeddings call.",
+        "anthropic_chat": "Anthropic message with a system prompt.",
+        "anthropic_chat_stream": "Streaming Anthropic message.",
+        "anthropic_tool_call": "Anthropic message offering a tool; the response is a tool_use block.",
+        "anthropic_tool_response": "The follow-up: tool_use and tool_result in the input, a text answer out.",
+        "anthropic_error": "Anthropic answers 400. Before 0.54.0 the instrumentor re-raises without ending its span, so the scenario exports no span.",
+        "traceloop_decorators": "traceloop's @workflow/@agent/@task/@tool decorators around one OpenAI call: the span-kind taxonomy."
+      },
+      "expected": {
+        "file": "openllmetry-0.47.5.expected-row.json",
+        "source": "sink"
+      },
+      "verified": "Re-recorded 2026-10-12 twice in a row in the pinned virtualenv: byte-identical. Content (names, attributes, events, status) matches the recordings first made in argus-core's sink testdata; only the ids and times, now kept, and the order of event attributes, now sorted, differ.",
+      "empty_scenarios": [
+        "anthropic_error"
+      ]
+    },
+    "openllmetry-0.53.4.json": {
+      "python": "3.13.7",
+      "packages": {
+        "traceloop-sdk": "0.53.4",
+        "opentelemetry-instrumentation-openai": "0.53.4",
+        "opentelemetry-instrumentation-anthropic": "0.53.4",
+        "opentelemetry-semantic-conventions-ai": "0.5.1",
+        "opentelemetry-api": "1.44.0",
+        "opentelemetry-sdk": "1.44.0",
+        "openai": "2.30.0",
+        "anthropic": "0.86.0",
+        "httpx": "0.28.1"
+      },
+      "note": "The last release in which BOTH provider instrumentors write the flattened gen_ai.prompt.N.* / gen_ai.completion.N.* messages. anthropic moved to gen_ai.input.messages in 0.54.0, openai in 0.55.0.",
+      "scenarios": {
+        "openai_chat": "OpenAI chat completion with a system and a user message.",
+        "openai_chat_stream": "Streaming OpenAI chat completion with usage on the final chunk.",
+        "openai_tool_call": "OpenAI chat completion offering a tool; the response is a tool call.",
+        "openai_tool_response": "The follow-up: the tool call and its result in the input, a text answer out.",
+        "openai_error": "OpenAI answers 400.",
+        "openai_embeddings": "One OpenAI embeddings call.",
+        "anthropic_chat": "Anthropic message with a system prompt.",
+        "anthropic_chat_stream": "Streaming Anthropic message.",
+        "anthropic_tool_call": "Anthropic message offering a tool; the response is a tool_use block.",
+        "anthropic_tool_response": "The follow-up: tool_use and tool_result in the input, a text answer out.",
+        "anthropic_error": "Anthropic answers 400. Before 0.54.0 the instrumentor re-raises without ending its span, so the scenario exports no span.",
+        "traceloop_decorators": "traceloop's @workflow/@agent/@task/@tool decorators around one OpenAI call: the span-kind taxonomy."
+      },
+      "expected": {
+        "file": "openllmetry-0.53.4.expected-row.json",
+        "source": "sink"
+      },
+      "verified": "Re-recorded 2026-10-12 twice in a row in the pinned virtualenv: byte-identical. Content (names, attributes, events, status) matches the recordings first made in argus-core's sink testdata; only the ids and times, now kept, and the order of event attributes, now sorted, differ.",
+      "empty_scenarios": [
+        "anthropic_error"
+      ]
+    },
+    "openllmetry-0.62.3.json": {
+      "python": "3.13.7",
+      "packages": {
+        "traceloop-sdk": "0.62.3",
+        "opentelemetry-instrumentation-openai": "0.62.3",
+        "opentelemetry-instrumentation-anthropic": "0.62.3",
+        "opentelemetry-semantic-conventions-ai": "0.5.1",
+        "opentelemetry-api": "1.44.0",
+        "opentelemetry-sdk": "1.44.0",
+        "openai": "3.19.2",
+        "anthropic": "1.8.0",
+        "httpx2": "2.13.1"
+      },
+      "note": "Current release at recording time (2026-09-24). Messages, usage, provider and operation are already on the GenAI keys. traceloop-sdk 0.62.3 imports httpx without declaring it, so the venv also needs httpx 0.28.1 installed beside httpx2.",
+      "scenarios": {
+        "openai_chat": "OpenAI chat completion with a system and a user message.",
+        "openai_chat_stream": "Streaming OpenAI chat completion with usage on the final chunk.",
+        "openai_tool_call": "OpenAI chat completion offering a tool; the response is a tool call.",
+        "openai_tool_response": "The follow-up: the tool call and its result in the input, a text answer out.",
+        "openai_error": "OpenAI answers 400.",
+        "openai_embeddings": "One OpenAI embeddings call.",
+        "anthropic_chat": "Anthropic message with a system prompt.",
+        "anthropic_chat_stream": "Streaming Anthropic message.",
+        "anthropic_tool_call": "Anthropic message offering a tool; the response is a tool_use block.",
+        "anthropic_tool_response": "The follow-up: tool_use and tool_result in the input, a text answer out.",
+        "anthropic_error": "Anthropic answers 400. Before 0.54.0 the instrumentor re-raises without ending its span, so the scenario exports no span.",
+        "traceloop_decorators": "traceloop's @workflow/@agent/@task/@tool decorators around one OpenAI call: the span-kind taxonomy."
+      },
+      "expected": {
+        "file": "openllmetry-0.62.3.expected-row.json",
+        "source": "sink"
+      },
+      "verified": "Re-recorded 2026-10-12 twice in a row in the pinned virtualenv: byte-identical. Content (names, attributes, events, status) matches the recordings first made in argus-core's sink testdata; only the ids and times, now kept, and the order of event attributes, now sorted, differ."
+    }
+  }
+}
