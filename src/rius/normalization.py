@@ -1010,6 +1010,7 @@ PROVIDER_NAME_ALIASES: Mapping[str, str] = {
     # OpenInference enum values (openinference.semconv.trace)
     "mistralai": "mistral_ai",
     "xai": "x_ai",
+    "vertexai": "gcp.vertex_ai",
     # legacy gen_ai.system values
     "vertex_ai": "gcp.vertex_ai",
     "gemini": "gcp.gemini",
@@ -1024,6 +1025,32 @@ def provider_name(values: list[Any]) -> Any:
     if not isinstance(value, str):
         return SKIP
     return PROVIDER_NAME_ALIASES.get(value.strip().lower(), value)
+
+
+#: OpenInference's name for the API a client speaks. A source spelling, like
+#: ``gen_ai.system``: mapped, never emitted.
+LLM_SYSTEM = "llm.system"
+
+
+def provider_from_system(raw: Any) -> Mapping[str, Any]:
+    """``llm.system`` kept, plus the provider it implies.
+
+    The fallback for a span with no ``llm.provider``: an OpenAI client pointed
+    at a gateway, whose host the instrumentor does not recognize. The registry
+    defines the provider as the instrumentation's best knowledge, allowed to
+    differ from whoever served the request behind a proxy, and as the
+    discriminator for the telemetry flavor; the API the client speaks is both.
+
+    Kept rather than consumed: on Azure ``llm.system`` (openai) differs from
+    ``llm.provider`` (azure), so it is a fact of its own, not a duplicate.
+    """
+    if not isinstance(raw, str) or not raw.strip():
+        return {}
+    produced: dict[str, Any] = {LLM_SYSTEM: raw}
+    provider = provider_name([raw])
+    if provider is not SKIP:
+        produced[GEN_AI_PROVIDER_NAME] = provider
+    return produced
 
 
 def _number(value: Any) -> Any:
@@ -1230,9 +1257,10 @@ def openinference_invocation_parameters(raw: Any) -> Mapping[str, Any]:
 #:   all of that, and guessing would put a response model on a request key for
 #:   a call that never got a response. The request model is recovered from the
 #:   request bag's ``model`` member instead, which is unambiguous.
-#: * ``llm.system``. NOT the provider: OpenInference emits both, and for Azure
-#:   OpenAI they differ (``llm.provider`` = azure, ``llm.system`` = openai).
-#:   ``gen_ai.provider.name`` is the provider.
+#: * ``llm.system`` as a consumed source. OpenInference emits both, and for
+#:   Azure OpenAI they differ (``llm.provider`` = azure, ``llm.system`` =
+#:   openai), so it is only a fallback for the provider and stays on the span
+#:   (see ``provider_from_system``).
 #: * ``llm.token_count.total``. No canonical key: the conventions record input
 #:   and output and leave the sum to the reader.
 #: * ``llm.token_count.prompt_details.cache_input`` ("input tokens in the
@@ -1296,6 +1324,9 @@ OPENINFERENCE_RULES: tuple[AnyRule, ...] = (
     # registry, which has dropped the deprecated name). This is a source
     # spelling, like the llm.* ones.
     Rule(("llm.provider", "gen_ai.system"), GEN_AI_PROVIDER_NAME, provider_name),
+    # Last resort, AFTER the rule above so a known host always wins: the API
+    # the client speaks. Covers OpenAI clients pointed at a gateway.
+    ExpandingRule(LLM_SYSTEM, provider_from_system),
     # Model. Only the anthropic instrumentor emits this unambiguous pair
     # (_wrappers.py:596, :603); see the omission note on llm.model_name.
     Rule("llm.request.model_name", GEN_AI_REQUEST_MODEL, copy_value),
