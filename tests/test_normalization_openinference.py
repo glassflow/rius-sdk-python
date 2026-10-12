@@ -518,6 +518,57 @@ def test_the_blob_is_returned_unchanged_when_nothing_maps() -> None:
     assert openinference_invocation_parameters(raw) == {LLM_INVOCATION_PARAMETERS: raw}
 
 
+# --- langchain's stream member ---------------------------------------------
+#
+# LangChain serializes the MODEL object's settings into the bag, so `stream`
+# is the model's default, not what the call did: ChatOpenAI.stream() records
+# "stream": false (openinference-instrumentation-langchain 0.1.79 and
+# @arizeai/openinference-instrumentation-langchain 4.1.4, rius-semconv
+# recordings, scenario chat_stream). It is never promoted, and stays in the bag.
+
+
+def test_a_python_langchain_bag_never_sets_stream() -> None:
+    """The Python integration marks its bag with LangChain's `_type`."""
+    out = _normalize(
+        {
+            LLM_INVOCATION_PARAMETERS: json.dumps(
+                {"model": "gpt-4o-mini", "stream": False, "_type": "openai-chat"}
+            )
+        }
+    )
+    assert out[GEN_AI_REQUEST_MODEL] == "gpt-4o-mini"
+    assert "gen_ai.request.stream" not in out
+    assert json.loads(out[LLM_INVOCATION_PARAMETERS]) == {"stream": False, "_type": "openai-chat"}
+
+
+def test_a_js_langchain_bag_never_sets_stream() -> None:
+    """The JS integration's bag has no marker; its run metadata (ls_*) does."""
+    metadata = json.dumps({"ls_provider": "openai", "ls_integration": "langchain_chat_model"})
+    out = _normalize(
+        {
+            "metadata": metadata,
+            LLM_INVOCATION_PARAMETERS: json.dumps({"model": "gpt-4o-mini", "stream": False}),
+        }
+    )
+    assert out[GEN_AI_REQUEST_MODEL] == "gpt-4o-mini"
+    assert "gen_ai.request.stream" not in out
+    assert json.loads(out[LLM_INVOCATION_PARAMETERS]) == {"stream": False}
+    # Read, not consumed.
+    assert out["metadata"] == metadata
+
+
+def test_a_request_body_bag_still_sets_stream() -> None:
+    """Instrumentors that record the request body report what the call did."""
+    out = _normalize(
+        {
+            "metadata": json.dumps({"tenant": "acme"}),
+            LLM_INVOCATION_PARAMETERS: json.dumps({"model": "gpt-4o-mini", "stream": True}),
+        }
+    )
+    assert out["gen_ai.request.stream"] is True
+    assert LLM_INVOCATION_PARAMETERS not in out
+
+
 # --- the shipped table, end to end -----------------------------------------
 
 

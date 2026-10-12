@@ -222,7 +222,7 @@ class Rule:
         self.target = target
         self.convert = convert
 
-    def apply(self, values: list[Any]) -> Mapping[str, Any]:
+    def apply(self, values: list[Any], attributes: Mapping[str, Any]) -> Mapping[str, Any]:
         """The canonical key(s) this rule produces from its present sources."""
         return {self.target: self.convert(values)}
 
@@ -241,16 +241,29 @@ class ExpandingRule:
     bag without dropping the rest. Returning the source key is the one exempt
     from native-wins, since the rule is rewriting its own input rather than
     competing with an instrumentation that already speaks the convention.
+
+    ``reads`` names other keys the expansion depends on without consuming
+    them: they are not sources, so they are never deleted. When it is set,
+    ``expand`` also receives those keys' values (the ones present).
     """
 
-    __slots__ = ("sources", "expand")
+    __slots__ = ("sources", "expand", "reads")
 
-    def __init__(self, source: str, expand: Callable[[Any], Mapping[str, Any]]) -> None:
+    def __init__(
+        self,
+        source: str,
+        expand: Callable[..., Mapping[str, Any]],
+        *,
+        reads: Sequence[str] = (),
+    ) -> None:
         self.sources: tuple[str, ...] = (source,)
         self.expand = expand
+        self.reads: tuple[str, ...] = tuple(reads)
 
-    def apply(self, values: list[Any]) -> Mapping[str, Any]:
-        return self.expand(values[0])
+    def apply(self, values: list[Any], attributes: Mapping[str, Any]) -> Mapping[str, Any]:
+        if not self.reads:
+            return self.expand(values[0])
+        return self.expand(values[0], {k: attributes[k] for k in self.reads if k in attributes})
 
 
 #: A rule of either shape. Both expose ``sources`` and ``apply``.
@@ -292,7 +305,7 @@ class NormalizationTable:
             if not present:
                 continue
             try:
-                produced = rule.apply(present)
+                produced = rule.apply(present, attributes)
             except Exception:
                 # Fail safe: one bad converter must not cost the other rules
                 # or the span.
@@ -1293,7 +1306,38 @@ REQUEST_PARAMETER_GUARDS: Mapping[str, Callable[[Any], Any]] = {
 }
 
 
-def openinference_invocation_parameters(raw: Any) -> Mapping[str, Any]:
+#: OpenInference's run-metadata attribute. Read to recognise a LangChain run,
+#: never emitted, so spelled here rather than in semconv.py.
+METADATA = "metadata"
+
+#: The prefix LangChain gives its own run-metadata keys (ls_provider,
+#: ls_model_name, ls_integration, ...), in both its Python and JS releases.
+_LANGCHAIN_METADATA_PREFIX = "ls_"
+
+
+def _is_langchain_run(payload: Mapping[str, Any], read: Mapping[str, Any]) -> bool:
+    """True when the bag came from a LangChain model object.
+
+    The Python integration marks its bag with LangChain's ``_type``; the JS one
+    does not, but both write LangChain's ``ls_*`` keys into the run metadata.
+    """
+    if "_type" in payload:
+        return True
+    raw = read.get(METADATA)
+    if not isinstance(raw, str):
+        return False
+    try:
+        metadata = json.loads(raw)
+    except ValueError:
+        return False
+    return isinstance(metadata, dict) and any(
+        isinstance(key, str) and key.startswith(_LANGCHAIN_METADATA_PREFIX) for key in metadata
+    )
+
+
+def openinference_invocation_parameters(
+    raw: Any, read: Mapping[str, Any] | None = None
+) -> Mapping[str, Any]:
     """Promote the spec-defined members of the request bag; keep the rest.
 
     The members left over go back under ``llm.invocation_parameters``, and
@@ -1314,6 +1358,12 @@ def openinference_invocation_parameters(raw: Any) -> Mapping[str, Any]:
     A member that produced a canonical key is removed from the bag even when
     a native key beat it — at that point it is a duplicate, which is the same
     reason a mapped source key is deleted.
+
+    LangChain's ``stream`` member is never promoted. LangChain serializes the
+    model object's settings into the bag, so ``stream`` is the model's
+    default, not what the call did: a ``ChatOpenAI.stream()`` call records
+    ``false`` there. An absent key is honest; that one is not. ``read`` holds
+    the span's run metadata, which identifies a LangChain run.
     """
     if not isinstance(raw, str):
         return {LLM_INVOCATION_PARAMETERS: raw}
@@ -1326,6 +1376,7 @@ def openinference_invocation_parameters(raw: Any) -> Mapping[str, Any]:
     if not isinstance(payload, dict):
         return {LLM_INVOCATION_PARAMETERS: raw}
 
+    langchain = _is_langchain_run(payload, read or {})
     produced: dict[str, Any] = {}
     leftover = dict(payload)
     for member, target, convert in INVOCATION_PARAMETER_MEMBERS:
@@ -1338,6 +1389,8 @@ def openinference_invocation_parameters(raw: Any) -> Mapping[str, Any]:
             # normalizing twice would differ from normalizing once.
             if convert(leftover[member]) == produced[target]:
                 del leftover[member]
+            continue
+        if langchain and target == GEN_AI_REQUEST_STREAM:
             continue
         value = convert(leftover[member])
         if value is SKIP:
@@ -1523,7 +1576,9 @@ OPENINFERENCE_RULES: tuple[AnyRule, ...] = (
     ExpandingRule(GEN_AI_CLIENT_TIME_TO_FIRST_CHUNK, first_chunk_from_metric),
     # The request bag: the dedicated model rules above take precedence over
     # its `model` member.
-    ExpandingRule(LLM_INVOCATION_PARAMETERS, openinference_invocation_parameters),
+    ExpandingRule(
+        LLM_INVOCATION_PARAMETERS, openinference_invocation_parameters, reads=(METADATA,)
+    ),
     # The embedding model, AFTER every LLM model spelling, so it can never
     # change which value an existing rule gives gen_ai.request.model; it only
     # fills the key on a span that has no other source for it, which is every
