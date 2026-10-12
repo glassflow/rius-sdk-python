@@ -1,0 +1,1324 @@
+{
+  "normalizer": {
+    "package": "@glassflow-ai/rius",
+    "version": "1.0.0",
+    "commit": "7128b7c61beaeabb00f96a499895e3cb7e8de80b"
+  },
+  "recordings": [
+    {
+      "scenario": "generate_text",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "gen_ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "invoke_agent gpt-4o-mini",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000005000000",
+            "attributes": [
+              {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Capital of France?\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "invoke_agent"
+                }
+              },
+              {
+                "key": "gen_ai.output.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"Paris.\"}],\"finish_reason\":\"stop\"}]"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "gen_ai.request.max_tokens",
+                "value": {
+                  "intValue": "64"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "gen_ai.request.temperature",
+                "value": {
+                  "doubleValue": 0.2
+                }
+              },
+              {
+                "key": "gen_ai.response.finish_reasons",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "stop"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "gen_ai.system_instructions",
+                "value": {
+                  "stringValue": "[{\"type\":\"text\",\"content\":\"Answer in one word.\"}]"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "AGENT"
+                }
+              },
+              {
+                "key": "rius.aggregated_usage.cache_read.input_tokens",
+                "value": {
+                  "intValue": "16"
+                }
+              },
+              {
+                "key": "rius.aggregated_usage.input_tokens",
+                "value": {
+                  "intValue": "42"
+                }
+              },
+              {
+                "key": "rius.aggregated_usage.output_tokens",
+                "value": {
+                  "intValue": "9"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "gen_ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000002",
+            "parentSpanId": "0000000000000001",
+            "name": "step 1",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000001000000",
+            "endTimeUnixNano": "1700000000004000000",
+            "attributes": [
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "agent_step"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "gen_ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000003",
+            "parentSpanId": "0000000000000002",
+            "name": "chat gpt-4o-mini",
+            "kind": "SPAN_KIND_CLIENT",
+            "startTimeUnixNano": "1700000000002000000",
+            "endTimeUnixNano": "1700000000003000000",
+            "attributes": [
+              {
+                "key": "gen_ai.client.operation.duration",
+                "value": {
+                  "doubleValue": 0.004
+                }
+              },
+              {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Capital of France?\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "chat"
+                }
+              },
+              {
+                "key": "gen_ai.output.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"Paris.\"}],\"finish_reason\":\"stop\"}]"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "gen_ai.request.max_tokens",
+                "value": {
+                  "intValue": "64"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "gen_ai.request.temperature",
+                "value": {
+                  "doubleValue": 0.2
+                }
+              },
+              {
+                "key": "gen_ai.response.finish_reasons",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "stop"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "gen_ai.response.id",
+                "value": {
+                  "stringValue": "chatcmpl-rec1"
+                }
+              },
+              {
+                "key": "gen_ai.response.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini-2024-07-18"
+                }
+              },
+              {
+                "key": "gen_ai.system_instructions",
+                "value": {
+                  "stringValue": "[{\"type\":\"text\",\"content\":\"Answer in one word.\"}]"
+                }
+              },
+              {
+                "key": "gen_ai.usage.cache_read.input_tokens",
+                "value": {
+                  "intValue": "16"
+                }
+              },
+              {
+                "key": "gen_ai.usage.input_tokens",
+                "value": {
+                  "intValue": "42"
+                }
+              },
+              {
+                "key": "gen_ai.usage.output_tokens",
+                "value": {
+                  "intValue": "9"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "LLM"
+                }
+              }
+            ],
+            "status": {}
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "stream_text",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "gen_ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "invoke_agent gpt-4o-mini",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000005000000",
+            "attributes": [
+              {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Capital of France?\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "invoke_agent"
+                }
+              },
+              {
+                "key": "gen_ai.output.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"Paris.\"}],\"finish_reason\":\"stop\"}]"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "gen_ai.response.finish_reasons",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "stop"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "AGENT"
+                }
+              },
+              {
+                "key": "rius.aggregated_usage.cache_read.input_tokens",
+                "value": {
+                  "intValue": "16"
+                }
+              },
+              {
+                "key": "rius.aggregated_usage.input_tokens",
+                "value": {
+                  "intValue": "42"
+                }
+              },
+              {
+                "key": "rius.aggregated_usage.output_tokens",
+                "value": {
+                  "intValue": "9"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "gen_ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000002",
+            "parentSpanId": "0000000000000001",
+            "name": "step 1",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000001000000",
+            "endTimeUnixNano": "1700000000004000000",
+            "attributes": [
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "agent_step"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "gen_ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000003",
+            "parentSpanId": "0000000000000002",
+            "name": "chat gpt-4o-mini",
+            "kind": "SPAN_KIND_CLIENT",
+            "startTimeUnixNano": "1700000000002000000",
+            "endTimeUnixNano": "1700000000003000000",
+            "attributes": [
+              {
+                "key": "gen_ai.client.operation.duration",
+                "value": {
+                  "doubleValue": 0.003
+                }
+              },
+              {
+                "key": "gen_ai.client.operation.time_per_output_chunk",
+                "value": {
+                  "doubleValue": 0.001
+                }
+              },
+              {
+                "key": "gen_ai.client.operation.time_to_first_chunk",
+                "value": {
+                  "doubleValue": 0.001
+                }
+              },
+              {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Capital of France?\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "chat"
+                }
+              },
+              {
+                "key": "gen_ai.output.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"Paris.\"}],\"finish_reason\":\"stop\"}]"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "gen_ai.response.finish_reasons",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "stop"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "gen_ai.response.id",
+                "value": {
+                  "stringValue": "chatcmpl-rec2"
+                }
+              },
+              {
+                "key": "gen_ai.response.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini-2024-07-18"
+                }
+              },
+              {
+                "key": "gen_ai.usage.cache_read.input_tokens",
+                "value": {
+                  "intValue": "16"
+                }
+              },
+              {
+                "key": "gen_ai.usage.input_tokens",
+                "value": {
+                  "intValue": "42"
+                }
+              },
+              {
+                "key": "gen_ai.usage.output_tokens",
+                "value": {
+                  "intValue": "9"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "LLM"
+                }
+              }
+            ],
+            "status": {}
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "tool_loop",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "gen_ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "invoke_agent gpt-4o-mini",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000011000000",
+            "attributes": [
+              {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Weather in Paris?\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "invoke_agent"
+                }
+              },
+              {
+                "key": "gen_ai.output.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"Sunny, 22C.\"},{\"type\":\"tool_call\",\"id\":\"call_rec1\",\"name\":\"get_weather\",\"arguments\":{\"city\":\"Paris\"}},{\"type\":\"tool_call_response\",\"id\":\"call_rec1\",\"response\":\"sunny, 22C\"}],\"finish_reason\":\"stop\"}]"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "gen_ai.response.finish_reasons",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "stop"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "AGENT"
+                }
+              },
+              {
+                "key": "rius.aggregated_usage.cache_read.input_tokens",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "rius.aggregated_usage.input_tokens",
+                "value": {
+                  "intValue": "115"
+                }
+              },
+              {
+                "key": "rius.aggregated_usage.output_tokens",
+                "value": {
+                  "intValue": "66"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "gen_ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000002",
+            "parentSpanId": "0000000000000001",
+            "name": "step 1",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000001000000",
+            "endTimeUnixNano": "1700000000006000000",
+            "attributes": [
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "agent_step"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "gen_ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000003",
+            "parentSpanId": "0000000000000002",
+            "name": "chat gpt-4o-mini",
+            "kind": "SPAN_KIND_CLIENT",
+            "startTimeUnixNano": "1700000000002000000",
+            "endTimeUnixNano": "1700000000003000000",
+            "attributes": [
+              {
+                "key": "gen_ai.client.operation.duration",
+                "value": {
+                  "doubleValue": 0.004
+                }
+              },
+              {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Weather in Paris?\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "chat"
+                }
+              },
+              {
+                "key": "gen_ai.output.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"call_rec1\",\"name\":\"get_weather\",\"arguments\":{\"city\":\"Paris\"}}],\"finish_reason\":\"tool_call\"}]"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "gen_ai.response.finish_reasons",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "tool-calls"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "gen_ai.response.id",
+                "value": {
+                  "stringValue": "chatcmpl-rec1"
+                }
+              },
+              {
+                "key": "gen_ai.response.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini-2024-07-18"
+                }
+              },
+              {
+                "key": "gen_ai.tool.definitions",
+                "value": {
+                  "stringValue": "[{\"type\":\"function\",\"name\":\"get_weather\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"]},\"description\":\"Current weather for a city\"}]"
+                }
+              },
+              {
+                "key": "gen_ai.usage.cache_read.input_tokens",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "gen_ai.usage.input_tokens",
+                "value": {
+                  "intValue": "24"
+                }
+              },
+              {
+                "key": "gen_ai.usage.output_tokens",
+                "value": {
+                  "intValue": "51"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "LLM"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "gen_ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000004",
+            "parentSpanId": "0000000000000002",
+            "name": "execute_tool get_weather",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000004000000",
+            "endTimeUnixNano": "1700000000005000000",
+            "attributes": [
+              {
+                "key": "gen_ai.execute_tool.duration",
+                "value": {
+                  "doubleValue": 0.001
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "execute_tool"
+                }
+              },
+              {
+                "key": "gen_ai.tool.call.arguments",
+                "value": {
+                  "stringValue": "{\"city\":\"Paris\"}"
+                }
+              },
+              {
+                "key": "gen_ai.tool.call.id",
+                "value": {
+                  "stringValue": "call_rec1"
+                }
+              },
+              {
+                "key": "gen_ai.tool.call.result",
+                "value": {
+                  "stringValue": "\"sunny, 22C\""
+                }
+              },
+              {
+                "key": "gen_ai.tool.name",
+                "value": {
+                  "stringValue": "get_weather"
+                }
+              },
+              {
+                "key": "gen_ai.tool.type",
+                "value": {
+                  "stringValue": "function"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "TOOL"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "gen_ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000005",
+            "parentSpanId": "0000000000000001",
+            "name": "step 2",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000007000000",
+            "endTimeUnixNano": "1700000000010000000",
+            "attributes": [
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "agent_step"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "gen_ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000006",
+            "parentSpanId": "0000000000000005",
+            "name": "chat gpt-4o-mini",
+            "kind": "SPAN_KIND_CLIENT",
+            "startTimeUnixNano": "1700000000008000000",
+            "endTimeUnixNano": "1700000000009000000",
+            "attributes": [
+              {
+                "key": "gen_ai.client.operation.duration",
+                "value": {
+                  "doubleValue": 0.004
+                }
+              },
+              {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Weather in Paris?\"}]},{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"call_rec1\",\"name\":\"get_weather\",\"arguments\":{\"city\":\"Paris\"}}]},{\"role\":\"tool\",\"parts\":[{\"type\":\"tool_call_response\",\"id\":\"call_rec1\",\"response\":\"sunny, 22C\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "chat"
+                }
+              },
+              {
+                "key": "gen_ai.output.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"Sunny, 22C.\"}],\"finish_reason\":\"stop\"}]"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "gen_ai.response.finish_reasons",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "stop"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "gen_ai.response.id",
+                "value": {
+                  "stringValue": "chatcmpl-rec2"
+                }
+              },
+              {
+                "key": "gen_ai.response.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini-2024-07-18"
+                }
+              },
+              {
+                "key": "gen_ai.tool.definitions",
+                "value": {
+                  "stringValue": "[{\"type\":\"function\",\"name\":\"get_weather\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"]},\"description\":\"Current weather for a city\"}]"
+                }
+              },
+              {
+                "key": "gen_ai.usage.cache_read.input_tokens",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "gen_ai.usage.input_tokens",
+                "value": {
+                  "intValue": "91"
+                }
+              },
+              {
+                "key": "gen_ai.usage.output_tokens",
+                "value": {
+                  "intValue": "15"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "LLM"
+                }
+              }
+            ],
+            "status": {}
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "error",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "gen_ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "invoke_agent gpt-nope",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000008000000",
+            "attributes": [
+              {
+                "key": "error.type",
+                "value": {
+                  "stringValue": "AI_APICallError"
+                }
+              },
+              {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"hi\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "invoke_agent"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-nope"
+                }
+              },
+              {
+                "key": "http.response.status_code",
+                "value": {
+                  "intValue": "400"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "AGENT"
+                }
+              }
+            ],
+            "events": [
+              {
+                "timeUnixNano": "1700000000007000000",
+                "name": "exception",
+                "attributes": [
+                  {
+                    "key": "exception.message",
+                    "value": {
+                      "stringValue": "The model `gpt-nope` does not exist."
+                    }
+                  },
+                  {
+                    "key": "exception.stacktrace",
+                    "value": {
+                      "stringValue": "<stacktrace elided>"
+                    }
+                  },
+                  {
+                    "key": "exception.type",
+                    "value": {
+                      "stringValue": "AI_APICallError"
+                    }
+                  }
+                ]
+              }
+            ],
+            "status": {
+              "code": "STATUS_CODE_ERROR",
+              "message": "The model `gpt-nope` does not exist."
+            }
+          }
+        },
+        {
+          "scope": {
+            "name": "gen_ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000002",
+            "parentSpanId": "0000000000000001",
+            "name": "step 1",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000001000000",
+            "endTimeUnixNano": "1700000000006000000",
+            "attributes": [
+              {
+                "key": "error.type",
+                "value": {
+                  "stringValue": "AI_APICallError"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "agent_step"
+                }
+              },
+              {
+                "key": "http.response.status_code",
+                "value": {
+                  "intValue": "400"
+                }
+              }
+            ],
+            "events": [
+              {
+                "timeUnixNano": "1700000000005000000",
+                "name": "exception",
+                "attributes": [
+                  {
+                    "key": "exception.message",
+                    "value": {
+                      "stringValue": "The model `gpt-nope` does not exist."
+                    }
+                  },
+                  {
+                    "key": "exception.stacktrace",
+                    "value": {
+                      "stringValue": "<stacktrace elided>"
+                    }
+                  },
+                  {
+                    "key": "exception.type",
+                    "value": {
+                      "stringValue": "AI_APICallError"
+                    }
+                  }
+                ]
+              }
+            ],
+            "status": {
+              "code": "STATUS_CODE_ERROR",
+              "message": "The model `gpt-nope` does not exist."
+            }
+          }
+        },
+        {
+          "scope": {
+            "name": "gen_ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000003",
+            "parentSpanId": "0000000000000002",
+            "name": "chat gpt-nope",
+            "kind": "SPAN_KIND_CLIENT",
+            "startTimeUnixNano": "1700000000002000000",
+            "endTimeUnixNano": "1700000000004000000",
+            "attributes": [
+              {
+                "key": "error.type",
+                "value": {
+                  "stringValue": "AI_APICallError"
+                }
+              },
+              {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"hi\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "chat"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-nope"
+                }
+              },
+              {
+                "key": "http.response.status_code",
+                "value": {
+                  "intValue": "400"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "LLM"
+                }
+              }
+            ],
+            "events": [
+              {
+                "timeUnixNano": "1700000000003000000",
+                "name": "exception",
+                "attributes": [
+                  {
+                    "key": "exception.message",
+                    "value": {
+                      "stringValue": "The model `gpt-nope` does not exist."
+                    }
+                  },
+                  {
+                    "key": "exception.stacktrace",
+                    "value": {
+                      "stringValue": "<stacktrace elided>"
+                    }
+                  },
+                  {
+                    "key": "exception.type",
+                    "value": {
+                      "stringValue": "AI_APICallError"
+                    }
+                  }
+                ]
+              }
+            ],
+            "status": {
+              "code": "STATUS_CODE_ERROR",
+              "message": "The model `gpt-nope` does not exist."
+            }
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "embed",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "gen_ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "embeddings text-embedding-3-small",
+            "kind": "SPAN_KIND_CLIENT",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000003000000",
+            "attributes": [
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "embeddings"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "text-embedding-3-small"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "EMBEDDING"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "gen_ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000002",
+            "parentSpanId": "0000000000000001",
+            "name": "embeddings text-embedding-3-small",
+            "kind": "SPAN_KIND_CLIENT",
+            "startTimeUnixNano": "1700000000001000000",
+            "endTimeUnixNano": "1700000000002000000",
+            "attributes": [
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "embeddings"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "text-embedding-3-small"
+                }
+              },
+              {
+                "key": "gen_ai.usage.input_tokens",
+                "value": {
+                  "intValue": "5"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "EMBEDDING"
+                }
+              }
+            ],
+            "status": {}
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "family": "openinference-openai",
+  "about": "Real openinference-instrumentation-openai spans (Python), recorded against a scripted OpenAI: an in-process httpx2 mock transport answers every request with realistic OpenAI JSON, so no network and no API keys. The rius SDK is not involved; these are the raw spans the instrumentor produces. Usage in every response carries cached and reasoning token details, so the usage mappings have something to map.",
+  "record": "python record.py <recording.json> <environment.json>, in a virtualenv holding exactly the pins below",
+  "recordings": {
+    "openinference-openai-0.1.65.json": {
+      "python": "3.13.7",
+      "packages": {
+        "openinference-instrumentation-openai": "0.1.65",
+        "openinference-instrumentation": "0.1.71",
+        "openinference-semantic-conventions": "0.1.41",
+        "openai": "3.29.0",
+        "httpx2": "2.13.1",
+        "opentelemetry-api": "1.45.1",
+        "opentelemetry-sdk": "1.45.1"
+      },
+      "scenarios": {
+        "chat": "Non-streaming chat with a system and a user message, temperature and max_tokens set.",
+        "chat_stream": "Streaming chat with stream_options.include_usage: a first-token event, and usage on the final chunk.",
+        "tool_call": "A tool definition with tool_choice=auto; the response is a tool call.",
+        "tool_response": "The follow-up: the assistant's tool call and the tool's result in the input, a text answer out.",
+        "error": "The provider answers 400 (model_not_found): an exception event and an ERROR status.",
+        "embeddings": "One embeddings call; the response vector is three floats."
+      },
+      "expected": {
+        "file": "openinference-openai-0.1.65.expected.json",
+        "source": "python-sdk"
+      },
+      "verified": "Re-recorded 2026-10-12 twice in a row in the pinned virtualenv: byte-identical."
+    }
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "family": "pydantic-ai",
+  "about": "Real pydantic-ai spans: pydantic-ai instruments itself (no OpenInference), with its default settings, so agent-run spans carry their usage under gen_ai.aggregated_usage.*. Agents run OpenAIChatModel against a scripted OpenAI through an in-process httpx2 mock transport: no network, no API keys, no rius SDK. pydantic-ai measures time to first chunk with time.perf_counter() and writes it into a span attribute; the recorder replaces that clock with one that advances 1 ms per reading so the value is identical across runs.",
+  "record": "python record.py <recording.json> <environment.json>, in a virtualenv holding exactly the pins below",
+  "recordings": {
+    "pydantic-ai-2.55.0.json": {
+      "python": "3.13.7",
+      "packages": {
+        "pydantic-ai-slim": "2.55.0",
+        "openai": "3.29.0",
+        "httpx2": "2.13.1",
+        "opentelemetry-api": "1.45.1",
+        "opentelemetry-sdk": "1.45.1"
+      },
+      "scenarios": {
+        "chat": "Agent.run_sync with a system prompt, temperature and max_tokens: an invoke_agent span and a chat span.",
+        "chat_stream": "Agent.run_stream: the chat span carries gen_ai.client.operation.time_to_first_chunk.",
+        "agent_tools": "An agent with one tool: chat (tool call), execute_tool, chat (answer) under one invoke_agent span; usage on each chat span and summed on the agent span.",
+        "error": "The provider answers 400 (model_not_found): both the agent and the chat span end ERROR with an exception event."
+      },
+      "expected": {
+        "file": "pydantic-ai-2.55.0.expected.json",
+        "source": "python-sdk"
+      },
+      "verified": "Re-recorded 2026-10-12 twice in a row in the pinned virtualenv: byte-identical."
+    }
+  }
+}

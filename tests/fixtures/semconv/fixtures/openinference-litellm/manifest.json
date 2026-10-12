@@ -1,0 +1,33 @@
+{
+  "family": "openinference-litellm",
+  "about": "Real openinference-instrumentation-litellm spans (Python) from litellm.completion. LiteLLM builds its HTTP clients internally, so every httpx request in the recording process is answered by the script instead of passing client=, which the instrumentor would serialize into the request bag. No network, no API keys, no rius SDK. Only the LiteLLM instrumentor is enabled; with the openai instrumentor as well, each OpenAI call would also get a child ChatCompletion span.",
+  "record": "python record.py <recording.json> <environment.json>, in a virtualenv holding exactly the pins below",
+  "recordings": {
+    "openinference-litellm-0.1.50.json": {
+      "python": "3.13.7",
+      "packages": {
+        "openinference-instrumentation-litellm": "0.1.50",
+        "openinference-instrumentation": "0.1.71",
+        "openinference-semantic-conventions": "0.1.41",
+        "litellm": "1.105.0",
+        "openai": "2.54.0",
+        "httpx": "0.28.1",
+        "opentelemetry-api": "1.45.1",
+        "opentelemetry-sdk": "1.45.1"
+      },
+      "scenarios": {
+        "chat": "OpenAI through LiteLLM: a system and a user message, temperature and max_tokens set.",
+        "chat_stream": "Streaming with stream_options.include_usage. The instrumentor records no first-token event.",
+        "tool_call": "A tool definition with tool_choice auto; the response is a tool call.",
+        "tool_response": "The follow-up: the assistant's tool call and the tool's result in the input, a text answer out.",
+        "anthropic_chat": "Anthropic through LiteLLM's own handler: usage with cache reads and writes.",
+        "error": "The provider answers 400 (model_not_found); LiteLLM raises it as its NotFoundError."
+      },
+      "expected": {
+        "file": "openinference-litellm-0.1.50.expected.json",
+        "source": "python-sdk"
+      },
+      "verified": "Re-recorded 2026-10-12 twice in a row in the pinned virtualenv: byte-identical."
+    }
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "family": "openinference-langchain",
+  "about": "Real openinference-instrumentation-langchain spans (Python) from langchain-openai's ChatOpenAI, recorded against a scripted OpenAI through an in-process httpx2 mock transport: no network, no API keys, no rius SDK. Only the LangChain instrumentor is enabled, so each model call is one ChatOpenAI span; with the openai instrumentor as well it would also get a sibling ChatCompletion span. LangChain's per-run ids inside output.value are replaced by numbered placeholder UUIDs.",
+  "record": "python record.py <recording.json> <environment.json>, in a virtualenv holding exactly the pins below",
+  "recordings": {
+    "openinference-langchain-0.1.79.json": {
+      "python": "3.13.7",
+      "packages": {
+        "openinference-instrumentation-langchain": "0.1.79",
+        "openinference-instrumentation": "0.1.71",
+        "openinference-semantic-conventions": "0.1.41",
+        "langchain-core": "1.6.9",
+        "langchain-openai": "1.7.0",
+        "openai": "3.29.0",
+        "httpx2": "2.13.1",
+        "opentelemetry-api": "1.45.1",
+        "opentelemetry-sdk": "1.45.1"
+      },
+      "scenarios": {
+        "chat": "ChatOpenAI.invoke with a system and a user message, temperature and max_tokens set.",
+        "chat_stream": "ChatOpenAI.stream with stream_usage. The instrumentor records no first-token event, and records stream=false in the request bag.",
+        "tool_call": "bind_tools with tool_choice auto; the response is a tool call.",
+        "tool_response": "The follow-up: an AIMessage with the tool call and a ToolMessage with its result in the input, a text answer out.",
+        "chain": "A ChatPromptTemplate piped into ChatOpenAI: a RunnableSequence CHAIN span with the prompt-template and model spans under it.",
+        "error": "The provider answers 400 (model_not_found): an exception event and an ERROR status."
+      },
+      "expected": {
+        "file": "openinference-langchain-0.1.79.expected.json",
+        "source": "python-sdk"
+      },
+      "verified": "Re-recorded 2026-10-12 twice in a row in the pinned virtualenv: byte-identical."
+    }
+  }
+}

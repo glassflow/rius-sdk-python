@@ -1,0 +1,1098 @@
+{
+  "recordings": [
+    {
+      "scenario": "chat",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "python"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.45.1"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "openinference.instrumentation.llama_index",
+            "version": "4.6.0"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "OpenAI.chat",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000001000000",
+            "attributes": [
+              {
+                "key": "input.mime_type",
+                "value": {
+                  "stringValue": "application/json"
+                }
+              },
+              {
+                "key": "input.value",
+                "value": {
+                  "stringValue": "{\"messages\": [\"ChatMessage(role=<MessageRole.SYSTEM: 'system'>, additional_kwargs={}, blocks=[TextBlock(block_type='text', text='Answer in one word.')])\", \"ChatMessage(role=<MessageRole.USER: 'user'>, additional_kwargs={}, blocks=[TextBlock(block_type='text', text='Capital of France?')])\"]}"
+                }
+              },
+              {
+                "key": "llm.finish_reason",
+                "value": {
+                  "stringValue": "stop"
+                }
+              },
+              {
+                "key": "llm.input_messages.0.message.content",
+                "value": {
+                  "stringValue": "Answer in one word."
+                }
+              },
+              {
+                "key": "llm.input_messages.0.message.role",
+                "value": {
+                  "stringValue": "system"
+                }
+              },
+              {
+                "key": "llm.input_messages.1.message.content",
+                "value": {
+                  "stringValue": "Capital of France?"
+                }
+              },
+              {
+                "key": "llm.input_messages.1.message.role",
+                "value": {
+                  "stringValue": "user"
+                }
+              },
+              {
+                "key": "llm.invocation_parameters",
+                "value": {
+                  "stringValue": "{\"context_window\":128000,\"num_output\":64,\"is_chat_model\":true,\"is_function_calling_model\":true,\"model_name\":\"gpt-4o-mini\",\"system_role\":\"system\"}"
+                }
+              },
+              {
+                "key": "llm.model_name",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "llm.output_messages.0.message.content",
+                "value": {
+                  "stringValue": "Paris."
+                }
+              },
+              {
+                "key": "llm.output_messages.0.message.role",
+                "value": {
+                  "stringValue": "assistant"
+                }
+              },
+              {
+                "key": "llm.provider",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "llm.system",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "llm.token_count.completion",
+                "value": {
+                  "intValue": "9"
+                }
+              },
+              {
+                "key": "llm.token_count.completion_details.audio",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "llm.token_count.completion_details.reasoning",
+                "value": {
+                  "intValue": "3"
+                }
+              },
+              {
+                "key": "llm.token_count.prompt",
+                "value": {
+                  "intValue": "42"
+                }
+              },
+              {
+                "key": "llm.token_count.prompt_details.audio",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "llm.token_count.prompt_details.cache_read",
+                "value": {
+                  "intValue": "16"
+                }
+              },
+              {
+                "key": "llm.token_count.total",
+                "value": {
+                  "intValue": "51"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "LLM"
+                }
+              },
+              {
+                "key": "output.value",
+                "value": {
+                  "stringValue": "assistant: Paris."
+                }
+              }
+            ],
+            "status": {
+              "code": "STATUS_CODE_OK"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "chat_stream",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "python"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.45.1"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "openinference.instrumentation.llama_index",
+            "version": "4.6.0"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "OpenAI.stream_chat",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000001000000",
+            "attributes": [
+              {
+                "key": "input.mime_type",
+                "value": {
+                  "stringValue": "application/json"
+                }
+              },
+              {
+                "key": "input.value",
+                "value": {
+                  "stringValue": "{\"messages\": [\"ChatMessage(role=<MessageRole.USER: 'user'>, additional_kwargs={}, blocks=[TextBlock(block_type='text', text='Capital of France?')])\"]}"
+                }
+              },
+              {
+                "key": "llm.finish_reason",
+                "value": {
+                  "stringValue": "stop"
+                }
+              },
+              {
+                "key": "llm.input_messages.0.message.content",
+                "value": {
+                  "stringValue": "Capital of France?"
+                }
+              },
+              {
+                "key": "llm.input_messages.0.message.role",
+                "value": {
+                  "stringValue": "user"
+                }
+              },
+              {
+                "key": "llm.invocation_parameters",
+                "value": {
+                  "stringValue": "{\"context_window\":128000,\"num_output\":-1,\"is_chat_model\":true,\"is_function_calling_model\":true,\"model_name\":\"gpt-4o-mini\",\"system_role\":\"system\"}"
+                }
+              },
+              {
+                "key": "llm.model_name",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "llm.output_messages.0.message.content",
+                "value": {
+                  "stringValue": "Paris."
+                }
+              },
+              {
+                "key": "llm.output_messages.0.message.role",
+                "value": {
+                  "stringValue": "assistant"
+                }
+              },
+              {
+                "key": "llm.provider",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "llm.system",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "llm.token_count.completion",
+                "value": {
+                  "intValue": "9"
+                }
+              },
+              {
+                "key": "llm.token_count.completion_details.audio",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "llm.token_count.completion_details.reasoning",
+                "value": {
+                  "intValue": "3"
+                }
+              },
+              {
+                "key": "llm.token_count.prompt",
+                "value": {
+                  "intValue": "42"
+                }
+              },
+              {
+                "key": "llm.token_count.prompt_details.audio",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "llm.token_count.prompt_details.cache_read",
+                "value": {
+                  "intValue": "16"
+                }
+              },
+              {
+                "key": "llm.token_count.total",
+                "value": {
+                  "intValue": "51"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "LLM"
+                }
+              },
+              {
+                "key": "output.value",
+                "value": {
+                  "stringValue": "assistant: Paris."
+                }
+              }
+            ],
+            "events": [
+              {
+                "timeUnixNano": "1700000000002000000",
+                "name": "First Token Stream Event",
+                "attributes": []
+              }
+            ],
+            "status": {
+              "code": "STATUS_CODE_OK"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "tool_call",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "python"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.45.1"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "openinference.instrumentation.llama_index",
+            "version": "4.6.0"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "OpenAI._prepare_chat_with_tools",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000001000000",
+            "attributes": [
+              {
+                "key": "input.mime_type",
+                "value": {
+                  "stringValue": "application/json"
+                }
+              },
+              {
+                "key": "input.value",
+                "value": {
+                  "stringValue": "{\"tools\": [\"<FunctionTool object>\"], \"user_msg\": \"Weather in Paris?\", \"chat_history\": null, \"verbose\": false, \"allow_parallel_tool_calls\": false, \"tool_required\": false}"
+                }
+              },
+              {
+                "key": "llm.invocation_parameters",
+                "value": {
+                  "stringValue": "{\"context_window\":128000,\"num_output\":-1,\"is_chat_model\":true,\"is_function_calling_model\":true,\"model_name\":\"gpt-4o-mini\",\"system_role\":\"system\"}"
+                }
+              },
+              {
+                "key": "llm.model_name",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "llm.provider",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "llm.system",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "LLM"
+                }
+              },
+              {
+                "key": "output.mime_type",
+                "value": {
+                  "stringValue": "application/json"
+                }
+              },
+              {
+                "key": "output.value",
+                "value": {
+                  "stringValue": "{\"messages\": [\"ChatMessage(role=<MessageRole.USER: 'user'>, additional_kwargs={}, blocks=[TextBlock(block_type='text', text='Weather in Paris?')])\"], \"tools\": [{\"type\": \"function\", \"function\": {\"name\": \"get_weather\", \"description\": \"get_weather(city: 'str') -> 'str'\\nCurrent weather for a city.\", \"parameters\": {\"properties\": {\"city\": {\"title\": \"City\", \"type\": \"string\"}}, \"required\": [\"city\"], \"type\": \"object\", \"additionalProperties\": false}, \"strict\": false}}], \"tool_choice\": \"auto\", \"parallel_tool_calls\": false}"
+                }
+              }
+            ],
+            "status": {
+              "code": "STATUS_CODE_OK"
+            }
+          }
+        },
+        {
+          "scope": {
+            "name": "openinference.instrumentation.llama_index",
+            "version": "4.6.0"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000002",
+            "spanId": "0000000000000002",
+            "name": "OpenAI.chat",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000002000000",
+            "endTimeUnixNano": "1700000000003000000",
+            "attributes": [
+              {
+                "key": "input.mime_type",
+                "value": {
+                  "stringValue": "application/json"
+                }
+              },
+              {
+                "key": "input.value",
+                "value": {
+                  "stringValue": "{\"messages\": [\"ChatMessage(role=<MessageRole.USER: 'user'>, additional_kwargs={}, blocks=[TextBlock(block_type='text', text='Weather in Paris?')])\"], \"kwargs\": {\"tools\": [{\"type\": \"function\", \"function\": {\"name\": \"get_weather\", \"description\": \"get_weather(city: 'str') -> 'str'\\nCurrent weather for a city.\", \"parameters\": {\"properties\": {\"city\": {\"title\": \"City\", \"type\": \"string\"}}, \"required\": [\"city\"], \"type\": \"object\", \"additionalProperties\": false}, \"strict\": false}}], \"tool_choice\": \"auto\", \"parallel_tool_calls\": false}}"
+                }
+              },
+              {
+                "key": "llm.finish_reason",
+                "value": {
+                  "stringValue": "tool_calls"
+                }
+              },
+              {
+                "key": "llm.input_messages.0.message.content",
+                "value": {
+                  "stringValue": "Weather in Paris?"
+                }
+              },
+              {
+                "key": "llm.input_messages.0.message.role",
+                "value": {
+                  "stringValue": "user"
+                }
+              },
+              {
+                "key": "llm.invocation_parameters",
+                "value": {
+                  "stringValue": "{\"context_window\":128000,\"num_output\":-1,\"is_chat_model\":true,\"is_function_calling_model\":true,\"model_name\":\"gpt-4o-mini\",\"system_role\":\"system\"}"
+                }
+              },
+              {
+                "key": "llm.model_name",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "llm.output_messages.0.message.role",
+                "value": {
+                  "stringValue": "assistant"
+                }
+              },
+              {
+                "key": "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments",
+                "value": {
+                  "stringValue": "{\"city\": \"Paris\"}"
+                }
+              },
+              {
+                "key": "llm.output_messages.0.message.tool_calls.0.tool_call.function.name",
+                "value": {
+                  "stringValue": "get_weather"
+                }
+              },
+              {
+                "key": "llm.output_messages.0.message.tool_calls.0.tool_call.id",
+                "value": {
+                  "stringValue": "call_rec1"
+                }
+              },
+              {
+                "key": "llm.provider",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "llm.system",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "llm.token_count.completion",
+                "value": {
+                  "intValue": "9"
+                }
+              },
+              {
+                "key": "llm.token_count.completion_details.audio",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "llm.token_count.completion_details.reasoning",
+                "value": {
+                  "intValue": "3"
+                }
+              },
+              {
+                "key": "llm.token_count.prompt",
+                "value": {
+                  "intValue": "42"
+                }
+              },
+              {
+                "key": "llm.token_count.prompt_details.audio",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "llm.token_count.prompt_details.cache_read",
+                "value": {
+                  "intValue": "16"
+                }
+              },
+              {
+                "key": "llm.token_count.total",
+                "value": {
+                  "intValue": "51"
+                }
+              },
+              {
+                "key": "llm.tools.0.tool.json_schema",
+                "value": {
+                  "stringValue": "{\"type\": \"function\", \"function\": {\"name\": \"get_weather\", \"description\": \"get_weather(city: 'str') -> 'str'\\nCurrent weather for a city.\", \"parameters\": {\"properties\": {\"city\": {\"title\": \"City\", \"type\": \"string\"}}, \"required\": [\"city\"], \"type\": \"object\", \"additionalProperties\": false}, \"strict\": false}}"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "LLM"
+                }
+              },
+              {
+                "key": "output.value",
+                "value": {
+                  "stringValue": "assistant: None"
+                }
+              }
+            ],
+            "status": {
+              "code": "STATUS_CODE_OK"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "tool_response",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "python"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.45.1"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "openinference.instrumentation.llama_index",
+            "version": "4.6.0"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "OpenAI._prepare_chat_with_tools",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000001000000",
+            "attributes": [
+              {
+                "key": "input.mime_type",
+                "value": {
+                  "stringValue": "application/json"
+                }
+              },
+              {
+                "key": "input.value",
+                "value": {
+                  "stringValue": "{\"tools\": [\"<FunctionTool object>\"], \"user_msg\": null, \"chat_history\": [\"ChatMessage(role=<MessageRole.USER: 'user'>, additional_kwargs={}, blocks=[TextBlock(block_type='text', text='Weather in Paris?')])\", \"ChatMessage(role=<MessageRole.ASSISTANT: 'assistant'>, additional_kwargs={'tool_calls': [{'id': 'call_rec1', 'type': 'function', 'function': {'name': 'get_weather', 'arguments': '{\\\"city\\\": \\\"Paris\\\"}'}}]}, blocks=[])\", \"ChatMessage(role=<MessageRole.TOOL: 'tool'>, additional_kwargs={'tool_call_id': 'call_rec1', 'name': 'get_weather'}, blocks=[TextBlock(block_type='text', text='sunny, 22C')])\"], \"verbose\": false, \"allow_parallel_tool_calls\": false, \"tool_required\": false}"
+                }
+              },
+              {
+                "key": "llm.invocation_parameters",
+                "value": {
+                  "stringValue": "{\"context_window\":128000,\"num_output\":-1,\"is_chat_model\":true,\"is_function_calling_model\":true,\"model_name\":\"gpt-4o-mini\",\"system_role\":\"system\"}"
+                }
+              },
+              {
+                "key": "llm.model_name",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "llm.provider",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "llm.system",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "LLM"
+                }
+              },
+              {
+                "key": "output.mime_type",
+                "value": {
+                  "stringValue": "application/json"
+                }
+              },
+              {
+                "key": "output.value",
+                "value": {
+                  "stringValue": "{\"messages\": [\"ChatMessage(role=<MessageRole.USER: 'user'>, additional_kwargs={}, blocks=[TextBlock(block_type='text', text='Weather in Paris?')])\", \"ChatMessage(role=<MessageRole.ASSISTANT: 'assistant'>, additional_kwargs={'tool_calls': [{'id': 'call_rec1', 'type': 'function', 'function': {'name': 'get_weather', 'arguments': '{\\\"city\\\": \\\"Paris\\\"}'}}]}, blocks=[])\", \"ChatMessage(role=<MessageRole.TOOL: 'tool'>, additional_kwargs={'tool_call_id': 'call_rec1', 'name': 'get_weather'}, blocks=[TextBlock(block_type='text', text='sunny, 22C')])\"], \"tools\": [{\"type\": \"function\", \"function\": {\"name\": \"get_weather\", \"description\": \"get_weather(city: 'str') -> 'str'\\nCurrent weather for a city.\", \"parameters\": {\"properties\": {\"city\": {\"title\": \"City\", \"type\": \"string\"}}, \"required\": [\"city\"], \"type\": \"object\", \"additionalProperties\": false}, \"strict\": false}}], \"tool_choice\": \"auto\", \"parallel_tool_calls\": false}"
+                }
+              }
+            ],
+            "status": {
+              "code": "STATUS_CODE_OK"
+            }
+          }
+        },
+        {
+          "scope": {
+            "name": "openinference.instrumentation.llama_index",
+            "version": "4.6.0"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000002",
+            "spanId": "0000000000000002",
+            "name": "OpenAI.chat",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000002000000",
+            "endTimeUnixNano": "1700000000003000000",
+            "attributes": [
+              {
+                "key": "input.mime_type",
+                "value": {
+                  "stringValue": "application/json"
+                }
+              },
+              {
+                "key": "input.value",
+                "value": {
+                  "stringValue": "{\"messages\": [\"ChatMessage(role=<MessageRole.USER: 'user'>, additional_kwargs={}, blocks=[TextBlock(block_type='text', text='Weather in Paris?')])\", \"ChatMessage(role=<MessageRole.ASSISTANT: 'assistant'>, additional_kwargs={'tool_calls': [{'id': 'call_rec1', 'type': 'function', 'function': {'name': 'get_weather', 'arguments': '{\\\"city\\\": \\\"Paris\\\"}'}}]}, blocks=[])\", \"ChatMessage(role=<MessageRole.TOOL: 'tool'>, additional_kwargs={'tool_call_id': 'call_rec1', 'name': 'get_weather'}, blocks=[TextBlock(block_type='text', text='sunny, 22C')])\"], \"kwargs\": {\"tools\": [{\"type\": \"function\", \"function\": {\"name\": \"get_weather\", \"description\": \"get_weather(city: 'str') -> 'str'\\nCurrent weather for a city.\", \"parameters\": {\"properties\": {\"city\": {\"title\": \"City\", \"type\": \"string\"}}, \"required\": [\"city\"], \"type\": \"object\", \"additionalProperties\": false}, \"strict\": false}}], \"tool_choice\": \"auto\", \"parallel_tool_calls\": false}}"
+                }
+              },
+              {
+                "key": "llm.finish_reason",
+                "value": {
+                  "stringValue": "stop"
+                }
+              },
+              {
+                "key": "llm.input_messages.0.message.content",
+                "value": {
+                  "stringValue": "Weather in Paris?"
+                }
+              },
+              {
+                "key": "llm.input_messages.0.message.role",
+                "value": {
+                  "stringValue": "user"
+                }
+              },
+              {
+                "key": "llm.input_messages.1.message.role",
+                "value": {
+                  "stringValue": "assistant"
+                }
+              },
+              {
+                "key": "llm.input_messages.1.message.tool_calls.0.tool_call.function.arguments",
+                "value": {
+                  "stringValue": "{\"city\": \"Paris\"}"
+                }
+              },
+              {
+                "key": "llm.input_messages.1.message.tool_calls.0.tool_call.function.name",
+                "value": {
+                  "stringValue": "get_weather"
+                }
+              },
+              {
+                "key": "llm.input_messages.1.message.tool_calls.0.tool_call.id",
+                "value": {
+                  "stringValue": "call_rec1"
+                }
+              },
+              {
+                "key": "llm.input_messages.2.message.content",
+                "value": {
+                  "stringValue": "sunny, 22C"
+                }
+              },
+              {
+                "key": "llm.input_messages.2.message.name",
+                "value": {
+                  "stringValue": "get_weather"
+                }
+              },
+              {
+                "key": "llm.input_messages.2.message.role",
+                "value": {
+                  "stringValue": "tool"
+                }
+              },
+              {
+                "key": "llm.input_messages.2.message.tool_call_id",
+                "value": {
+                  "stringValue": "call_rec1"
+                }
+              },
+              {
+                "key": "llm.invocation_parameters",
+                "value": {
+                  "stringValue": "{\"context_window\":128000,\"num_output\":-1,\"is_chat_model\":true,\"is_function_calling_model\":true,\"model_name\":\"gpt-4o-mini\",\"system_role\":\"system\"}"
+                }
+              },
+              {
+                "key": "llm.model_name",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "llm.output_messages.0.message.content",
+                "value": {
+                  "stringValue": "Sunny, 22C."
+                }
+              },
+              {
+                "key": "llm.output_messages.0.message.role",
+                "value": {
+                  "stringValue": "assistant"
+                }
+              },
+              {
+                "key": "llm.provider",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "llm.system",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "llm.token_count.completion",
+                "value": {
+                  "intValue": "9"
+                }
+              },
+              {
+                "key": "llm.token_count.completion_details.audio",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "llm.token_count.completion_details.reasoning",
+                "value": {
+                  "intValue": "3"
+                }
+              },
+              {
+                "key": "llm.token_count.prompt",
+                "value": {
+                  "intValue": "42"
+                }
+              },
+              {
+                "key": "llm.token_count.prompt_details.audio",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "llm.token_count.prompt_details.cache_read",
+                "value": {
+                  "intValue": "16"
+                }
+              },
+              {
+                "key": "llm.token_count.total",
+                "value": {
+                  "intValue": "51"
+                }
+              },
+              {
+                "key": "llm.tools.0.tool.json_schema",
+                "value": {
+                  "stringValue": "{\"type\": \"function\", \"function\": {\"name\": \"get_weather\", \"description\": \"get_weather(city: 'str') -> 'str'\\nCurrent weather for a city.\", \"parameters\": {\"properties\": {\"city\": {\"title\": \"City\", \"type\": \"string\"}}, \"required\": [\"city\"], \"type\": \"object\", \"additionalProperties\": false}, \"strict\": false}}"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "LLM"
+                }
+              },
+              {
+                "key": "output.value",
+                "value": {
+                  "stringValue": "assistant: Sunny, 22C."
+                }
+              }
+            ],
+            "status": {
+              "code": "STATUS_CODE_OK"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "error",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "python"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.45.1"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "openinference.instrumentation.llama_index",
+            "version": "4.6.0"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "OpenAI.chat",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000002000000",
+            "attributes": [
+              {
+                "key": "input.mime_type",
+                "value": {
+                  "stringValue": "application/json"
+                }
+              },
+              {
+                "key": "input.value",
+                "value": {
+                  "stringValue": "{\"messages\": [\"ChatMessage(role=<MessageRole.USER: 'user'>, additional_kwargs={}, blocks=[TextBlock(block_type='text', text='hi')])\"]}"
+                }
+              },
+              {
+                "key": "llm.input_messages.0.message.content",
+                "value": {
+                  "stringValue": "hi"
+                }
+              },
+              {
+                "key": "llm.input_messages.0.message.role",
+                "value": {
+                  "stringValue": "user"
+                }
+              },
+              {
+                "key": "llm.invocation_parameters",
+                "value": {
+                  "stringValue": "{\"context_window\":128000,\"num_output\":-1,\"is_chat_model\":true,\"is_function_calling_model\":true,\"model_name\":\"gpt-4o-mini\",\"system_role\":\"system\"}"
+                }
+              },
+              {
+                "key": "llm.model_name",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "llm.provider",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "llm.system",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "LLM"
+                }
+              }
+            ],
+            "events": [
+              {
+                "timeUnixNano": "1700000000001000000",
+                "name": "exception",
+                "attributes": [
+                  {
+                    "key": "exception.escaped",
+                    "value": {
+                      "stringValue": "False"
+                    }
+                  },
+                  {
+                    "key": "exception.message",
+                    "value": {
+                      "stringValue": "Error code: 401 - {'error': {'message': 'Incorrect API key provided.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}"
+                    }
+                  },
+                  {
+                    "key": "exception.stacktrace",
+                    "value": {
+                      "stringValue": "<stacktrace elided>"
+                    }
+                  },
+                  {
+                    "key": "exception.type",
+                    "value": {
+                      "stringValue": "openai.AuthenticationError"
+                    }
+                  }
+                ]
+              }
+            ],
+            "status": {
+              "message": "AuthenticationError: Error code: 401 - {'error': {'message': 'Incorrect API key provided.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}",
+              "code": "STATUS_CODE_ERROR"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

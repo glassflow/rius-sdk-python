@@ -1,0 +1,30 @@
+{
+  "family": "openinference-js-openai",
+  "about": "Real @arizeai/openinference-instrumentation-openai spans (JavaScript), the counterpart of ../openinference-openai with the same scenarios and responses, recorded through a scripted fetch: no network, no API keys, no rius SDK.",
+  "record": "npm ci, then node record.mjs <recording.json> <environment.json>",
+  "recordings": {
+    "openinference-js-openai-4.4.1.json": {
+      "node": "24.2.0",
+      "packages": {
+        "@arizeai/openinference-instrumentation-openai": "4.4.1",
+        "@arizeai/openinference-semantic-conventions": "2.14.0",
+        "openai": "7.32.0",
+        "@opentelemetry/api": "1.9.1",
+        "@opentelemetry/sdk-trace-base": "2.12.0"
+      },
+      "scenarios": {
+        "chat": "Non-streaming chat with a system and a user message, temperature and max_tokens set.",
+        "chat_stream": "Streaming chat with stream_options.include_usage. Unlike the Python instrumentor, the JS one records no first-token event and leaves the status unset.",
+        "tool_call": "A tool definition with tool_choice auto; the response is a tool call.",
+        "tool_response": "The follow-up: the assistant's tool call and the tool's result in the input, a text answer out.",
+        "error": "The provider answers 400 (model_not_found): an exception event and an ERROR status.",
+        "embeddings": "One embeddings call; the response vector is three floats."
+      },
+      "expected": {
+        "file": "openinference-js-openai-4.4.1.expected.json",
+        "source": "python-sdk"
+      },
+      "verified": "Re-recorded 2026-10-12 several times in a row from the lockfile's node_modules: byte-identical."
+    }
+  }
+}
