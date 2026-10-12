@@ -310,6 +310,14 @@ class NormalizationTable:
                 if key in attributes and key not in rule.sources:
                     continue
                 added[key] = value
+        # Only a model this table produced: a native one is the producer's
+        # own choice of name. Here, not at export, because the processor
+        # writes these additions onto the live span at start, and by export
+        # the model already counts as native.
+        model = added.get(GEN_AI_REQUEST_MODEL)
+        if isinstance(model, str):
+            provider = added.get(GEN_AI_PROVIDER_NAME, attributes.get(GEN_AI_PROVIDER_NAME))
+            added[GEN_AI_REQUEST_MODEL] = without_provider_route(model, provider)
         return added
 
     def normalize(self, attributes: Mapping[str, Any] | None) -> dict[str, Any] | None:
@@ -1025,6 +1033,27 @@ def provider_name(values: list[Any]) -> Any:
     if not isinstance(value, str):
         return SKIP
     return PROVIDER_NAME_ALIASES.get(value.strip().lower(), value)
+
+
+def without_provider_route(model: str, provider: Any) -> str:
+    """The model without a leading ``<provider>/`` that names the span's own provider.
+
+    LiteLLM routes on a prefix (``openai/gpt-4o-mini``) and its instrumentor
+    records the model exactly as passed, so the same model would otherwise
+    carry two names depending on whether LiteLLM was in the path. The prefix
+    is dropped only when it IS the provider (compared under the registry's
+    spelling, so ``vertex_ai/...`` matches ``gcp.vertex_ai``): then it says
+    nothing ``gen_ai.provider.name`` does not, and the routed string can be
+    rebuilt from the two. Any other prefix is part of the name, as in
+    ``openai/google/gemini-2.5-flash`` routed through an OpenAI-compatible
+    gateway, and stays.
+    """
+    if not isinstance(provider, str) or not provider:
+        return model
+    route, slash, rest = model.partition("/")
+    if not slash or not rest or provider_name([route]) != provider:
+        return model
+    return rest
 
 
 #: OpenInference's name for the API a client speaks. A source spelling, like
