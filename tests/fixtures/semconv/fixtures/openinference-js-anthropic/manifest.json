@@ -1,0 +1,29 @@
+{
+  "family": "openinference-js-anthropic",
+  "about": "Real @arizeai/openinference-instrumentation-anthropic spans (JavaScript), the counterpart of ../openinference-anthropic with the same scenarios and responses, recorded through a scripted fetch: no network, no API keys, no rius SDK.",
+  "record": "npm ci, then node record.mjs <recording.json> <environment.json>",
+  "recordings": {
+    "openinference-js-anthropic-0.2.11.json": {
+      "node": "24.2.0",
+      "packages": {
+        "@arizeai/openinference-instrumentation-anthropic": "0.2.11",
+        "@arizeai/openinference-semantic-conventions": "2.14.0",
+        "@anthropic-ai/sdk": "0.133.0",
+        "@opentelemetry/api": "1.9.1",
+        "@opentelemetry/sdk-trace-base": "2.12.0"
+      },
+      "scenarios": {
+        "chat": "Non-streaming chat with a system prompt, max_tokens and stop_sequences.",
+        "chat_stream": "Streaming chat (message_start ... message_stop). No first-token event.",
+        "tool_call": "A tool definition with tool_choice auto; the response is a tool_use block.",
+        "tool_response": "The assistant's tool_use and the user's tool_result in the input, a text answer out.",
+        "error": "The provider answers 400 (invalid_request_error)."
+      },
+      "expected": {
+        "file": "openinference-js-anthropic-0.2.11.expected.json",
+        "source": "python-sdk"
+      },
+      "verified": "Re-recorded 2026-10-12 several times in a row from the lockfile's node_modules: byte-identical."
+    }
+  }
+}

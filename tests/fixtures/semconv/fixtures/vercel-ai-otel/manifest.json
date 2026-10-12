@@ -1,0 +1,32 @@
+{
+  "family": "vercel-ai-otel",
+  "about": "Real Vercel AI SDK v7 spans as its official @ai-sdk/otel integration produces them (GenAI-native: invoke_agent, step, chat, execute_tool, embeddings), the integration the rius SDK registers. Recorded through a scripted fetch with an AsyncLocalStorage context manager and deterministic clocks: no network, no API keys, no rius SDK. The rius SDK starts these spans through aggregatingTracer, which moves a run's total usage off its invoke_agent span; replay.aggregating_producer tells the expected-result tool to do the same.",
+  "record": "npm ci, then node record.mjs <recording.json> <environment.json>",
+  "recordings": {
+    "vercel-ai-otel-7.0.137.json": {
+      "node": "24.2.0",
+      "packages": {
+        "ai": "7.0.137",
+        "@ai-sdk/otel": "1.0.137",
+        "@ai-sdk/openai": "4.0.91",
+        "@opentelemetry/api": "1.9.1",
+        "@opentelemetry/sdk-trace-base": "2.12.0"
+      },
+      "scenarios": {
+        "generate_text": "generateText with a system prompt, temperature and maxOutputTokens.",
+        "stream_text": "streamText, drained.",
+        "tool_loop": "generateText with one tool and stopWhen: stepCountIs(2): two model calls (24/51 then 91/15 tokens) with the tool executed between them.",
+        "error": "The provider answers 400 (model_not_found).",
+        "embed": "embed with text-embedding-3-small; the response vector is three floats."
+      },
+      "expected": {
+        "file": "vercel-ai-otel-7.0.137.expected.json",
+        "source": "typescript-sdk"
+      },
+      "verified": "Re-recorded 2026-10-12 several times in a row from the lockfile's node_modules: byte-identical.",
+      "replay": {
+        "aggregating_producer": true
+      }
+    }
+  }
+}

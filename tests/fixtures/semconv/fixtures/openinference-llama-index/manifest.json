@@ -1,0 +1,33 @@
+{
+  "family": "openinference-llama-index",
+  "about": "Real openinference-instrumentation-llama-index spans (Python) from llama-index-llms-openai, recorded against a scripted OpenAI through an in-process httpx mock transport (llama-index-llms-openai still pins openai 2.x, which uses httpx, not httpx2): no network, no API keys, no rius SDK. Only the LlamaIndex instrumentor is enabled. Its llm.invocation_parameters holds the model's metadata (context_window, num_output, model_name), not the request's parameters.",
+  "record": "python record.py <recording.json> <environment.json>, in a virtualenv holding exactly the pins below",
+  "recordings": {
+    "openinference-llama-index-4.6.0.json": {
+      "python": "3.13.7",
+      "packages": {
+        "openinference-instrumentation-llama-index": "4.6.0",
+        "openinference-instrumentation": "0.1.71",
+        "openinference-semantic-conventions": "0.1.41",
+        "llama-index-core": "0.14.25",
+        "llama-index-llms-openai": "0.8.2",
+        "openai": "2.54.0",
+        "httpx": "0.28.1",
+        "opentelemetry-api": "1.45.1",
+        "opentelemetry-sdk": "1.45.1"
+      },
+      "scenarios": {
+        "chat": "OpenAI.chat with a system and a user message, temperature and max_tokens set (the instrumentor records neither).",
+        "chat_stream": "OpenAI.stream_chat: a first-token event.",
+        "tool_call": "chat_with_tools: an LLM-kind _prepare_chat_with_tools span, then the chat span; the response is a tool call.",
+        "tool_response": "chat_with_tools with the assistant's tool call and the tool's result in the history, a text answer out.",
+        "error": "The provider answers 401 (invalid_api_key). LlamaIndex rejects an unknown model name before sending, so the error comes from the provider instead."
+      },
+      "expected": {
+        "file": "openinference-llama-index-4.6.0.expected.json",
+        "source": "python-sdk"
+      },
+      "verified": "Re-recorded 2026-10-12 twice in a row in the pinned virtualenv: byte-identical."
+    }
+  }
+}

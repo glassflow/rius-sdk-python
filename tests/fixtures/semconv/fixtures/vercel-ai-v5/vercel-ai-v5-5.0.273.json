@@ -1,0 +1,1531 @@
+{
+  "recordings": [
+    {
+      "scenario": "generate_text",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "ai.generateText",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000003000000",
+            "attributes": [
+              {
+                "key": "ai.model.id",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "ai.model.provider",
+                "value": {
+                  "stringValue": "openai.chat"
+                }
+              },
+              {
+                "key": "ai.operationId",
+                "value": {
+                  "stringValue": "ai.generateText"
+                }
+              },
+              {
+                "key": "ai.prompt",
+                "value": {
+                  "stringValue": "{\"system\":\"Answer in one word.\",\"prompt\":\"Capital of France?\"}"
+                }
+              },
+              {
+                "key": "ai.request.headers.user-agent",
+                "value": {
+                  "stringValue": "ai/5.0.273"
+                }
+              },
+              {
+                "key": "ai.response.finishReason",
+                "value": {
+                  "stringValue": "stop"
+                }
+              },
+              {
+                "key": "ai.response.providerMetadata",
+                "value": {
+                  "stringValue": "{\"openai\":{}}"
+                }
+              },
+              {
+                "key": "ai.response.text",
+                "value": {
+                  "stringValue": "Paris."
+                }
+              },
+              {
+                "key": "ai.settings.maxOutputTokens",
+                "value": {
+                  "intValue": "64"
+                }
+              },
+              {
+                "key": "ai.settings.maxRetries",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "ai.settings.temperature",
+                "value": {
+                  "doubleValue": 0.2
+                }
+              },
+              {
+                "key": "ai.usage.completionTokens",
+                "value": {
+                  "intValue": "9"
+                }
+              },
+              {
+                "key": "ai.usage.promptTokens",
+                "value": {
+                  "intValue": "42"
+                }
+              },
+              {
+                "key": "operation.name",
+                "value": {
+                  "stringValue": "ai.generateText"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000002",
+            "parentSpanId": "0000000000000001",
+            "name": "ai.generateText.doGenerate",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000001000000",
+            "endTimeUnixNano": "1700000000002000000",
+            "attributes": [
+              {
+                "key": "ai.model.id",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "ai.model.provider",
+                "value": {
+                  "stringValue": "openai.chat"
+                }
+              },
+              {
+                "key": "ai.operationId",
+                "value": {
+                  "stringValue": "ai.generateText.doGenerate"
+                }
+              },
+              {
+                "key": "ai.prompt.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"system\",\"content\":\"Answer in one word.\"},{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Capital of France?\"}]}]"
+                }
+              },
+              {
+                "key": "ai.request.headers.user-agent",
+                "value": {
+                  "stringValue": "ai/5.0.273"
+                }
+              },
+              {
+                "key": "ai.response.finishReason",
+                "value": {
+                  "stringValue": "stop"
+                }
+              },
+              {
+                "key": "ai.response.id",
+                "value": {
+                  "stringValue": "chatcmpl-rec1"
+                }
+              },
+              {
+                "key": "ai.response.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini-2024-07-18"
+                }
+              },
+              {
+                "key": "ai.response.providerMetadata",
+                "value": {
+                  "stringValue": "{\"openai\":{}}"
+                }
+              },
+              {
+                "key": "ai.response.text",
+                "value": {
+                  "stringValue": "Paris."
+                }
+              },
+              {
+                "key": "ai.response.timestamp",
+                "value": {
+                  "stringValue": "2023-11-14T22:13:20.000Z"
+                }
+              },
+              {
+                "key": "ai.settings.maxOutputTokens",
+                "value": {
+                  "intValue": "64"
+                }
+              },
+              {
+                "key": "ai.settings.maxRetries",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "ai.settings.temperature",
+                "value": {
+                  "doubleValue": 0.2
+                }
+              },
+              {
+                "key": "ai.usage.completionTokens",
+                "value": {
+                  "intValue": "9"
+                }
+              },
+              {
+                "key": "ai.usage.promptTokens",
+                "value": {
+                  "intValue": "42"
+                }
+              },
+              {
+                "key": "gen_ai.request.max_tokens",
+                "value": {
+                  "intValue": "64"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "gen_ai.request.temperature",
+                "value": {
+                  "doubleValue": 0.2
+                }
+              },
+              {
+                "key": "gen_ai.response.finish_reasons",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "stop"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "gen_ai.response.id",
+                "value": {
+                  "stringValue": "chatcmpl-rec1"
+                }
+              },
+              {
+                "key": "gen_ai.response.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini-2024-07-18"
+                }
+              },
+              {
+                "key": "gen_ai.system",
+                "value": {
+                  "stringValue": "openai.chat"
+                }
+              },
+              {
+                "key": "gen_ai.usage.input_tokens",
+                "value": {
+                  "intValue": "42"
+                }
+              },
+              {
+                "key": "gen_ai.usage.output_tokens",
+                "value": {
+                  "intValue": "9"
+                }
+              },
+              {
+                "key": "operation.name",
+                "value": {
+                  "stringValue": "ai.generateText.doGenerate"
+                }
+              }
+            ],
+            "status": {}
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "stream_text",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "ai.streamText",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000005000000",
+            "attributes": [
+              {
+                "key": "ai.model.id",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "ai.model.provider",
+                "value": {
+                  "stringValue": "openai.chat"
+                }
+              },
+              {
+                "key": "ai.operationId",
+                "value": {
+                  "stringValue": "ai.streamText"
+                }
+              },
+              {
+                "key": "ai.prompt",
+                "value": {
+                  "stringValue": "{\"prompt\":\"Capital of France?\"}"
+                }
+              },
+              {
+                "key": "ai.response.finishReason",
+                "value": {
+                  "stringValue": "stop"
+                }
+              },
+              {
+                "key": "ai.response.providerMetadata",
+                "value": {
+                  "stringValue": "{\"openai\":{}}"
+                }
+              },
+              {
+                "key": "ai.response.text",
+                "value": {
+                  "stringValue": "Paris."
+                }
+              },
+              {
+                "key": "ai.settings.maxRetries",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "ai.usage.cachedInputTokens",
+                "value": {
+                  "intValue": "16"
+                }
+              },
+              {
+                "key": "ai.usage.inputTokens",
+                "value": {
+                  "intValue": "42"
+                }
+              },
+              {
+                "key": "ai.usage.outputTokens",
+                "value": {
+                  "intValue": "9"
+                }
+              },
+              {
+                "key": "ai.usage.reasoningTokens",
+                "value": {
+                  "intValue": "3"
+                }
+              },
+              {
+                "key": "ai.usage.totalTokens",
+                "value": {
+                  "intValue": "51"
+                }
+              },
+              {
+                "key": "operation.name",
+                "value": {
+                  "stringValue": "ai.streamText"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000002",
+            "parentSpanId": "0000000000000001",
+            "name": "ai.streamText.doStream",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000001000000",
+            "endTimeUnixNano": "1700000000004000000",
+            "attributes": [
+              {
+                "key": "ai.model.id",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "ai.model.provider",
+                "value": {
+                  "stringValue": "openai.chat"
+                }
+              },
+              {
+                "key": "ai.operationId",
+                "value": {
+                  "stringValue": "ai.streamText.doStream"
+                }
+              },
+              {
+                "key": "ai.prompt.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Capital of France?\"}]}]"
+                }
+              },
+              {
+                "key": "ai.response.avgOutputTokensPerSecond",
+                "value": {
+                  "intValue": "3000"
+                }
+              },
+              {
+                "key": "ai.response.finishReason",
+                "value": {
+                  "stringValue": "stop"
+                }
+              },
+              {
+                "key": "ai.response.id",
+                "value": {
+                  "stringValue": "chatcmpl-rec2"
+                }
+              },
+              {
+                "key": "ai.response.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini-2024-07-18"
+                }
+              },
+              {
+                "key": "ai.response.msToFinish",
+                "value": {
+                  "intValue": "3"
+                }
+              },
+              {
+                "key": "ai.response.msToFirstChunk",
+                "value": {
+                  "intValue": "1"
+                }
+              },
+              {
+                "key": "ai.response.providerMetadata",
+                "value": {
+                  "stringValue": "{\"openai\":{}}"
+                }
+              },
+              {
+                "key": "ai.response.text",
+                "value": {
+                  "stringValue": "Paris."
+                }
+              },
+              {
+                "key": "ai.response.timestamp",
+                "value": {
+                  "stringValue": "2023-11-14T22:13:20.000Z"
+                }
+              },
+              {
+                "key": "ai.settings.maxRetries",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "ai.usage.cachedInputTokens",
+                "value": {
+                  "intValue": "16"
+                }
+              },
+              {
+                "key": "ai.usage.inputTokens",
+                "value": {
+                  "intValue": "42"
+                }
+              },
+              {
+                "key": "ai.usage.outputTokens",
+                "value": {
+                  "intValue": "9"
+                }
+              },
+              {
+                "key": "ai.usage.reasoningTokens",
+                "value": {
+                  "intValue": "3"
+                }
+              },
+              {
+                "key": "ai.usage.totalTokens",
+                "value": {
+                  "intValue": "51"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "gen_ai.response.finish_reasons",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "stop"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "gen_ai.response.id",
+                "value": {
+                  "stringValue": "chatcmpl-rec2"
+                }
+              },
+              {
+                "key": "gen_ai.response.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini-2024-07-18"
+                }
+              },
+              {
+                "key": "gen_ai.system",
+                "value": {
+                  "stringValue": "openai.chat"
+                }
+              },
+              {
+                "key": "gen_ai.usage.input_tokens",
+                "value": {
+                  "intValue": "42"
+                }
+              },
+              {
+                "key": "gen_ai.usage.output_tokens",
+                "value": {
+                  "intValue": "9"
+                }
+              },
+              {
+                "key": "operation.name",
+                "value": {
+                  "stringValue": "ai.streamText.doStream"
+                }
+              }
+            ],
+            "events": [
+              {
+                "timeUnixNano": "1700000000002000000",
+                "name": "ai.stream.firstChunk",
+                "attributes": [
+                  {
+                    "key": "ai.response.msToFirstChunk",
+                    "value": {
+                      "intValue": "1"
+                    }
+                  }
+                ]
+              },
+              {
+                "timeUnixNano": "1700000000003000000",
+                "name": "ai.stream.finish",
+                "attributes": []
+              }
+            ],
+            "status": {}
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "tool_loop",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "ai.generateText",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000007000000",
+            "attributes": [
+              {
+                "key": "ai.model.id",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "ai.model.provider",
+                "value": {
+                  "stringValue": "openai.chat"
+                }
+              },
+              {
+                "key": "ai.operationId",
+                "value": {
+                  "stringValue": "ai.generateText"
+                }
+              },
+              {
+                "key": "ai.prompt",
+                "value": {
+                  "stringValue": "{\"prompt\":\"Weather in Paris?\"}"
+                }
+              },
+              {
+                "key": "ai.request.headers.user-agent",
+                "value": {
+                  "stringValue": "ai/5.0.273"
+                }
+              },
+              {
+                "key": "ai.response.finishReason",
+                "value": {
+                  "stringValue": "stop"
+                }
+              },
+              {
+                "key": "ai.response.providerMetadata",
+                "value": {
+                  "stringValue": "{\"openai\":{}}"
+                }
+              },
+              {
+                "key": "ai.response.text",
+                "value": {
+                  "stringValue": "Sunny, 22C."
+                }
+              },
+              {
+                "key": "ai.settings.maxRetries",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "ai.usage.completionTokens",
+                "value": {
+                  "intValue": "15"
+                }
+              },
+              {
+                "key": "ai.usage.promptTokens",
+                "value": {
+                  "intValue": "91"
+                }
+              },
+              {
+                "key": "operation.name",
+                "value": {
+                  "stringValue": "ai.generateText"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000002",
+            "parentSpanId": "0000000000000001",
+            "name": "ai.generateText.doGenerate",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000001000000",
+            "endTimeUnixNano": "1700000000002000000",
+            "attributes": [
+              {
+                "key": "ai.model.id",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "ai.model.provider",
+                "value": {
+                  "stringValue": "openai.chat"
+                }
+              },
+              {
+                "key": "ai.operationId",
+                "value": {
+                  "stringValue": "ai.generateText.doGenerate"
+                }
+              },
+              {
+                "key": "ai.prompt.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Weather in Paris?\"}]}]"
+                }
+              },
+              {
+                "key": "ai.prompt.toolChoice",
+                "value": {
+                  "stringValue": "{\"type\":\"auto\"}"
+                }
+              },
+              {
+                "key": "ai.prompt.tools",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "{\"type\":\"function\",\"name\":\"get_weather\",\"description\":\"Current weather for a city\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"]}}"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "ai.request.headers.user-agent",
+                "value": {
+                  "stringValue": "ai/5.0.273"
+                }
+              },
+              {
+                "key": "ai.response.finishReason",
+                "value": {
+                  "stringValue": "tool-calls"
+                }
+              },
+              {
+                "key": "ai.response.id",
+                "value": {
+                  "stringValue": "chatcmpl-rec1"
+                }
+              },
+              {
+                "key": "ai.response.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini-2024-07-18"
+                }
+              },
+              {
+                "key": "ai.response.providerMetadata",
+                "value": {
+                  "stringValue": "{\"openai\":{}}"
+                }
+              },
+              {
+                "key": "ai.response.timestamp",
+                "value": {
+                  "stringValue": "2023-11-14T22:13:20.000Z"
+                }
+              },
+              {
+                "key": "ai.response.toolCalls",
+                "value": {
+                  "stringValue": "[{\"toolCallId\":\"call_rec1\",\"toolName\":\"get_weather\",\"input\":\"{\\\"city\\\":\\\"Paris\\\"}\"}]"
+                }
+              },
+              {
+                "key": "ai.settings.maxRetries",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "ai.usage.completionTokens",
+                "value": {
+                  "intValue": "51"
+                }
+              },
+              {
+                "key": "ai.usage.promptTokens",
+                "value": {
+                  "intValue": "24"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "gen_ai.response.finish_reasons",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "tool-calls"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "gen_ai.response.id",
+                "value": {
+                  "stringValue": "chatcmpl-rec1"
+                }
+              },
+              {
+                "key": "gen_ai.response.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini-2024-07-18"
+                }
+              },
+              {
+                "key": "gen_ai.system",
+                "value": {
+                  "stringValue": "openai.chat"
+                }
+              },
+              {
+                "key": "gen_ai.usage.input_tokens",
+                "value": {
+                  "intValue": "24"
+                }
+              },
+              {
+                "key": "gen_ai.usage.output_tokens",
+                "value": {
+                  "intValue": "51"
+                }
+              },
+              {
+                "key": "operation.name",
+                "value": {
+                  "stringValue": "ai.generateText.doGenerate"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000003",
+            "parentSpanId": "0000000000000001",
+            "name": "ai.toolCall",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000003000000",
+            "endTimeUnixNano": "1700000000004000000",
+            "attributes": [
+              {
+                "key": "ai.operationId",
+                "value": {
+                  "stringValue": "ai.toolCall"
+                }
+              },
+              {
+                "key": "ai.toolCall.args",
+                "value": {
+                  "stringValue": "{\"city\":\"Paris\"}"
+                }
+              },
+              {
+                "key": "ai.toolCall.id",
+                "value": {
+                  "stringValue": "call_rec1"
+                }
+              },
+              {
+                "key": "ai.toolCall.name",
+                "value": {
+                  "stringValue": "get_weather"
+                }
+              },
+              {
+                "key": "ai.toolCall.result",
+                "value": {
+                  "stringValue": "\"sunny, 22C\""
+                }
+              },
+              {
+                "key": "operation.name",
+                "value": {
+                  "stringValue": "ai.toolCall"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000004",
+            "parentSpanId": "0000000000000001",
+            "name": "ai.generateText.doGenerate",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000005000000",
+            "endTimeUnixNano": "1700000000006000000",
+            "attributes": [
+              {
+                "key": "ai.model.id",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "ai.model.provider",
+                "value": {
+                  "stringValue": "openai.chat"
+                }
+              },
+              {
+                "key": "ai.operationId",
+                "value": {
+                  "stringValue": "ai.generateText.doGenerate"
+                }
+              },
+              {
+                "key": "ai.prompt.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Weather in Paris?\"}]},{\"role\":\"assistant\",\"content\":[{\"type\":\"tool-call\",\"toolCallId\":\"call_rec1\",\"toolName\":\"get_weather\",\"input\":{\"city\":\"Paris\"}}]},{\"role\":\"tool\",\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_rec1\",\"toolName\":\"get_weather\",\"output\":{\"type\":\"text\",\"value\":\"sunny, 22C\"}}]}]"
+                }
+              },
+              {
+                "key": "ai.prompt.toolChoice",
+                "value": {
+                  "stringValue": "{\"type\":\"auto\"}"
+                }
+              },
+              {
+                "key": "ai.prompt.tools",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "{\"type\":\"function\",\"name\":\"get_weather\",\"description\":\"Current weather for a city\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"]}}"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "ai.request.headers.user-agent",
+                "value": {
+                  "stringValue": "ai/5.0.273"
+                }
+              },
+              {
+                "key": "ai.response.finishReason",
+                "value": {
+                  "stringValue": "stop"
+                }
+              },
+              {
+                "key": "ai.response.id",
+                "value": {
+                  "stringValue": "chatcmpl-rec2"
+                }
+              },
+              {
+                "key": "ai.response.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini-2024-07-18"
+                }
+              },
+              {
+                "key": "ai.response.providerMetadata",
+                "value": {
+                  "stringValue": "{\"openai\":{}}"
+                }
+              },
+              {
+                "key": "ai.response.text",
+                "value": {
+                  "stringValue": "Sunny, 22C."
+                }
+              },
+              {
+                "key": "ai.response.timestamp",
+                "value": {
+                  "stringValue": "2023-11-14T22:13:20.000Z"
+                }
+              },
+              {
+                "key": "ai.settings.maxRetries",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "ai.usage.completionTokens",
+                "value": {
+                  "intValue": "15"
+                }
+              },
+              {
+                "key": "ai.usage.promptTokens",
+                "value": {
+                  "intValue": "91"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "gen_ai.response.finish_reasons",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "stop"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "gen_ai.response.id",
+                "value": {
+                  "stringValue": "chatcmpl-rec2"
+                }
+              },
+              {
+                "key": "gen_ai.response.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini-2024-07-18"
+                }
+              },
+              {
+                "key": "gen_ai.system",
+                "value": {
+                  "stringValue": "openai.chat"
+                }
+              },
+              {
+                "key": "gen_ai.usage.input_tokens",
+                "value": {
+                  "intValue": "91"
+                }
+              },
+              {
+                "key": "gen_ai.usage.output_tokens",
+                "value": {
+                  "intValue": "15"
+                }
+              },
+              {
+                "key": "operation.name",
+                "value": {
+                  "stringValue": "ai.generateText.doGenerate"
+                }
+              }
+            ],
+            "status": {}
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "error",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "ai.generateText",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000005000000",
+            "attributes": [
+              {
+                "key": "ai.model.id",
+                "value": {
+                  "stringValue": "gpt-nope"
+                }
+              },
+              {
+                "key": "ai.model.provider",
+                "value": {
+                  "stringValue": "openai.chat"
+                }
+              },
+              {
+                "key": "ai.operationId",
+                "value": {
+                  "stringValue": "ai.generateText"
+                }
+              },
+              {
+                "key": "ai.prompt",
+                "value": {
+                  "stringValue": "{\"prompt\":\"hi\"}"
+                }
+              },
+              {
+                "key": "ai.request.headers.user-agent",
+                "value": {
+                  "stringValue": "ai/5.0.273"
+                }
+              },
+              {
+                "key": "ai.settings.maxRetries",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "operation.name",
+                "value": {
+                  "stringValue": "ai.generateText"
+                }
+              }
+            ],
+            "events": [
+              {
+                "timeUnixNano": "1700000000004000000",
+                "name": "exception",
+                "attributes": [
+                  {
+                    "key": "exception.message",
+                    "value": {
+                      "stringValue": "The model `gpt-nope` does not exist."
+                    }
+                  },
+                  {
+                    "key": "exception.stacktrace",
+                    "value": {
+                      "stringValue": "<stacktrace elided>"
+                    }
+                  },
+                  {
+                    "key": "exception.type",
+                    "value": {
+                      "stringValue": "AI_APICallError"
+                    }
+                  }
+                ]
+              }
+            ],
+            "status": {
+              "code": "STATUS_CODE_ERROR",
+              "message": "The model `gpt-nope` does not exist."
+            }
+          }
+        },
+        {
+          "scope": {
+            "name": "ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000002",
+            "parentSpanId": "0000000000000001",
+            "name": "ai.generateText.doGenerate",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000001000000",
+            "endTimeUnixNano": "1700000000003000000",
+            "attributes": [
+              {
+                "key": "ai.model.id",
+                "value": {
+                  "stringValue": "gpt-nope"
+                }
+              },
+              {
+                "key": "ai.model.provider",
+                "value": {
+                  "stringValue": "openai.chat"
+                }
+              },
+              {
+                "key": "ai.operationId",
+                "value": {
+                  "stringValue": "ai.generateText.doGenerate"
+                }
+              },
+              {
+                "key": "ai.prompt.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"hi\"}]}]"
+                }
+              },
+              {
+                "key": "ai.request.headers.user-agent",
+                "value": {
+                  "stringValue": "ai/5.0.273"
+                }
+              },
+              {
+                "key": "ai.settings.maxRetries",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-nope"
+                }
+              },
+              {
+                "key": "gen_ai.system",
+                "value": {
+                  "stringValue": "openai.chat"
+                }
+              },
+              {
+                "key": "operation.name",
+                "value": {
+                  "stringValue": "ai.generateText.doGenerate"
+                }
+              }
+            ],
+            "events": [
+              {
+                "timeUnixNano": "1700000000002000000",
+                "name": "exception",
+                "attributes": [
+                  {
+                    "key": "exception.message",
+                    "value": {
+                      "stringValue": "The model `gpt-nope` does not exist."
+                    }
+                  },
+                  {
+                    "key": "exception.stacktrace",
+                    "value": {
+                      "stringValue": "<stacktrace elided>"
+                    }
+                  },
+                  {
+                    "key": "exception.type",
+                    "value": {
+                      "stringValue": "AI_APICallError"
+                    }
+                  }
+                ]
+              }
+            ],
+            "status": {
+              "code": "STATUS_CODE_ERROR",
+              "message": "The model `gpt-nope` does not exist."
+            }
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "embed",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "ai.embed",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000003000000",
+            "attributes": [
+              {
+                "key": "ai.embedding",
+                "value": {
+                  "stringValue": "[0.25,-0.5,0.125]"
+                }
+              },
+              {
+                "key": "ai.model.id",
+                "value": {
+                  "stringValue": "text-embedding-3-small"
+                }
+              },
+              {
+                "key": "ai.model.provider",
+                "value": {
+                  "stringValue": "openai.embedding"
+                }
+              },
+              {
+                "key": "ai.operationId",
+                "value": {
+                  "stringValue": "ai.embed"
+                }
+              },
+              {
+                "key": "ai.request.headers.user-agent",
+                "value": {
+                  "stringValue": "ai/5.0.273"
+                }
+              },
+              {
+                "key": "ai.settings.maxRetries",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "ai.usage.tokens",
+                "value": {
+                  "intValue": "5"
+                }
+              },
+              {
+                "key": "ai.value",
+                "value": {
+                  "stringValue": "\"Capital of France?\""
+                }
+              },
+              {
+                "key": "operation.name",
+                "value": {
+                  "stringValue": "ai.embed"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000002",
+            "parentSpanId": "0000000000000001",
+            "name": "ai.embed.doEmbed",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000001000000",
+            "endTimeUnixNano": "1700000000002000000",
+            "attributes": [
+              {
+                "key": "ai.embeddings",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "[0.25,-0.5,0.125]"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "ai.model.id",
+                "value": {
+                  "stringValue": "text-embedding-3-small"
+                }
+              },
+              {
+                "key": "ai.model.provider",
+                "value": {
+                  "stringValue": "openai.embedding"
+                }
+              },
+              {
+                "key": "ai.operationId",
+                "value": {
+                  "stringValue": "ai.embed.doEmbed"
+                }
+              },
+              {
+                "key": "ai.request.headers.user-agent",
+                "value": {
+                  "stringValue": "ai/5.0.273"
+                }
+              },
+              {
+                "key": "ai.settings.maxRetries",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "ai.usage.tokens",
+                "value": {
+                  "intValue": "5"
+                }
+              },
+              {
+                "key": "ai.values",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "\"Capital of France?\""
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "operation.name",
+                "value": {
+                  "stringValue": "ai.embed.doEmbed"
+                }
+              }
+            ],
+            "status": {}
+          }
+        }
+      ]
+    }
+  ]
+}

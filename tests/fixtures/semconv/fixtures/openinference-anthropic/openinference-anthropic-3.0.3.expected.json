@@ -1,0 +1,962 @@
+{
+  "normalizer": {
+    "package": "glassflow-rius",
+    "version": "1.0.0",
+    "commit": "df42f19287225b91f10d6779c846ddab63162882"
+  },
+  "recordings": [
+    {
+      "scenario": "chat",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "python"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.45.1"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "openinference.instrumentation.anthropic",
+            "version": "3.0.3"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "messages.create",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000001000000",
+            "attributes": [
+              {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"system\",\"parts\":[{\"type\":\"text\",\"content\":\"Answer in one word.\"}]},{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Capital of France?\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "chat"
+                }
+              },
+              {
+                "key": "gen_ai.output.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"Paris.\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "anthropic"
+                }
+              },
+              {
+                "key": "gen_ai.request.max_tokens",
+                "value": {
+                  "intValue": "64"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "claude-haiku-4-5-20251001"
+                }
+              },
+              {
+                "key": "gen_ai.request.stop_sequences",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "\n\n"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "gen_ai.response.finish_reasons",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "end_turn"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "gen_ai.response.id",
+                "value": {
+                  "stringValue": "msg_rec1"
+                }
+              },
+              {
+                "key": "gen_ai.response.model",
+                "value": {
+                  "stringValue": "claude-haiku-4-5-20251001"
+                }
+              },
+              {
+                "key": "gen_ai.usage.cache_read.input_tokens",
+                "value": {
+                  "intValue": "16"
+                }
+              },
+              {
+                "key": "gen_ai.usage.cache_write.input_tokens",
+                "value": {
+                  "intValue": "8"
+                }
+              },
+              {
+                "key": "gen_ai.usage.input_tokens",
+                "value": {
+                  "intValue": "50"
+                }
+              },
+              {
+                "key": "gen_ai.usage.output_tokens",
+                "value": {
+                  "intValue": "9"
+                }
+              },
+              {
+                "key": "input.mime_type",
+                "value": {
+                  "stringValue": "application/json"
+                }
+              },
+              {
+                "key": "input.value",
+                "value": {
+                  "stringValue": "{\"model\": \"claude-haiku-4-5-20251001\", \"max_tokens\": 64, \"stop_sequences\": [\"\\n\\n\"], \"system\": \"Answer in one word.\", \"messages\": [{\"role\": \"user\", \"content\": \"Capital of France?\"}]}"
+                }
+              },
+              {
+                "key": "llm.model_name",
+                "value": {
+                  "stringValue": "claude-haiku-4-5-20251001"
+                }
+              },
+              {
+                "key": "llm.system",
+                "value": {
+                  "stringValue": "anthropic"
+                }
+              },
+              {
+                "key": "llm.token_count.total",
+                "value": {
+                  "intValue": "59"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "LLM"
+                }
+              },
+              {
+                "key": "output.mime_type",
+                "value": {
+                  "stringValue": "application/json"
+                }
+              },
+              {
+                "key": "output.value",
+                "value": {
+                  "stringValue": "{\"id\":\"msg_rec1\",\"container\":null,\"content\":[{\"citations\":null,\"text\":\"Paris.\",\"type\":\"text\"}],\"diagnostics\":null,\"model\":\"claude-haiku-4-5-20251001\",\"role\":\"assistant\",\"stop_details\":null,\"stop_reason\":\"end_turn\",\"stop_sequence\":null,\"type\":\"message\",\"usage\":{\"cache_creation\":null,\"cache_creation_input_tokens\":8,\"cache_read_input_tokens\":16,\"inference_geo\":null,\"input_tokens\":26,\"output_tokens\":9,\"output_tokens_details\":null,\"server_tool_use\":null,\"service_tier\":null}}"
+                }
+              }
+            ],
+            "status": {
+              "code": "STATUS_CODE_OK"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "chat_stream",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "python"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.45.1"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "openinference.instrumentation.anthropic",
+            "version": "3.0.3"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "messages.create",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000001000000",
+            "attributes": [
+              {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Capital of France?\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "chat"
+                }
+              },
+              {
+                "key": "gen_ai.output.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"Paris.\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "anthropic"
+                }
+              },
+              {
+                "key": "gen_ai.request.max_tokens",
+                "value": {
+                  "intValue": "64"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "claude-haiku-4-5-20251001"
+                }
+              },
+              {
+                "key": "gen_ai.request.stream",
+                "value": {
+                  "boolValue": true
+                }
+              },
+              {
+                "key": "gen_ai.response.finish_reasons",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "end_turn"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "gen_ai.response.id",
+                "value": {
+                  "stringValue": "msg_rec2"
+                }
+              },
+              {
+                "key": "gen_ai.response.model",
+                "value": {
+                  "stringValue": "claude-haiku-4-5-20251001"
+                }
+              },
+              {
+                "key": "gen_ai.usage.cache_read.input_tokens",
+                "value": {
+                  "intValue": "16"
+                }
+              },
+              {
+                "key": "gen_ai.usage.cache_write.input_tokens",
+                "value": {
+                  "intValue": "8"
+                }
+              },
+              {
+                "key": "gen_ai.usage.input_tokens",
+                "value": {
+                  "intValue": "50"
+                }
+              },
+              {
+                "key": "gen_ai.usage.output_tokens",
+                "value": {
+                  "intValue": "9"
+                }
+              },
+              {
+                "key": "input.mime_type",
+                "value": {
+                  "stringValue": "application/json"
+                }
+              },
+              {
+                "key": "input.value",
+                "value": {
+                  "stringValue": "{\"model\": \"claude-haiku-4-5-20251001\", \"max_tokens\": 64, \"stream\": true, \"messages\": [{\"role\": \"user\", \"content\": \"Capital of France?\"}]}"
+                }
+              },
+              {
+                "key": "llm.model_name",
+                "value": {
+                  "stringValue": "claude-haiku-4-5-20251001"
+                }
+              },
+              {
+                "key": "llm.system",
+                "value": {
+                  "stringValue": "anthropic"
+                }
+              },
+              {
+                "key": "llm.token_count.total",
+                "value": {
+                  "intValue": "59"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "LLM"
+                }
+              },
+              {
+                "key": "output.mime_type",
+                "value": {
+                  "stringValue": "application/json"
+                }
+              },
+              {
+                "key": "output.value",
+                "value": {
+                  "stringValue": "{\"id\":\"msg_rec2\",\"container\":null,\"content\":[{\"citations\":null,\"text\":\"Paris.\",\"type\":\"text\"}],\"diagnostics\":null,\"model\":\"claude-haiku-4-5-20251001\",\"role\":\"assistant\",\"stop_details\":null,\"stop_reason\":\"end_turn\",\"stop_sequence\":null,\"type\":\"message\",\"usage\":{\"cache_creation\":null,\"cache_creation_input_tokens\":8,\"cache_read_input_tokens\":16,\"inference_geo\":null,\"input_tokens\":26,\"output_tokens\":9,\"output_tokens_details\":null,\"server_tool_use\":null,\"service_tier\":null}}"
+                }
+              }
+            ],
+            "status": {
+              "code": "STATUS_CODE_OK"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "tool_call",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "python"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.45.1"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "openinference.instrumentation.anthropic",
+            "version": "3.0.3"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "messages.create",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000001000000",
+            "attributes": [
+              {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Weather in Paris?\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "chat"
+                }
+              },
+              {
+                "key": "gen_ai.output.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"toolu_rec1\",\"name\":\"get_weather\",\"arguments\":\"{\\\"city\\\": \\\"Paris\\\"}\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "anthropic"
+                }
+              },
+              {
+                "key": "gen_ai.request.max_tokens",
+                "value": {
+                  "intValue": "64"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "claude-haiku-4-5-20251001"
+                }
+              },
+              {
+                "key": "gen_ai.response.finish_reasons",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "tool_use"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "gen_ai.response.id",
+                "value": {
+                  "stringValue": "msg_rec1"
+                }
+              },
+              {
+                "key": "gen_ai.response.model",
+                "value": {
+                  "stringValue": "claude-haiku-4-5-20251001"
+                }
+              },
+              {
+                "key": "gen_ai.tool.definitions",
+                "value": {
+                  "stringValue": "[{\"name\":\"get_weather\",\"description\":\"Current weather for a city\",\"input_schema\":{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"]}}]"
+                }
+              },
+              {
+                "key": "gen_ai.usage.cache_read.input_tokens",
+                "value": {
+                  "intValue": "16"
+                }
+              },
+              {
+                "key": "gen_ai.usage.cache_write.input_tokens",
+                "value": {
+                  "intValue": "8"
+                }
+              },
+              {
+                "key": "gen_ai.usage.input_tokens",
+                "value": {
+                  "intValue": "50"
+                }
+              },
+              {
+                "key": "gen_ai.usage.output_tokens",
+                "value": {
+                  "intValue": "9"
+                }
+              },
+              {
+                "key": "input.mime_type",
+                "value": {
+                  "stringValue": "application/json"
+                }
+              },
+              {
+                "key": "input.value",
+                "value": {
+                  "stringValue": "{\"model\": \"claude-haiku-4-5-20251001\", \"max_tokens\": 64, \"tools\": [{\"name\": \"get_weather\", \"description\": \"Current weather for a city\", \"input_schema\": {\"type\": \"object\", \"properties\": {\"city\": {\"type\": \"string\"}}, \"required\": [\"city\"]}}], \"tool_choice\": {\"type\": \"auto\"}, \"messages\": [{\"role\": \"user\", \"content\": \"Weather in Paris?\"}]}"
+                }
+              },
+              {
+                "key": "llm.model_name",
+                "value": {
+                  "stringValue": "claude-haiku-4-5-20251001"
+                }
+              },
+              {
+                "key": "llm.system",
+                "value": {
+                  "stringValue": "anthropic"
+                }
+              },
+              {
+                "key": "llm.token_count.total",
+                "value": {
+                  "intValue": "59"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "LLM"
+                }
+              },
+              {
+                "key": "output.mime_type",
+                "value": {
+                  "stringValue": "application/json"
+                }
+              },
+              {
+                "key": "output.value",
+                "value": {
+                  "stringValue": "{\"id\":\"msg_rec1\",\"container\":null,\"content\":[{\"id\":\"toolu_rec1\",\"caller\":null,\"input\":{\"city\":\"Paris\"},\"name\":\"get_weather\",\"type\":\"tool_use\",\"toolset_name\":null}],\"diagnostics\":null,\"model\":\"claude-haiku-4-5-20251001\",\"role\":\"assistant\",\"stop_details\":null,\"stop_reason\":\"tool_use\",\"stop_sequence\":null,\"type\":\"message\",\"usage\":{\"cache_creation\":null,\"cache_creation_input_tokens\":8,\"cache_read_input_tokens\":16,\"inference_geo\":null,\"input_tokens\":26,\"output_tokens\":9,\"output_tokens_details\":null,\"server_tool_use\":null,\"service_tier\":null}}"
+                }
+              },
+              {
+                "key": "rius.request.tool_choice",
+                "value": {
+                  "stringValue": "{\"type\":\"auto\"}"
+                }
+              }
+            ],
+            "status": {
+              "code": "STATUS_CODE_OK"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "tool_response",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "python"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.45.1"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "openinference.instrumentation.anthropic",
+            "version": "3.0.3"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "messages.create",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000001000000",
+            "attributes": [
+              {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Weather in Paris?\"}]},{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"toolu_rec1\",\"name\":\"get_weather\",\"arguments\":\"{\\\"city\\\": \\\"Paris\\\"}\"}]},{\"role\":\"user\",\"parts\":[{\"type\":\"tool_call_response\",\"id\":\"toolu_rec1\",\"response\":\"sunny, 22C\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "chat"
+                }
+              },
+              {
+                "key": "gen_ai.output.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"Sunny, 22C.\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "anthropic"
+                }
+              },
+              {
+                "key": "gen_ai.request.max_tokens",
+                "value": {
+                  "intValue": "64"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "claude-haiku-4-5-20251001"
+                }
+              },
+              {
+                "key": "gen_ai.response.finish_reasons",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "end_turn"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "gen_ai.response.id",
+                "value": {
+                  "stringValue": "msg_rec1"
+                }
+              },
+              {
+                "key": "gen_ai.response.model",
+                "value": {
+                  "stringValue": "claude-haiku-4-5-20251001"
+                }
+              },
+              {
+                "key": "gen_ai.tool.definitions",
+                "value": {
+                  "stringValue": "[{\"name\":\"get_weather\",\"description\":\"Current weather for a city\",\"input_schema\":{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"]}}]"
+                }
+              },
+              {
+                "key": "gen_ai.usage.cache_read.input_tokens",
+                "value": {
+                  "intValue": "16"
+                }
+              },
+              {
+                "key": "gen_ai.usage.cache_write.input_tokens",
+                "value": {
+                  "intValue": "8"
+                }
+              },
+              {
+                "key": "gen_ai.usage.input_tokens",
+                "value": {
+                  "intValue": "50"
+                }
+              },
+              {
+                "key": "gen_ai.usage.output_tokens",
+                "value": {
+                  "intValue": "9"
+                }
+              },
+              {
+                "key": "input.mime_type",
+                "value": {
+                  "stringValue": "application/json"
+                }
+              },
+              {
+                "key": "input.value",
+                "value": {
+                  "stringValue": "{\"model\": \"claude-haiku-4-5-20251001\", \"max_tokens\": 64, \"tools\": [{\"name\": \"get_weather\", \"description\": \"Current weather for a city\", \"input_schema\": {\"type\": \"object\", \"properties\": {\"city\": {\"type\": \"string\"}}, \"required\": [\"city\"]}}], \"messages\": [{\"role\": \"user\", \"content\": \"Weather in Paris?\"}, {\"role\": \"assistant\", \"content\": [{\"type\": \"tool_use\", \"id\": \"toolu_rec1\", \"name\": \"get_weather\", \"input\": {\"city\": \"Paris\"}}]}, {\"role\": \"user\", \"content\": [{\"type\": \"tool_result\", \"tool_use_id\": \"toolu_rec1\", \"content\": \"sunny, 22C\"}]}]}"
+                }
+              },
+              {
+                "key": "llm.model_name",
+                "value": {
+                  "stringValue": "claude-haiku-4-5-20251001"
+                }
+              },
+              {
+                "key": "llm.system",
+                "value": {
+                  "stringValue": "anthropic"
+                }
+              },
+              {
+                "key": "llm.token_count.total",
+                "value": {
+                  "intValue": "59"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "LLM"
+                }
+              },
+              {
+                "key": "output.mime_type",
+                "value": {
+                  "stringValue": "application/json"
+                }
+              },
+              {
+                "key": "output.value",
+                "value": {
+                  "stringValue": "{\"id\":\"msg_rec1\",\"container\":null,\"content\":[{\"citations\":null,\"text\":\"Sunny, 22C.\",\"type\":\"text\"}],\"diagnostics\":null,\"model\":\"claude-haiku-4-5-20251001\",\"role\":\"assistant\",\"stop_details\":null,\"stop_reason\":\"end_turn\",\"stop_sequence\":null,\"type\":\"message\",\"usage\":{\"cache_creation\":null,\"cache_creation_input_tokens\":8,\"cache_read_input_tokens\":16,\"inference_geo\":null,\"input_tokens\":26,\"output_tokens\":9,\"output_tokens_details\":null,\"server_tool_use\":null,\"service_tier\":null}}"
+                }
+              }
+            ],
+            "status": {
+              "code": "STATUS_CODE_OK"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "error",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "python"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.45.1"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "openinference.instrumentation.anthropic",
+            "version": "3.0.3"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "messages.create",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000002000000",
+            "attributes": [
+              {
+                "key": "error.type",
+                "value": {
+                  "stringValue": "anthropic.BadRequestError"
+                }
+              },
+              {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"hi\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "chat"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "anthropic"
+                }
+              },
+              {
+                "key": "gen_ai.request.max_tokens",
+                "value": {
+                  "intValue": "64"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "claude-nope"
+                }
+              },
+              {
+                "key": "input.mime_type",
+                "value": {
+                  "stringValue": "application/json"
+                }
+              },
+              {
+                "key": "input.value",
+                "value": {
+                  "stringValue": "{\"model\": \"claude-nope\", \"max_tokens\": 64, \"messages\": [{\"role\": \"user\", \"content\": \"hi\"}]}"
+                }
+              },
+              {
+                "key": "llm.model_name",
+                "value": {
+                  "stringValue": "claude-nope"
+                }
+              },
+              {
+                "key": "llm.system",
+                "value": {
+                  "stringValue": "anthropic"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "LLM"
+                }
+              }
+            ],
+            "events": [
+              {
+                "timeUnixNano": "1700000000001000000",
+                "name": "exception",
+                "attributes": [
+                  {
+                    "key": "exception.escaped",
+                    "value": {
+                      "stringValue": "False"
+                    }
+                  },
+                  {
+                    "key": "exception.message",
+                    "value": {
+                      "stringValue": "Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'model: claude-nope'}}"
+                    }
+                  },
+                  {
+                    "key": "exception.stacktrace",
+                    "value": {
+                      "stringValue": "<stacktrace elided>"
+                    }
+                  },
+                  {
+                    "key": "exception.type",
+                    "value": {
+                      "stringValue": "anthropic.BadRequestError"
+                    }
+                  }
+                ]
+              }
+            ],
+            "status": {
+              "message": "Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'model: claude-nope'}}",
+              "code": "STATUS_CODE_ERROR"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

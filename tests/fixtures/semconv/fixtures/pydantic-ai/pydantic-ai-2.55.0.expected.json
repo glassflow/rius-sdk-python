@@ -1,0 +1,1545 @@
+{
+  "normalizer": {
+    "package": "glassflow-rius",
+    "version": "1.0.0",
+    "commit": "df42f19287225b91f10d6779c846ddab63162882"
+  },
+  "recordings": [
+    {
+      "scenario": "chat",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "python"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.45.1"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "pydantic-ai",
+            "version": "2.55.0"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "invoke_agent weather_agent",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000003000000",
+            "attributes": [
+              {
+                "key": "agent_name",
+                "value": {
+                  "stringValue": "weather_agent"
+                }
+              },
+              {
+                "key": "final_result",
+                "value": {
+                  "stringValue": "Paris."
+                }
+              },
+              {
+                "key": "gen_ai.agent.call.id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "gen_ai.agent.name",
+                "value": {
+                  "stringValue": "weather_agent"
+                }
+              },
+              {
+                "key": "gen_ai.aggregated_usage.cache_read.input_tokens",
+                "value": {
+                  "intValue": "16"
+                }
+              },
+              {
+                "key": "gen_ai.aggregated_usage.details.audio_tokens",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "gen_ai.aggregated_usage.details.cache_read_tokens",
+                "value": {
+                  "intValue": "16"
+                }
+              },
+              {
+                "key": "gen_ai.aggregated_usage.details.reasoning_tokens",
+                "value": {
+                  "intValue": "3"
+                }
+              },
+              {
+                "key": "gen_ai.aggregated_usage.input_tokens",
+                "value": {
+                  "intValue": "42"
+                }
+              },
+              {
+                "key": "gen_ai.aggregated_usage.output_tokens",
+                "value": {
+                  "intValue": "9"
+                }
+              },
+              {
+                "key": "gen_ai.conversation.id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000002"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "invoke_agent"
+                }
+              },
+              {
+                "key": "logfire.json_schema",
+                "value": {
+                  "stringValue": "{\"type\":\"object\",\"properties\":{\"pydantic_ai.all_messages\":{\"type\":\"array\"},\"final_result\":{\"type\":\"object\"}}}"
+                }
+              },
+              {
+                "key": "logfire.msg",
+                "value": {
+                  "stringValue": "weather_agent run"
+                }
+              },
+              {
+                "key": "model_name",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "AGENT"
+                }
+              },
+              {
+                "key": "pydantic_ai.all_messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"system\",\"parts\":[{\"type\":\"text\",\"content\":\"Answer in one word.\"}]},{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Capital of France?\"}]},{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"Paris.\"}],\"finish_reason\":\"stop\"}]"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "pydantic-ai",
+            "version": "2.55.0"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000002",
+            "parentSpanId": "0000000000000001",
+            "name": "chat gpt-4o-mini",
+            "kind": "SPAN_KIND_CLIENT",
+            "startTimeUnixNano": "1700000000001000000",
+            "endTimeUnixNano": "1700000000002000000",
+            "attributes": [
+              {
+                "key": "gen_ai.agent.call.id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "gen_ai.agent.name",
+                "value": {
+                  "stringValue": "weather_agent"
+                }
+              },
+              {
+                "key": "gen_ai.conversation.id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000002"
+                }
+              },
+              {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"system\",\"parts\":[{\"type\":\"text\",\"content\":\"Answer in one word.\"}]},{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Capital of France?\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "chat"
+                }
+              },
+              {
+                "key": "gen_ai.output.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"Paris.\"}],\"finish_reason\":\"stop\"}]"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "gen_ai.request.max_tokens",
+                "value": {
+                  "intValue": "64"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "gen_ai.request.temperature",
+                "value": {
+                  "doubleValue": 0.2
+                }
+              },
+              {
+                "key": "gen_ai.response.finish_reasons",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "stop"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "gen_ai.response.id",
+                "value": {
+                  "stringValue": "chatcmpl-rec1"
+                }
+              },
+              {
+                "key": "gen_ai.response.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini-2024-07-18"
+                }
+              },
+              {
+                "key": "gen_ai.usage.cache_read.input_tokens",
+                "value": {
+                  "intValue": "16"
+                }
+              },
+              {
+                "key": "gen_ai.usage.details.audio_tokens",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "gen_ai.usage.details.cache_read_tokens",
+                "value": {
+                  "intValue": "16"
+                }
+              },
+              {
+                "key": "gen_ai.usage.input_tokens",
+                "value": {
+                  "intValue": "42"
+                }
+              },
+              {
+                "key": "gen_ai.usage.output_tokens",
+                "value": {
+                  "intValue": "9"
+                }
+              },
+              {
+                "key": "gen_ai.usage.reasoning.output_tokens",
+                "value": {
+                  "intValue": "3"
+                }
+              },
+              {
+                "key": "logfire.json_schema",
+                "value": {
+                  "stringValue": "{\"type\":\"object\",\"properties\":{\"gen_ai.input.messages\":{\"type\":\"array\"},\"gen_ai.output.messages\":{\"type\":\"array\"},\"model_request_parameters\":{\"type\":\"object\"}}}"
+                }
+              },
+              {
+                "key": "model_request_parameters",
+                "value": {
+                  "stringValue": "{\"function_tools\":[],\"native_tools\":[],\"tool_visibility\":{},\"revealed_tool_names\":[],\"deferred_capability_ids\":[],\"output_mode\":\"text\",\"output_object\":null,\"output_tools\":[],\"prompted_output_template\":null,\"allow_text_output\":true,\"allow_image_output\":false,\"instruction_parts\":null,\"thinking\":null,\"cache\":null}"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "LLM"
+                }
+              },
+              {
+                "key": "operation.cost",
+                "value": {
+                  "doubleValue": 1.05e-05
+                }
+              },
+              {
+                "key": "pydantic_ai.cache.established_tokens",
+                "value": {
+                  "intValue": "16"
+                }
+              },
+              {
+                "key": "pydantic_ai.cache.hit_ratio",
+                "value": {
+                  "doubleValue": 0.38095238095238093
+                }
+              },
+              {
+                "key": "server.address",
+                "value": {
+                  "stringValue": "api.openai.com"
+                }
+              }
+            ],
+            "status": {}
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "chat_stream",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "python"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.45.1"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "pydantic-ai",
+            "version": "2.55.0"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "invoke_agent weather_agent",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000003000000",
+            "attributes": [
+              {
+                "key": "agent_name",
+                "value": {
+                  "stringValue": "weather_agent"
+                }
+              },
+              {
+                "key": "final_result",
+                "value": {
+                  "stringValue": "Paris."
+                }
+              },
+              {
+                "key": "gen_ai.agent.call.id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "gen_ai.agent.name",
+                "value": {
+                  "stringValue": "weather_agent"
+                }
+              },
+              {
+                "key": "gen_ai.aggregated_usage.cache_read.input_tokens",
+                "value": {
+                  "intValue": "16"
+                }
+              },
+              {
+                "key": "gen_ai.aggregated_usage.details.audio_tokens",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "gen_ai.aggregated_usage.details.cache_read_tokens",
+                "value": {
+                  "intValue": "16"
+                }
+              },
+              {
+                "key": "gen_ai.aggregated_usage.details.reasoning_tokens",
+                "value": {
+                  "intValue": "3"
+                }
+              },
+              {
+                "key": "gen_ai.aggregated_usage.input_tokens",
+                "value": {
+                  "intValue": "42"
+                }
+              },
+              {
+                "key": "gen_ai.aggregated_usage.output_tokens",
+                "value": {
+                  "intValue": "9"
+                }
+              },
+              {
+                "key": "gen_ai.conversation.id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000002"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "invoke_agent"
+                }
+              },
+              {
+                "key": "logfire.json_schema",
+                "value": {
+                  "stringValue": "{\"type\":\"object\",\"properties\":{\"pydantic_ai.all_messages\":{\"type\":\"array\"},\"final_result\":{\"type\":\"object\"}}}"
+                }
+              },
+              {
+                "key": "logfire.msg",
+                "value": {
+                  "stringValue": "weather_agent run"
+                }
+              },
+              {
+                "key": "model_name",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "AGENT"
+                }
+              },
+              {
+                "key": "pydantic_ai.all_messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Capital of France?\"}]},{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"Paris.\"}],\"finish_reason\":\"stop\"}]"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "pydantic-ai",
+            "version": "2.55.0"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000002",
+            "parentSpanId": "0000000000000001",
+            "name": "chat gpt-4o-mini",
+            "kind": "SPAN_KIND_CLIENT",
+            "startTimeUnixNano": "1700000000001000000",
+            "endTimeUnixNano": "1700000000002000000",
+            "attributes": [
+              {
+                "key": "gen_ai.agent.call.id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "gen_ai.agent.name",
+                "value": {
+                  "stringValue": "weather_agent"
+                }
+              },
+              {
+                "key": "gen_ai.client.operation.time_to_first_chunk",
+                "value": {
+                  "doubleValue": 0.003
+                }
+              },
+              {
+                "key": "gen_ai.conversation.id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000002"
+                }
+              },
+              {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Capital of France?\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "chat"
+                }
+              },
+              {
+                "key": "gen_ai.output.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"Paris.\"}],\"finish_reason\":\"stop\"}]"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "gen_ai.response.finish_reasons",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "stop"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "gen_ai.response.id",
+                "value": {
+                  "stringValue": "chatcmpl-rec2"
+                }
+              },
+              {
+                "key": "gen_ai.response.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini-2024-07-18"
+                }
+              },
+              {
+                "key": "gen_ai.usage.cache_read.input_tokens",
+                "value": {
+                  "intValue": "16"
+                }
+              },
+              {
+                "key": "gen_ai.usage.details.audio_tokens",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "gen_ai.usage.details.cache_read_tokens",
+                "value": {
+                  "intValue": "16"
+                }
+              },
+              {
+                "key": "gen_ai.usage.input_tokens",
+                "value": {
+                  "intValue": "42"
+                }
+              },
+              {
+                "key": "gen_ai.usage.output_tokens",
+                "value": {
+                  "intValue": "9"
+                }
+              },
+              {
+                "key": "gen_ai.usage.reasoning.output_tokens",
+                "value": {
+                  "intValue": "3"
+                }
+              },
+              {
+                "key": "logfire.json_schema",
+                "value": {
+                  "stringValue": "{\"type\":\"object\",\"properties\":{\"gen_ai.input.messages\":{\"type\":\"array\"},\"gen_ai.output.messages\":{\"type\":\"array\"},\"model_request_parameters\":{\"type\":\"object\"}}}"
+                }
+              },
+              {
+                "key": "model_request_parameters",
+                "value": {
+                  "stringValue": "{\"function_tools\":[],\"native_tools\":[],\"tool_visibility\":{},\"revealed_tool_names\":[],\"deferred_capability_ids\":[],\"output_mode\":\"text\",\"output_object\":null,\"output_tools\":[],\"prompted_output_template\":null,\"allow_text_output\":true,\"allow_image_output\":false,\"instruction_parts\":null,\"thinking\":null,\"cache\":null}"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "LLM"
+                }
+              },
+              {
+                "key": "operation.cost",
+                "value": {
+                  "doubleValue": 1.05e-05
+                }
+              },
+              {
+                "key": "pydantic_ai.cache.established_tokens",
+                "value": {
+                  "intValue": "16"
+                }
+              },
+              {
+                "key": "pydantic_ai.cache.hit_ratio",
+                "value": {
+                  "doubleValue": 0.38095238095238093
+                }
+              },
+              {
+                "key": "server.address",
+                "value": {
+                  "stringValue": "api.openai.com"
+                }
+              }
+            ],
+            "status": {}
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "agent_tools",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "python"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.45.1"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "pydantic-ai",
+            "version": "2.55.0"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "invoke_agent weather_agent",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000007000000",
+            "attributes": [
+              {
+                "key": "agent_name",
+                "value": {
+                  "stringValue": "weather_agent"
+                }
+              },
+              {
+                "key": "final_result",
+                "value": {
+                  "stringValue": "Sunny, 22C."
+                }
+              },
+              {
+                "key": "gen_ai.agent.call.id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "gen_ai.agent.name",
+                "value": {
+                  "stringValue": "weather_agent"
+                }
+              },
+              {
+                "key": "gen_ai.aggregated_usage.cache_read.input_tokens",
+                "value": {
+                  "intValue": "32"
+                }
+              },
+              {
+                "key": "gen_ai.aggregated_usage.details.audio_tokens",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "gen_ai.aggregated_usage.details.cache_read_tokens",
+                "value": {
+                  "intValue": "32"
+                }
+              },
+              {
+                "key": "gen_ai.aggregated_usage.details.reasoning_tokens",
+                "value": {
+                  "intValue": "6"
+                }
+              },
+              {
+                "key": "gen_ai.aggregated_usage.input_tokens",
+                "value": {
+                  "intValue": "84"
+                }
+              },
+              {
+                "key": "gen_ai.aggregated_usage.output_tokens",
+                "value": {
+                  "intValue": "18"
+                }
+              },
+              {
+                "key": "gen_ai.conversation.id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000002"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "invoke_agent"
+                }
+              },
+              {
+                "key": "logfire.json_schema",
+                "value": {
+                  "stringValue": "{\"type\":\"object\",\"properties\":{\"pydantic_ai.all_messages\":{\"type\":\"array\"},\"final_result\":{\"type\":\"object\"}}}"
+                }
+              },
+              {
+                "key": "logfire.msg",
+                "value": {
+                  "stringValue": "weather_agent run"
+                }
+              },
+              {
+                "key": "model_name",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "AGENT"
+                }
+              },
+              {
+                "key": "pydantic_ai.all_messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Weather in Paris?\"}]},{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"call_rec1\",\"name\":\"get_weather\",\"arguments\":\"{\\\"city\\\": \\\"Paris\\\"}\"}],\"finish_reason\":\"tool_call\"},{\"role\":\"user\",\"parts\":[{\"type\":\"tool_call_response\",\"id\":\"call_rec1\",\"name\":\"get_weather\",\"result\":\"sunny, 22C\"}]},{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"Sunny, 22C.\"}],\"finish_reason\":\"stop\"}]"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "pydantic-ai",
+            "version": "2.55.0"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000002",
+            "parentSpanId": "0000000000000001",
+            "name": "chat gpt-4o-mini",
+            "kind": "SPAN_KIND_CLIENT",
+            "startTimeUnixNano": "1700000000001000000",
+            "endTimeUnixNano": "1700000000002000000",
+            "attributes": [
+              {
+                "key": "gen_ai.agent.call.id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "gen_ai.agent.name",
+                "value": {
+                  "stringValue": "weather_agent"
+                }
+              },
+              {
+                "key": "gen_ai.conversation.id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000002"
+                }
+              },
+              {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Weather in Paris?\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "chat"
+                }
+              },
+              {
+                "key": "gen_ai.output.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"call_rec1\",\"name\":\"get_weather\",\"arguments\":\"{\\\"city\\\": \\\"Paris\\\"}\"}],\"finish_reason\":\"tool_call\"}]"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "gen_ai.response.finish_reasons",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "tool_call"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "gen_ai.response.id",
+                "value": {
+                  "stringValue": "chatcmpl-rec1"
+                }
+              },
+              {
+                "key": "gen_ai.response.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini-2024-07-18"
+                }
+              },
+              {
+                "key": "gen_ai.tool.definitions",
+                "value": {
+                  "stringValue": "[{\"type\":\"function\",\"name\":\"get_weather\",\"description\":\"Current weather for a city.\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"],\"type\":\"object\"}}]"
+                }
+              },
+              {
+                "key": "gen_ai.usage.cache_read.input_tokens",
+                "value": {
+                  "intValue": "16"
+                }
+              },
+              {
+                "key": "gen_ai.usage.details.audio_tokens",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "gen_ai.usage.details.cache_read_tokens",
+                "value": {
+                  "intValue": "16"
+                }
+              },
+              {
+                "key": "gen_ai.usage.input_tokens",
+                "value": {
+                  "intValue": "42"
+                }
+              },
+              {
+                "key": "gen_ai.usage.output_tokens",
+                "value": {
+                  "intValue": "9"
+                }
+              },
+              {
+                "key": "gen_ai.usage.reasoning.output_tokens",
+                "value": {
+                  "intValue": "3"
+                }
+              },
+              {
+                "key": "logfire.json_schema",
+                "value": {
+                  "stringValue": "{\"type\":\"object\",\"properties\":{\"gen_ai.input.messages\":{\"type\":\"array\"},\"gen_ai.output.messages\":{\"type\":\"array\"},\"model_request_parameters\":{\"type\":\"object\"}}}"
+                }
+              },
+              {
+                "key": "model_request_parameters",
+                "value": {
+                  "stringValue": "{\"function_tools\":[{\"name\":\"get_weather\",\"parameters_json_schema\":{\"additionalProperties\":false,\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"],\"type\":\"object\"},\"description\":\"Current weather for a city.\",\"outer_typed_dict_key\":null,\"strict\":true,\"sequential\":false,\"kind\":\"function\",\"metadata\":null,\"timeout\":null,\"defer_loading\":false,\"unless_native\":null,\"with_native\":null,\"tool_kind\":null,\"return_schema\":null,\"include_return_schema\":null,\"toolset_id\":\"<agent>\",\"capability_id\":null}],\"native_tools\":[],\"tool_visibility\":{\"get_weather\":\"visible\"},\"revealed_tool_names\":[],\"deferred_capability_ids\":[],\"output_mode\":\"text\",\"output_object\":null,\"output_tools\":[],\"prompted_output_template\":null,\"allow_text_output\":true,\"allow_image_output\":false,\"instruction_parts\":null,\"thinking\":null,\"cache\":null}"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "LLM"
+                }
+              },
+              {
+                "key": "operation.cost",
+                "value": {
+                  "doubleValue": 1.05e-05
+                }
+              },
+              {
+                "key": "pydantic_ai.cache.established_tokens",
+                "value": {
+                  "intValue": "16"
+                }
+              },
+              {
+                "key": "pydantic_ai.cache.hit_ratio",
+                "value": {
+                  "doubleValue": 0.38095238095238093
+                }
+              },
+              {
+                "key": "server.address",
+                "value": {
+                  "stringValue": "api.openai.com"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "pydantic-ai",
+            "version": "2.55.0"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000003",
+            "parentSpanId": "0000000000000001",
+            "name": "execute_tool get_weather",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000003000000",
+            "endTimeUnixNano": "1700000000004000000",
+            "attributes": [
+              {
+                "key": "gen_ai.agent.call.id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "gen_ai.agent.name",
+                "value": {
+                  "stringValue": "weather_agent"
+                }
+              },
+              {
+                "key": "gen_ai.conversation.id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000002"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "execute_tool"
+                }
+              },
+              {
+                "key": "gen_ai.tool.call.arguments",
+                "value": {
+                  "stringValue": "{\"city\": \"Paris\"}"
+                }
+              },
+              {
+                "key": "gen_ai.tool.call.id",
+                "value": {
+                  "stringValue": "call_rec1"
+                }
+              },
+              {
+                "key": "gen_ai.tool.call.result",
+                "value": {
+                  "stringValue": "sunny, 22C"
+                }
+              },
+              {
+                "key": "gen_ai.tool.name",
+                "value": {
+                  "stringValue": "get_weather"
+                }
+              },
+              {
+                "key": "logfire.json_schema",
+                "value": {
+                  "stringValue": "{\"type\":\"object\",\"properties\":{\"gen_ai.tool.call.arguments\":{\"type\":\"object\"},\"gen_ai.tool.call.result\":{\"type\":\"object\"},\"gen_ai.tool.name\":{},\"gen_ai.tool.call.id\":{}}}"
+                }
+              },
+              {
+                "key": "logfire.msg",
+                "value": {
+                  "stringValue": "running tool: get_weather"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "TOOL"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "pydantic-ai",
+            "version": "2.55.0"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000004",
+            "parentSpanId": "0000000000000001",
+            "name": "chat gpt-4o-mini",
+            "kind": "SPAN_KIND_CLIENT",
+            "startTimeUnixNano": "1700000000005000000",
+            "endTimeUnixNano": "1700000000006000000",
+            "attributes": [
+              {
+                "key": "gen_ai.agent.call.id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "gen_ai.agent.name",
+                "value": {
+                  "stringValue": "weather_agent"
+                }
+              },
+              {
+                "key": "gen_ai.conversation.id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000002"
+                }
+              },
+              {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Weather in Paris?\"}]},{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"call_rec1\",\"name\":\"get_weather\",\"arguments\":\"{\\\"city\\\": \\\"Paris\\\"}\"}],\"finish_reason\":\"tool_call\"},{\"role\":\"user\",\"parts\":[{\"type\":\"tool_call_response\",\"id\":\"call_rec1\",\"name\":\"get_weather\",\"result\":\"sunny, 22C\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "chat"
+                }
+              },
+              {
+                "key": "gen_ai.output.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"Sunny, 22C.\"}],\"finish_reason\":\"stop\"}]"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "gen_ai.response.finish_reasons",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "stop"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "gen_ai.response.id",
+                "value": {
+                  "stringValue": "chatcmpl-rec2"
+                }
+              },
+              {
+                "key": "gen_ai.response.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini-2024-07-18"
+                }
+              },
+              {
+                "key": "gen_ai.tool.definitions",
+                "value": {
+                  "stringValue": "[{\"type\":\"function\",\"name\":\"get_weather\",\"description\":\"Current weather for a city.\",\"parameters\":{\"additionalProperties\":false,\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"],\"type\":\"object\"}}]"
+                }
+              },
+              {
+                "key": "gen_ai.usage.cache_read.input_tokens",
+                "value": {
+                  "intValue": "16"
+                }
+              },
+              {
+                "key": "gen_ai.usage.details.audio_tokens",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "gen_ai.usage.details.cache_read_tokens",
+                "value": {
+                  "intValue": "16"
+                }
+              },
+              {
+                "key": "gen_ai.usage.input_tokens",
+                "value": {
+                  "intValue": "42"
+                }
+              },
+              {
+                "key": "gen_ai.usage.output_tokens",
+                "value": {
+                  "intValue": "9"
+                }
+              },
+              {
+                "key": "gen_ai.usage.reasoning.output_tokens",
+                "value": {
+                  "intValue": "3"
+                }
+              },
+              {
+                "key": "logfire.json_schema",
+                "value": {
+                  "stringValue": "{\"type\":\"object\",\"properties\":{\"gen_ai.input.messages\":{\"type\":\"array\"},\"gen_ai.output.messages\":{\"type\":\"array\"},\"model_request_parameters\":{\"type\":\"object\"}}}"
+                }
+              },
+              {
+                "key": "model_request_parameters",
+                "value": {
+                  "stringValue": "{\"function_tools\":[{\"name\":\"get_weather\",\"parameters_json_schema\":{\"additionalProperties\":false,\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"],\"type\":\"object\"},\"description\":\"Current weather for a city.\",\"outer_typed_dict_key\":null,\"strict\":true,\"sequential\":false,\"kind\":\"function\",\"metadata\":null,\"timeout\":null,\"defer_loading\":false,\"unless_native\":null,\"with_native\":null,\"tool_kind\":null,\"return_schema\":null,\"include_return_schema\":null,\"toolset_id\":\"<agent>\",\"capability_id\":null}],\"native_tools\":[],\"tool_visibility\":{\"get_weather\":\"visible\"},\"revealed_tool_names\":[],\"deferred_capability_ids\":[],\"output_mode\":\"text\",\"output_object\":null,\"output_tools\":[],\"prompted_output_template\":null,\"allow_text_output\":true,\"allow_image_output\":false,\"instruction_parts\":null,\"thinking\":null,\"cache\":null}"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "LLM"
+                }
+              },
+              {
+                "key": "operation.cost",
+                "value": {
+                  "doubleValue": 1.05e-05
+                }
+              },
+              {
+                "key": "pydantic_ai.cache.established_tokens",
+                "value": {
+                  "intValue": "16"
+                }
+              },
+              {
+                "key": "pydantic_ai.cache.hit_ratio",
+                "value": {
+                  "doubleValue": 0.38095238095238093
+                }
+              },
+              {
+                "key": "server.address",
+                "value": {
+                  "stringValue": "api.openai.com"
+                }
+              }
+            ],
+            "status": {}
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "error",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "python"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.45.1"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "pydantic-ai",
+            "version": "2.55.0"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "invoke_agent weather_agent",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000005000000",
+            "attributes": [
+              {
+                "key": "agent_name",
+                "value": {
+                  "stringValue": "weather_agent"
+                }
+              },
+              {
+                "key": "error.type",
+                "value": {
+                  "stringValue": "pydantic_ai.exceptions.ModelHTTPError"
+                }
+              },
+              {
+                "key": "gen_ai.agent.call.id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "gen_ai.agent.name",
+                "value": {
+                  "stringValue": "weather_agent"
+                }
+              },
+              {
+                "key": "gen_ai.conversation.id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000002"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "invoke_agent"
+                }
+              },
+              {
+                "key": "logfire.json_schema",
+                "value": {
+                  "stringValue": "{\"type\":\"object\",\"properties\":{\"pydantic_ai.all_messages\":{\"type\":\"array\"},\"final_result\":{\"type\":\"object\"}}}"
+                }
+              },
+              {
+                "key": "logfire.msg",
+                "value": {
+                  "stringValue": "weather_agent run"
+                }
+              },
+              {
+                "key": "model_name",
+                "value": {
+                  "stringValue": "gpt-nope"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "AGENT"
+                }
+              },
+              {
+                "key": "pydantic_ai.all_messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"hi\"}]}]"
+                }
+              }
+            ],
+            "events": [
+              {
+                "timeUnixNano": "1700000000004000000",
+                "name": "exception",
+                "attributes": [
+                  {
+                    "key": "exception.escaped",
+                    "value": {
+                      "stringValue": "False"
+                    }
+                  },
+                  {
+                    "key": "exception.message",
+                    "value": {
+                      "stringValue": "status_code: 400, model_name: gpt-nope, body: {'message': 'The model `gpt-nope` does not exist.', 'type': 'invalid_request_error', 'param': None, 'code': 'model_not_found'}"
+                    }
+                  },
+                  {
+                    "key": "exception.stacktrace",
+                    "value": {
+                      "stringValue": "<stacktrace elided>"
+                    }
+                  },
+                  {
+                    "key": "exception.type",
+                    "value": {
+                      "stringValue": "pydantic_ai.exceptions.ModelHTTPError"
+                    }
+                  }
+                ]
+              }
+            ],
+            "status": {
+              "message": "ModelHTTPError: status_code: 400, model_name: gpt-nope, body: {'message': 'The model `gpt-nope` does not exist.', 'type': 'invalid_request_error', 'param': None, 'code': 'model_not_found'}",
+              "code": "STATUS_CODE_ERROR"
+            }
+          }
+        },
+        {
+          "scope": {
+            "name": "pydantic-ai",
+            "version": "2.55.0"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000002",
+            "parentSpanId": "0000000000000001",
+            "name": "chat gpt-nope",
+            "kind": "SPAN_KIND_CLIENT",
+            "startTimeUnixNano": "1700000000001000000",
+            "endTimeUnixNano": "1700000000003000000",
+            "attributes": [
+              {
+                "key": "error.type",
+                "value": {
+                  "stringValue": "pydantic_ai.exceptions.ModelHTTPError"
+                }
+              },
+              {
+                "key": "gen_ai.agent.call.id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "gen_ai.agent.name",
+                "value": {
+                  "stringValue": "weather_agent"
+                }
+              },
+              {
+                "key": "gen_ai.conversation.id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000002"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "chat"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-nope"
+                }
+              },
+              {
+                "key": "logfire.json_schema",
+                "value": {
+                  "stringValue": "{\"type\":\"object\",\"properties\":{\"model_request_parameters\":{\"type\":\"object\"}}}"
+                }
+              },
+              {
+                "key": "model_request_parameters",
+                "value": {
+                  "stringValue": "{\"function_tools\":[],\"native_tools\":[],\"tool_visibility\":{},\"revealed_tool_names\":[],\"deferred_capability_ids\":[],\"output_mode\":\"text\",\"output_object\":null,\"output_tools\":[],\"prompted_output_template\":null,\"allow_text_output\":true,\"allow_image_output\":false,\"instruction_parts\":null,\"thinking\":null,\"cache\":null}"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "LLM"
+                }
+              },
+              {
+                "key": "server.address",
+                "value": {
+                  "stringValue": "api.openai.com"
+                }
+              }
+            ],
+            "events": [
+              {
+                "timeUnixNano": "1700000000002000000",
+                "name": "exception",
+                "attributes": [
+                  {
+                    "key": "exception.escaped",
+                    "value": {
+                      "stringValue": "False"
+                    }
+                  },
+                  {
+                    "key": "exception.message",
+                    "value": {
+                      "stringValue": "status_code: 400, model_name: gpt-nope, body: {'message': 'The model `gpt-nope` does not exist.', 'type': 'invalid_request_error', 'param': None, 'code': 'model_not_found'}"
+                    }
+                  },
+                  {
+                    "key": "exception.stacktrace",
+                    "value": {
+                      "stringValue": "<stacktrace elided>"
+                    }
+                  },
+                  {
+                    "key": "exception.type",
+                    "value": {
+                      "stringValue": "pydantic_ai.exceptions.ModelHTTPError"
+                    }
+                  }
+                ]
+              }
+            ],
+            "status": {
+              "message": "ModelHTTPError: status_code: 400, model_name: gpt-nope, body: {'message': 'The model `gpt-nope` does not exist.', 'type': 'invalid_request_error', 'param': None, 'code': 'model_not_found'}",
+              "code": "STATUS_CODE_ERROR"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

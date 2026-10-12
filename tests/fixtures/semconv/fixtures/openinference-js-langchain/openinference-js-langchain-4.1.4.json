@@ -1,0 +1,1043 @@
+{
+  "recordings": [
+    {
+      "scenario": "chat",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "@arizeai/openinference-instrumentation-langchain",
+            "version": "4.1.4"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "ChatOpenAI",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000001000000",
+            "attributes": [
+              {
+                "key": "input.mime_type",
+                "value": {
+                  "stringValue": "application/json"
+                }
+              },
+              {
+                "key": "input.value",
+                "value": {
+                  "stringValue": "{\"messages\":[[{\"lc\":1,\"type\":\"constructor\",\"id\":[\"langchain_core\",\"messages\",\"SystemMessage\"],\"kwargs\":{\"content\":\"Answer in one word.\",\"additional_kwargs\":{},\"response_metadata\":{}}},{\"lc\":1,\"type\":\"constructor\",\"id\":[\"langchain_core\",\"messages\",\"HumanMessage\"],\"kwargs\":{\"content\":\"Capital of France?\",\"additional_kwargs\":{},\"response_metadata\":{}}}]]}"
+                }
+              },
+              {
+                "key": "llm.finish_reason",
+                "value": {
+                  "stringValue": "stop"
+                }
+              },
+              {
+                "key": "llm.input_messages.0.message.content",
+                "value": {
+                  "stringValue": "Answer in one word."
+                }
+              },
+              {
+                "key": "llm.input_messages.0.message.role",
+                "value": {
+                  "stringValue": "system"
+                }
+              },
+              {
+                "key": "llm.input_messages.1.message.content",
+                "value": {
+                  "stringValue": "Capital of France?"
+                }
+              },
+              {
+                "key": "llm.input_messages.1.message.role",
+                "value": {
+                  "stringValue": "user"
+                }
+              },
+              {
+                "key": "llm.invocation_parameters",
+                "value": {
+                  "stringValue": "{\"model\":\"gpt-4o-mini\",\"temperature\":0.2,\"stream\":false,\"max_tokens\":64}"
+                }
+              },
+              {
+                "key": "llm.model_name",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "llm.output_messages.0.message.content",
+                "value": {
+                  "stringValue": "Paris."
+                }
+              },
+              {
+                "key": "llm.output_messages.0.message.role",
+                "value": {
+                  "stringValue": "assistant"
+                }
+              },
+              {
+                "key": "llm.token_count.completion",
+                "value": {
+                  "intValue": "9"
+                }
+              },
+              {
+                "key": "llm.token_count.completion_details.reasoning",
+                "value": {
+                  "intValue": "3"
+                }
+              },
+              {
+                "key": "llm.token_count.prompt",
+                "value": {
+                  "intValue": "42"
+                }
+              },
+              {
+                "key": "llm.token_count.prompt_details.cache_read",
+                "value": {
+                  "intValue": "16"
+                }
+              },
+              {
+                "key": "llm.token_count.total",
+                "value": {
+                  "intValue": "51"
+                }
+              },
+              {
+                "key": "metadata",
+                "value": {
+                  "stringValue": "{\"ls_provider\":\"openai\",\"ls_model_name\":\"gpt-4o-mini\",\"ls_model_type\":\"chat\",\"ls_temperature\":0.2,\"ls_max_tokens\":64,\"ls_integration\":\"langchain_chat_model\",\"versions\":{\"@langchain/core\":\"1.2.17\",\"@langchain/openai\":\"1.6.2\"}}"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "LLM"
+                }
+              },
+              {
+                "key": "output.mime_type",
+                "value": {
+                  "stringValue": "application/json"
+                }
+              },
+              {
+                "key": "output.value",
+                "value": {
+                  "stringValue": "{\"generations\":[[{\"text\":\"Paris.\",\"message\":{\"lc\":1,\"type\":\"constructor\",\"id\":[\"langchain_core\",\"messages\",\"AIMessage\"],\"kwargs\":{\"id\":\"chatcmpl-rec1\",\"content\":\"Paris.\",\"additional_kwargs\":{},\"response_metadata\":{\"tokenUsage\":{\"promptTokens\":42,\"completionTokens\":9,\"totalTokens\":51},\"finish_reason\":\"stop\",\"model_provider\":\"openai\",\"model_name\":\"gpt-4o-mini-2024-07-18\",\"usage\":{\"prompt_tokens\":42,\"completion_tokens\":9,\"total_tokens\":51,\"prompt_tokens_details\":{\"cached_tokens\":16,\"audio_tokens\":0},\"completion_tokens_details\":{\"reasoning_tokens\":3,\"audio_tokens\":0}},\"system_fingerprint\":\"fp_rec\"},\"type\":\"ai\",\"tool_calls\":[],\"invalid_tool_calls\":[],\"usage_metadata\":{\"output_tokens\":9,\"input_tokens\":42,\"total_tokens\":51,\"input_token_details\":{\"audio\":0,\"cache_read\":16},\"output_token_details\":{\"audio\":0,\"reasoning\":3}}}},\"generationInfo\":{\"finish_reason\":\"stop\"}}]],\"llmOutput\":{\"tokenUsage\":{\"promptTokens\":42,\"completionTokens\":9,\"totalTokens\":51}}}"
+                }
+              }
+            ],
+            "status": {
+              "code": "STATUS_CODE_OK"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "chat_stream",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "@arizeai/openinference-instrumentation-langchain",
+            "version": "4.1.4"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "ChatOpenAI",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000001000000",
+            "attributes": [
+              {
+                "key": "input.mime_type",
+                "value": {
+                  "stringValue": "application/json"
+                }
+              },
+              {
+                "key": "input.value",
+                "value": {
+                  "stringValue": "{\"messages\":[[{\"lc\":1,\"type\":\"constructor\",\"id\":[\"langchain_core\",\"messages\",\"HumanMessage\"],\"kwargs\":{\"content\":\"Capital of France?\",\"additional_kwargs\":{},\"response_metadata\":{}}}]]}"
+                }
+              },
+              {
+                "key": "llm.finish_reason",
+                "value": {
+                  "stringValue": "stop"
+                }
+              },
+              {
+                "key": "llm.input_messages.0.message.content",
+                "value": {
+                  "stringValue": "Capital of France?"
+                }
+              },
+              {
+                "key": "llm.input_messages.0.message.role",
+                "value": {
+                  "stringValue": "user"
+                }
+              },
+              {
+                "key": "llm.invocation_parameters",
+                "value": {
+                  "stringValue": "{\"model\":\"gpt-4o-mini\",\"stream\":false}"
+                }
+              },
+              {
+                "key": "llm.model_name",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "llm.output_messages.0.message.content",
+                "value": {
+                  "stringValue": "Paris."
+                }
+              },
+              {
+                "key": "llm.output_messages.0.message.role",
+                "value": {
+                  "stringValue": "assistant"
+                }
+              },
+              {
+                "key": "llm.token_count.completion",
+                "value": {
+                  "intValue": "9"
+                }
+              },
+              {
+                "key": "llm.token_count.completion_details.reasoning",
+                "value": {
+                  "intValue": "3"
+                }
+              },
+              {
+                "key": "llm.token_count.prompt",
+                "value": {
+                  "intValue": "42"
+                }
+              },
+              {
+                "key": "llm.token_count.prompt_details.cache_read",
+                "value": {
+                  "intValue": "16"
+                }
+              },
+              {
+                "key": "llm.token_count.total",
+                "value": {
+                  "intValue": "51"
+                }
+              },
+              {
+                "key": "metadata",
+                "value": {
+                  "stringValue": "{\"ls_provider\":\"openai\",\"ls_model_name\":\"gpt-4o-mini\",\"ls_model_type\":\"chat\",\"ls_integration\":\"langchain_chat_model\",\"versions\":{\"@langchain/core\":\"1.2.17\",\"@langchain/openai\":\"1.6.2\"}}"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "LLM"
+                }
+              },
+              {
+                "key": "output.mime_type",
+                "value": {
+                  "stringValue": "application/json"
+                }
+              },
+              {
+                "key": "output.value",
+                "value": {
+                  "stringValue": "{\"generations\":[[{\"text\":\"Paris.\",\"generationInfo\":{\"prompt\":0,\"completion\":0,\"finish_reason\":\"stop\",\"model_name\":\"gpt-4o-mini-2024-07-18\"},\"message\":{\"lc\":1,\"type\":\"constructor\",\"id\":[\"langchain_core\",\"messages\",\"AIMessageChunk\"],\"kwargs\":{\"content\":\"Paris.\",\"additional_kwargs\":{},\"response_metadata\":{\"prompt\":0,\"completion\":0,\"model_provider\":\"openai\",\"usage\":{\"prompt_tokens\":42,\"completion_tokens\":9,\"total_tokens\":51,\"prompt_tokens_details\":{\"cached_tokens\":16,\"audio_tokens\":0},\"completion_tokens_details\":{\"reasoning_tokens\":3,\"audio_tokens\":0}},\"finish_reason\":\"stop\",\"model_name\":\"gpt-4o-mini-2024-07-18\"},\"tool_call_chunks\":[],\"tool_calls\":[],\"id\":\"chatcmpl-rec2\",\"usage_metadata\":{\"input_tokens\":42,\"output_tokens\":9,\"total_tokens\":51,\"input_token_details\":{\"audio\":0,\"cache_read\":16},\"output_token_details\":{\"audio\":0,\"reasoning\":3}},\"invalid_tool_calls\":[]}}}]],\"llmOutput\":{\"tokenUsage\":{\"promptTokens\":42,\"completionTokens\":9,\"totalTokens\":51}}}"
+                }
+              }
+            ],
+            "status": {
+              "code": "STATUS_CODE_OK"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "tool_call",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "@arizeai/openinference-instrumentation-langchain",
+            "version": "4.1.4"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "ChatOpenAI",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000001000000",
+            "attributes": [
+              {
+                "key": "input.mime_type",
+                "value": {
+                  "stringValue": "application/json"
+                }
+              },
+              {
+                "key": "input.value",
+                "value": {
+                  "stringValue": "{\"messages\":[[{\"lc\":1,\"type\":\"constructor\",\"id\":[\"langchain_core\",\"messages\",\"HumanMessage\"],\"kwargs\":{\"content\":\"Weather in Paris?\",\"additional_kwargs\":{},\"response_metadata\":{}}}]]}"
+                }
+              },
+              {
+                "key": "llm.finish_reason",
+                "value": {
+                  "stringValue": "tool_calls"
+                }
+              },
+              {
+                "key": "llm.input_messages.0.message.content",
+                "value": {
+                  "stringValue": "Weather in Paris?"
+                }
+              },
+              {
+                "key": "llm.input_messages.0.message.role",
+                "value": {
+                  "stringValue": "user"
+                }
+              },
+              {
+                "key": "llm.invocation_parameters",
+                "value": {
+                  "stringValue": "{\"model\":\"gpt-4o-mini\",\"stream\":false,\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"description\":\"Current weather for a city.\",\"parameters\":{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"]}}}],\"tool_choice\":\"auto\"}"
+                }
+              },
+              {
+                "key": "llm.model_name",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "llm.output_messages.0.message.content",
+                "value": {
+                  "stringValue": ""
+                }
+              },
+              {
+                "key": "llm.output_messages.0.message.role",
+                "value": {
+                  "stringValue": "assistant"
+                }
+              },
+              {
+                "key": "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments",
+                "value": {
+                  "stringValue": "{\"city\":\"Paris\"}"
+                }
+              },
+              {
+                "key": "llm.output_messages.0.message.tool_calls.0.tool_call.function.name",
+                "value": {
+                  "stringValue": "get_weather"
+                }
+              },
+              {
+                "key": "llm.token_count.completion",
+                "value": {
+                  "intValue": "9"
+                }
+              },
+              {
+                "key": "llm.token_count.completion_details.reasoning",
+                "value": {
+                  "intValue": "3"
+                }
+              },
+              {
+                "key": "llm.token_count.prompt",
+                "value": {
+                  "intValue": "42"
+                }
+              },
+              {
+                "key": "llm.token_count.prompt_details.cache_read",
+                "value": {
+                  "intValue": "16"
+                }
+              },
+              {
+                "key": "llm.token_count.total",
+                "value": {
+                  "intValue": "51"
+                }
+              },
+              {
+                "key": "llm.tools.0.tool.json_schema",
+                "value": {
+                  "stringValue": "{\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"description\":\"Current weather for a city.\",\"parameters\":{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"]}}}"
+                }
+              },
+              {
+                "key": "metadata",
+                "value": {
+                  "stringValue": "{\"ls_provider\":\"openai\",\"ls_model_name\":\"gpt-4o-mini\",\"ls_model_type\":\"chat\",\"ls_integration\":\"langchain_chat_model\",\"versions\":{\"@langchain/core\":\"1.2.17\",\"@langchain/openai\":\"1.6.2\"}}"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "LLM"
+                }
+              },
+              {
+                "key": "output.mime_type",
+                "value": {
+                  "stringValue": "application/json"
+                }
+              },
+              {
+                "key": "output.value",
+                "value": {
+                  "stringValue": "{\"generations\":[[{\"text\":\"\",\"message\":{\"lc\":1,\"type\":\"constructor\",\"id\":[\"langchain_core\",\"messages\",\"AIMessage\"],\"kwargs\":{\"id\":\"chatcmpl-rec1\",\"content\":\"\",\"additional_kwargs\":{\"tool_calls\":[{\"id\":\"call_rec1\",\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"arguments\":\"{\\\"city\\\":\\\"Paris\\\"}\"}}]},\"response_metadata\":{\"tokenUsage\":{\"promptTokens\":42,\"completionTokens\":9,\"totalTokens\":51},\"finish_reason\":\"tool_calls\",\"model_provider\":\"openai\",\"model_name\":\"gpt-4o-mini-2024-07-18\",\"usage\":{\"prompt_tokens\":42,\"completion_tokens\":9,\"total_tokens\":51,\"prompt_tokens_details\":{\"cached_tokens\":16,\"audio_tokens\":0},\"completion_tokens_details\":{\"reasoning_tokens\":3,\"audio_tokens\":0}},\"system_fingerprint\":\"fp_rec\"},\"type\":\"ai\",\"tool_calls\":[{\"name\":\"get_weather\",\"args\":{\"city\":\"Paris\"},\"type\":\"tool_call\",\"id\":\"call_rec1\"}],\"invalid_tool_calls\":[],\"usage_metadata\":{\"output_tokens\":9,\"input_tokens\":42,\"total_tokens\":51,\"input_token_details\":{\"audio\":0,\"cache_read\":16},\"output_token_details\":{\"audio\":0,\"reasoning\":3}}}},\"generationInfo\":{\"finish_reason\":\"tool_calls\"}}]],\"llmOutput\":{\"tokenUsage\":{\"promptTokens\":42,\"completionTokens\":9,\"totalTokens\":51}}}"
+                }
+              }
+            ],
+            "status": {
+              "code": "STATUS_CODE_OK"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "tool_response",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "@arizeai/openinference-instrumentation-langchain",
+            "version": "4.1.4"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "ChatOpenAI",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000001000000",
+            "attributes": [
+              {
+                "key": "input.mime_type",
+                "value": {
+                  "stringValue": "application/json"
+                }
+              },
+              {
+                "key": "input.value",
+                "value": {
+                  "stringValue": "{\"messages\":[[{\"lc\":1,\"type\":\"constructor\",\"id\":[\"langchain_core\",\"messages\",\"HumanMessage\"],\"kwargs\":{\"content\":\"Weather in Paris?\",\"additional_kwargs\":{},\"response_metadata\":{}}},{\"lc\":1,\"type\":\"constructor\",\"id\":[\"langchain_core\",\"messages\",\"AIMessage\"],\"kwargs\":{\"content\":\"\",\"tool_calls\":[{\"id\":\"call_rec1\",\"name\":\"get_weather\",\"args\":{\"city\":\"Paris\"}}],\"invalid_tool_calls\":[],\"additional_kwargs\":{},\"response_metadata\":{}}},{\"lc\":1,\"type\":\"constructor\",\"id\":[\"langchain_core\",\"messages\",\"ToolMessage\"],\"kwargs\":{\"content\":\"sunny, 22C\",\"tool_call_id\":\"call_rec1\",\"additional_kwargs\":{},\"response_metadata\":{}}}]]}"
+                }
+              },
+              {
+                "key": "llm.finish_reason",
+                "value": {
+                  "stringValue": "stop"
+                }
+              },
+              {
+                "key": "llm.input_messages.0.message.content",
+                "value": {
+                  "stringValue": "Weather in Paris?"
+                }
+              },
+              {
+                "key": "llm.input_messages.0.message.role",
+                "value": {
+                  "stringValue": "user"
+                }
+              },
+              {
+                "key": "llm.input_messages.1.message.content",
+                "value": {
+                  "stringValue": ""
+                }
+              },
+              {
+                "key": "llm.input_messages.1.message.role",
+                "value": {
+                  "stringValue": "assistant"
+                }
+              },
+              {
+                "key": "llm.input_messages.2.message.content",
+                "value": {
+                  "stringValue": "sunny, 22C"
+                }
+              },
+              {
+                "key": "llm.input_messages.2.message.role",
+                "value": {
+                  "stringValue": "tool"
+                }
+              },
+              {
+                "key": "llm.invocation_parameters",
+                "value": {
+                  "stringValue": "{\"model\":\"gpt-4o-mini\",\"stream\":false,\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"description\":\"Current weather for a city.\",\"parameters\":{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"]}}}]}"
+                }
+              },
+              {
+                "key": "llm.model_name",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "llm.output_messages.0.message.content",
+                "value": {
+                  "stringValue": "Sunny, 22C."
+                }
+              },
+              {
+                "key": "llm.output_messages.0.message.role",
+                "value": {
+                  "stringValue": "assistant"
+                }
+              },
+              {
+                "key": "llm.token_count.completion",
+                "value": {
+                  "intValue": "9"
+                }
+              },
+              {
+                "key": "llm.token_count.completion_details.reasoning",
+                "value": {
+                  "intValue": "3"
+                }
+              },
+              {
+                "key": "llm.token_count.prompt",
+                "value": {
+                  "intValue": "42"
+                }
+              },
+              {
+                "key": "llm.token_count.prompt_details.cache_read",
+                "value": {
+                  "intValue": "16"
+                }
+              },
+              {
+                "key": "llm.token_count.total",
+                "value": {
+                  "intValue": "51"
+                }
+              },
+              {
+                "key": "llm.tools.0.tool.json_schema",
+                "value": {
+                  "stringValue": "{\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"description\":\"Current weather for a city.\",\"parameters\":{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"]}}}"
+                }
+              },
+              {
+                "key": "metadata",
+                "value": {
+                  "stringValue": "{\"ls_provider\":\"openai\",\"ls_model_name\":\"gpt-4o-mini\",\"ls_model_type\":\"chat\",\"ls_integration\":\"langchain_chat_model\",\"versions\":{\"@langchain/core\":\"1.2.17\",\"@langchain/openai\":\"1.6.2\"}}"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "LLM"
+                }
+              },
+              {
+                "key": "output.mime_type",
+                "value": {
+                  "stringValue": "application/json"
+                }
+              },
+              {
+                "key": "output.value",
+                "value": {
+                  "stringValue": "{\"generations\":[[{\"text\":\"Sunny, 22C.\",\"message\":{\"lc\":1,\"type\":\"constructor\",\"id\":[\"langchain_core\",\"messages\",\"AIMessage\"],\"kwargs\":{\"id\":\"chatcmpl-rec1\",\"content\":\"Sunny, 22C.\",\"additional_kwargs\":{},\"response_metadata\":{\"tokenUsage\":{\"promptTokens\":42,\"completionTokens\":9,\"totalTokens\":51},\"finish_reason\":\"stop\",\"model_provider\":\"openai\",\"model_name\":\"gpt-4o-mini-2024-07-18\",\"usage\":{\"prompt_tokens\":42,\"completion_tokens\":9,\"total_tokens\":51,\"prompt_tokens_details\":{\"cached_tokens\":16,\"audio_tokens\":0},\"completion_tokens_details\":{\"reasoning_tokens\":3,\"audio_tokens\":0}},\"system_fingerprint\":\"fp_rec\"},\"type\":\"ai\",\"tool_calls\":[],\"invalid_tool_calls\":[],\"usage_metadata\":{\"output_tokens\":9,\"input_tokens\":42,\"total_tokens\":51,\"input_token_details\":{\"audio\":0,\"cache_read\":16},\"output_token_details\":{\"audio\":0,\"reasoning\":3}}}},\"generationInfo\":{\"finish_reason\":\"stop\"}}]],\"llmOutput\":{\"tokenUsage\":{\"promptTokens\":42,\"completionTokens\":9,\"totalTokens\":51}}}"
+                }
+              }
+            ],
+            "status": {
+              "code": "STATUS_CODE_OK"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "chain",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "@arizeai/openinference-instrumentation-langchain",
+            "version": "4.1.4"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "RunnableSequence",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000005000000",
+            "attributes": [
+              {
+                "key": "input.mime_type",
+                "value": {
+                  "stringValue": "text/plain"
+                }
+              },
+              {
+                "key": "input.value",
+                "value": {
+                  "stringValue": "France"
+                }
+              },
+              {
+                "key": "metadata",
+                "value": {
+                  "stringValue": "{}"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "CHAIN"
+                }
+              },
+              {
+                "key": "output.mime_type",
+                "value": {
+                  "stringValue": "application/json"
+                }
+              },
+              {
+                "key": "output.value",
+                "value": {
+                  "stringValue": "{\"lc\":1,\"type\":\"constructor\",\"id\":[\"langchain_core\",\"messages\",\"AIMessage\"],\"kwargs\":{\"id\":\"chatcmpl-rec1\",\"content\":\"Paris.\",\"additional_kwargs\":{},\"response_metadata\":{\"tokenUsage\":{\"promptTokens\":42,\"completionTokens\":9,\"totalTokens\":51},\"finish_reason\":\"stop\",\"model_provider\":\"openai\",\"model_name\":\"gpt-4o-mini-2024-07-18\",\"usage\":{\"prompt_tokens\":42,\"completion_tokens\":9,\"total_tokens\":51,\"prompt_tokens_details\":{\"cached_tokens\":16,\"audio_tokens\":0},\"completion_tokens_details\":{\"reasoning_tokens\":3,\"audio_tokens\":0}},\"system_fingerprint\":\"fp_rec\"},\"type\":\"ai\",\"tool_calls\":[],\"invalid_tool_calls\":[],\"usage_metadata\":{\"output_tokens\":9,\"input_tokens\":42,\"total_tokens\":51,\"input_token_details\":{\"audio\":0,\"cache_read\":16},\"output_token_details\":{\"audio\":0,\"reasoning\":3}}}}"
+                }
+              }
+            ],
+            "status": {
+              "code": "STATUS_CODE_OK"
+            }
+          }
+        },
+        {
+          "scope": {
+            "name": "@arizeai/openinference-instrumentation-langchain",
+            "version": "4.1.4"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000002",
+            "parentSpanId": "0000000000000001",
+            "name": "ChatPromptTemplate",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000001000000",
+            "endTimeUnixNano": "1700000000002000000",
+            "attributes": [
+              {
+                "key": "input.mime_type",
+                "value": {
+                  "stringValue": "text/plain"
+                }
+              },
+              {
+                "key": "input.value",
+                "value": {
+                  "stringValue": "France"
+                }
+              },
+              {
+                "key": "llm.prompt_template.template",
+                "value": {
+                  "stringValue": "Answer in one word."
+                }
+              },
+              {
+                "key": "llm.prompt_template.variables",
+                "value": {
+                  "stringValue": "{\"country\":\"France\"}"
+                }
+              },
+              {
+                "key": "metadata",
+                "value": {
+                  "stringValue": "{}"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "PROMPT"
+                }
+              },
+              {
+                "key": "output.mime_type",
+                "value": {
+                  "stringValue": "application/json"
+                }
+              },
+              {
+                "key": "output.value",
+                "value": {
+                  "stringValue": "{\"lc\":1,\"type\":\"constructor\",\"id\":[\"langchain_core\",\"prompt_values\",\"ChatPromptValue\"],\"kwargs\":{\"messages\":[{\"lc\":1,\"type\":\"constructor\",\"id\":[\"langchain_core\",\"messages\",\"SystemMessage\"],\"kwargs\":{\"content\":\"Answer in one word.\",\"additional_kwargs\":{},\"response_metadata\":{}}},{\"lc\":1,\"type\":\"constructor\",\"id\":[\"langchain_core\",\"messages\",\"HumanMessage\"],\"kwargs\":{\"content\":\"Capital of France?\",\"additional_kwargs\":{},\"response_metadata\":{}}}]}}"
+                }
+              }
+            ],
+            "status": {
+              "code": "STATUS_CODE_OK"
+            }
+          }
+        },
+        {
+          "scope": {
+            "name": "@arizeai/openinference-instrumentation-langchain",
+            "version": "4.1.4"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000003",
+            "parentSpanId": "0000000000000001",
+            "name": "ChatOpenAI",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000003000000",
+            "endTimeUnixNano": "1700000000004000000",
+            "attributes": [
+              {
+                "key": "input.mime_type",
+                "value": {
+                  "stringValue": "application/json"
+                }
+              },
+              {
+                "key": "input.value",
+                "value": {
+                  "stringValue": "{\"messages\":[[{\"lc\":1,\"type\":\"constructor\",\"id\":[\"langchain_core\",\"messages\",\"SystemMessage\"],\"kwargs\":{\"content\":\"Answer in one word.\",\"additional_kwargs\":{},\"response_metadata\":{}}},{\"lc\":1,\"type\":\"constructor\",\"id\":[\"langchain_core\",\"messages\",\"HumanMessage\"],\"kwargs\":{\"content\":\"Capital of France?\",\"additional_kwargs\":{},\"response_metadata\":{}}}]]}"
+                }
+              },
+              {
+                "key": "llm.finish_reason",
+                "value": {
+                  "stringValue": "stop"
+                }
+              },
+              {
+                "key": "llm.input_messages.0.message.content",
+                "value": {
+                  "stringValue": "Answer in one word."
+                }
+              },
+              {
+                "key": "llm.input_messages.0.message.role",
+                "value": {
+                  "stringValue": "system"
+                }
+              },
+              {
+                "key": "llm.input_messages.1.message.content",
+                "value": {
+                  "stringValue": "Capital of France?"
+                }
+              },
+              {
+                "key": "llm.input_messages.1.message.role",
+                "value": {
+                  "stringValue": "user"
+                }
+              },
+              {
+                "key": "llm.invocation_parameters",
+                "value": {
+                  "stringValue": "{\"model\":\"gpt-4o-mini\",\"stream\":false}"
+                }
+              },
+              {
+                "key": "llm.model_name",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "llm.output_messages.0.message.content",
+                "value": {
+                  "stringValue": "Paris."
+                }
+              },
+              {
+                "key": "llm.output_messages.0.message.role",
+                "value": {
+                  "stringValue": "assistant"
+                }
+              },
+              {
+                "key": "llm.token_count.completion",
+                "value": {
+                  "intValue": "9"
+                }
+              },
+              {
+                "key": "llm.token_count.completion_details.reasoning",
+                "value": {
+                  "intValue": "3"
+                }
+              },
+              {
+                "key": "llm.token_count.prompt",
+                "value": {
+                  "intValue": "42"
+                }
+              },
+              {
+                "key": "llm.token_count.prompt_details.cache_read",
+                "value": {
+                  "intValue": "16"
+                }
+              },
+              {
+                "key": "llm.token_count.total",
+                "value": {
+                  "intValue": "51"
+                }
+              },
+              {
+                "key": "metadata",
+                "value": {
+                  "stringValue": "{\"ls_provider\":\"openai\",\"ls_model_name\":\"gpt-4o-mini\",\"ls_model_type\":\"chat\",\"ls_integration\":\"langchain_chat_model\",\"versions\":{\"@langchain/core\":\"1.2.17\",\"@langchain/openai\":\"1.6.2\"}}"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "LLM"
+                }
+              },
+              {
+                "key": "output.mime_type",
+                "value": {
+                  "stringValue": "application/json"
+                }
+              },
+              {
+                "key": "output.value",
+                "value": {
+                  "stringValue": "{\"generations\":[[{\"text\":\"Paris.\",\"message\":{\"lc\":1,\"type\":\"constructor\",\"id\":[\"langchain_core\",\"messages\",\"AIMessage\"],\"kwargs\":{\"id\":\"chatcmpl-rec1\",\"content\":\"Paris.\",\"additional_kwargs\":{},\"response_metadata\":{\"tokenUsage\":{\"promptTokens\":42,\"completionTokens\":9,\"totalTokens\":51},\"finish_reason\":\"stop\",\"model_provider\":\"openai\",\"model_name\":\"gpt-4o-mini-2024-07-18\",\"usage\":{\"prompt_tokens\":42,\"completion_tokens\":9,\"total_tokens\":51,\"prompt_tokens_details\":{\"cached_tokens\":16,\"audio_tokens\":0},\"completion_tokens_details\":{\"reasoning_tokens\":3,\"audio_tokens\":0}},\"system_fingerprint\":\"fp_rec\"},\"type\":\"ai\",\"tool_calls\":[],\"invalid_tool_calls\":[],\"usage_metadata\":{\"output_tokens\":9,\"input_tokens\":42,\"total_tokens\":51,\"input_token_details\":{\"audio\":0,\"cache_read\":16},\"output_token_details\":{\"audio\":0,\"reasoning\":3}}}},\"generationInfo\":{\"finish_reason\":\"stop\"}}]],\"llmOutput\":{\"tokenUsage\":{\"promptTokens\":42,\"completionTokens\":9,\"totalTokens\":51}}}"
+                }
+              }
+            ],
+            "status": {
+              "code": "STATUS_CODE_OK"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "error",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "@arizeai/openinference-instrumentation-langchain",
+            "version": "4.1.4"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "ChatOpenAI",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000002000000",
+            "attributes": [
+              {
+                "key": "input.mime_type",
+                "value": {
+                  "stringValue": "application/json"
+                }
+              },
+              {
+                "key": "input.value",
+                "value": {
+                  "stringValue": "{\"messages\":[[{\"lc\":1,\"type\":\"constructor\",\"id\":[\"langchain_core\",\"messages\",\"HumanMessage\"],\"kwargs\":{\"content\":\"hi\",\"additional_kwargs\":{},\"response_metadata\":{}}}]]}"
+                }
+              },
+              {
+                "key": "llm.input_messages.0.message.content",
+                "value": {
+                  "stringValue": "hi"
+                }
+              },
+              {
+                "key": "llm.input_messages.0.message.role",
+                "value": {
+                  "stringValue": "user"
+                }
+              },
+              {
+                "key": "llm.invocation_parameters",
+                "value": {
+                  "stringValue": "{\"model\":\"gpt-nope\",\"stream\":false}"
+                }
+              },
+              {
+                "key": "llm.model_name",
+                "value": {
+                  "stringValue": "gpt-nope"
+                }
+              },
+              {
+                "key": "metadata",
+                "value": {
+                  "stringValue": "{\"ls_provider\":\"openai\",\"ls_model_name\":\"gpt-nope\",\"ls_model_type\":\"chat\",\"ls_integration\":\"langchain_chat_model\",\"versions\":{\"@langchain/core\":\"1.2.17\",\"@langchain/openai\":\"1.6.2\"}}"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "LLM"
+                }
+              }
+            ],
+            "events": [
+              {
+                "timeUnixNano": "1700000000001000000",
+                "name": "exception",
+                "attributes": [
+                  {
+                    "key": "exception.message",
+                    "value": {
+                      "stringValue": "400 The model `gpt-nope` does not exist.\n\nError: 400 The model `gpt-nope` does not exist."
+                    }
+                  }
+                ]
+              }
+            ],
+            "status": {
+              "code": "STATUS_CODE_ERROR",
+              "message": "400 The model `gpt-nope` does not exist.\n\nError: 400 The model `gpt-nope` does not exist."
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "family": "openinference-anthropic",
+  "about": "Real openinference-instrumentation-anthropic spans (Python), recorded against a scripted Anthropic Messages API: an in-process httpx2 mock transport answers every request, so no network and no API keys. The rius SDK is not involved. Usage reports cache reads and cache writes beside input_tokens, as Anthropic does. anthropic 1.x dropped temperature/top_p/top_k from messages.create, so stop_sequences is the request knob exercised.",
+  "record": "python record.py <recording.json> <environment.json>, in a virtualenv holding exactly the pins below",
+  "recordings": {
+    "openinference-anthropic-3.0.3.json": {
+      "python": "3.13.7",
+      "packages": {
+        "openinference-instrumentation-anthropic": "3.0.3",
+        "openinference-instrumentation": "0.1.71",
+        "openinference-semantic-conventions": "0.1.41",
+        "anthropic": "1.13.0",
+        "httpx2": "2.13.1",
+        "opentelemetry-api": "1.45.1",
+        "opentelemetry-sdk": "1.45.1"
+      },
+      "scenarios": {
+        "chat": "Non-streaming chat with a system prompt, max_tokens and stop_sequences.",
+        "chat_stream": "Streaming chat (message_start ... message_stop events). The instrumentor records no first-token event for Anthropic streams.",
+        "tool_call": "A tool definition with tool_choice auto; the response is a tool_use block.",
+        "tool_response": "The follow-up: the assistant's tool_use and the user's tool_result in the input, a text answer out.",
+        "error": "The provider answers 400 (invalid_request_error): an exception event and an ERROR status."
+      },
+      "expected": {
+        "file": "openinference-anthropic-3.0.3.expected.json",
+        "source": "python-sdk"
+      },
+      "verified": "Re-recorded 2026-10-12 twice in a row in the pinned virtualenv: byte-identical."
+    }
+  }
+}

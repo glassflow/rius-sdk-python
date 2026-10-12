@@ -1,0 +1,31 @@
+{
+  "family": "openinference-js-langchain",
+  "about": "Real @arizeai/openinference-instrumentation-langchain spans (JavaScript) from @langchain/openai's ChatOpenAI, the counterpart of ../openinference-langchain with the same scenarios and responses, recorded through a scripted fetch: no network, no API keys, no rius SDK. LangChain stamps run records with Date.now() and OpenTelemetry reads performance.now(), so the recorder replaces both with clocks that advance one tick per reading (deterministicClock in _recording.mjs).",
+  "record": "npm ci, then node record.mjs <recording.json> <environment.json>",
+  "recordings": {
+    "openinference-js-langchain-4.1.4.json": {
+      "node": "24.2.0",
+      "packages": {
+        "@arizeai/openinference-instrumentation-langchain": "4.1.4",
+        "@arizeai/openinference-semantic-conventions": "2.14.0",
+        "@langchain/core": "1.2.17",
+        "@langchain/openai": "1.6.2",
+        "@opentelemetry/api": "1.9.1",
+        "@opentelemetry/sdk-trace-base": "2.12.0"
+      },
+      "scenarios": {
+        "chat": "ChatOpenAI.invoke with a system and a user message, temperature and maxTokens set.",
+        "chat_stream": "ChatOpenAI.stream with streamUsage.",
+        "tool_call": "bindTools with tool_choice auto; the response is a tool call.",
+        "tool_response": "An AIMessage with the tool call and a ToolMessage with its result in the input, a text answer out.",
+        "chain": "A ChatPromptTemplate piped into ChatOpenAI: a RunnableSequence with the prompt-template and model spans under it.",
+        "error": "The provider answers 400 (model_not_found)."
+      },
+      "expected": {
+        "file": "openinference-js-langchain-4.1.4.expected.json",
+        "source": "python-sdk"
+      },
+      "verified": "Re-recorded 2026-10-12 several times in a row from the lockfile's node_modules: byte-identical."
+    }
+  }
+}

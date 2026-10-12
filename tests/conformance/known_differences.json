@@ -1,0 +1,40 @@
+{
+  "about": "Where this SDK's normalizer, replaying a shared recording from rius-semconv, produces something other than the recording's stored expected result. Each entry is reviewed and says why it is allowed. tests/test_conformance.py fails on any difference not listed here and on a listed one that no longer occurs, so fixing a difference means deleting its entry in the same change. `key` is an attribute key, or one of `events`, `status`, `name`, `kind`; `\"*\"` covers every difference in the family.",
+  "differences": [
+    {
+      "family": "vercel-ai-otel",
+      "key": "gen_ai.usage.input_tokens",
+      "reason": "The TypeScript SDK is the reference here: it starts @ai-sdk/otel's spans through its aggregatingTracer and moves a run's total usage off the invoke_agent span to rius.aggregated_usage.*. The Python SDK has no @ai-sdk/otel producer (the AI SDK is JavaScript-only) and cannot tell an aggregate from the span alone, so it keeps the usage."
+    },
+    {
+      "family": "vercel-ai-otel",
+      "key": "gen_ai.usage.output_tokens",
+      "reason": "As gen_ai.usage.input_tokens."
+    },
+    {
+      "family": "vercel-ai-otel",
+      "key": "gen_ai.usage.cache_read.input_tokens",
+      "reason": "As gen_ai.usage.input_tokens."
+    },
+    {
+      "family": "vercel-ai-otel",
+      "key": "rius.aggregated_usage.input_tokens",
+      "reason": "As gen_ai.usage.input_tokens."
+    },
+    {
+      "family": "vercel-ai-otel",
+      "key": "rius.aggregated_usage.output_tokens",
+      "reason": "As gen_ai.usage.input_tokens."
+    },
+    {
+      "family": "vercel-ai-otel",
+      "key": "rius.aggregated_usage.cache_read.input_tokens",
+      "reason": "As gen_ai.usage.input_tokens."
+    },
+    {
+      "family": "vercel-ai-v5",
+      "key": "*",
+      "reason": "The TypeScript SDK is the reference here: it translates the AI SDK's ai.* dialect through @arizeai/openinference-vercel before normalizing. The Python SDK has no ai.* translation (the AI SDK is JavaScript-only), so the raw spans pass through."
+    }
+  ]
+}
