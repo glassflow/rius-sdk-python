@@ -145,3 +145,22 @@ def test_replay_keeps_identity(family: str) -> None:
                 span = got[want["spanId"]]
                 for field in ("traceId", "parentSpanId", "startTimeUnixNano", "endTimeUnixNano"):
                     assert span.get(field) == want.get(field), (family, scenario["scenario"], field)
+
+
+def test_normalizing_an_expected_result_again_changes_nothing() -> None:
+    """Normalized spans are normalized again in production: the sink normalizes
+    what this SDK exported. So a second pass over this SDK's own output (the
+    expected result, for every family it is the reference for) must be a no-op.
+    """
+    changed: list[str] = []
+    spans = 0
+    for family, source, _raw, expected in _recordings():
+        if source != "python-sdk":
+            continue
+        for scenario in expected:
+            spans += len(scenario["spans"])
+            for diff in _differences(family, _normalized(scenario), scenario):
+                where = f"{diff.family}/{diff.scenario} span {diff.span_id}"
+                changed.append(f"{where}: {diff.key}: {diff.detail}")
+    assert spans > 0, "no spans compared: is tests/fixtures/semconv synced?"
+    assert not changed, "a second normalization changed:\n" + "\n".join(changed)

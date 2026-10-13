@@ -241,14 +241,39 @@ def test_bag_tools_and_functions_are_both_kept_in_one_array() -> None:
     assert LLM_INVOCATION_PARAMETERS not in out
 
 
-def test_bag_tools_are_left_alone_when_llm_tools_is_present() -> None:
+def test_llm_tools_wins_over_the_bag_and_the_bag_member_still_goes() -> None:
+    # litellm and langchain write both. The indexed schemas are the source;
+    # the bag's copy is a duplicate of them and leaves the bag.
     bag = json.dumps({"tools": [{"name": "from-bag"}], "tool_choice": "auto"})
     out = normalize_tool_definitions(
         {LLM_INVOCATION_PARAMETERS: bag, **_indexed([{"name": "from-llm-tools"}])}
     )
     assert out is not None
     assert _definitions(out) == [{"name": "from-llm-tools"}]
-    assert out[LLM_INVOCATION_PARAMETERS] == bag
+    assert json.loads(out[LLM_INVOCATION_PARAMETERS]) == {"tool_choice": "auto"}
+
+
+def test_a_bag_holding_only_tools_goes_when_llm_tools_is_present() -> None:
+    out = normalize_tool_definitions(
+        {
+            LLM_INVOCATION_PARAMETERS: json.dumps({"tools": [{"name": "from-bag"}]}),
+            **_indexed([{"name": "from-llm-tools"}]),
+        }
+    )
+    assert out is not None
+    assert LLM_INVOCATION_PARAMETERS not in out
+
+
+def test_normalizing_both_tool_sources_twice_equals_once() -> None:
+    # The sink normalizes what the SDK exported, so a second pass must find
+    # nothing left to do.
+    raw = {
+        "openinference.span.kind": "LLM",
+        LLM_INVOCATION_PARAMETERS: json.dumps({"tools": _OPENAI_TOOLS, "tool_choice": "auto"}),
+        **_indexed(_OPENAI_TOOLS),
+    }
+    once = _exported_attributes(raw)
+    assert _exported_attributes(once) == once
 
 
 def test_a_native_definitions_key_wins_over_the_bag_and_the_member_still_goes() -> None:
