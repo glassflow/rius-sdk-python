@@ -1,8 +1,8 @@
 {
   "normalizer": {
     "package": "@glassflow-ai/rius",
-    "version": "1.0.0",
-    "commit": "7128b7c61beaeabb00f96a499895e3cb7e8de80b"
+    "version": "1.1.1",
+    "commit": "2e0f732ecd5da2e53f9cd8eb8604178a89f268e5"
   },
   "recordings": [
     {
@@ -38,27 +38,9 @@
             "endTimeUnixNano": "1700000000003000000",
             "attributes": [
               {
-                "key": "ai.model.id",
-                "value": {
-                  "stringValue": "gpt-4o-mini"
-                }
-              },
-              {
-                "key": "ai.model.provider",
-                "value": {
-                  "stringValue": "openai.chat"
-                }
-              },
-              {
                 "key": "ai.operationId",
                 "value": {
                   "stringValue": "ai.generateText"
-                }
-              },
-              {
-                "key": "ai.prompt",
-                "value": {
-                  "stringValue": "{\"system\":\"Answer in one word.\",\"prompt\":\"Capital of France?\"}"
                 }
               },
               {
@@ -68,39 +50,15 @@
                 }
               },
               {
-                "key": "ai.response.finishReason",
-                "value": {
-                  "stringValue": "stop"
-                }
-              },
-              {
                 "key": "ai.response.providerMetadata",
                 "value": {
                   "stringValue": "{\"openai\":{}}"
                 }
               },
               {
-                "key": "ai.response.text",
-                "value": {
-                  "stringValue": "Paris."
-                }
-              },
-              {
-                "key": "ai.settings.maxOutputTokens",
-                "value": {
-                  "intValue": "64"
-                }
-              },
-              {
                 "key": "ai.settings.maxRetries",
                 "value": {
                   "intValue": "0"
-                }
-              },
-              {
-                "key": "ai.settings.temperature",
-                "value": {
-                  "doubleValue": 0.2
                 }
               },
               {
@@ -118,7 +76,7 @@
               {
                 "key": "gen_ai.input.messages",
                 "value": {
-                  "stringValue": "[{\"role\":\"system\",\"parts\":[{\"type\":\"text\",\"content\":\"Answer in one word.\"}]}]"
+                  "stringValue": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Capital of France?\"}]}]"
                 }
               },
               {
@@ -128,33 +86,51 @@
                 }
               },
               {
+                "key": "gen_ai.output.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"Paris.\"}],\"finish_reason\":\"stop\"}]"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "gen_ai.request.max_tokens",
+                "value": {
+                  "intValue": "64"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
                 "key": "gen_ai.request.temperature",
                 "value": {
                   "doubleValue": 0.2
                 }
               },
               {
-                "key": "input.mime_type",
+                "key": "gen_ai.response.finish_reasons",
                 "value": {
-                  "stringValue": "application/json"
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "stop"
+                      }
+                    ]
+                  }
                 }
               },
               {
-                "key": "input.value",
+                "key": "gen_ai.system_instructions",
                 "value": {
-                  "stringValue": "{\"system\":\"Answer in one word.\",\"prompt\":\"Capital of France?\"}"
-                }
-              },
-              {
-                "key": "llm.invocation_parameters",
-                "value": {
-                  "stringValue": "{\"maxOutputTokens\":64,\"maxRetries\":0}"
-                }
-              },
-              {
-                "key": "llm.model_name",
-                "value": {
-                  "stringValue": "gpt-4o-mini"
+                  "stringValue": "[{\"type\":\"text\",\"content\":\"Answer in one word.\"}]"
                 }
               },
               {
@@ -167,18 +143,6 @@
                 "key": "operation.name",
                 "value": {
                   "stringValue": "ai.generateText"
-                }
-              },
-              {
-                "key": "output.mime_type",
-                "value": {
-                  "stringValue": "text/plain"
-                }
-              },
-              {
-                "key": "output.value",
-                "value": {
-                  "stringValue": "Paris."
                 }
               }
             ],
@@ -200,27 +164,9 @@
             "endTimeUnixNano": "1700000000002000000",
             "attributes": [
               {
-                "key": "ai.model.id",
-                "value": {
-                  "stringValue": "gpt-4o-mini"
-                }
-              },
-              {
-                "key": "ai.model.provider",
-                "value": {
-                  "stringValue": "openai.chat"
-                }
-              },
-              {
                 "key": "ai.operationId",
                 "value": {
                   "stringValue": "ai.generateText.doGenerate"
-                }
-              },
-              {
-                "key": "ai.prompt.messages",
-                "value": {
-                  "stringValue": "[{\"role\":\"system\",\"content\":\"Answer in one word.\"},{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Capital of France?\"}]}]"
                 }
               },
               {
@@ -230,33 +176,9 @@
                 }
               },
               {
-                "key": "ai.response.finishReason",
-                "value": {
-                  "stringValue": "stop"
-                }
-              },
-              {
-                "key": "ai.response.id",
-                "value": {
-                  "stringValue": "chatcmpl-rec1"
-                }
-              },
-              {
-                "key": "ai.response.model",
-                "value": {
-                  "stringValue": "gpt-4o-mini-2024-07-18"
-                }
-              },
-              {
                 "key": "ai.response.providerMetadata",
                 "value": {
                   "stringValue": "{\"openai\":{}}"
-                }
-              },
-              {
-                "key": "ai.response.text",
-                "value": {
-                  "stringValue": "Paris."
                 }
               },
               {
@@ -266,21 +188,9 @@
                 }
               },
               {
-                "key": "ai.settings.maxOutputTokens",
-                "value": {
-                  "intValue": "64"
-                }
-              },
-              {
                 "key": "ai.settings.maxRetries",
                 "value": {
                   "intValue": "0"
-                }
-              },
-              {
-                "key": "ai.settings.temperature",
-                "value": {
-                  "doubleValue": 0.2
                 }
               },
               {
@@ -296,15 +206,27 @@
                 }
               },
               {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Capital of France?\"}]}]"
+                }
+              },
+              {
                 "key": "gen_ai.operation.name",
                 "value": {
                   "stringValue": "chat"
                 }
               },
               {
+                "key": "gen_ai.output.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"Paris.\"}],\"finish_reason\":\"stop\"}]"
+                }
+              },
+              {
                 "key": "gen_ai.provider.name",
                 "value": {
-                  "stringValue": "openai.chat"
+                  "stringValue": "openai"
                 }
               },
               {
@@ -350,6 +272,12 @@
                 }
               },
               {
+                "key": "gen_ai.system_instructions",
+                "value": {
+                  "stringValue": "[{\"type\":\"text\",\"content\":\"Answer in one word.\"}]"
+                }
+              },
+              {
                 "key": "gen_ai.usage.input_tokens",
                 "value": {
                   "intValue": "42"
@@ -362,66 +290,6 @@
                 }
               },
               {
-                "key": "input.mime_type",
-                "value": {
-                  "stringValue": "application/json"
-                }
-              },
-              {
-                "key": "input.value",
-                "value": {
-                  "stringValue": "[{\"role\":\"system\",\"content\":\"Answer in one word.\"},{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Capital of France?\"}]}]"
-                }
-              },
-              {
-                "key": "llm.input_messages.0.message.content",
-                "value": {
-                  "stringValue": "Answer in one word."
-                }
-              },
-              {
-                "key": "llm.input_messages.0.message.role",
-                "value": {
-                  "stringValue": "system"
-                }
-              },
-              {
-                "key": "llm.input_messages.1.message.contents.0.message_content.text",
-                "value": {
-                  "stringValue": "Capital of France?"
-                }
-              },
-              {
-                "key": "llm.input_messages.1.message.contents.0.message_content.type",
-                "value": {
-                  "stringValue": "text"
-                }
-              },
-              {
-                "key": "llm.input_messages.1.message.role",
-                "value": {
-                  "stringValue": "user"
-                }
-              },
-              {
-                "key": "llm.model_name",
-                "value": {
-                  "stringValue": "gpt-4o-mini-2024-07-18"
-                }
-              },
-              {
-                "key": "llm.system",
-                "value": {
-                  "stringValue": "openai.chat"
-                }
-              },
-              {
-                "key": "llm.token_count.total",
-                "value": {
-                  "intValue": "51"
-                }
-              },
-              {
                 "key": "openinference.span.kind",
                 "value": {
                   "stringValue": "LLM"
@@ -431,18 +299,6 @@
                 "key": "operation.name",
                 "value": {
                   "stringValue": "ai.generateText.doGenerate"
-                }
-              },
-              {
-                "key": "output.mime_type",
-                "value": {
-                  "stringValue": "text/plain"
-                }
-              },
-              {
-                "key": "output.value",
-                "value": {
-                  "stringValue": "Paris."
                 }
               }
             ],
@@ -484,33 +340,9 @@
             "endTimeUnixNano": "1700000000005000000",
             "attributes": [
               {
-                "key": "ai.model.id",
-                "value": {
-                  "stringValue": "gpt-4o-mini"
-                }
-              },
-              {
-                "key": "ai.model.provider",
-                "value": {
-                  "stringValue": "openai.chat"
-                }
-              },
-              {
                 "key": "ai.operationId",
                 "value": {
                   "stringValue": "ai.streamText"
-                }
-              },
-              {
-                "key": "ai.prompt",
-                "value": {
-                  "stringValue": "{\"prompt\":\"Capital of France?\"}"
-                }
-              },
-              {
-                "key": "ai.response.finishReason",
-                "value": {
-                  "stringValue": "stop"
                 }
               },
               {
@@ -520,39 +352,9 @@
                 }
               },
               {
-                "key": "ai.response.text",
-                "value": {
-                  "stringValue": "Paris."
-                }
-              },
-              {
                 "key": "ai.settings.maxRetries",
                 "value": {
                   "intValue": "0"
-                }
-              },
-              {
-                "key": "ai.usage.cachedInputTokens",
-                "value": {
-                  "intValue": "16"
-                }
-              },
-              {
-                "key": "ai.usage.inputTokens",
-                "value": {
-                  "intValue": "42"
-                }
-              },
-              {
-                "key": "ai.usage.outputTokens",
-                "value": {
-                  "intValue": "9"
-                }
-              },
-              {
-                "key": "ai.usage.reasoningTokens",
-                "value": {
-                  "intValue": "3"
                 }
               },
               {
@@ -562,33 +364,45 @@
                 }
               },
               {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Capital of France?\"}]}]"
+                }
+              },
+              {
                 "key": "gen_ai.operation.name",
                 "value": {
                   "stringValue": "invoke_agent"
                 }
               },
               {
-                "key": "input.mime_type",
+                "key": "gen_ai.output.messages",
                 "value": {
-                  "stringValue": "application/json"
+                  "stringValue": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"Paris.\"}],\"finish_reason\":\"stop\"}]"
                 }
               },
               {
-                "key": "input.value",
+                "key": "gen_ai.provider.name",
                 "value": {
-                  "stringValue": "{\"prompt\":\"Capital of France?\"}"
+                  "stringValue": "openai"
                 }
               },
               {
-                "key": "llm.invocation_parameters",
-                "value": {
-                  "stringValue": "{\"maxRetries\":0}"
-                }
-              },
-              {
-                "key": "llm.model_name",
+                "key": "gen_ai.request.model",
                 "value": {
                   "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "gen_ai.response.finish_reasons",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "stop"
+                      }
+                    ]
+                  }
                 }
               },
               {
@@ -604,15 +418,27 @@
                 }
               },
               {
-                "key": "output.mime_type",
+                "key": "rius.aggregated_usage.cache_read.input_tokens",
                 "value": {
-                  "stringValue": "text/plain"
+                  "intValue": "16"
                 }
               },
               {
-                "key": "output.value",
+                "key": "rius.aggregated_usage.input_tokens",
                 "value": {
-                  "stringValue": "Paris."
+                  "intValue": "42"
+                }
+              },
+              {
+                "key": "rius.aggregated_usage.output_tokens",
+                "value": {
+                  "intValue": "9"
+                }
+              },
+              {
+                "key": "rius.aggregated_usage.reasoning.output_tokens",
+                "value": {
+                  "intValue": "3"
                 }
               }
             ],
@@ -634,27 +460,9 @@
             "endTimeUnixNano": "1700000000004000000",
             "attributes": [
               {
-                "key": "ai.model.id",
-                "value": {
-                  "stringValue": "gpt-4o-mini"
-                }
-              },
-              {
-                "key": "ai.model.provider",
-                "value": {
-                  "stringValue": "openai.chat"
-                }
-              },
-              {
                 "key": "ai.operationId",
                 "value": {
                   "stringValue": "ai.streamText.doStream"
-                }
-              },
-              {
-                "key": "ai.prompt.messages",
-                "value": {
-                  "stringValue": "[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Capital of France?\"}]}]"
                 }
               },
               {
@@ -664,45 +472,15 @@
                 }
               },
               {
-                "key": "ai.response.finishReason",
-                "value": {
-                  "stringValue": "stop"
-                }
-              },
-              {
-                "key": "ai.response.id",
-                "value": {
-                  "stringValue": "chatcmpl-rec2"
-                }
-              },
-              {
-                "key": "ai.response.model",
-                "value": {
-                  "stringValue": "gpt-4o-mini-2024-07-18"
-                }
-              },
-              {
                 "key": "ai.response.msToFinish",
                 "value": {
                   "intValue": "3"
                 }
               },
               {
-                "key": "ai.response.msToFirstChunk",
-                "value": {
-                  "intValue": "1"
-                }
-              },
-              {
                 "key": "ai.response.providerMetadata",
                 "value": {
                   "stringValue": "{\"openai\":{}}"
-                }
-              },
-              {
-                "key": "ai.response.text",
-                "value": {
-                  "stringValue": "Paris."
                 }
               },
               {
@@ -718,33 +496,15 @@
                 }
               },
               {
-                "key": "ai.usage.cachedInputTokens",
-                "value": {
-                  "intValue": "16"
-                }
-              },
-              {
-                "key": "ai.usage.inputTokens",
-                "value": {
-                  "intValue": "42"
-                }
-              },
-              {
-                "key": "ai.usage.outputTokens",
-                "value": {
-                  "intValue": "9"
-                }
-              },
-              {
-                "key": "ai.usage.reasoningTokens",
-                "value": {
-                  "intValue": "3"
-                }
-              },
-              {
                 "key": "ai.usage.totalTokens",
                 "value": {
                   "intValue": "51"
+                }
+              },
+              {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Capital of France?\"}]}]"
                 }
               },
               {
@@ -754,15 +514,27 @@
                 }
               },
               {
+                "key": "gen_ai.output.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"Paris.\"}],\"finish_reason\":\"stop\"}]"
+                }
+              },
+              {
                 "key": "gen_ai.provider.name",
                 "value": {
-                  "stringValue": "openai.chat"
+                  "stringValue": "openai"
                 }
               },
               {
                 "key": "gen_ai.request.model",
                 "value": {
                   "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "gen_ai.request.stream",
+                "value": {
+                  "boolValue": true
                 }
               },
               {
@@ -790,6 +562,18 @@
                 }
               },
               {
+                "key": "gen_ai.response.time_to_first_chunk",
+                "value": {
+                  "doubleValue": 0.001
+                }
+              },
+              {
+                "key": "gen_ai.usage.cache_read.input_tokens",
+                "value": {
+                  "intValue": "16"
+                }
+              },
+              {
                 "key": "gen_ai.usage.input_tokens",
                 "value": {
                   "intValue": "42"
@@ -802,69 +586,9 @@
                 }
               },
               {
-                "key": "input.mime_type",
-                "value": {
-                  "stringValue": "application/json"
-                }
-              },
-              {
-                "key": "input.value",
-                "value": {
-                  "stringValue": "[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Capital of France?\"}]}]"
-                }
-              },
-              {
-                "key": "llm.input_messages.0.message.contents.0.message_content.text",
-                "value": {
-                  "stringValue": "Capital of France?"
-                }
-              },
-              {
-                "key": "llm.input_messages.0.message.contents.0.message_content.type",
-                "value": {
-                  "stringValue": "text"
-                }
-              },
-              {
-                "key": "llm.input_messages.0.message.role",
-                "value": {
-                  "stringValue": "user"
-                }
-              },
-              {
-                "key": "llm.model_name",
-                "value": {
-                  "stringValue": "gpt-4o-mini-2024-07-18"
-                }
-              },
-              {
-                "key": "llm.system",
-                "value": {
-                  "stringValue": "openai.chat"
-                }
-              },
-              {
-                "key": "llm.token_count.total",
-                "value": {
-                  "intValue": "51"
-                }
-              },
-              {
-                "key": "metadata.ai.response.avgOutputTokensPerSecond",
-                "value": {
-                  "intValue": "3000"
-                }
-              },
-              {
-                "key": "metadata.ai.response.msToFinish",
+                "key": "gen_ai.usage.reasoning.output_tokens",
                 "value": {
                   "intValue": "3"
-                }
-              },
-              {
-                "key": "metadata.ai.response.msToFirstChunk",
-                "value": {
-                  "intValue": "1"
                 }
               },
               {
@@ -878,18 +602,25 @@
                 "value": {
                   "stringValue": "ai.streamText.doStream"
                 }
+              }
+            ],
+            "events": [
+              {
+                "timeUnixNano": "1700000000002000000",
+                "name": "gen_ai.first_token",
+                "attributes": [
+                  {
+                    "key": "ai.response.msToFirstChunk",
+                    "value": {
+                      "intValue": "1"
+                    }
+                  }
+                ]
               },
               {
-                "key": "output.mime_type",
-                "value": {
-                  "stringValue": "text/plain"
-                }
-              },
-              {
-                "key": "output.value",
-                "value": {
-                  "stringValue": "Paris."
-                }
+                "timeUnixNano": "1700000000003000000",
+                "name": "ai.stream.finish",
+                "attributes": []
               }
             ],
             "status": {}
@@ -930,27 +661,9 @@
             "endTimeUnixNano": "1700000000007000000",
             "attributes": [
               {
-                "key": "ai.model.id",
-                "value": {
-                  "stringValue": "gpt-4o-mini"
-                }
-              },
-              {
-                "key": "ai.model.provider",
-                "value": {
-                  "stringValue": "openai.chat"
-                }
-              },
-              {
                 "key": "ai.operationId",
                 "value": {
                   "stringValue": "ai.generateText"
-                }
-              },
-              {
-                "key": "ai.prompt",
-                "value": {
-                  "stringValue": "{\"prompt\":\"Weather in Paris?\"}"
                 }
               },
               {
@@ -960,21 +673,9 @@
                 }
               },
               {
-                "key": "ai.response.finishReason",
-                "value": {
-                  "stringValue": "stop"
-                }
-              },
-              {
                 "key": "ai.response.providerMetadata",
                 "value": {
                   "stringValue": "{\"openai\":{}}"
-                }
-              },
-              {
-                "key": "ai.response.text",
-                "value": {
-                  "stringValue": "Sunny, 22C."
                 }
               },
               {
@@ -996,33 +697,45 @@
                 }
               },
               {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Weather in Paris?\"}]}]"
+                }
+              },
+              {
                 "key": "gen_ai.operation.name",
                 "value": {
                   "stringValue": "invoke_agent"
                 }
               },
               {
-                "key": "input.mime_type",
+                "key": "gen_ai.output.messages",
                 "value": {
-                  "stringValue": "application/json"
+                  "stringValue": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"Sunny, 22C.\"}],\"finish_reason\":\"stop\"}]"
                 }
               },
               {
-                "key": "input.value",
+                "key": "gen_ai.provider.name",
                 "value": {
-                  "stringValue": "{\"prompt\":\"Weather in Paris?\"}"
+                  "stringValue": "openai"
                 }
               },
               {
-                "key": "llm.invocation_parameters",
-                "value": {
-                  "stringValue": "{\"maxRetries\":0}"
-                }
-              },
-              {
-                "key": "llm.model_name",
+                "key": "gen_ai.request.model",
                 "value": {
                   "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "gen_ai.response.finish_reasons",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "stop"
+                      }
+                    ]
+                  }
                 }
               },
               {
@@ -1035,18 +748,6 @@
                 "key": "operation.name",
                 "value": {
                   "stringValue": "ai.generateText"
-                }
-              },
-              {
-                "key": "output.mime_type",
-                "value": {
-                  "stringValue": "text/plain"
-                }
-              },
-              {
-                "key": "output.value",
-                "value": {
-                  "stringValue": "Sunny, 22C."
                 }
               }
             ],
@@ -1068,69 +769,15 @@
             "endTimeUnixNano": "1700000000002000000",
             "attributes": [
               {
-                "key": "ai.model.id",
-                "value": {
-                  "stringValue": "gpt-4o-mini"
-                }
-              },
-              {
-                "key": "ai.model.provider",
-                "value": {
-                  "stringValue": "openai.chat"
-                }
-              },
-              {
                 "key": "ai.operationId",
                 "value": {
                   "stringValue": "ai.generateText.doGenerate"
                 }
               },
               {
-                "key": "ai.prompt.messages",
-                "value": {
-                  "stringValue": "[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Weather in Paris?\"}]}]"
-                }
-              },
-              {
-                "key": "ai.prompt.toolChoice",
-                "value": {
-                  "stringValue": "{\"type\":\"auto\"}"
-                }
-              },
-              {
-                "key": "ai.prompt.tools",
-                "value": {
-                  "arrayValue": {
-                    "values": [
-                      {
-                        "stringValue": "{\"type\":\"function\",\"name\":\"get_weather\",\"description\":\"Current weather for a city\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"]}}"
-                      }
-                    ]
-                  }
-                }
-              },
-              {
                 "key": "ai.request.headers.user-agent",
                 "value": {
                   "stringValue": "ai/5.0.273"
-                }
-              },
-              {
-                "key": "ai.response.finishReason",
-                "value": {
-                  "stringValue": "tool-calls"
-                }
-              },
-              {
-                "key": "ai.response.id",
-                "value": {
-                  "stringValue": "chatcmpl-rec1"
-                }
-              },
-              {
-                "key": "ai.response.model",
-                "value": {
-                  "stringValue": "gpt-4o-mini-2024-07-18"
                 }
               },
               {
@@ -1143,12 +790,6 @@
                 "key": "ai.response.timestamp",
                 "value": {
                   "stringValue": "2023-11-14T22:13:20.000Z"
-                }
-              },
-              {
-                "key": "ai.response.toolCalls",
-                "value": {
-                  "stringValue": "[{\"toolCallId\":\"call_rec1\",\"toolName\":\"get_weather\",\"input\":\"{\\\"city\\\":\\\"Paris\\\"}\"}]"
                 }
               },
               {
@@ -1170,6 +811,12 @@
                 }
               },
               {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Weather in Paris?\"}]}]"
+                }
+              },
+              {
                 "key": "gen_ai.operation.name",
                 "value": {
                   "stringValue": "chat"
@@ -1178,13 +825,13 @@
               {
                 "key": "gen_ai.output.messages",
                 "value": {
-                  "stringValue": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"call_rec1\",\"name\":\"get_weather\",\"arguments\":\"\\\"{\\\\\\\"city\\\\\\\":\\\\\\\"Paris\\\\\\\"}\\\"\"}]}]"
+                  "stringValue": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"call_rec1\",\"name\":\"get_weather\",\"arguments\":{\"city\":\"Paris\"}}],\"finish_reason\":\"tool_call\"}]"
                 }
               },
               {
                 "key": "gen_ai.provider.name",
                 "value": {
-                  "stringValue": "openai.chat"
+                  "stringValue": "openai"
                 }
               },
               {
@@ -1218,6 +865,12 @@
                 }
               },
               {
+                "key": "gen_ai.tool.definitions",
+                "value": {
+                  "stringValue": "[{\"type\":\"function\",\"name\":\"get_weather\",\"description\":\"Current weather for a city\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"]}}]"
+                }
+              },
+              {
                 "key": "gen_ai.usage.input_tokens",
                 "value": {
                   "intValue": "24"
@@ -1227,54 +880,6 @@
                 "key": "gen_ai.usage.output_tokens",
                 "value": {
                   "intValue": "51"
-                }
-              },
-              {
-                "key": "input.mime_type",
-                "value": {
-                  "stringValue": "application/json"
-                }
-              },
-              {
-                "key": "input.value",
-                "value": {
-                  "stringValue": "[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Weather in Paris?\"}]}]"
-                }
-              },
-              {
-                "key": "llm.input_messages.0.message.contents.0.message_content.text",
-                "value": {
-                  "stringValue": "Weather in Paris?"
-                }
-              },
-              {
-                "key": "llm.input_messages.0.message.contents.0.message_content.type",
-                "value": {
-                  "stringValue": "text"
-                }
-              },
-              {
-                "key": "llm.input_messages.0.message.role",
-                "value": {
-                  "stringValue": "user"
-                }
-              },
-              {
-                "key": "llm.model_name",
-                "value": {
-                  "stringValue": "gpt-4o-mini-2024-07-18"
-                }
-              },
-              {
-                "key": "llm.system",
-                "value": {
-                  "stringValue": "openai.chat"
-                }
-              },
-              {
-                "key": "llm.token_count.total",
-                "value": {
-                  "intValue": "75"
                 }
               },
               {
@@ -1290,15 +895,9 @@
                 }
               },
               {
-                "key": "output.mime_type",
+                "key": "rius.request.tool_choice",
                 "value": {
-                  "stringValue": "application/json"
-                }
-              },
-              {
-                "key": "output.value",
-                "value": {
-                  "stringValue": "[{\"toolCallId\":\"call_rec1\",\"toolName\":\"get_weather\",\"input\":\"{\\\"city\\\":\\\"Paris\\\"}\"}]"
+                  "stringValue": "auto"
                 }
               }
             ],
@@ -1326,33 +925,27 @@
                 }
               },
               {
-                "key": "ai.toolCall.args",
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "execute_tool"
+                }
+              },
+              {
+                "key": "gen_ai.tool.call.arguments",
                 "value": {
                   "stringValue": "{\"city\":\"Paris\"}"
                 }
               },
               {
-                "key": "ai.toolCall.id",
+                "key": "gen_ai.tool.call.id",
                 "value": {
                   "stringValue": "call_rec1"
                 }
               },
               {
-                "key": "ai.toolCall.name",
-                "value": {
-                  "stringValue": "get_weather"
-                }
-              },
-              {
-                "key": "ai.toolCall.result",
+                "key": "gen_ai.tool.call.result",
                 "value": {
                   "stringValue": "\"sunny, 22C\""
-                }
-              },
-              {
-                "key": "gen_ai.operation.name",
-                "value": {
-                  "stringValue": "execute_tool"
                 }
               },
               {
@@ -1362,15 +955,9 @@
                 }
               },
               {
-                "key": "input.mime_type",
+                "key": "gen_ai.tool.type",
                 "value": {
-                  "stringValue": "application/json"
-                }
-              },
-              {
-                "key": "input.value",
-                "value": {
-                  "stringValue": "{\"city\":\"Paris\"}"
+                  "stringValue": "function"
                 }
               },
               {
@@ -1383,30 +970,6 @@
                 "key": "operation.name",
                 "value": {
                   "stringValue": "ai.toolCall"
-                }
-              },
-              {
-                "key": "output.mime_type",
-                "value": {
-                  "stringValue": "text/plain"
-                }
-              },
-              {
-                "key": "output.value",
-                "value": {
-                  "stringValue": "\"sunny, 22C\""
-                }
-              },
-              {
-                "key": "tool.parameters",
-                "value": {
-                  "stringValue": "{\"city\":\"Paris\"}"
-                }
-              },
-              {
-                "key": "tool_call.id",
-                "value": {
-                  "stringValue": "call_rec1"
                 }
               }
             ],
@@ -1428,45 +991,9 @@
             "endTimeUnixNano": "1700000000006000000",
             "attributes": [
               {
-                "key": "ai.model.id",
-                "value": {
-                  "stringValue": "gpt-4o-mini"
-                }
-              },
-              {
-                "key": "ai.model.provider",
-                "value": {
-                  "stringValue": "openai.chat"
-                }
-              },
-              {
                 "key": "ai.operationId",
                 "value": {
                   "stringValue": "ai.generateText.doGenerate"
-                }
-              },
-              {
-                "key": "ai.prompt.messages",
-                "value": {
-                  "stringValue": "[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Weather in Paris?\"}]},{\"role\":\"assistant\",\"content\":[{\"type\":\"tool-call\",\"toolCallId\":\"call_rec1\",\"toolName\":\"get_weather\",\"input\":{\"city\":\"Paris\"}}]},{\"role\":\"tool\",\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_rec1\",\"toolName\":\"get_weather\",\"output\":{\"type\":\"text\",\"value\":\"sunny, 22C\"}}]}]"
-                }
-              },
-              {
-                "key": "ai.prompt.toolChoice",
-                "value": {
-                  "stringValue": "{\"type\":\"auto\"}"
-                }
-              },
-              {
-                "key": "ai.prompt.tools",
-                "value": {
-                  "arrayValue": {
-                    "values": [
-                      {
-                        "stringValue": "{\"type\":\"function\",\"name\":\"get_weather\",\"description\":\"Current weather for a city\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"]}}"
-                      }
-                    ]
-                  }
                 }
               },
               {
@@ -1476,33 +1003,9 @@
                 }
               },
               {
-                "key": "ai.response.finishReason",
-                "value": {
-                  "stringValue": "stop"
-                }
-              },
-              {
-                "key": "ai.response.id",
-                "value": {
-                  "stringValue": "chatcmpl-rec2"
-                }
-              },
-              {
-                "key": "ai.response.model",
-                "value": {
-                  "stringValue": "gpt-4o-mini-2024-07-18"
-                }
-              },
-              {
                 "key": "ai.response.providerMetadata",
                 "value": {
                   "stringValue": "{\"openai\":{}}"
-                }
-              },
-              {
-                "key": "ai.response.text",
-                "value": {
-                  "stringValue": "Sunny, 22C."
                 }
               },
               {
@@ -1530,15 +1033,27 @@
                 }
               },
               {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Weather in Paris?\"}]},{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"call_rec1\",\"name\":\"get_weather\",\"arguments\":{\"city\":\"Paris\"}}]},{\"role\":\"tool\",\"parts\":[{\"type\":\"tool_call_response\",\"id\":\"call_rec1\",\"response\":\"sunny, 22C\"}]}]"
+                }
+              },
+              {
                 "key": "gen_ai.operation.name",
                 "value": {
                   "stringValue": "chat"
                 }
               },
               {
+                "key": "gen_ai.output.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"Sunny, 22C.\"}],\"finish_reason\":\"stop\"}]"
+                }
+              },
+              {
                 "key": "gen_ai.provider.name",
                 "value": {
-                  "stringValue": "openai.chat"
+                  "stringValue": "openai"
                 }
               },
               {
@@ -1572,6 +1087,12 @@
                 }
               },
               {
+                "key": "gen_ai.tool.definitions",
+                "value": {
+                  "stringValue": "[{\"type\":\"function\",\"name\":\"get_weather\",\"description\":\"Current weather for a city\",\"inputSchema\":{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"]}}]"
+                }
+              },
+              {
                 "key": "gen_ai.usage.input_tokens",
                 "value": {
                   "intValue": "91"
@@ -1581,102 +1102,6 @@
                 "key": "gen_ai.usage.output_tokens",
                 "value": {
                   "intValue": "15"
-                }
-              },
-              {
-                "key": "input.mime_type",
-                "value": {
-                  "stringValue": "application/json"
-                }
-              },
-              {
-                "key": "input.value",
-                "value": {
-                  "stringValue": "[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Weather in Paris?\"}]},{\"role\":\"assistant\",\"content\":[{\"type\":\"tool-call\",\"toolCallId\":\"call_rec1\",\"toolName\":\"get_weather\",\"input\":{\"city\":\"Paris\"}}]},{\"role\":\"tool\",\"content\":[{\"type\":\"tool-result\",\"toolCallId\":\"call_rec1\",\"toolName\":\"get_weather\",\"output\":{\"type\":\"text\",\"value\":\"sunny, 22C\"}}]}]"
-                }
-              },
-              {
-                "key": "llm.input_messages.0.message.contents.0.message_content.text",
-                "value": {
-                  "stringValue": "Weather in Paris?"
-                }
-              },
-              {
-                "key": "llm.input_messages.0.message.contents.0.message_content.type",
-                "value": {
-                  "stringValue": "text"
-                }
-              },
-              {
-                "key": "llm.input_messages.0.message.role",
-                "value": {
-                  "stringValue": "user"
-                }
-              },
-              {
-                "key": "llm.input_messages.1.message.contents.0.message_content.type",
-                "value": {
-                  "stringValue": "tool-call"
-                }
-              },
-              {
-                "key": "llm.input_messages.1.message.role",
-                "value": {
-                  "stringValue": "assistant"
-                }
-              },
-              {
-                "key": "llm.input_messages.1.message.tool_calls.0.tool_call.function.arguments",
-                "value": {
-                  "stringValue": "{\"city\":\"Paris\"}"
-                }
-              },
-              {
-                "key": "llm.input_messages.1.message.tool_calls.0.tool_call.function.name",
-                "value": {
-                  "stringValue": "get_weather"
-                }
-              },
-              {
-                "key": "llm.input_messages.1.message.tool_calls.0.tool_call.id",
-                "value": {
-                  "stringValue": "call_rec1"
-                }
-              },
-              {
-                "key": "llm.input_messages.2.message.content",
-                "value": {
-                  "stringValue": "{\"type\":\"text\",\"value\":\"sunny, 22C\"}"
-                }
-              },
-              {
-                "key": "llm.input_messages.2.message.role",
-                "value": {
-                  "stringValue": "tool"
-                }
-              },
-              {
-                "key": "llm.input_messages.2.message.tool_call_id",
-                "value": {
-                  "stringValue": "call_rec1"
-                }
-              },
-              {
-                "key": "llm.model_name",
-                "value": {
-                  "stringValue": "gpt-4o-mini-2024-07-18"
-                }
-              },
-              {
-                "key": "llm.system",
-                "value": {
-                  "stringValue": "openai.chat"
-                }
-              },
-              {
-                "key": "llm.token_count.total",
-                "value": {
-                  "intValue": "106"
                 }
               },
               {
@@ -1692,15 +1117,9 @@
                 }
               },
               {
-                "key": "output.mime_type",
+                "key": "rius.request.tool_choice",
                 "value": {
-                  "stringValue": "text/plain"
-                }
-              },
-              {
-                "key": "output.value",
-                "value": {
-                  "stringValue": "Sunny, 22C."
+                  "stringValue": "auto"
                 }
               }
             ],
@@ -1742,27 +1161,9 @@
             "endTimeUnixNano": "1700000000005000000",
             "attributes": [
               {
-                "key": "ai.model.id",
-                "value": {
-                  "stringValue": "gpt-nope"
-                }
-              },
-              {
-                "key": "ai.model.provider",
-                "value": {
-                  "stringValue": "openai.chat"
-                }
-              },
-              {
                 "key": "ai.operationId",
                 "value": {
                   "stringValue": "ai.generateText"
-                }
-              },
-              {
-                "key": "ai.prompt",
-                "value": {
-                  "stringValue": "{\"prompt\":\"hi\"}"
                 }
               },
               {
@@ -1784,31 +1185,25 @@
                 }
               },
               {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"hi\"}]}]"
+                }
+              },
+              {
                 "key": "gen_ai.operation.name",
                 "value": {
                   "stringValue": "invoke_agent"
                 }
               },
               {
-                "key": "input.mime_type",
+                "key": "gen_ai.provider.name",
                 "value": {
-                  "stringValue": "application/json"
+                  "stringValue": "openai"
                 }
               },
               {
-                "key": "input.value",
-                "value": {
-                  "stringValue": "{\"prompt\":\"hi\"}"
-                }
-              },
-              {
-                "key": "llm.invocation_parameters",
-                "value": {
-                  "stringValue": "{\"maxRetries\":0}"
-                }
-              },
-              {
-                "key": "llm.model_name",
+                "key": "gen_ai.request.model",
                 "value": {
                   "stringValue": "gpt-nope"
                 }
@@ -1873,27 +1268,9 @@
             "endTimeUnixNano": "1700000000003000000",
             "attributes": [
               {
-                "key": "ai.model.id",
-                "value": {
-                  "stringValue": "gpt-nope"
-                }
-              },
-              {
-                "key": "ai.model.provider",
-                "value": {
-                  "stringValue": "openai.chat"
-                }
-              },
-              {
                 "key": "ai.operationId",
                 "value": {
                   "stringValue": "ai.generateText.doGenerate"
-                }
-              },
-              {
-                "key": "ai.prompt.messages",
-                "value": {
-                  "stringValue": "[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"hi\"}]}]"
                 }
               },
               {
@@ -1915,6 +1292,12 @@
                 }
               },
               {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"hi\"}]}]"
+                }
+              },
+              {
                 "key": "gen_ai.operation.name",
                 "value": {
                   "stringValue": "chat"
@@ -1923,55 +1306,13 @@
               {
                 "key": "gen_ai.provider.name",
                 "value": {
-                  "stringValue": "openai.chat"
+                  "stringValue": "openai"
                 }
               },
               {
                 "key": "gen_ai.request.model",
                 "value": {
                   "stringValue": "gpt-nope"
-                }
-              },
-              {
-                "key": "input.mime_type",
-                "value": {
-                  "stringValue": "application/json"
-                }
-              },
-              {
-                "key": "input.value",
-                "value": {
-                  "stringValue": "[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"hi\"}]}]"
-                }
-              },
-              {
-                "key": "llm.input_messages.0.message.contents.0.message_content.text",
-                "value": {
-                  "stringValue": "hi"
-                }
-              },
-              {
-                "key": "llm.input_messages.0.message.contents.0.message_content.type",
-                "value": {
-                  "stringValue": "text"
-                }
-              },
-              {
-                "key": "llm.input_messages.0.message.role",
-                "value": {
-                  "stringValue": "user"
-                }
-              },
-              {
-                "key": "llm.model_name",
-                "value": {
-                  "stringValue": "gpt-nope"
-                }
-              },
-              {
-                "key": "llm.system",
-                "value": {
-                  "stringValue": "openai.chat"
                 }
               },
               {
@@ -2054,24 +1395,6 @@
             "endTimeUnixNano": "1700000000003000000",
             "attributes": [
               {
-                "key": "ai.embedding",
-                "value": {
-                  "stringValue": "[0.25,-0.5,0.125]"
-                }
-              },
-              {
-                "key": "ai.model.id",
-                "value": {
-                  "stringValue": "text-embedding-3-small"
-                }
-              },
-              {
-                "key": "ai.model.provider",
-                "value": {
-                  "stringValue": "openai.embedding"
-                }
-              },
-              {
                 "key": "ai.operationId",
                 "value": {
                   "stringValue": "ai.embed"
@@ -2090,25 +1413,25 @@
                 }
               },
               {
-                "key": "ai.usage.tokens",
-                "value": {
-                  "intValue": "5"
-                }
-              },
-              {
                 "key": "ai.value",
                 "value": {
                   "stringValue": "\"Capital of France?\""
                 }
               },
               {
-                "key": "llm.invocation_parameters",
+                "key": "gen_ai.operation.name",
                 "value": {
-                  "stringValue": "{\"maxRetries\":0}"
+                  "stringValue": "embeddings"
                 }
               },
               {
-                "key": "llm.model_name",
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
                 "value": {
                   "stringValue": "text-embedding-3-small"
                 }
@@ -2116,13 +1439,19 @@
               {
                 "key": "openinference.span.kind",
                 "value": {
-                  "stringValue": "CHAIN"
+                  "stringValue": "EMBEDDING"
                 }
               },
               {
                 "key": "operation.name",
                 "value": {
                   "stringValue": "ai.embed"
+                }
+              },
+              {
+                "key": "rius.aggregated_usage.input_tokens",
+                "value": {
+                  "intValue": "5"
                 }
               }
             ],
@@ -2144,30 +1473,6 @@
             "endTimeUnixNano": "1700000000002000000",
             "attributes": [
               {
-                "key": "ai.embeddings",
-                "value": {
-                  "arrayValue": {
-                    "values": [
-                      {
-                        "stringValue": "[0.25,-0.5,0.125]"
-                      }
-                    ]
-                  }
-                }
-              },
-              {
-                "key": "ai.model.id",
-                "value": {
-                  "stringValue": "text-embedding-3-small"
-                }
-              },
-              {
-                "key": "ai.model.provider",
-                "value": {
-                  "stringValue": "openai.embedding"
-                }
-              },
-              {
                 "key": "ai.operationId",
                 "value": {
                   "stringValue": "ai.embed.doEmbed"
@@ -2186,12 +1491,6 @@
                 }
               },
               {
-                "key": "ai.usage.tokens",
-                "value": {
-                  "intValue": "5"
-                }
-              },
-              {
                 "key": "ai.values",
                 "value": {
                   "arrayValue": {
@@ -2204,15 +1503,15 @@
                 }
               },
               {
-                "key": "embedding.embeddings.0.embedding.text",
-                "value": {
-                  "stringValue": "Capital of France?"
-                }
-              },
-              {
                 "key": "gen_ai.operation.name",
                 "value": {
                   "stringValue": "embeddings"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "openai"
                 }
               },
               {
@@ -2222,9 +1521,9 @@
                 }
               },
               {
-                "key": "llm.invocation_parameters",
+                "key": "gen_ai.usage.input_tokens",
                 "value": {
-                  "stringValue": "{\"maxRetries\":0}"
+                  "intValue": "5"
                 }
               },
               {

@@ -34,7 +34,12 @@
     {
       "family": "vercel-ai-v5",
       "key": "*",
-      "reason": "The TypeScript SDK is the reference here: it translates the AI SDK's ai.* dialect through @arizeai/openinference-vercel before normalizing. The Python SDK has no ai.* translation (the AI SDK is JavaScript-only), so the raw spans pass through."
+      "reason": "The TypeScript SDK is the reference here: its normalizer maps the AI SDK's ai.* dialect onto the conventions. The Python SDK has no ai.* mapping (the AI SDK is JavaScript-only, so it never sees these spans live), so the raw spans pass through."
+    },
+    {
+      "family": "vercel-ai-v6",
+      "key": "*",
+      "reason": "As vercel-ai-v5."
     }
   ]
 }
