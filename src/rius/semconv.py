@@ -754,7 +754,8 @@ _OPERATION_BY_KIND: dict[SpanKind, str] = {
     SpanKind.RETRIEVER: "retrieval",
 }
 
-# The inverse, for spans that speak only the conventions. A GenAI-native
+# The inverse, for spans that speak the conventions (and the GenAI-native
+# vendor operations listed below, such as agent_step). A GenAI-native
 # instrumentation sets gen_ai.operation.name and never heard of
 # openinference.span.kind, and both keys must be present on every span, so the
 # derivation has to run in both directions.
