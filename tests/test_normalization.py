@@ -437,7 +437,8 @@ def test_the_two_taxonomy_maps_round_trip_where_an_operation_exists() -> None:
     for kind in SpanKind:
         operation = operation_for_kind(kind.value)
         if operation is None:
-            assert kind is SpanKind.CHAIN, f"{kind} unexpectedly has no operation"
+            # The conventions define no operation for either.
+            assert kind in (SpanKind.CHAIN, SpanKind.RERANKER), f"{kind} has no operation"
             continue
         assert kind_for_operation(operation) == kind.value, kind
 
