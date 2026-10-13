@@ -748,14 +748,18 @@ class SpanKind(str, Enum):
 # CHAIN is deliberately absent: the conventions define no operation for a
 # generic workflow step, and inventing one would put a non-spec value in a
 # spec-defined enum. Revisit only if the upstream invoke_node proposal lands.
-# RERANKER is absent for the same reason: the conventions define no rerank
-# operation.
+# RERANKER maps to rerank, which the conventions do not define either. It is
+# the value the Vercel AI SDK's @ai-sdk/otel writes on a rerank call, and the
+# SDKs write it on AI SDK v6 reranks too, so it is already on the wire. Mapping
+# the kind to it gives every rerank span (AI SDK, OpenInference RERANKER,
+# user-created) the same operation, so a filter on either key finds them all.
 _OPERATION_BY_KIND: dict[SpanKind, str] = {
     SpanKind.LLM: "chat",
     SpanKind.TOOL: "execute_tool",
     SpanKind.EMBEDDING: "embeddings",
     SpanKind.AGENT: "invoke_agent",
     SpanKind.RETRIEVER: "retrieval",
+    SpanKind.RERANKER: "rerank",
 }
 
 # The inverse, for spans that speak only the conventions. A GenAI-native
@@ -773,10 +777,6 @@ _OPERATION_BY_KIND: dict[SpanKind, str] = {
 #     invoke_workflow and plan are real GenAI operations with no taxonomy
 #     value of their own; CHAIN is the honest home for both, and the reverse
 #     direction is the only one that can say so.
-#   - rerank is not a conventions operation but the AI SDK's own value
-#     (@ai-sdk/otel writes it on a rerank call). RERANKER is its kind, and
-#     since the conventions define no operation for RERANKER, only this
-#     direction maps it.
 # The structural test asserts the round-trip where one exists, not equality of
 # the two maps. Mirrors the console's deriveSpanKind.
 _KIND_BY_OPERATION: dict[str, SpanKind] = {
@@ -857,8 +857,9 @@ CHAIN_SPAN_NAME = "chain"
 # Which attribute names the target, per kind. One key each, so a tool name can
 # never surface in an agent's name and the composed name stays a reliable
 # filter value. CHAIN is absent: it has no operation and so no composed name.
-# RERANKER reads the model, as EMBEDDING does: a rerank call's target is the
-# reranking model.
+# RERANKER reads the request model, as EMBEDDING does, so a rerank span is
+# named `rerank <model>`. The span helpers here take no model, so a RERANKER
+# span they create is named after the bare operation, `rerank`.
 _NAME_TARGET_BY_KIND: dict[SpanKind, str] = {
     SpanKind.LLM: GEN_AI_REQUEST_MODEL,
     SpanKind.EMBEDDING: GEN_AI_REQUEST_MODEL,

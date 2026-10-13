@@ -80,13 +80,14 @@ def test_chain_stays_unmapped() -> None:
     assert GEN_AI_OPERATION_NAME not in kind_attributes(SpanKind.CHAIN)
 
 
-def test_reranker_stays_unmapped_and_the_rerank_operation_lands_on_it() -> None:
-    """The conventions define no rerank operation, so a RERANKER span gets none;
-    the AI SDK's own ``rerank`` operation still derives the kind."""
+def test_reranker_round_trips_with_the_ai_sdks_rerank_operation() -> None:
+    """The conventions define no rerank operation, so RERANKER takes the AI
+    SDK's own ``rerank``, in both directions: every rerank span carries the
+    same operation whoever made it."""
     from rius.semconv import kind_attributes, kind_for_operation, operation_for_kind
 
-    assert GEN_AI_OPERATION_NAME not in kind_attributes(SpanKind.RERANKER)
-    assert operation_for_kind("RERANKER") is None
+    assert kind_attributes(SpanKind.RERANKER)[GEN_AI_OPERATION_NAME] == "rerank"
+    assert operation_for_kind("RERANKER") == "rerank"
     assert kind_for_operation("rerank") == "RERANKER"
 
 
@@ -205,6 +206,10 @@ def test_compose_span_name_composes_the_operation_and_the_target() -> None:
             SpanKind.RETRIEVER,
             {"gen_ai.operation.name": "retrieval", "gen_ai.data_source.id": "kb"},
         ),
+        (
+            SpanKind.RERANKER,
+            {"gen_ai.operation.name": "rerank", "gen_ai.request.model": "rerank-v3.5"},
+        ),
     ]
     expected = [
         "chat gpt-4o",
@@ -212,6 +217,7 @@ def test_compose_span_name_composes_the_operation_and_the_target() -> None:
         "execute_tool get_weather",
         "invoke_agent planner",
         "retrieval kb",
+        "rerank rerank-v3.5",
     ]
     assert [compose_span_name(kind, attrs) for kind, attrs in cases] == expected
 
@@ -242,6 +248,7 @@ def test_compose_span_name_falls_back_to_the_bare_operation() -> None:
         (SpanKind.TOOL, "execute_tool"),
         (SpanKind.AGENT, "invoke_agent"),
         (SpanKind.RETRIEVER, "retrieval"),
+        (SpanKind.RERANKER, "rerank"),
     ):
         assert compose_span_name(kind, {"gen_ai.operation.name": operation}) == operation
 

@@ -457,6 +457,23 @@ def test_retriever_span_without_a_data_source_is_the_bare_operation(
     assert exported_spans.get_finished_spans()[0].name == "retrieval"
 
 
+def test_reranker_span_is_named_after_the_rerank_operation(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    """The helpers take no model, so an unnamed RERANKER span is the bare
+    operation on both surfaces, not the CHAIN literal."""
+    with start_as_current_span(kind=SpanKind.RERANKER):
+        pass
+    start_span(kind=SpanKind.RERANKER).end()
+    spans = exported_spans.get_finished_spans()
+    assert [s.name for s in spans] == ["rerank", "rerank"]
+    assert all(s.attributes is not None for s in spans)
+    assert [s.attributes["gen_ai.operation.name"] for s in spans if s.attributes] == [
+        "rerank",
+        "rerank",
+    ]
+
+
 def test_unnamed_chain_span_is_the_degenerate_literal(
     exported_spans: InMemorySpanExporter,
 ) -> None:
