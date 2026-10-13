@@ -317,6 +317,41 @@ def test_a_start_in_the_step_itself_attaches(monkeypatch: pytest.MonkeyPatch) ->
     assert not trace.get_current_span().get_span_context().is_valid
 
 
+def test_a_second_start_in_the_same_step_keeps_the_first(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A second chat model run can start inside the first step, before it ends:
+    # a model whose _stream delegates to another model's invoke. The step
+    # keeps the first span; attaching the second would overwrite the first
+    # attach's token, and the step could never detach it.
+    first, second = (
+        trace.NonRecordingSpan(
+            trace.SpanContext(1, span_id, is_remote=False, trace_flags=trace.TraceFlags(1))
+        )
+        for span_id in (2, 3)
+    )
+
+    class RunManager:
+        def __init__(self, run_id: str) -> None:
+            self.run_id = run_id
+
+    class Tracer:
+        def get_span(self, run_id: Any) -> Any:
+            return {"run-1": first, "run-2": second}.get(run_id)
+
+    monkeypatch.setattr(langchain_span_context, "_tracer", Tracer())
+    pending = langchain_span_context._PendingStream()
+    marker = langchain_span_context._PENDING.set(pending)
+    try:
+        langchain_span_context._attach_started([RunManager("run-1")])
+        langchain_span_context._attach_started([RunManager("run-2")])
+        assert trace.get_current_span() is first
+    finally:
+        langchain_span_context._end_step(pending, marker)
+    assert pending.span is first
+    assert not trace.get_current_span().get_span_context().is_valid
+
+
 def test_an_unexpected_start_result_never_reaches_the_caller() -> None:
     # A reshaped on_chat_model_start result (no run managers) is skipped.
     pending = langchain_span_context._PendingStream()
