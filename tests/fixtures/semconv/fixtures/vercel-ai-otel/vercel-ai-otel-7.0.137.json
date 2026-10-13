@@ -33,6 +33,24 @@
             "endTimeUnixNano": "1700000000005000000",
             "attributes": [
               {
+                "key": "ai.usage.inputTokenDetails.noCacheTokens",
+                "value": {
+                  "intValue": "26"
+                }
+              },
+              {
+                "key": "ai.usage.outputTokenDetails.reasoningTokens",
+                "value": {
+                  "intValue": "3"
+                }
+              },
+              {
+                "key": "ai.usage.outputTokenDetails.textTokens",
+                "value": {
+                  "intValue": "6"
+                }
+              },
+              {
                 "key": "gen_ai.input.messages",
                 "value": {
                   "stringValue": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Capital of France?\"}]}]"
@@ -129,6 +147,24 @@
             "endTimeUnixNano": "1700000000004000000",
             "attributes": [
               {
+                "key": "ai.usage.inputTokenDetails.noCacheTokens",
+                "value": {
+                  "intValue": "26"
+                }
+              },
+              {
+                "key": "ai.usage.outputTokenDetails.reasoningTokens",
+                "value": {
+                  "intValue": "3"
+                }
+              },
+              {
+                "key": "ai.usage.outputTokenDetails.textTokens",
+                "value": {
+                  "intValue": "6"
+                }
+              },
+              {
                 "key": "gen_ai.operation.name",
                 "value": {
                   "stringValue": "agent_step"
@@ -152,6 +188,24 @@
             "startTimeUnixNano": "1700000000002000000",
             "endTimeUnixNano": "1700000000003000000",
             "attributes": [
+              {
+                "key": "ai.usage.inputTokenDetails.noCacheTokens",
+                "value": {
+                  "intValue": "26"
+                }
+              },
+              {
+                "key": "ai.usage.outputTokenDetails.reasoningTokens",
+                "value": {
+                  "intValue": "3"
+                }
+              },
+              {
+                "key": "ai.usage.outputTokenDetails.textTokens",
+                "value": {
+                  "intValue": "6"
+                }
+              },
               {
                 "key": "gen_ai.client.operation.duration",
                 "value": {
@@ -287,6 +341,24 @@
             "endTimeUnixNano": "1700000000005000000",
             "attributes": [
               {
+                "key": "ai.usage.inputTokenDetails.noCacheTokens",
+                "value": {
+                  "intValue": "26"
+                }
+              },
+              {
+                "key": "ai.usage.outputTokenDetails.reasoningTokens",
+                "value": {
+                  "intValue": "3"
+                }
+              },
+              {
+                "key": "ai.usage.outputTokenDetails.textTokens",
+                "value": {
+                  "intValue": "6"
+                }
+              },
+              {
                 "key": "gen_ai.input.messages",
                 "value": {
                   "stringValue": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Capital of France?\"}]}]"
@@ -365,6 +437,24 @@
             "endTimeUnixNano": "1700000000004000000",
             "attributes": [
               {
+                "key": "ai.usage.inputTokenDetails.noCacheTokens",
+                "value": {
+                  "intValue": "26"
+                }
+              },
+              {
+                "key": "ai.usage.outputTokenDetails.reasoningTokens",
+                "value": {
+                  "intValue": "3"
+                }
+              },
+              {
+                "key": "ai.usage.outputTokenDetails.textTokens",
+                "value": {
+                  "intValue": "6"
+                }
+              },
+              {
                 "key": "gen_ai.operation.name",
                 "value": {
                   "stringValue": "agent_step"
@@ -388,6 +478,24 @@
             "startTimeUnixNano": "1700000000002000000",
             "endTimeUnixNano": "1700000000003000000",
             "attributes": [
+              {
+                "key": "ai.usage.inputTokenDetails.noCacheTokens",
+                "value": {
+                  "intValue": "26"
+                }
+              },
+              {
+                "key": "ai.usage.outputTokenDetails.reasoningTokens",
+                "value": {
+                  "intValue": "3"
+                }
+              },
+              {
+                "key": "ai.usage.outputTokenDetails.textTokens",
+                "value": {
+                  "intValue": "6"
+                }
+              },
               {
                 "key": "gen_ai.client.operation.duration",
                 "value": {
@@ -517,6 +625,24 @@
             "endTimeUnixNano": "1700000000011000000",
             "attributes": [
               {
+                "key": "ai.usage.inputTokenDetails.noCacheTokens",
+                "value": {
+                  "intValue": "115"
+                }
+              },
+              {
+                "key": "ai.usage.outputTokenDetails.reasoningTokens",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "ai.usage.outputTokenDetails.textTokens",
+                "value": {
+                  "intValue": "66"
+                }
+              },
+              {
                 "key": "gen_ai.input.messages",
                 "value": {
                   "stringValue": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Weather in Paris?\"}]}]"
@@ -595,6 +721,24 @@
             "endTimeUnixNano": "1700000000006000000",
             "attributes": [
               {
+                "key": "ai.usage.inputTokenDetails.noCacheTokens",
+                "value": {
+                  "intValue": "24"
+                }
+              },
+              {
+                "key": "ai.usage.outputTokenDetails.reasoningTokens",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "ai.usage.outputTokenDetails.textTokens",
+                "value": {
+                  "intValue": "51"
+                }
+              },
+              {
                 "key": "gen_ai.operation.name",
                 "value": {
                   "stringValue": "agent_step"
@@ -618,6 +762,24 @@
             "startTimeUnixNano": "1700000000002000000",
             "endTimeUnixNano": "1700000000003000000",
             "attributes": [
+              {
+                "key": "ai.usage.inputTokenDetails.noCacheTokens",
+                "value": {
+                  "intValue": "24"
+                }
+              },
+              {
+                "key": "ai.usage.outputTokenDetails.reasoningTokens",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "ai.usage.outputTokenDetails.textTokens",
+                "value": {
+                  "intValue": "51"
+                }
+              },
               {
                 "key": "gen_ai.client.operation.duration",
                 "value": {
@@ -781,6 +943,24 @@
             "endTimeUnixNano": "1700000000010000000",
             "attributes": [
               {
+                "key": "ai.usage.inputTokenDetails.noCacheTokens",
+                "value": {
+                  "intValue": "91"
+                }
+              },
+              {
+                "key": "ai.usage.outputTokenDetails.reasoningTokens",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "ai.usage.outputTokenDetails.textTokens",
+                "value": {
+                  "intValue": "15"
+                }
+              },
+              {
                 "key": "gen_ai.operation.name",
                 "value": {
                   "stringValue": "agent_step"
@@ -804,6 +984,24 @@
             "startTimeUnixNano": "1700000000008000000",
             "endTimeUnixNano": "1700000000009000000",
             "attributes": [
+              {
+                "key": "ai.usage.inputTokenDetails.noCacheTokens",
+                "value": {
+                  "intValue": "91"
+                }
+              },
+              {
+                "key": "ai.usage.outputTokenDetails.reasoningTokens",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "ai.usage.outputTokenDetails.textTokens",
+                "value": {
+                  "intValue": "15"
+                }
+              },
               {
                 "key": "gen_ai.client.operation.duration",
                 "value": {
@@ -1217,6 +1415,242 @@
                 "key": "gen_ai.usage.input_tokens",
                 "value": {
                   "intValue": "5"
+                }
+              }
+            ],
+            "status": {}
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "generate_object",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "gen_ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "invoke_agent gpt-4o-mini",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000003000000",
+            "attributes": [
+              {
+                "key": "ai.usage.inputTokenDetails.noCacheTokens",
+                "value": {
+                  "intValue": "26"
+                }
+              },
+              {
+                "key": "ai.usage.outputTokenDetails.reasoningTokens",
+                "value": {
+                  "intValue": "3"
+                }
+              },
+              {
+                "key": "ai.usage.outputTokenDetails.textTokens",
+                "value": {
+                  "intValue": "6"
+                }
+              },
+              {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Capital of France, as JSON.\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "invoke_agent"
+                }
+              },
+              {
+                "key": "gen_ai.output.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"{\\\"city\\\":\\\"Paris\\\",\\\"country\\\":\\\"France\\\"}\"}],\"finish_reason\":\"stop\"}]"
+                }
+              },
+              {
+                "key": "gen_ai.output.type",
+                "value": {
+                  "stringValue": "json"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "gen_ai.response.finish_reasons",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "stop"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "gen_ai.usage.cache_read.input_tokens",
+                "value": {
+                  "intValue": "16"
+                }
+              },
+              {
+                "key": "gen_ai.usage.input_tokens",
+                "value": {
+                  "intValue": "42"
+                }
+              },
+              {
+                "key": "gen_ai.usage.output_tokens",
+                "value": {
+                  "intValue": "9"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "gen_ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000002",
+            "parentSpanId": "0000000000000001",
+            "name": "chat gpt-4o-mini",
+            "kind": "SPAN_KIND_CLIENT",
+            "startTimeUnixNano": "1700000000001000000",
+            "endTimeUnixNano": "1700000000002000000",
+            "attributes": [
+              {
+                "key": "ai.usage.inputTokenDetails.noCacheTokens",
+                "value": {
+                  "intValue": "26"
+                }
+              },
+              {
+                "key": "ai.usage.outputTokenDetails.reasoningTokens",
+                "value": {
+                  "intValue": "3"
+                }
+              },
+              {
+                "key": "ai.usage.outputTokenDetails.textTokens",
+                "value": {
+                  "intValue": "6"
+                }
+              },
+              {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Capital of France, as JSON.\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "chat"
+                }
+              },
+              {
+                "key": "gen_ai.output.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"{\\\"city\\\":\\\"Paris\\\",\\\"country\\\":\\\"France\\\"}\"}],\"finish_reason\":\"stop\"}]"
+                }
+              },
+              {
+                "key": "gen_ai.output.type",
+                "value": {
+                  "stringValue": "json"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "gen_ai.response.finish_reasons",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "stop"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "gen_ai.response.id",
+                "value": {
+                  "stringValue": "chatcmpl-rec1"
+                }
+              },
+              {
+                "key": "gen_ai.response.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini-2024-07-18"
+                }
+              },
+              {
+                "key": "gen_ai.usage.cache_read.input_tokens",
+                "value": {
+                  "intValue": "16"
+                }
+              },
+              {
+                "key": "gen_ai.usage.input_tokens",
+                "value": {
+                  "intValue": "42"
+                }
+              },
+              {
+                "key": "gen_ai.usage.output_tokens",
+                "value": {
+                  "intValue": "9"
                 }
               }
             ],
