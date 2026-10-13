@@ -762,10 +762,11 @@ _OPERATION_BY_KIND: dict[SpanKind, str] = {
     SpanKind.RERANKER: "rerank",
 }
 
-# The inverse, for spans that speak only the conventions. A GenAI-native
-# instrumentation sets gen_ai.operation.name and never heard of
-# openinference.span.kind, and both keys must be present on every span, so the
-# derivation has to run in both directions.
+# The inverse, for spans that speak the conventions (and the GenAI-native
+# vendor operations listed below, such as agent_step and rerank). A
+# GenAI-native instrumentation sets gen_ai.operation.name and never heard of
+# openinference.span.kind, and both keys must be present on every span, so
+# the derivation has to run in both directions.
 #
 # Not a mechanical inversion of the map above, and it cannot be generated from
 # it, for two reasons:
@@ -773,10 +774,14 @@ _OPERATION_BY_KIND: dict[SpanKind, str] = {
 #     are LLM calls the same way chat is, and create_agent is an AGENT span
 #     just as invoke_agent is, so the mapping is many-to-one and only the
 #     chat/invoke_agent entries round-trip.
-#   - CHAIN has no operation of its own, but two operations land on it.
+#   - CHAIN has no operation of its own, but three operations land on it.
 #     invoke_workflow and plan are real GenAI operations with no taxonomy
 #     value of their own; CHAIN is the honest home for both, and the reverse
-#     direction is the only one that can say so.
+#     direction is the only one that can say so. agent_step is not a
+#     conventions operation: the Vercel AI SDK's @ai-sdk/otel writes it on
+#     each step of an agent run (one model call and the tools it asked
+#     for), a step within the run rather than an agent invocation, so
+#     CHAIN as well.
 # The structural test asserts the round-trip where one exists, not equality of
 # the two maps. Mirrors the console's deriveSpanKind.
 _KIND_BY_OPERATION: dict[str, SpanKind] = {
@@ -791,6 +796,7 @@ _KIND_BY_OPERATION: dict[str, SpanKind] = {
     "rerank": SpanKind.RERANKER,
     "invoke_workflow": SpanKind.CHAIN,
     "plan": SpanKind.CHAIN,
+    "agent_step": SpanKind.CHAIN,
 }
 
 
