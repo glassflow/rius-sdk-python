@@ -1,0 +1,28 @@
+{
+  "family": "vercel-ai-v6",
+  "about": "Real Vercel AI SDK v6 spans from its own experimental_telemetry (the ai.* dialect: ai.generateText, ai.generateText.doGenerate, ai.toolCall ...). Recorded through a scripted fetch with an AsyncLocalStorage context manager and deterministic clocks: no network, no API keys, no rius SDK. The scenarios are the v5 family's (_vercel.mjs). v6 reports usage in its detailed spelling (ai.usage.inputTokenDetails.*, ai.usage.outputTokenDetails.*) beside the v5 one, on every span.",
+  "record": "npm ci, then node record.mjs <recording.json> <environment.json>",
+  "recordings": {
+    "vercel-ai-v6-6.0.304.json": {
+      "node": "24.2.0",
+      "packages": {
+        "ai": "6.0.304",
+        "@ai-sdk/openai": "3.0.126",
+        "@opentelemetry/api": "1.9.1",
+        "@opentelemetry/sdk-trace-base": "2.12.0"
+      },
+      "scenarios": {
+        "generate_text": "generateText with a system prompt, temperature and maxOutputTokens.",
+        "stream_text": "streamText, drained.",
+        "tool_loop": "generateText with one tool and stopWhen: stepCountIs(2): two model calls (24/51 then 91/15 tokens) with the tool executed between them.",
+        "error": "The provider answers 400 (model_not_found).",
+        "embed": "embed with text-embedding-3-small; the response vector is three floats. Normalization drops the vectors (ai.embedding, ai.embeddings), as it does OpenInference's."
+      },
+      "expected": {
+        "file": "vercel-ai-v6-6.0.304.expected.json",
+        "source": "typescript-sdk"
+      },
+      "verified": "Recorded 2026-10-13 twice in a row from the lockfile's node_modules: byte-identical."
+    }
+  }
+}

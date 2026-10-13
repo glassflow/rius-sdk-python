@@ -25,7 +25,7 @@ from ._agent import (
     resolve_agent_name,
 )
 from ._errors import record_error
-from ._serde import serialize
+from ._serde import serialize, text_value
 from ._tracer import sdk_tracer
 from .semconv import (
     INPUT_VALUE,
@@ -152,7 +152,8 @@ def observe(
             operation when that identifier is unknown. A ``CHAIN`` span has no
             operation and keeps the function's ``__qualname__``.
         capture_input: Record call arguments as JSON in ``input.value``.
-        capture_output: Record the return value as JSON in ``output.value``.
+        capture_output: Record the return value in ``output.value``: a string
+            as-is, anything else as JSON.
         kind: Span taxonomy (``openinference.span.kind``); default ``CHAIN``.
         tool_name: The tool's own name (``gen_ai.tool.name``), used only when
             ``kind`` is ``TOOL``. Unset, it falls back to ``name`` and then to
@@ -247,7 +248,7 @@ def observe(
 
         def _set_output(span: trace.Span, result: Any) -> None:
             if capture_output:
-                span.set_attribute(OUTPUT_VALUE, serialize(result))
+                span.set_attribute(OUTPUT_VALUE, text_value(result))
 
         if inspect.isasyncgenfunction(fn):
             # Generators interleave with caller code between yields, so the span

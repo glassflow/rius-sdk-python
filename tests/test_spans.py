@@ -33,6 +33,53 @@ def test_cm_input_and_output(exported_spans: InMemorySpanExporter) -> None:
     assert "a" in attrs["output.value"]
 
 
+def test_string_input_and_output_are_recorded_as_is(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    # A string is already the text to show: no JSON quotes around it.
+    with start_as_current_span("s", input="return policy") as obs:
+        obs.set_output("Sunny, 22C.")
+    attrs = exported_spans.get_finished_spans()[0].attributes
+    assert attrs["input.value"] == "return policy"
+    assert attrs["output.value"] == "Sunny, 22C."
+
+
+def test_non_string_input_and_output_are_json(exported_spans: InMemorySpanExporter) -> None:
+    with start_as_current_span("s", input={"q": "hi"}) as obs:
+        obs.set_output(["a", 1, None])
+    attrs = exported_spans.get_finished_spans()[0].attributes
+    assert json.loads(attrs["input.value"]) == {"q": "hi"}
+    assert json.loads(attrs["output.value"]) == ["a", 1, None]
+
+
+def test_manual_update_records_strings_as_is(exported_spans: InMemorySpanExporter) -> None:
+    obs = start_span("job")
+    obs.update(input="in", output="out")
+    obs.end()
+    attrs = exported_spans.get_finished_spans()[0].attributes
+    assert attrs["input.value"] == "in"
+    assert attrs["output.value"] == "out"
+
+
+def test_long_string_output_is_truncated(exported_spans: InMemorySpanExporter) -> None:
+    from rius._serde import MAX_ATTR_CHARS, TRUNCATION_MARKER
+
+    with start_as_current_span("s") as obs:
+        obs.set_output("x" * (MAX_ATTR_CHARS + 10))
+    value = exported_spans.get_finished_spans()[0].attributes["output.value"]
+    assert value == "x" * MAX_ATTR_CHARS + TRUNCATION_MARKER
+
+
+def test_string_with_a_lone_surrogate_is_kept_encodable(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    # A raw lone surrogate cannot be UTF-8 encoded and would get the attribute
+    # dropped; it becomes U+FFFD, as a JavaScript string's encoding writes it.
+    with start_as_current_span("s") as obs:
+        obs.set_output("a\ud800b")
+    assert exported_spans.get_finished_spans()[0].attributes["output.value"] == "a\ufffdb"
+
+
 def test_cm_set_attribute(exported_spans: InMemorySpanExporter) -> None:
     with start_as_current_span("s") as obs:
         obs.set_attribute("custom.tag", "x")

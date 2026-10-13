@@ -28,7 +28,7 @@ from ._agent import (
     resolve_agent_name,
 )
 from ._errors import error_type, record_error
-from ._serde import serialize
+from ._serde import serialize, text_value
 from ._tracer import sdk_tracer
 from .semconv import (
     ERROR_TYPE,
@@ -48,8 +48,9 @@ class Observation:
     """Handle for annotating a span from ``start_span`` / ``start_as_current_span``.
 
     Wraps an OpenTelemetry span and exposes the annotation surface for generic
-    (non-LLM) spans: input, output, and arbitrary attributes. Inputs and
-    outputs are serialized to JSON (with a ``repr`` fallback) and truncated at 32 KB.
+    (non-LLM) spans: input, output, and arbitrary attributes. A string input or
+    output is recorded as-is; anything else is serialized to JSON (with a
+    ``repr`` fallback). Both are truncated at 32 KB.
     """
 
     def __init__(self, span: Span) -> None:
@@ -59,17 +60,19 @@ class Observation:
         """Record the span input (the ``input.value`` attribute).
 
         Args:
-            value: Any value; serialized to JSON with a ``repr`` fallback.
+            value: Any value. A string is recorded as-is; anything else is
+                serialized to JSON with a ``repr`` fallback.
         """
-        self._span.set_attribute(INPUT_VALUE, serialize(value))
+        self._span.set_attribute(INPUT_VALUE, text_value(value))
 
     def set_output(self, value: Any) -> None:
         """Record the span output (the ``output.value`` attribute).
 
         Args:
-            value: Any value; serialized to JSON with a ``repr`` fallback.
+            value: Any value. A string is recorded as-is; anything else is
+                serialized to JSON with a ``repr`` fallback.
         """
-        self._span.set_attribute(OUTPUT_VALUE, serialize(value))
+        self._span.set_attribute(OUTPUT_VALUE, text_value(value))
 
     def set_retrieved_documents(self, documents: Any) -> None:
         """Record what a retrieval returned (``gen_ai.retrieval.documents``).
