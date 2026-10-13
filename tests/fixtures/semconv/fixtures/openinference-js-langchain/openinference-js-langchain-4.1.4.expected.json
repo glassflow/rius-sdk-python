@@ -1,8 +1,8 @@
 {
   "normalizer": {
     "package": "glassflow-rius",
-    "version": "1.0.0",
-    "commit": "4180c8e4092d755cb93f5861a93fc192a57045c4"
+    "version": "1.0.1",
+    "commit": "0ee09448b58fde1596bb815dca7a76cd627d48c2"
   },
   "recordings": [
     {
@@ -438,7 +438,7 @@
               {
                 "key": "llm.invocation_parameters",
                 "value": {
-                  "stringValue": "{\"stream\":false,\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"description\":\"Current weather for a city.\",\"parameters\":{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"]}}}]}"
+                  "stringValue": "{\"stream\":false}"
                 }
               },
               {
@@ -604,7 +604,7 @@
               {
                 "key": "llm.invocation_parameters",
                 "value": {
-                  "stringValue": "{\"stream\":false,\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"description\":\"Current weather for a city.\",\"parameters\":{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"]}}}]}"
+                  "stringValue": "{\"stream\":false}"
                 }
               },
               {
