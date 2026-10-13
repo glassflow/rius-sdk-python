@@ -1,6 +1,6 @@
 {
   "family": "openinference-langchain",
-  "about": "Real openinference-instrumentation-langchain spans (Python) from langchain-openai's ChatOpenAI, recorded against a scripted OpenAI through an in-process httpx2 mock transport: no network, no API keys, no rius SDK. Only the LangChain instrumentor is enabled, so each model call is one ChatOpenAI span; with the openai instrumentor as well it would also get a sibling ChatCompletion span. LangChain's per-run ids inside output.value are replaced by numbered placeholder UUIDs.",
+  "about": "Real openinference-instrumentation-langchain spans (Python) from langchain-openai's ChatOpenAI, recorded against a scripted OpenAI through an in-process httpx2 mock transport: no network, no API keys, no rius SDK. Only the LangChain instrumentor is enabled, so each model call is one ChatOpenAI span; with the openai instrumentor as well it also gets a ChatCompletion span, a root span in a trace of its own (see ../openinference-langchain-openai). LangChain's per-run ids inside output.value are replaced by numbered placeholder UUIDs.",
   "record": "python record.py <recording.json> <environment.json>, in a virtualenv holding exactly the pins below",
   "recordings": {
     "openinference-langchain-0.1.79.json": {
