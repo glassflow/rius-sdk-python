@@ -10,9 +10,11 @@ instrumentors through ``init()``, every HTTP request answered in-process.
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import json
 import socket
 from collections.abc import Iterator
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 import pytest
@@ -202,6 +204,130 @@ def test_stream_nests_and_counts_once(exported: Exported) -> None:
     _assert_counted_once(*pair)
 
 
+def test_astream_nests_and_counts_once(exported: Exported) -> None:
+    async def run() -> list[Any]:
+        model = _model(stream_usage=True)
+        return [chunk async for chunk in model.astream([HumanMessage("Capital of France?")])]
+
+    chunks = asyncio.run(run())
+
+    assert "".join(str(chunk.content) for chunk in chunks) == "Paris."
+    (pair,) = _pairs(exported.spans())
+    _assert_counted_once(*pair)
+
+
+def test_an_async_streaming_chain_nests_and_counts_once(exported: Exported) -> None:
+    # What a FastAPI or LangServe app runs: prompt | model, streamed async.
+    prompt = ChatPromptTemplate.from_messages([("human", "Capital of {country}?")])
+    chain = prompt | _model(stream_usage=True)
+
+    async def run() -> list[Any]:
+        return [chunk async for chunk in chain.astream({"country": "France"})]
+
+    chunks = asyncio.run(run())
+
+    assert "".join(str(chunk.content) for chunk in chunks) == "Paris."
+    (pair,) = _pairs(exported.spans())
+    _assert_counted_once(*pair)
+
+
+def test_the_span_is_not_left_current_after_astream(exported: Exported) -> None:
+    async def run() -> None:
+        model = _model(stream_usage=True)
+        async for _ in model.astream([HumanMessage("Capital of France?")]):
+            assert not trace.get_current_span().get_span_context().is_valid
+        assert not trace.get_current_span().get_span_context().is_valid
+
+    asyncio.run(run())
+
+
+def _started_run(span: Any) -> tuple[list[Any], Any]:
+    """What on_chat_model_start returns, for a run whose span is ``span``."""
+
+    class RunManager:
+        run_id = "run-1"
+
+    class Tracer:
+        def get_span(self, run_id: Any) -> Any:
+            return span if run_id == "run-1" else None
+
+    return [RunManager()], Tracer()
+
+
+def test_a_start_in_another_thread_attaches_nothing(monkeypatch: pytest.MonkeyPatch) -> None:
+    # An executor thread running a copied context sees the step's marker too.
+    # An attach there would land in the copy, where the step cannot detach it.
+    span = trace.NonRecordingSpan(
+        trace.SpanContext(1, 2, is_remote=False, trace_flags=trace.TraceFlags(1))
+    )
+    run_managers, tracer = _started_run(span)
+    monkeypatch.setattr(langchain_span_context, "_tracer", tracer)
+    pending = langchain_span_context._PendingStream()
+    marker = langchain_span_context._PENDING.set(pending)
+    try:
+        copied = contextvars.copy_context()
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            pool.submit(copied.run, langchain_span_context._attach_started, run_managers).result()
+    finally:
+        langchain_span_context._PENDING.reset(marker)
+    assert pending.span is None
+    assert pending.token is None
+
+
+def test_a_start_in_a_child_task_attaches_nothing(monkeypatch: pytest.MonkeyPatch) -> None:
+    span = trace.NonRecordingSpan(
+        trace.SpanContext(1, 2, is_remote=False, trace_flags=trace.TraceFlags(1))
+    )
+    run_managers, tracer = _started_run(span)
+    monkeypatch.setattr(langchain_span_context, "_tracer", tracer)
+
+    async def run() -> langchain_span_context._PendingStream:
+        pending = langchain_span_context._PendingStream()
+        marker = langchain_span_context._PENDING.set(pending)
+        try:
+
+            async def child() -> None:
+                langchain_span_context._attach_started(run_managers)
+
+            await asyncio.create_task(child())
+        finally:
+            langchain_span_context._PENDING.reset(marker)
+        return pending
+
+    pending = asyncio.run(run())
+    assert pending.span is None
+    assert pending.token is None
+
+
+def test_a_start_in_the_step_itself_attaches(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The control for the two above: same thread, same task.
+    span = trace.NonRecordingSpan(
+        trace.SpanContext(1, 2, is_remote=False, trace_flags=trace.TraceFlags(1))
+    )
+    run_managers, tracer = _started_run(span)
+    monkeypatch.setattr(langchain_span_context, "_tracer", tracer)
+    pending = langchain_span_context._PendingStream()
+    marker = langchain_span_context._PENDING.set(pending)
+    try:
+        langchain_span_context._attach_started(run_managers)
+        assert trace.get_current_span() is span
+    finally:
+        langchain_span_context._end_step(pending, marker)
+    assert pending.span is span
+    assert not trace.get_current_span().get_span_context().is_valid
+
+
+def test_an_unexpected_start_result_never_reaches_the_caller() -> None:
+    # A reshaped on_chat_model_start result (no run managers) is skipped.
+    pending = langchain_span_context._PendingStream()
+    marker = langchain_span_context._PENDING.set(pending)
+    try:
+        langchain_span_context._attach_started([])
+    finally:
+        langchain_span_context._end_step(pending, marker)
+    assert pending.span is None
+
+
 def test_two_calls_in_a_chain_each_match_their_own(exported: Exported) -> None:
     prompt = ChatPromptTemplate.from_messages([("human", "Capital of {country}?")])
     model = _model()
@@ -248,6 +374,16 @@ def test_an_abandoned_stream_leaves_nothing_current(exported: Exported) -> None:
     assert not trace.get_current_span().get_span_context().is_valid
 
 
+def test_an_abandoned_astream_leaves_nothing_current(exported: Exported) -> None:
+    async def run() -> None:
+        stream = _model(stream_usage=True).astream([HumanMessage("Capital of France?")])
+        await stream.__anext__()
+        await stream.aclose()
+        assert not trace.get_current_span().get_span_context().is_valid
+
+    asyncio.run(run())
+
+
 def test_without_the_provider_instrumentor_langchain_keeps_its_usage(
     openai_answers: None,
 ) -> None:
@@ -292,19 +428,18 @@ def test_reinit_does_not_stack_wrappers(openai_answers: None) -> None:
     assert not hasattr(inner, langchain_span_context._MARK)
 
 
-def test_uninstall_restores_the_chat_model(openai_answers: None) -> None:
-    originals = {name: BaseChatModel.__dict__[name] for name in langchain_span_context._HOOKS}
+def test_uninstall_restores_the_hooked_classes(openai_answers: None) -> None:
+    hooked = langchain_span_context._hooked_classes()
+    originals = {(cls, name): cls.__dict__[name] for cls, hooks in hooked for name in hooks}
     instrumentor = LangChainInstrumentor()
     instrumentor.instrument()
     try:
         assert langchain_span_context.install(instrumentor)
         assert all(
-            hasattr(BaseChatModel.__dict__[name], langchain_span_context._MARK)
-            for name in langchain_span_context._HOOKS
+            hasattr(cls.__dict__[name], langchain_span_context._MARK) for cls, name in originals
         )
         langchain_span_context.uninstall(instrumentor)
-        assert {name: BaseChatModel.__dict__[name] for name in originals} == originals
-        assert "_start_trace" not in instrumentor._tracer.__dict__
+        assert {(cls, name): cls.__dict__[name] for cls, name in originals} == originals
     finally:
         instrumentor.uninstrument()
 

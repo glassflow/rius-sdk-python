@@ -19,29 +19,33 @@ can be left attached:
 * ``BaseChatModel._generate_with_cache`` and ``_agenerate_with_cache`` (every
   non-streamed call, sync and async) receive the call's run manager, whose run
   id names the span; the call runs with that span current.
-* ``BaseChatModel.stream`` (sync) creates its run inside the generator, so the
-  instrumentor's ``_start_trace`` is wrapped to make the new chat model span
-  current for the rest of that step only, and every later step runs under it.
-  The callback runs inline in the caller's thread for a sync stream; when it
-  does not (an executor thread), nothing is attached.
+* ``BaseChatModel.stream`` and ``astream`` (and the chains that stream through
+  them) start their run inside the generator. Each step that may start it is
+  marked, and LangChain's public ``CallbackManager.on_chat_model_start`` /
+  ``AsyncCallbackManager.on_chat_model_start``, which the generator calls in
+  its own frame (only the handlers may run elsewhere), make the new span
+  current for the rest of that step. The stream wrapper takes it down again
+  before the step's chunk reaches the caller. The provider call starts in that
+  step, and a span's parent is fixed when it starts, so later steps need
+  nothing.
 
-``astream`` is not covered: its callbacks run in an executor with a copied
-context, so there is no frame that both sees the new span and runs the
-provider call. A streamed async LangChain call is still counted twice.
+Not covered: ``BaseLLM`` text-completion models (``langchain_openai.OpenAI``
+and other non-chat LLM wrappers). Their calls are still counted twice.
 
-It hooks private details of the instrumentor (its ``_tracer``, the tracer's
-``get_span`` and ``_start_trace``), so it only installs on the instrumentor
-versions it was checked against. It steps aside when the span is already
-current, and never raises into the caller's code.
+It reads one private detail of the instrumentor (its tracer's ``get_span``),
+so it only installs on the instrumentor versions it was checked against. It
+steps aside when the span is already current, attaches only in the thread and
+asyncio task whose step is running, and never raises into the caller's code.
 """
 
 from __future__ import annotations
 
+import asyncio
 import contextvars
 import functools
 import logging
 import threading
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
 from importlib.metadata import PackageNotFoundError, version
 from typing import Any
 
@@ -62,20 +66,33 @@ _tracer: Any = None
 
 
 class _PendingStream:
-    """One sync stream's chat model span, found when its run starts."""
+    """One stream step that may start the chat model's run.
 
-    __slots__ = ("span", "thread", "token")
+    ``owner`` is the thread and asyncio task running the step: a context
+    copied elsewhere (an executor thread, a child task) also sees the marker,
+    and an attach there would land in a context the step cannot detach from.
+    """
+
+    __slots__ = ("owner", "span", "token")
 
     def __init__(self) -> None:
+        self.owner = _owner()
         self.span: Any = None
-        self.thread = threading.get_ident()
         self.token: Any = None
 
 
-#: The stream whose step is running, so its run's start can attach the span.
+#: The stream step that is running, so its run's start can attach the span.
 _PENDING: contextvars.ContextVar[_PendingStream | None] = contextvars.ContextVar(
     "rius_langchain_pending_stream", default=None
 )
+
+
+def _owner() -> tuple[int, Any]:
+    try:
+        task = asyncio.current_task()
+    except RuntimeError:
+        task = None
+    return threading.get_ident(), task
 
 
 def _version_tuple(text: str) -> tuple[int, ...]:
@@ -140,6 +157,13 @@ def _wrap_agenerate(original: Any) -> Any:
     return run
 
 
+def _end_step(pending: _PendingStream, marker: Any) -> None:
+    if pending.token is not None:
+        otel_context.detach(pending.token)
+        pending.token = None
+    _PENDING.reset(marker)
+
+
 def _wrap_stream(original: Any) -> Any:
     @functools.wraps(original)
     def run(*args: Any, **kwargs: Any) -> Iterator[Any]:
@@ -156,16 +180,7 @@ def _wrap_stream(original: Any) -> Any:
                     except StopIteration:
                         return
                     finally:
-                        if pending.token is not None:
-                            otel_context.detach(pending.token)
-                            pending.token = None
-                        _PENDING.reset(marker)
-                elif _needs_context(pending.span):
-                    with _under(pending.span):
-                        try:
-                            item = next(steps)
-                        except StopIteration:
-                            return
+                        _end_step(pending, marker)
                 else:
                     try:
                         item = next(steps)
@@ -179,42 +194,89 @@ def _wrap_stream(original: Any) -> Any:
     return run
 
 
-def _wrap_start_trace(original: Any, tracer: Any) -> Any:
+def _wrap_astream(original: Any) -> Any:
     @functools.wraps(original)
-    def run(run_record: Any, *args: Any, **kwargs: Any) -> Any:
-        result = original(run_record, *args, **kwargs)
+    async def run(*args: Any, **kwargs: Any) -> AsyncIterator[Any]:
+        steps = original(*args, **kwargs)
+        pending = _PendingStream()
         try:
-            pending = _PENDING.get()
-            if (
-                pending is not None
-                and pending.span is None
-                and pending.thread == threading.get_ident()
-                and getattr(run_record, "run_type", None) == "llm"
-            ):
-                span = tracer.get_span(run_record.id)
-                if span is not None:
-                    pending.span = span
-                    if _needs_context(span):
-                        pending.token = otel_context.attach(trace.set_span_in_context(span))
-        except Exception:
-            logger.debug("could not attach the langchain stream span", exc_info=True)
-        return result
+            while True:
+                if pending.span is None:
+                    marker = _PENDING.set(pending)
+                    try:
+                        item = await steps.__anext__()
+                    except StopAsyncIteration:
+                        return
+                    finally:
+                        _end_step(pending, marker)
+                else:
+                    try:
+                        item = await steps.__anext__()
+                    except StopAsyncIteration:
+                        return
+                yield item
+        finally:
+            await steps.aclose()
 
     setattr(run, _MARK, original)
     return run
 
 
-def _chat_model_class() -> Any:
+def _attach_started(run_managers: Any) -> None:
+    """After a chat model run starts: make its span current for the step."""
+    try:
+        pending = _PENDING.get()
+        if pending is None or pending.span is not None or pending.owner != _owner():
+            return
+        span = _span_of(run_managers[0])
+        if span is None:
+            return
+        pending.span = span
+        if _needs_context(span):
+            pending.token = otel_context.attach(trace.set_span_in_context(span))
+    except Exception:
+        logger.debug("could not attach the langchain stream span", exc_info=True)
+
+
+def _wrap_on_chat_model_start(original: Any) -> Any:
+    @functools.wraps(original)
+    def run(*args: Any, **kwargs: Any) -> Any:
+        run_managers = original(*args, **kwargs)
+        _attach_started(run_managers)
+        return run_managers
+
+    setattr(run, _MARK, original)
+    return run
+
+
+def _wrap_aon_chat_model_start(original: Any) -> Any:
+    @functools.wraps(original)
+    async def run(*args: Any, **kwargs: Any) -> Any:
+        run_managers = await original(*args, **kwargs)
+        _attach_started(run_managers)
+        return run_managers
+
+    setattr(run, _MARK, original)
+    return run
+
+
+def _hooked_classes() -> list[tuple[Any, dict[str, Any]]]:
+    from langchain_core.callbacks.manager import AsyncCallbackManager, CallbackManager
     from langchain_core.language_models.chat_models import BaseChatModel
 
-    return BaseChatModel
-
-
-_HOOKS = {
-    "_generate_with_cache": _wrap_generate,
-    "_agenerate_with_cache": _wrap_agenerate,
-    "stream": _wrap_stream,
-}
+    return [
+        (
+            BaseChatModel,
+            {
+                "_generate_with_cache": _wrap_generate,
+                "_agenerate_with_cache": _wrap_agenerate,
+                "stream": _wrap_stream,
+                "astream": _wrap_astream,
+            },
+        ),
+        (CallbackManager, {"on_chat_model_start": _wrap_on_chat_model_start}),
+        (AsyncCallbackManager, {"on_chat_model_start": _wrap_aon_chat_model_start}),
+    ]
 
 
 def install(instrumentor: Any) -> bool:
@@ -240,18 +302,15 @@ def install(instrumentor: Any) -> bool:
         tracer = getattr(instrumentor, "_tracer", None)
         if tracer is None or not callable(getattr(tracer, "get_span", None)):
             return False
-        start_trace = getattr(tracer, "_start_trace", None)
-        if not callable(start_trace):
+        hooked = _hooked_classes()
+        if not all(callable(getattr(cls, name, None)) for cls, hooks in hooked for name in hooks):
             return False
-        model = _chat_model_class()
-        if not all(callable(getattr(model, name, None)) for name in _HOOKS):
-            return False
-        for name, wrap in _HOOKS.items():
-            current = model.__dict__.get(name)
-            if current is None:
-                continue
-            setattr(model, name, wrap(getattr(current, _MARK, current)))
-        tracer._start_trace = _wrap_start_trace(getattr(start_trace, _MARK, start_trace), tracer)
+        for cls, hooks in hooked:
+            for name, wrap in hooks.items():
+                current = cls.__dict__.get(name)
+                if current is None:
+                    continue
+                setattr(cls, name, wrap(getattr(current, _MARK, current)))
         _tracer = tracer
         return True
     except Exception:
@@ -263,15 +322,11 @@ def uninstall(instrumentor: Any) -> None:
     """Undo :func:`install`, leaving the instrumentor's own state."""
     global _tracer
     try:
-        tracer = getattr(instrumentor, "_tracer", None)
-        hooked = getattr(tracer, "__dict__", {}).get("_start_trace")
-        if hooked is not None and hasattr(hooked, _MARK):
-            del tracer.__dict__["_start_trace"]
-        model = _chat_model_class()
-        for name in _HOOKS:
-            current = model.__dict__.get(name)
-            if current is not None and hasattr(current, _MARK):
-                setattr(model, name, getattr(current, _MARK))
+        for cls, hooks in _hooked_classes():
+            for name in hooks:
+                current = cls.__dict__.get(name)
+                if current is not None and hasattr(current, _MARK):
+                    setattr(cls, name, getattr(current, _MARK))
         _tracer = None
     except Exception:
         logger.debug("could not uninstall the langchain chat model span context", exc_info=True)

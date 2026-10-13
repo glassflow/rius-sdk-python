@@ -1,0 +1,50 @@
+# Runs the LangChain and LiteLLM span-context stopgaps against the newest
+# released instrumentors, resolved now rather than from uv.lock.
+#
+# Both stopgaps read private details of an OpenInference instrumentor, so they
+# install only on the instrumentor versions those details were checked
+# against (VERIFIED_VERSIONS in rius/langchain_span_context.py and
+# rius/litellm_stream_context.py). The extras have no upper bound, so a user
+# who upgrades past that range silently goes back to counting usage twice.
+# The lock never moves on its own, so the main test job cannot see that day
+# coming: this job can. When it fails on a new release, re-read the
+# instrumentor's internals, widen VERIFIED_VERSIONS, and bump the lock.
+#
+# The tests answer every request in-process and guard the socket, so the only
+# network use is the package index.
+name: upstream-stopgaps
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: upstream-stopgaps-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  newest-instrumentors:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      # Re-resolve only the two instrumentors (and whatever they newly need),
+      # so the rest of the environment stays as locked.
+      - name: Upgrade the instrumentors past the lock
+        run: |
+          uv lock \
+            --upgrade-package openinference-instrumentation-langchain \
+            --upgrade-package openinference-instrumentation-litellm
+          uv sync --group dev
+          uv pip show openinference-instrumentation-langchain openinference-instrumentation-litellm \
+            | grep -E '^(Name|Version):'
+      - run: uv run --no-sync pytest tests/test_langchain_span_context.py tests/test_litellm_stream_context.py
