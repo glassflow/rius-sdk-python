@@ -2,7 +2,7 @@
   "normalizer": {
     "package": "glassflow-rius",
     "version": "1.0.1",
-    "commit": "9d01097273cf0d2073f5b0d49246b739e5e15f4a"
+    "commit": "e8c2321898db1044e0edd564af7cb9d860f1ae3c"
   },
   "recordings": [
     {
@@ -53,6 +53,12 @@
                 "key": "gen_ai.output.messages",
                 "value": {
                   "stringValue": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"Paris.\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "openai"
                 }
               },
               {
@@ -222,6 +228,12 @@
                 }
               },
               {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
                 "key": "gen_ai.request.model",
                 "value": {
                   "stringValue": "gpt-4o-mini"
@@ -373,6 +385,12 @@
                 "key": "gen_ai.output.messages",
                 "value": {
                   "stringValue": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"\"},{\"type\":\"tool_call\",\"name\":\"get_weather\",\"arguments\":\"{\\\"city\\\":\\\"Paris\\\"}\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "openai"
                 }
               },
               {
@@ -539,6 +557,12 @@
                 "key": "gen_ai.output.messages",
                 "value": {
                   "stringValue": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"Sunny, 22C.\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "openai"
                 }
               },
               {
@@ -826,6 +850,12 @@
                 }
               },
               {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
                 "key": "gen_ai.request.model",
                 "value": {
                   "stringValue": "gpt-4o-mini"
@@ -971,6 +1001,12 @@
                 "key": "gen_ai.operation.name",
                 "value": {
                   "stringValue": "chat"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "openai"
                 }
               },
               {

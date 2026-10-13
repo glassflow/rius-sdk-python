@@ -1459,6 +1459,27 @@ def _is_langchain_run(payload: Mapping[str, Any], read: Mapping[str, Any]) -> bo
     )
 
 
+def _langchain_provider(read: Mapping[str, Any]) -> Any:
+    """The provider LangChain names in the run metadata's ``ls_provider``, or SKIP.
+
+    Through the same spellings as ``llm.provider``, which the Python LangChain
+    instrumentor fills from this very key: it is the chat model class's own
+    name for the API it calls (``openai`` for ``ChatOpenAI``, also behind a
+    gateway).
+    """
+    raw = read.get(METADATA)
+    if not isinstance(raw, str):
+        return SKIP
+    try:
+        metadata = json.loads(raw)
+    except ValueError:
+        return SKIP
+    named = metadata.get("ls_provider") if isinstance(metadata, dict) else None
+    if not isinstance(named, str) or not named.strip():
+        return SKIP
+    return provider_name([named])
+
+
 def openinference_invocation_parameters(
     raw: Any, read: Mapping[str, Any] | None = None
 ) -> Mapping[str, Any]:
@@ -1488,6 +1509,13 @@ def openinference_invocation_parameters(
     default, not what the call did: a ``ChatOpenAI.stream()`` call records
     ``false`` there. An absent key is honest; that one is not. ``read`` holds
     the span's run metadata, which identifies a LangChain run.
+
+    A LangChain run also gets its provider from that metadata
+    (``ls_provider``). The JS instrumentor records no provider key at all, so
+    this is the only place a Node LangChain span can get one. The provider
+    rules come earlier in the table and win, so ``llm.provider`` (which the
+    Python instrumentor copies from ``ls_provider``) and ``llm.system`` keep
+    precedence, and a native ``gen_ai.provider.name`` wins as always.
     """
     if not isinstance(raw, str):
         return {LLM_INVOCATION_PARAMETERS: raw}
@@ -1522,10 +1550,16 @@ def openinference_invocation_parameters(
             continue
         produced[target] = value
         del leftover[member]
+    provider = _langchain_provider(read or {}) if langchain else SKIP
     if not produced:
-        return {LLM_INVOCATION_PARAMETERS: raw}  # byte-identical
+        unchanged: dict[str, Any] = {LLM_INVOCATION_PARAMETERS: raw}  # byte-identical
+        if provider is not SKIP:
+            unchanged[GEN_AI_PROVIDER_NAME] = provider
+        return unchanged
     if leftover:
         produced[LLM_INVOCATION_PARAMETERS] = serialize(leftover)
+    if provider is not SKIP:
+        produced[GEN_AI_PROVIDER_NAME] = provider
     return produced
 
 

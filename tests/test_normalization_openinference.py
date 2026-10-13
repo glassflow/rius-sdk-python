@@ -339,6 +339,97 @@ def test_native_provider_wins_over_llm_system() -> None:
     assert _normalize(attributes) == attributes
 
 
+# --- LangChain's ls_provider ------------------------------------------------
+
+
+def _langchain_metadata(provider: str) -> str:
+    """Run metadata as @arizeai/openinference-instrumentation-langchain 4.1.4
+    records it on a chat model span (rius-semconv, openinference-js-langchain)."""
+    return json.dumps(
+        {
+            "ls_provider": provider,
+            "ls_model_name": "gpt-4o-mini",
+            "ls_model_type": "chat",
+            "ls_integration": "langchain_chat_model",
+        }
+    )
+
+
+#: A JS LangChain chat span's request bag: settings only, no _type marker.
+_JS_LANGCHAIN_BAG = json.dumps({"model": "gpt-4o-mini", "temperature": 0.2, "stream": False})
+
+
+@pytest.mark.parametrize(
+    ("ls_provider", "expected"),
+    [
+        ("openai", "openai"),
+        ("anthropic", "anthropic"),
+        ("mistralai", "mistral_ai"),
+        ("google_vertexai", "google_vertexai"),
+    ],
+)
+def test_a_langchain_run_gets_its_provider_from_ls_provider(
+    ls_provider: str, expected: str
+) -> None:
+    """The JS LangChain instrumentor records no provider key at all; LangChain's
+    own ``ls_provider`` in the run metadata names it, through the same
+    spellings as ``llm.provider``. The metadata stays as it was."""
+    metadata = _langchain_metadata(ls_provider)
+    out = _normalize({"metadata": metadata, "llm.invocation_parameters": _JS_LANGCHAIN_BAG})
+    assert out[GEN_AI_PROVIDER_NAME] == expected
+    assert out["metadata"] == metadata
+
+
+@pytest.mark.parametrize(
+    ("other", "expected"),
+    [
+        ({"llm.provider": "azure"}, "azure"),
+        ({"llm.system": "anthropic"}, "anthropic"),
+        ({GEN_AI_PROVIDER_NAME: "groq"}, "groq"),
+    ],
+)
+def test_any_other_provider_spelling_wins_over_ls_provider(
+    other: dict[str, str], expected: str
+) -> None:
+    """The Python LangChain instrumentor copies ls_provider into llm.provider
+    itself; a key that names the provider is more specific than the run
+    metadata, so the metadata is only the last resort."""
+    attributes = {
+        **other,
+        "metadata": _langchain_metadata("openai"),
+        "llm.invocation_parameters": _JS_LANGCHAIN_BAG,
+    }
+    assert _normalize(attributes)[GEN_AI_PROVIDER_NAME] == expected
+
+
+def test_a_python_langchain_bag_with_nothing_to_promote_still_names_the_provider() -> None:
+    """A bag that promotes nothing comes back byte-identical, with the provider."""
+    bag = json.dumps({"_type": "openai-chat", "stop": None})
+    metadata = _langchain_metadata("openai")
+    out = _normalize({"metadata": metadata, "llm.invocation_parameters": bag})
+    assert out == {
+        "metadata": metadata,
+        "llm.invocation_parameters": bag,
+        GEN_AI_PROVIDER_NAME: "openai",
+    }
+
+
+@pytest.mark.parametrize(
+    "metadata",
+    [
+        json.dumps({"user": "u-1", "tenant": "acme"}),
+        json.dumps({"ls_provider": "", "ls_model_type": "chat"}),
+        json.dumps({"ls_provider": 7, "ls_model_type": "chat"}),
+        "not json",
+    ],
+)
+def test_no_provider_without_a_named_ls_provider(metadata: str) -> None:
+    """Only a LangChain run's non-empty ls_provider string names a provider."""
+    out = _normalize({"metadata": metadata, "llm.invocation_parameters": _JS_LANGCHAIN_BAG})
+    assert GEN_AI_PROVIDER_NAME not in out
+    assert out["metadata"] == metadata
+
+
 # --- routed model names -----------------------------------------------------
 
 
