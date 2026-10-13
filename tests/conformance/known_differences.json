@@ -44,7 +44,7 @@
     {
       "family": "vercel-ai-otel",
       "key": "rius.aggregated_usage.reasoning.output_tokens",
-      "reason": "As ai.usage.outputTokenDetails.reasoningTokens."
+      "reason": "As ai.usage.outputTokenDetails.reasoningTokens, and on a step's or a run's span also as gen_ai.usage.input_tokens."
     },
     {
       "family": "vercel-ai-v5",
