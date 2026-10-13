@@ -1,6 +1,6 @@
 {
   "family": "vercel-ai-otel",
-  "about": "Real Vercel AI SDK v7 spans as its official @ai-sdk/otel integration produces them (GenAI-native: invoke_agent, step, chat, execute_tool, embeddings), the integration the rius SDK registers. Recorded through a scripted fetch with an AsyncLocalStorage context manager and deterministic clocks: no network, no API keys, no rius SDK. The rius SDK starts these spans through aggregatingTracer, which moves a run's total usage off its invoke_agent span; replay.aggregating_producer tells the expected-result tool to do the same.",
+  "about": "Real Vercel AI SDK v7 spans as its official @ai-sdk/otel integration produces them (GenAI-native: invoke_agent, step, chat, execute_tool, embeddings), the integration the rius SDK registers, with the option it passes (usage, without which the reasoning split is never written). Recorded through a scripted fetch with an AsyncLocalStorage context manager and deterministic clocks: no network, no API keys, no rius SDK. The rius SDK starts these spans through aggregatingTracer, which moves a run's total usage off its invoke_agent span; replay.aggregating_producer tells the expected-result tool to do the same.",
   "record": "npm ci, then node record.mjs <recording.json> <environment.json>",
   "recordings": {
     "vercel-ai-otel-7.0.137.json": {
@@ -17,13 +17,14 @@
         "stream_text": "streamText, drained.",
         "tool_loop": "generateText with one tool and stopWhen: stepCountIs(2): two model calls (24/51 then 91/15 tokens) with the tool executed between them.",
         "error": "The provider answers 400 (model_not_found).",
-        "embed": "embed with text-embedding-3-small; the response vector is three floats."
+        "embed": "embed with text-embedding-3-small; the response vector is three floats.",
+        "generate_object": "generateObject with a JSON schema (deprecated in v7, still traced as its own operation)."
       },
       "expected": {
         "file": "vercel-ai-otel-7.0.137.expected.json",
         "source": "typescript-sdk"
       },
-      "verified": "Re-recorded 2026-10-12 several times in a row from the lockfile's node_modules: byte-identical.",
+      "verified": "Re-recorded 2026-10-13 twice in a row from the lockfile's node_modules: byte-identical.",
       "replay": {
         "aggregating_producer": true
       }

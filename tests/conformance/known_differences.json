@@ -32,6 +32,21 @@
       "reason": "As gen_ai.usage.input_tokens."
     },
     {
+      "family": "vercel-ai-otel",
+      "key": "ai.usage.outputTokenDetails.reasoningTokens",
+      "reason": "The TypeScript SDK is the reference here: @ai-sdk/otel writes the reasoning split only under the AI SDK's spelling, and the TypeScript SDK maps it (a model call's to gen_ai.usage.reasoning.output_tokens, a step's and a run's to rius.aggregated_usage.*). The Python SDK has no ai.* mapping (the AI SDK is JavaScript-only, so it never sees these spans live), so the key passes through."
+    },
+    {
+      "family": "vercel-ai-otel",
+      "key": "gen_ai.usage.reasoning.output_tokens",
+      "reason": "As ai.usage.outputTokenDetails.reasoningTokens."
+    },
+    {
+      "family": "vercel-ai-otel",
+      "key": "rius.aggregated_usage.reasoning.output_tokens",
+      "reason": "As ai.usage.outputTokenDetails.reasoningTokens."
+    },
+    {
       "family": "vercel-ai-v5",
       "key": "*",
       "reason": "The TypeScript SDK is the reference here: its normalizer maps the AI SDK's ai.* dialect onto the conventions. The Python SDK has no ai.* mapping (the AI SDK is JavaScript-only, so it never sees these spans live), so the raw spans pass through."
