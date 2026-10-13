@@ -20,6 +20,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from . import litellm_stream_context
+
 logger = logging.getLogger(__name__)
 
 # Instrumentors we enabled (name -> instance), so a legitimate re-init can
@@ -145,10 +147,16 @@ def enable_instrumentations(
                 if spec.name in _ENABLED:
                     # We enabled it previously (e.g. before a shutdown/re-init):
                     # re-bind it to the new provider.
+                    if spec.name == "litellm":
+                        litellm_stream_context.uninstall(instrumentor)
                     instrumentor.uninstrument()
                 else:
                     continue  # someone else's instrumentation: leave it alone
             instrumentor.instrument(tracer_provider=tracer_provider)
+            if spec.name == "litellm":
+                # Its streaming calls do not make their span current; see
+                # litellm_stream_context. Best-effort and never raises.
+                litellm_stream_context.install(instrumentor)
         except Exception:
             # Instrumentation is best-effort: a broken instrumentor must not
             # take down init().
