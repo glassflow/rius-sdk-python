@@ -1,6 +1,6 @@
 {
   "family": "vercel-ai-v5",
-  "about": "Real Vercel AI SDK v5 spans from its own experimental_telemetry (the ai.* dialect: ai.generateText, ai.generateText.doGenerate, ai.toolCall ...). Recorded through a scripted fetch with an AsyncLocalStorage context manager and deterministic clocks: no network, no API keys, no rius SDK. The rius SDK translates these through @arizeai/openinference-vercel's transform before normalizing; the expected-result tool runs the same chain.",
+  "about": "Real Vercel AI SDK v5 spans from its own experimental_telemetry (the ai.* dialect: ai.generateText, ai.generateText.doGenerate, ai.toolCall ...). Recorded through a scripted fetch with an AsyncLocalStorage context manager and deterministic clocks: no network, no API keys, no rius SDK. The TypeScript SDK's normalizer maps the dialect itself; the expected-result tool runs the SDK's processor chain.",
   "record": "npm ci, then node record.mjs <recording.json> <environment.json>",
   "recordings": {
     "vercel-ai-v5-5.0.273.json": {

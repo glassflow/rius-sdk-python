@@ -104,8 +104,8 @@ Where it comes from (`expected.source` in the manifest):
   commit, then **reviewed by hand** before it is committed.
 - `typescript-sdk`: families only the TypeScript SDK covers (the Vercel AI
   SDK). Produced by `tools/expect_typescript.mts`, which replays each scenario
-  through a real tracer with the SDK's processor chain (the Vercel `ai.*`
-  transform, then the normalizer), the recorded ids handed out by an id
+  through a real tracer with the SDK's processor chain (its `vercel-ai`
+  processor, then the normalizer), the recorded ids handed out by an id
   generator. A manifest entry's `replay.aggregating_producer` makes it start
   spans through the SDK's `aggregatingTracer`, as the SDK does live for
   `@ai-sdk/otel`. It imports the SDK's source from a checkout, so it runs under
