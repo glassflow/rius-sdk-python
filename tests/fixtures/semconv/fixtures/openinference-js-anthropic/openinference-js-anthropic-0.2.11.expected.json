@@ -2,7 +2,7 @@
   "normalizer": {
     "package": "glassflow-rius",
     "version": "1.0.1",
-    "commit": "9d01097273cf0d2073f5b0d49246b739e5e15f4a"
+    "commit": "fb7ff15ee5d79674b13f3bb0ead4e65f5091229b"
   },
   "recordings": [
     {
@@ -40,7 +40,7 @@
               {
                 "key": "gen_ai.input.messages",
                 "value": {
-                  "stringValue": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Capital of France?\"}]}]"
+                  "stringValue": "[{\"role\":\"system\",\"parts\":[{\"type\":\"text\",\"content\":\"Answer in one word.\"}]},{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Capital of France?\"}]}]"
                 }
               },
               {
@@ -143,12 +143,6 @@
                 "key": "input.value",
                 "value": {
                   "stringValue": "{\"model\":\"claude-haiku-4-5-20251001\",\"max_tokens\":64,\"stop_sequences\":[\"\\n\\n\"],\"system\":\"Answer in one word.\",\"messages\":[{\"role\":\"user\",\"content\":\"Capital of France?\"}]}"
-                }
-              },
-              {
-                "key": "llm.invocation_parameters",
-                "value": {
-                  "stringValue": "{\"system\":\"Answer in one word.\"}"
                 }
               },
               {

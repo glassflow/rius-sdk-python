@@ -915,6 +915,99 @@ def reassemble_openinference_messages(
 _OUTPUT_MIME_TYPE = "output.mime_type"
 _JSON_MIME_TYPE = "application/json"
 
+
+def _sorted_deep(value: Any) -> Any:
+    """``value`` with every object's keys sorted, at every depth."""
+    if isinstance(value, dict):
+        return {k: _sorted_deep(value[k]) for k in sorted(value)}
+    if isinstance(value, list):
+        return [_sorted_deep(item) for item in value]
+    return value
+
+
+def _system_part(block: Any) -> dict[str, str]:
+    """One element of a block-list system prompt as a message part.
+
+    A text block's text, and nothing else of it (its ``cache_control``,
+    citations and so on are request plumbing, not what the model read), or
+    any other block as its compact JSON with keys sorted at every depth, as the
+    TypeScript SDK and the sink spell it.
+    """
+    if (
+        isinstance(block, dict)
+        and block.get("type") == "text"
+        and isinstance(block.get("text"), str)
+    ):
+        return {"type": "text", "content": block["text"]}
+    return {"type": "text", "content": _compact_json(_sorted_deep(block))}
+
+
+def promote_system_instruction(attributes: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    """The attributes with the bag's ``system`` member as the first input message.
+
+    Returns the rebuilt attribute dict, or None when nothing changes. The
+    OpenInference Anthropic instrumentation for JavaScript records the request
+    body minus ``messages`` as ``llm.invocation_parameters``, so Anthropic's
+    top-level ``system`` prompt stays in the bag and never becomes a message.
+    The TypeScript SDK and the sink apply this same rule:
+
+    * Only when the span has no system-role input message: one an
+      instrumentation already wrote wins, like every native key.
+    * A non-empty string becomes ``{"role":"system","parts":[{"type":"text",
+      "content":<string>}]}``; a non-empty list becomes ONE system message with
+      a part per element (see :func:`_system_part`). Any other shape, an empty
+      string and an empty list included, is not something we can vouch is a
+      prompt, so the bag is left as it came.
+    * Prepended to ``gen_ai.input.messages``, created when absent. Messages
+      that are present but not a JSON array are left alone with the span.
+    * ``system`` leaves the bag, and a bag left empty goes too.
+
+    Export-stage only and after the reassembly, which produces the messages it
+    extends: a system prompt is content, so it never rides a pending snapshot.
+    Before masking, so under ``capture_content=False`` the system message is
+    stripped with the rest of the messages.
+    """
+    if not attributes:
+        return None
+    bag = attributes.get(LLM_INVOCATION_PARAMETERS)
+    if not isinstance(bag, str):
+        return None
+    try:
+        payload = json.loads(bag)
+    except ValueError:
+        return None
+    if not isinstance(payload, dict) or "system" not in payload:
+        return None
+    system = payload["system"]
+    if isinstance(system, str) and system:
+        parts = [{"type": "text", "content": system}]
+    elif isinstance(system, list) and system:
+        parts = [_system_part(block) for block in system]
+    else:
+        return None
+
+    messages: list[Any] = []
+    existing = attributes.get(GEN_AI_INPUT_MESSAGES)
+    if existing is not None:
+        if not isinstance(existing, str):
+            return None
+        try:
+            messages = json.loads(existing)
+        except ValueError:
+            return None
+        if not isinstance(messages, list):
+            return None
+    if any(isinstance(m, dict) and m.get("role") == "system" for m in messages):
+        return None
+
+    rebuilt = {k: v for k, v in attributes.items() if k != LLM_INVOCATION_PARAMETERS}
+    rebuilt[GEN_AI_INPUT_MESSAGES] = serialize([{"role": "system", "parts": parts}, *messages])
+    leftover = {k: v for k, v in payload.items() if k != "system"}
+    if leftover:
+        rebuilt[LLM_INVOCATION_PARAMETERS] = serialize(leftover)
+    return rebuilt
+
+
 #: OpenInference's embedding vectors: ``embedding.embeddings.{i}.embedding.vector``.
 #: A source spelling, like the message families above. The index is any run of
 #: ASCII digits, with no sign and no bound, the same pattern the TypeScript SDK
@@ -1037,6 +1130,12 @@ class NormalizingSpanExporter(SpanExporter):
         )
         if messages is not None:
             new_attributes = messages
+        # After the reassembly, whose messages it extends.
+        system = promote_system_instruction(
+            span.attributes if new_attributes is None else new_attributes
+        )
+        if system is not None:
+            new_attributes = system
         vectorless = drop_embedding_vectors(
             span.attributes if new_attributes is None else new_attributes
         )
