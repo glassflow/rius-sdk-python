@@ -18,9 +18,12 @@ under it. The exporter then takes that mark when it exports the wrapper. A
 LiteLLM span with no such child (Anthropic goes through LiteLLM's own HTTP
 handler, so it has none) keeps its usage: it is the only record of the call.
 
-Streamed LiteLLM calls are not covered: openinference-instrumentation-litellm
-starts the stream's span without making it current, so the OpenAI call is not
-its child (it is a root span in a trace of its own) and no mark is set.
+Streamed LiteLLM calls depend on :mod:`rius.litellm_stream_context`:
+openinference-instrumentation-litellm starts the stream's span without making
+it current, so on its own the OpenAI call is not its child (it is a root span
+in a trace of its own) and no mark is set. That module makes the span current
+for the instrumentor versions it was checked against; on any other version a
+streamed call is still counted twice.
 """
 
 from __future__ import annotations
