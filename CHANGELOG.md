@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.1.0](https://github.com/glassflow/rius-sdk-python/compare/v1.0.2...v1.1.0) (2026-10-13)
+
+
+### Features
+
+* add OpenInference's RERANKER span kind and map the rerank operation to it ([#166](https://github.com/glassflow/rius-sdk-python/issues/166)) ([706b067](https://github.com/glassflow/rius-sdk-python/commit/706b067ca262fc5642513ffa0f81ad165ba452dd))
+* classify agent_step spans as CHAIN ([#165](https://github.com/glassflow/rius-sdk-python/issues/165)) ([0c7a0d8](https://github.com/glassflow/rius-sdk-python/commit/0c7a0d83c37cde41192e2a15f81216df467a0185))
+
+
+### Bug Fixes
+
+* count a LangChain call's usage once when the provider span recorded it ([#163](https://github.com/glassflow/rius-sdk-python/issues/163)) ([6b2aec9](https://github.com/glassflow/rius-sdk-python/commit/6b2aec930ec735817cd8af6240524deaa4b3b95e))
+* record a string input or output as-is instead of JSON-encoding it ([#161](https://github.com/glassflow/rius-sdk-python/issues/161)) ([02b9dc1](https://github.com/glassflow/rius-sdk-python/commit/02b9dc157f6f13345f935243591ed3b94b2fc061))
+
 ## [1.0.2](https://github.com/glassflow/rius-sdk-python/compare/v1.0.1...v1.0.2) (2026-10-13)
 
 
