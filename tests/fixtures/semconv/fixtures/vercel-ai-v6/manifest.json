@@ -18,7 +18,7 @@
         "tool_loop": "generateText with one tool and stopWhen: stepCountIs(2): two model calls (24/51 then 91/15 tokens) with the tool executed between them.",
         "error": "The provider answers 400 (model_not_found).",
         "embed": "embed with text-embedding-3-small; the response vector is three floats. Normalization drops the vectors (ai.embedding, ai.embeddings), as it does OpenInference's.",
-        "rerank": "rerank with Cohere's rerank-v3.5 (no OpenAI model reranks): three text documents, topN 2. The AI SDK records the documents (ai.documents) and the ranking (ai.ranking, indices and scores) but not the query, and no usage. Normalization classifies both spans as the rerank operation, as @ai-sdk/otel names it; the taxonomy has no reranker kind, so they carry no openinference.span.kind."
+        "rerank": "rerank with Cohere's rerank-v3.5 (no OpenAI model reranks): three text documents, topN 2. The AI SDK records the documents (ai.documents) and the ranking (ai.ranking, indices and scores) but not the query, and no usage. Normalization classifies both spans as the rerank operation, as @ai-sdk/otel names it, and as RERANKER."
       },
       "expected": {
         "file": "vercel-ai-v6-6.0.304.expected.json",
