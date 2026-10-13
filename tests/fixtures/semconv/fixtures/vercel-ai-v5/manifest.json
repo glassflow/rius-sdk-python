@@ -16,7 +16,7 @@
         "stream_text": "streamText, drained.",
         "tool_loop": "generateText with one tool and stopWhen: stepCountIs(2): two model calls (24/51 then 91/15 tokens) with the tool executed between them.",
         "error": "The provider answers 400 (model_not_found).",
-        "embed": "embed with text-embedding-3-small; the response vector is three floats."
+        "embed": "embed with text-embedding-3-small; the response vector is three floats. Normalization drops the vectors (ai.embedding, ai.embeddings), as it does OpenInference's."
       },
       "expected": {
         "file": "vercel-ai-v5-5.0.273.expected.json",
