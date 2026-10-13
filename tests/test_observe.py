@@ -629,6 +629,25 @@ def test_observe_model_kinds_get_the_bare_operation(
     assert [s.name for s in exported_spans.get_finished_spans()] == ["chat", "embeddings"]
 
 
+def test_observe_names_a_reranker_after_its_operation(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    """RERANKER has an operation, so a decorated reranker is named after it,
+    as an EMBEDDING function is, never the CHAIN literal."""
+
+    @observe(kind=SpanKind.RERANKER)
+    def rerank_docs(query: str) -> list[int]:
+        return [1, 0]
+
+    rerank_docs("capital of France")
+    span = exported_spans.get_finished_spans()[0]
+    assert span.name == "rerank"
+    assert span.attributes is not None
+    assert span.attributes["gen_ai.operation.name"] == "rerank"
+    assert span.attributes["openinference.span.kind"] == "RERANKER"
+    assert span.kind is OtelSpanKind.CLIENT
+
+
 @pytest.mark.parametrize(
     "kind",
     [
@@ -638,6 +657,7 @@ def test_observe_model_kinds_get_the_bare_operation(
         SpanKind.RETRIEVER,
         SpanKind.LLM,
         SpanKind.EMBEDDING,
+        SpanKind.RERANKER,
     ],
 )
 def test_an_explicit_name_still_wins_on_observe(

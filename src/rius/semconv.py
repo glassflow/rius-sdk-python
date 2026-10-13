@@ -731,6 +731,7 @@ class SpanKind(str, Enum):
     - ``TOOL``: a tool execution
     - ``RETRIEVER``: a retrieval / search step
     - ``EMBEDDING``: an embedding computation
+    - ``RERANKER``: a reranking step, e.g. reordering retrieved documents by relevance
     - ``CHAIN``: a generic processing step (the default)
     """
 
@@ -739,6 +740,7 @@ class SpanKind(str, Enum):
     TOOL = "TOOL"
     RETRIEVER = "RETRIEVER"
     EMBEDDING = "EMBEDDING"
+    RERANKER = "RERANKER"
     CHAIN = "CHAIN"
 
 
@@ -746,19 +748,25 @@ class SpanKind(str, Enum):
 # CHAIN is deliberately absent: the conventions define no operation for a
 # generic workflow step, and inventing one would put a non-spec value in a
 # spec-defined enum. Revisit only if the upstream invoke_node proposal lands.
+# RERANKER maps to rerank, which the conventions do not define either. It is
+# the value the Vercel AI SDK's @ai-sdk/otel writes on a rerank call, and the
+# SDKs write it on AI SDK v6 reranks too, so it is already on the wire. Mapping
+# the kind to it gives every rerank span (AI SDK, OpenInference RERANKER,
+# user-created) the same operation, so a filter on either key finds them all.
 _OPERATION_BY_KIND: dict[SpanKind, str] = {
     SpanKind.LLM: "chat",
     SpanKind.TOOL: "execute_tool",
     SpanKind.EMBEDDING: "embeddings",
     SpanKind.AGENT: "invoke_agent",
     SpanKind.RETRIEVER: "retrieval",
+    SpanKind.RERANKER: "rerank",
 }
 
 # The inverse, for spans that speak the conventions (and the GenAI-native
-# vendor operations listed below, such as agent_step). A GenAI-native
-# instrumentation sets gen_ai.operation.name and never heard of
-# openinference.span.kind, and both keys must be present on every span, so the
-# derivation has to run in both directions.
+# vendor operations listed below, such as agent_step and rerank). A
+# GenAI-native instrumentation sets gen_ai.operation.name and never heard of
+# openinference.span.kind, and both keys must be present on every span, so
+# the derivation has to run in both directions.
 #
 # Not a mechanical inversion of the map above, and it cannot be generated from
 # it, for two reasons:
@@ -785,6 +793,7 @@ _KIND_BY_OPERATION: dict[str, SpanKind] = {
     "invoke_agent": SpanKind.AGENT,
     "create_agent": SpanKind.AGENT,
     "retrieval": SpanKind.RETRIEVER,
+    "rerank": SpanKind.RERANKER,
     "invoke_workflow": SpanKind.CHAIN,
     "plan": SpanKind.CHAIN,
     "agent_step": SpanKind.CHAIN,
@@ -817,7 +826,8 @@ def kind_for_operation(operation: str) -> str | None:
 # operation: inference, embeddings and retrieval call out of the process
 # (CLIENT); execute_tool is INTERNAL; invoke_agent is CLIENT only for a hosted
 # agent. Hence:
-# - LLM / EMBEDDING / RETRIEVER -> CLIENT: a remote model or index is called.
+# - LLM / EMBEDDING / RETRIEVER / RERANKER -> CLIENT: a remote model or
+#   index is called.
 # - TOOL -> INTERNAL: a bare TOOL span is an in-process function, and the
 #   execute-tool convention says INTERNAL. The MCP wrapper overrides this to
 #   CLIENT at its own call site because a tools/call crosses a process
@@ -831,6 +841,7 @@ _OTEL_KIND_BY_KIND: dict[SpanKind, OtelSpanKind] = {
     SpanKind.LLM: OtelSpanKind.CLIENT,
     SpanKind.EMBEDDING: OtelSpanKind.CLIENT,
     SpanKind.RETRIEVER: OtelSpanKind.CLIENT,
+    SpanKind.RERANKER: OtelSpanKind.CLIENT,
     SpanKind.TOOL: OtelSpanKind.INTERNAL,
     SpanKind.AGENT: OtelSpanKind.INTERNAL,
     SpanKind.CHAIN: OtelSpanKind.INTERNAL,
@@ -852,12 +863,16 @@ CHAIN_SPAN_NAME = "chain"
 # Which attribute names the target, per kind. One key each, so a tool name can
 # never surface in an agent's name and the composed name stays a reliable
 # filter value. CHAIN is absent: it has no operation and so no composed name.
+# RERANKER reads the request model, as EMBEDDING does, so a rerank span is
+# named `rerank <model>`. The span helpers here take no model, so a RERANKER
+# span they create is named after the bare operation, `rerank`.
 _NAME_TARGET_BY_KIND: dict[SpanKind, str] = {
     SpanKind.LLM: GEN_AI_REQUEST_MODEL,
     SpanKind.EMBEDDING: GEN_AI_REQUEST_MODEL,
     SpanKind.TOOL: GEN_AI_TOOL_NAME,
     SpanKind.AGENT: GEN_AI_AGENT_NAME,
     SpanKind.RETRIEVER: GEN_AI_DATA_SOURCE_ID,
+    SpanKind.RERANKER: GEN_AI_REQUEST_MODEL,
 }
 
 

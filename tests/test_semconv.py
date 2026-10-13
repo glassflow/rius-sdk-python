@@ -45,6 +45,7 @@ def test_set_span_kind_without_operation(exported_spans: InMemorySpanExporter) -
         (SpanKind.LLM, OtelSpanKind.CLIENT),
         (SpanKind.EMBEDDING, OtelSpanKind.CLIENT),
         (SpanKind.RETRIEVER, OtelSpanKind.CLIENT),
+        (SpanKind.RERANKER, OtelSpanKind.CLIENT),
         (SpanKind.TOOL, OtelSpanKind.INTERNAL),
         (SpanKind.AGENT, OtelSpanKind.INTERNAL),
         (SpanKind.CHAIN, OtelSpanKind.INTERNAL),
@@ -77,6 +78,17 @@ def test_chain_stays_unmapped() -> None:
     from rius.semconv import kind_attributes
 
     assert GEN_AI_OPERATION_NAME not in kind_attributes(SpanKind.CHAIN)
+
+
+def test_reranker_round_trips_with_the_ai_sdks_rerank_operation() -> None:
+    """The conventions define no rerank operation, so RERANKER takes the AI
+    SDK's own ``rerank``, in both directions: every rerank span carries the
+    same operation whoever made it."""
+    from rius.semconv import kind_attributes, kind_for_operation, operation_for_kind
+
+    assert kind_attributes(SpanKind.RERANKER)[GEN_AI_OPERATION_NAME] == "rerank"
+    assert operation_for_kind("RERANKER") == "rerank"
+    assert kind_for_operation("rerank") == "RERANKER"
 
 
 def test_data_source_id_is_set_only_on_retriever_spans() -> None:
@@ -194,6 +206,10 @@ def test_compose_span_name_composes_the_operation_and_the_target() -> None:
             SpanKind.RETRIEVER,
             {"gen_ai.operation.name": "retrieval", "gen_ai.data_source.id": "kb"},
         ),
+        (
+            SpanKind.RERANKER,
+            {"gen_ai.operation.name": "rerank", "gen_ai.request.model": "rerank-v3.5"},
+        ),
     ]
     expected = [
         "chat gpt-4o",
@@ -201,6 +217,7 @@ def test_compose_span_name_composes_the_operation_and_the_target() -> None:
         "execute_tool get_weather",
         "invoke_agent planner",
         "retrieval kb",
+        "rerank rerank-v3.5",
     ]
     assert [compose_span_name(kind, attrs) for kind, attrs in cases] == expected
 
@@ -231,6 +248,7 @@ def test_compose_span_name_falls_back_to_the_bare_operation() -> None:
         (SpanKind.TOOL, "execute_tool"),
         (SpanKind.AGENT, "invoke_agent"),
         (SpanKind.RETRIEVER, "retrieval"),
+        (SpanKind.RERANKER, "rerank"),
     ):
         assert compose_span_name(kind, {"gen_ai.operation.name": operation}) == operation
 

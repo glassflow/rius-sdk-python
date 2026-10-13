@@ -1,6 +1,6 @@
 {
   "family": "vercel-ai-v6",
-  "about": "Real Vercel AI SDK v6 spans from its own experimental_telemetry (the ai.* dialect: ai.generateText, ai.generateText.doGenerate, ai.toolCall ...). Recorded through a scripted fetch with an AsyncLocalStorage context manager and deterministic clocks: no network, no API keys, no rius SDK. The scenarios are the v5 family's (_vercel.mjs). v6 reports usage in its detailed spelling (ai.usage.inputTokenDetails.*, ai.usage.outputTokenDetails.*) beside the v5 one, on every span.",
+  "about": "Real Vercel AI SDK v6 spans from its own experimental_telemetry (the ai.* dialect: ai.generateText, ai.generateText.doGenerate, ai.toolCall ...). Recorded through a scripted fetch with an AsyncLocalStorage context manager and deterministic clocks: no network, no API keys, no rius SDK. The scenarios are the v5 family's (_vercel.mjs), plus a rerank call, which v5 does not have. v6 reports usage in its detailed spelling (ai.usage.inputTokenDetails.*, ai.usage.outputTokenDetails.*) beside the v5 one, on every span.",
   "record": "npm ci, then node record.mjs <recording.json> <environment.json>",
   "recordings": {
     "vercel-ai-v6-6.0.304.json": {
@@ -8,6 +8,7 @@
       "packages": {
         "ai": "6.0.304",
         "@ai-sdk/openai": "3.0.126",
+        "@ai-sdk/cohere": "3.0.68",
         "@opentelemetry/api": "1.9.1",
         "@opentelemetry/sdk-trace-base": "2.12.0"
       },
@@ -16,13 +17,14 @@
         "stream_text": "streamText, drained.",
         "tool_loop": "generateText with one tool and stopWhen: stepCountIs(2): two model calls (24/51 then 91/15 tokens) with the tool executed between them.",
         "error": "The provider answers 400 (model_not_found).",
-        "embed": "embed with text-embedding-3-small; the response vector is three floats. Normalization drops the vectors (ai.embedding, ai.embeddings), as it does OpenInference's."
+        "embed": "embed with text-embedding-3-small; the response vector is three floats. Normalization drops the vectors (ai.embedding, ai.embeddings), as it does OpenInference's.",
+        "rerank": "rerank with Cohere's rerank-v3.5 (no OpenAI model reranks): three text documents, topN 2. The AI SDK records the documents (ai.documents) and the ranking (ai.ranking, indices and scores) but not the query, and no usage. Normalization classifies both spans as the rerank operation, as @ai-sdk/otel names it, and as RERANKER."
       },
       "expected": {
         "file": "vercel-ai-v6-6.0.304.expected.json",
         "source": "typescript-sdk"
       },
-      "verified": "Recorded 2026-10-13 twice in a row from the lockfile's node_modules: byte-identical."
+      "verified": "Re-recorded 2026-10-13 twice in a row from the lockfile's node_modules: byte-identical, and the earlier scenarios unchanged."
     }
   }
 }

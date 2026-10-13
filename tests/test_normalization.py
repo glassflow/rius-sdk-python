@@ -402,6 +402,13 @@ def test_a_chain_kind_yields_no_operation() -> None:
     assert out == {"openinference.span.kind": "CHAIN"}
 
 
+def test_an_openinference_reranker_span_gains_the_rerank_operation() -> None:
+    """A LlamaIndex or LangChain reranker says only RERANKER; it gets the
+    operation the AI SDK writes on its reranks, so both agree on a filter."""
+    out = _normalize(DEFAULT_TABLE, {"openinference.span.kind": "RERANKER"})
+    assert out == {"openinference.span.kind": "RERANKER", "gen_ai.operation.name": "rerank"}
+
+
 def test_operations_with_no_taxonomy_value_of_their_own_land_on_chain() -> None:
     """The reverse direction is the only one that can place these, which is
     why the two maps are not inverses of each other."""
@@ -437,7 +444,8 @@ def test_the_two_taxonomy_maps_round_trip_where_an_operation_exists() -> None:
     for kind in SpanKind:
         operation = operation_for_kind(kind.value)
         if operation is None:
-            assert kind is SpanKind.CHAIN, f"{kind} unexpectedly has no operation"
+            # The conventions define no operation for a generic step.
+            assert kind is SpanKind.CHAIN, f"{kind} has no operation"
             continue
         assert kind_for_operation(operation) == kind.value, kind
 
