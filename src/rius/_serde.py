@@ -41,6 +41,21 @@ def truncate(text: str) -> str:
     return text
 
 
+def text_value(value: Any) -> str:
+    """A span's input or output as text: a string as-is, anything else serialized.
+
+    A string is already the text a reader wants to see; JSON-encoding it would
+    store ``"\\"Paris\\""`` and show the quotes. This is the rule the
+    TypeScript SDK's ``toAttributeValue`` applies, so the same value lands the
+    same way from either SDK. A lone surrogate becomes U+FFFD, the character
+    a JavaScript string's UTF-8 encoding writes for it, since a raw one would
+    get the attribute dropped by the OTLP exporter.
+    """
+    if isinstance(value, str):
+        return truncate(_SURROGATE.sub("\ufffd", value))
+    return serialize(value)
+
+
 def serialize(value: Any) -> str:
     """Serialize a value to a bounded string suitable for a span attribute."""
     try:

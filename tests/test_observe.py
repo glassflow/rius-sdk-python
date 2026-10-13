@@ -1,4 +1,5 @@
 import asyncio
+import json
 from collections.abc import Iterator
 
 import pytest
@@ -63,6 +64,18 @@ def test_captures_input_and_output(exported_spans: InMemorySpanExporter) -> None
     attrs = exported_spans.get_finished_spans()[0].attributes
     assert "2" in attrs["input.value"] and "3" in attrs["input.value"]
     assert attrs["output.value"] == "5"
+
+
+def test_string_return_value_is_recorded_as_is(exported_spans: InMemorySpanExporter) -> None:
+    @observe
+    def forecast(city: str) -> str:
+        return f"{city}: sunny"
+
+    forecast("Paris")
+    attrs = exported_spans.get_finished_spans()[0].attributes
+    assert attrs["output.value"] == "Paris: sunny"
+    # Arguments keep their {"args", "kwargs"} shape, as JSON.
+    assert json.loads(attrs["input.value"]) == {"args": ["Paris"], "kwargs": {}}
 
 
 def test_exception_records_error_and_reraises(exported_spans: InMemorySpanExporter) -> None:
