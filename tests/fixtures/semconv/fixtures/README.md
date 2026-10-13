@@ -170,7 +170,8 @@ Each Node family has its own `package.json` with exact pins and a committed
   app's provider does.
 
 `_vercel.mjs` holds the Vercel AI SDK scenarios both Vercel families share;
-each family passes in its own `ai` and `@ai-sdk/openai` modules.
+each family passes in its own `ai` and `@ai-sdk/openai` modules. The rerank
+scenario is v6's alone (v5 has no rerank), against Cohere's reranking model.
 
 ### Timeline ties
 

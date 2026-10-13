@@ -1784,6 +1784,179 @@
           }
         }
       ]
+    },
+    {
+      "scenario": "rerank",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "ai.rerank",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000003000000",
+            "attributes": [
+              {
+                "key": "ai.documents",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "\"Berlin is the capital of Germany.\""
+                      },
+                      {
+                        "stringValue": "\"Madrid is in Spain.\""
+                      },
+                      {
+                        "stringValue": "\"Paris is the capital of France.\""
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "ai.model.id",
+                "value": {
+                  "stringValue": "rerank-v3.5"
+                }
+              },
+              {
+                "key": "ai.model.provider",
+                "value": {
+                  "stringValue": "cohere.reranking"
+                }
+              },
+              {
+                "key": "ai.operationId",
+                "value": {
+                  "stringValue": "ai.rerank"
+                }
+              },
+              {
+                "key": "ai.settings.maxRetries",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "operation.name",
+                "value": {
+                  "stringValue": "ai.rerank"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000002",
+            "parentSpanId": "0000000000000001",
+            "name": "ai.rerank.doRerank",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000001000000",
+            "endTimeUnixNano": "1700000000002000000",
+            "attributes": [
+              {
+                "key": "ai.documents",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "\"Berlin is the capital of Germany.\""
+                      },
+                      {
+                        "stringValue": "\"Madrid is in Spain.\""
+                      },
+                      {
+                        "stringValue": "\"Paris is the capital of France.\""
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "ai.model.id",
+                "value": {
+                  "stringValue": "rerank-v3.5"
+                }
+              },
+              {
+                "key": "ai.model.provider",
+                "value": {
+                  "stringValue": "cohere.reranking"
+                }
+              },
+              {
+                "key": "ai.operationId",
+                "value": {
+                  "stringValue": "ai.rerank.doRerank"
+                }
+              },
+              {
+                "key": "ai.ranking",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "{\"index\":2,\"relevanceScore\":0.875}"
+                      },
+                      {
+                        "stringValue": "{\"index\":0,\"relevanceScore\":0.25}"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "ai.ranking.type",
+                "value": {
+                  "stringValue": "text"
+                }
+              },
+              {
+                "key": "ai.settings.maxRetries",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "operation.name",
+                "value": {
+                  "stringValue": "ai.rerank.doRerank"
+                }
+              }
+            ],
+            "status": {}
+          }
+        }
+      ]
     }
   ]
 }

@@ -2,7 +2,7 @@
   "normalizer": {
     "package": "@glassflow-ai/rius",
     "version": "1.1.1",
-    "commit": "2e0f732ecd5da2e53f9cd8eb8604178a89f268e5"
+    "commit": "f72bcdcbc5f73e5f3a6fd20562e363ccde39cfab"
   },
   "recordings": [
     {
@@ -1674,6 +1674,203 @@
                 "key": "operation.name",
                 "value": {
                   "stringValue": "ai.embed.doEmbed"
+                }
+              }
+            ],
+            "status": {}
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "rerank",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "ai.rerank",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000003000000",
+            "attributes": [
+              {
+                "key": "ai.documents",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "\"Berlin is the capital of Germany.\""
+                      },
+                      {
+                        "stringValue": "\"Madrid is in Spain.\""
+                      },
+                      {
+                        "stringValue": "\"Paris is the capital of France.\""
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "ai.operationId",
+                "value": {
+                  "stringValue": "ai.rerank"
+                }
+              },
+              {
+                "key": "ai.settings.maxRetries",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "rerank"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "cohere"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "rerank-v3.5"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "RERANKER"
+                }
+              },
+              {
+                "key": "operation.name",
+                "value": {
+                  "stringValue": "ai.rerank"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000002",
+            "parentSpanId": "0000000000000001",
+            "name": "ai.rerank.doRerank",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000001000000",
+            "endTimeUnixNano": "1700000000002000000",
+            "attributes": [
+              {
+                "key": "ai.documents",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "\"Berlin is the capital of Germany.\""
+                      },
+                      {
+                        "stringValue": "\"Madrid is in Spain.\""
+                      },
+                      {
+                        "stringValue": "\"Paris is the capital of France.\""
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "ai.operationId",
+                "value": {
+                  "stringValue": "ai.rerank.doRerank"
+                }
+              },
+              {
+                "key": "ai.ranking",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "{\"index\":2,\"relevanceScore\":0.875}"
+                      },
+                      {
+                        "stringValue": "{\"index\":0,\"relevanceScore\":0.25}"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "ai.ranking.type",
+                "value": {
+                  "stringValue": "text"
+                }
+              },
+              {
+                "key": "ai.settings.maxRetries",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "rerank"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "cohere"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "rerank-v3.5"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "RERANKER"
+                }
+              },
+              {
+                "key": "operation.name",
+                "value": {
+                  "stringValue": "ai.rerank.doRerank"
                 }
               }
             ],
