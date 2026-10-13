@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.0.1](https://github.com/glassflow/rius-sdk-python/compare/v1.0.0...v1.0.1) (2026-10-12)
+
+
+### Bug Fixes
+
+* drop a LiteLLM routing prefix that names the span's provider from gen_ai.request.model ([#152](https://github.com/glassflow/rius-sdk-python/issues/152)) ([06c1102](https://github.com/glassflow/rius-sdk-python/commit/06c1102c8c5703a42b3021ae5b07ea53d278ff84))
+* map time to first chunk under its metric name, and give such spans a first-token event ([#153](https://github.com/glassflow/rius-sdk-python/issues/153)) ([a53f79a](https://github.com/glassflow/rius-sdk-python/commit/a53f79a48f14c6d7bfa29455e3235219124b8d90))
+* name the provider from llm.system when the host is unknown ([#147](https://github.com/glassflow/rius-sdk-python/issues/147)) ([0381f40](https://github.com/glassflow/rius-sdk-python/commit/0381f40a286fe7cb18c84dbc1745c86ca00ed34f))
+* never take a LangChain bag's stream member as the request's stream flag ([#151](https://github.com/glassflow/rius-sdk-python/issues/151)) ([c70d4ce](https://github.com/glassflow/rius-sdk-python/commit/c70d4ce0f236a975e1c7a06c4afe7c5fb3f98abf))
+* read the request model and max tokens from LlamaIndex's model metadata ([#150](https://github.com/glassflow/rius-sdk-python/issues/150)) ([c737af6](https://github.com/glassflow/rius-sdk-python/commit/c737af6fffcae3082a4a076a287e424689d37d7b))
+
+
+### Documentation
+
+* **config:** the server, not heartbeat_interval, sets stale and gone ([#144](https://github.com/glassflow/rius-sdk-python/issues/144)) ([0047fe7](https://github.com/glassflow/rius-sdk-python/commit/0047fe78618360dafa56e734da5c2fa96cf1f4f4))
+
 ## [1.0.0](https://github.com/glassflow/rius-sdk-python/compare/v0.17.0...v1.0.0) (2026-09-29)
 
 ### Upgrading from 0.x
