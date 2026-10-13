@@ -92,6 +92,9 @@ dev = [
     # litellm 1.82.7 and 1.82.8 were compromised releases; stay above them.
     "litellm>=1.84.0",
     "openinference-instrumentation-litellm",
+    "langchain-core>=0.3.0",
+    "langchain-openai>=0.3.0",
+    "openinference-instrumentation-langchain",
 ]
 
 [tool.ruff]
