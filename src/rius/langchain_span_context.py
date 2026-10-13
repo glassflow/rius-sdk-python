@@ -32,8 +32,14 @@ can be left attached:
 Not covered: ``BaseLLM`` text-completion models (``langchain_openai.OpenAI``
 and other non-chat LLM wrappers). Their calls are still counted twice.
 
-It reads one private detail of the instrumentor (its tracer's ``get_span``),
-so it only installs on the instrumentor versions it was checked against. It
+It relies on private details on both sides. In the instrumentor, its
+tracer's ``get_span``, so it only installs on the instrumentor versions it was
+checked against. In langchain-core, ``BaseChatModel._generate_with_cache`` and
+``_agenerate_with_cache`` and the ``run_manager`` keyword they are called
+with; langchain-core is the user's own dependency, so a release that renames
+them is not caught here: install() finds nothing to wrap and returns False, or
+the run manager is not found, and the call runs un-nested. The
+upstream-stopgaps workflow runs these tests against the newest releases. It
 steps aside when the span is already current, attaches only in the thread and
 asyncio task whose step is running, and never raises into the caller's code.
 """
