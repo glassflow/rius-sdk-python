@@ -405,7 +405,7 @@ def test_a_chain_kind_yields_no_operation() -> None:
 def test_operations_with_no_taxonomy_value_of_their_own_land_on_chain() -> None:
     """The reverse direction is the only one that can place these, which is
     why the two maps are not inverses of each other."""
-    for operation in ("invoke_workflow", "plan"):
+    for operation in ("invoke_workflow", "plan", "agent_step"):
         out = _normalize(DEFAULT_TABLE, {"gen_ai.operation.name": operation})
         assert out["openinference.span.kind"] == "CHAIN", operation
 
