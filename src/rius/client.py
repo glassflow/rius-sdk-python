@@ -18,6 +18,7 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor, SpanExporter
 from opentelemetry.sdk.trace.sampling import ParentBased, Sampler, TraceIdRatioBased
 
 from . import __version__, _agent, _tracer
+from .aggregated_usage import WrappedCallTracker
 from .config import DEFAULT_ENDPOINT, GlassflowConfig, resolve_config
 from .export_health import (
     ExportOutcomeExporter,
@@ -604,7 +605,10 @@ def _do_init(
         # recognise canonical content keys. Reversed, masking would strip
         # llm.input_messages before it could be mapped and gen_ai.input.messages
         # would arrive empty. Always on: the wire format is not optional.
-        exporter = NormalizingSpanExporter(exporter)
+        # Shared with the exporter: it learns, from end order, which wrapper
+        # spans repeat a child's usage, and the exporter acts on it.
+        wrapped_calls = WrappedCallTracker()
+        exporter = NormalizingSpanExporter(exporter, wrapped_calls=wrapped_calls)
         exporter = ResourceAdoptingExporter(exporter, resource)
         # Outermost wrapper so it observes the outcome of the whole chain
         # (masking included); client.flush() reads it for honest delivery
@@ -622,6 +626,7 @@ def _do_init(
         # normalization is what lets a pending snapshot (built at on_start,
         # from the identity allowlist) carry canonical keys.
         pipeline.add_span_processor(NormalizingSpanProcessor())
+        pipeline.add_span_processor(wrapped_calls)
         pipeline.add_span_processor(SessionSpanProcessor(config.session_id))
         pipeline.add_span_processor(UserSpanProcessor())
         if routing is not None:
