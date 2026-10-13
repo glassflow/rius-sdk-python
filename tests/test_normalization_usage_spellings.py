@@ -2,9 +2,10 @@
 
 ``gen_ai.usage.cache_creation.input_tokens`` is the cache-write count's name
 before the upstream rename to ``cache_write``. pydantic-ai and ``@ai-sdk/otel``
-still emit it. ``gen_ai.usage.details.reasoning_tokens`` is where pydantic-ai
-writes OpenAI's reasoning count. Third-party spans passing through the SDK
-must leave it canonical, exactly as the sink maps them.
+still emit it. ``gen_ai.usage.details.reasoning_tokens``,
+``thinking_tokens`` and ``thoughts_tokens`` are where pydantic-ai writes
+OpenAI's, Anthropic's and Google's reasoning counts. Third-party spans passing
+through the SDK must leave them canonical, exactly as the sink maps them.
 
 Each is its own rule AFTER the OpenInference rule for the same target, not an
 extra source on it: a multi-source rule converts only the first source
@@ -28,6 +29,8 @@ from rius.semconv import (
 
 CACHE_CREATION = "gen_ai.usage.cache_creation.input_tokens"
 DETAILS_REASONING = "gen_ai.usage.details.reasoning_tokens"
+DETAILS_THINKING = "gen_ai.usage.details.thinking_tokens"
+DETAILS_THOUGHTS = "gen_ai.usage.details.thoughts_tokens"
 
 # (alternate spelling, OpenInference spelling for the same target, target)
 SPELLINGS = [
@@ -38,6 +41,16 @@ SPELLINGS = [
     ),
     (
         DETAILS_REASONING,
+        "llm.token_count.completion_details.reasoning",
+        GEN_AI_USAGE_REASONING_OUTPUT_TOKENS,
+    ),
+    (
+        DETAILS_THINKING,
+        "llm.token_count.completion_details.reasoning",
+        GEN_AI_USAGE_REASONING_OUTPUT_TOKENS,
+    ),
+    (
+        DETAILS_THOUGHTS,
         "llm.token_count.completion_details.reasoning",
         GEN_AI_USAGE_REASONING_OUTPUT_TOKENS,
     ),
@@ -91,6 +104,20 @@ def test_an_unparseable_openinference_count_does_not_block_the_alternate(
 ) -> None:
     """Why these are separate rules and not extra sources on the OpenInference one."""
     assert _normalize({openinference: "lots", alternate: 7}) == {target: 7}
+
+
+def test_several_reasoning_spellings_take_the_first_in_order_and_all_go() -> None:
+    """One per provider, so a span should carry one; if several, the sink's order."""
+    attributes = {DETAILS_THOUGHTS: 3, DETAILS_THINKING: 2, DETAILS_REASONING: 1}
+    assert _normalize(attributes) == {GEN_AI_USAGE_REASONING_OUTPUT_TOKENS: 1}
+    del attributes[DETAILS_REASONING]
+    assert _normalize(attributes) == {GEN_AI_USAGE_REASONING_OUTPUT_TOKENS: 2}
+
+
+def test_an_unparseable_reasoning_spelling_does_not_block_the_next() -> None:
+    assert _normalize({DETAILS_THINKING: "many", DETAILS_THOUGHTS: 128}) == {
+        GEN_AI_USAGE_REASONING_OUTPUT_TOKENS: 128
+    }
 
 
 def test_a_pydantic_ai_span_leaves_the_sdk_canonical() -> None:

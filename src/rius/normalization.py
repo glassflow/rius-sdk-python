@@ -58,8 +58,9 @@ the sink still sees it under its own name. The deliberate omissions are listed
 with their reasons at ``OPENINFERENCE_RULES`` below.
 
 The shipped table covers the OpenInference ``llm.*`` model-call and usage
-families (RIUS-921), plus two GenAI-shaped usage spellings that third-party
-instrumentations still emit (``cache_creation``, ``details.reasoning_tokens``).
+families (RIUS-921), plus the GenAI-shaped usage spellings that third-party
+instrumentations still emit (``cache_creation``, and pydantic-ai's
+``details.reasoning_tokens`` / ``thinking_tokens`` / ``thoughts_tokens``).
 Rules used to exercise the machinery itself live in the
 tests, injected through ``table=``.
 
@@ -1560,12 +1561,25 @@ OPENINFERENCE_RULES: tuple[AnyRule, ...] = (
         GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS,
         to_int,
     ),
-    # pydantic-ai writes OpenAI's reasoning count as one entry of its usage
-    # details namespace. The other providers' names there for the same split
-    # (Anthropic's thinking_tokens, Google's thoughts_tokens) are not mapped,
-    # matching the sink; the rest of the namespace has no canonical key.
+    # pydantic-ai writes each provider's usage details under
+    # gen_ai.usage.details.<name>, and three of those names are the same
+    # reasoning split: OpenAI's reasoning_tokens, Anthropic's thinking_tokens
+    # and Google's thoughts_tokens. One per provider, so a span should carry
+    # at most one; if it carries several, this order decides and all of them
+    # go, as in the sink. Separate rules so one that won't parse does not
+    # block the next. The rest of the namespace has no canonical key.
     Rule(
         "gen_ai.usage.details.reasoning_tokens",
+        GEN_AI_USAGE_REASONING_OUTPUT_TOKENS,
+        to_int,
+    ),
+    Rule(
+        "gen_ai.usage.details.thinking_tokens",
+        GEN_AI_USAGE_REASONING_OUTPUT_TOKENS,
+        to_int,
+    ),
+    Rule(
+        "gen_ai.usage.details.thoughts_tokens",
         GEN_AI_USAGE_REASONING_OUTPUT_TOKENS,
         to_int,
     ),
