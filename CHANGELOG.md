@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.0.2](https://github.com/glassflow/rius-sdk-python/compare/v1.0.1...v1.0.2) (2026-10-13)
+
+
+### Bug Fixes
+
+* count a LiteLLM call's usage once when the OpenAI child span recorded it ([#159](https://github.com/glassflow/rius-sdk-python/issues/159)) ([837bd71](https://github.com/glassflow/rius-sdk-python/commit/837bd7192ed712152edf9a79c308f9e4d12154a7))
+* drop a request bag's tool definitions when llm.tools supplied them ([#156](https://github.com/glassflow/rius-sdk-python/issues/156)) ([3fddde9](https://github.com/glassflow/rius-sdk-python/commit/3fddde9ea4ff5a19a1bae077130e60ad785dd7d4))
+* map pydantic-ai's thinking_tokens and thoughts_tokens to the canonical reasoning count ([#154](https://github.com/glassflow/rius-sdk-python/issues/154)) ([2802aed](https://github.com/glassflow/rius-sdk-python/commit/2802aedf33f811962e6b6fc5b336fdf42db384f7))
+* name a LangChain run's provider from ls_provider when no provider key is set ([#158](https://github.com/glassflow/rius-sdk-python/issues/158)) ([f3b4150](https://github.com/glassflow/rius-sdk-python/commit/f3b4150a84d17485383c631b91a4551e19cdb7ec))
+* nest a streamed LiteLLM call's OpenAI span so its usage is counted once ([#160](https://github.com/glassflow/rius-sdk-python/issues/160)) ([9160685](https://github.com/glassflow/rius-sdk-python/commit/91606858df10ee785073102566e2a416e10017e4))
+* promote a request bag's system prompt into the input messages ([#157](https://github.com/glassflow/rius-sdk-python/issues/157)) ([0d74da7](https://github.com/glassflow/rius-sdk-python/commit/0d74da7f8f2dd5df4cea7d81a7f60afd314276c5))
+
 ## [1.0.1](https://github.com/glassflow/rius-sdk-python/compare/v1.0.0...v1.0.1) (2026-10-12)
 
 
