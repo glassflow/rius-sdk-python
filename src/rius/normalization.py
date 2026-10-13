@@ -111,6 +111,7 @@ from opentelemetry.trace import StatusCode
 
 from ._attributes import replacement_attributes
 from ._serde import serialize
+from .aggregated_usage import WrappedCallTracker, move_aggregated_usage
 from .semconv import (
     ERROR_TYPE,
     EXCEPTION_EVENT,
@@ -1108,9 +1109,18 @@ class NormalizingSpanExporter(SpanExporter):
     impossible and wrong.
     """
 
-    def __init__(self, inner: SpanExporter, *, table: NormalizationTable | None = None) -> None:
+    def __init__(
+        self,
+        inner: SpanExporter,
+        *,
+        table: NormalizationTable | None = None,
+        wrapped_calls: WrappedCallTracker | None = None,
+    ) -> None:
         self._inner = inner
         self._table = table if table is not None else DEFAULT_TABLE
+        # Fed by the same provider's processors; without it no wrapper's usage
+        # moves (a span on its own cannot say whether it repeats a child's).
+        self._wrapped_calls = wrapped_calls
 
     def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
         return self._inner.export([self._normalized(span) for span in spans])
@@ -1167,6 +1177,14 @@ class NormalizingSpanExporter(SpanExporter):
         )
         if synthesized is not None:
             new_events = synthesized
+        # Last, on the canonical keys: a LiteLLM span whose child recorded the
+        # same call keeps its usage only as rius.aggregated_usage.*.
+        if self._wrapped_calls is not None and self._wrapped_calls.take(span):
+            moved = move_aggregated_usage(
+                (span.attributes or {}) if new_attributes is None else new_attributes
+            )
+            if moved is not None:
+                new_attributes = moved
         if new_attributes is None and new_events is None:
             return span
         normalized = copy.copy(span)

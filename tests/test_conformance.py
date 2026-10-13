@@ -26,6 +26,7 @@ from typing import Any
 import pytest
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
+from rius.aggregated_usage import WrappedCallTracker
 from rius.normalization import NormalizingSpanExporter
 
 HERE = Path(__file__).parent
@@ -60,8 +61,17 @@ def _recordings() -> Iterator[tuple[str, str, list[dict[str, Any]], list[dict[st
 
 
 def _normalized(scenario: dict[str, Any]) -> dict[str, Any]:
+    spans = scenario_spans(scenario)
+    # The span processors that decide from end order, driven the way a live
+    # provider drives them: every start, then every end in the order the spans
+    # finished. A parent is still open when its child ends, as it was live.
+    wrapped_calls = WrappedCallTracker()
+    for span in sorted(spans, key=lambda s: s.start_time or 0):
+        wrapped_calls.on_start(span)  # type: ignore[arg-type]
+    for span in sorted(spans, key=lambda s: s.end_time or 0):
+        wrapped_calls.on_end(span)
     sink = InMemorySpanExporter()
-    NormalizingSpanExporter(sink).export(scenario_spans(scenario))
+    NormalizingSpanExporter(sink, wrapped_calls=wrapped_calls).export(spans)
     return scenario_json(scenario["scenario"], sink.get_finished_spans(), canonicalize=False)
 
 

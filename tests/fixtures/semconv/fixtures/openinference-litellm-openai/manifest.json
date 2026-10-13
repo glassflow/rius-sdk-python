@@ -1,0 +1,33 @@
+{
+  "family": "openinference-litellm-openai",
+  "about": "LiteLLM with BOTH the LiteLLM and the openai OpenInference instrumentors enabled, as the rius SDK enables them when both packages are installed. LiteLLM calls the OpenAI client for OpenAI models, so a non-streamed OpenAI call is recorded twice: on LiteLLM's completion span and on the openai instrumentor's ChatCompletion span, its child, both with the call's usage. Anthropic goes through LiteLLM's own HTTP handler and gets no second span. A STREAMED call is recorded twice too, but the ChatCompletion span is a root span in a trace of its own: openinference-instrumentation-litellm starts the stream's span without making it current, so the OpenAI call does not see it as its parent. Same scripted providers and responses as ../openinference-litellm. No network, no API keys, no rius SDK.",
+  "record": "python record.py <recording.json> <environment.json>, in a virtualenv holding exactly the pins below",
+  "recordings": {
+    "openinference-litellm-openai-0.1.50.json": {
+      "python": "3.13.7",
+      "packages": {
+        "openinference-instrumentation-litellm": "0.1.50",
+        "openinference-instrumentation-openai": "0.1.65",
+        "openinference-instrumentation": "0.1.71",
+        "openinference-semantic-conventions": "0.1.41",
+        "litellm": "1.105.0",
+        "openai": "2.54.0",
+        "httpx": "0.28.1",
+        "opentelemetry-api": "1.45.1",
+        "opentelemetry-sdk": "1.45.1"
+      },
+      "scenarios": {
+        "chat": "OpenAI through LiteLLM: completion with a ChatCompletion child that ends first; both carry the usage.",
+        "chat_stream": "Streaming with stream_options.include_usage. Both spans carry the usage, but ChatCompletion is not completion's child (separate trace), so the usage is not de-duplicated yet.",
+        "tool_call": "A tool definition with tool_choice auto; the response is a tool call. Same parent and child shape as chat.",
+        "anthropic_chat": "Anthropic through LiteLLM's own handler: completion only, no child. Its usage is the only record of the call.",
+        "error": "The provider answers 400 (model_not_found): both spans end ERROR and neither carries usage."
+      },
+      "expected": {
+        "file": "openinference-litellm-openai-0.1.50.expected.json",
+        "source": "python-sdk"
+      },
+      "verified": "Re-recorded 2026-10-13 twice in a row in the pinned virtualenv: byte-identical."
+    }
+  }
+}

@@ -161,6 +161,11 @@ GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS = "gen_ai.usage.cache_read.input_tokens"
 # cache fields first shipped; SDKs 0.12.x emitted the pre-rename name.
 GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS = "gen_ai.usage.cache_write.input_tokens"
 GEN_AI_USAGE_REASONING_OUTPUT_TOKENS = "gen_ai.usage.reasoning.output_tokens"
+# The usage family as a whole, and where a wrapper span's copy of a call's
+# usage goes when the call's own span already carries it (see
+# aggregated_usage.py): gen_ai.usage.<suffix> becomes rius.aggregated_usage.<suffix>.
+GEN_AI_USAGE_PREFIX = "gen_ai.usage."
+RIUS_AGGREGATED_USAGE_PREFIX = "rius.aggregated_usage."
 GEN_AI_INPUT_MESSAGES = "gen_ai.input.messages"
 GEN_AI_OUTPUT_MESSAGES = "gen_ai.output.messages"
 GEN_AI_RESPONSE_FINISH_REASONS = "gen_ai.response.finish_reasons"
