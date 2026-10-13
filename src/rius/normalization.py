@@ -579,7 +579,9 @@ def normalize_tool_definitions(attributes: Mapping[str, Any] | None) -> dict[str
       members of ``llm.invocation_parameters`` (``tools`` and the legacy
       ``functions``), where litellm and langchain leave them. Both present
       are concatenated, tools first. The members leave the bag; a bag left
-      empty goes too, rather than riding as ``{}``.
+      empty goes too, rather than riding as ``{}``. When the indexed schemas
+      were the source, the bag's members are duplicates of them and leave
+      the bag all the same.
 
     Native wins: a span already carrying ``gen_ai.tool.definitions`` keeps it,
     and the sources are removed anyway because they are then duplicates.
@@ -610,10 +612,36 @@ def normalize_tool_definitions(attributes: Mapping[str, Any] | None) -> dict[str
                 return None
         drop = set(indexed.values())
         rebuilt = {k: v for k, v in attributes.items() if k not in drop}
+        # litellm and langchain write the same definitions into the request
+        # bag as well. They are duplicates of the ones just reassembled, and
+        # go now: left behind, a second normalization would find a native
+        # gen_ai.tool.definitions and remove them then, so normalizing twice
+        # would differ from normalizing once.
+        stripped = _bag_without_definitions(rebuilt)
+        if stripped is not None:
+            rebuilt = stripped[0]
         if not native:
             rebuilt[GEN_AI_TOOL_DEFINITIONS] = serialize(schemas)
         return rebuilt
 
+    stripped = _bag_without_definitions(attributes)
+    if stripped is None:
+        return None
+    rebuilt, definitions = stripped
+    if not native:
+        rebuilt[GEN_AI_TOOL_DEFINITIONS] = serialize(definitions)
+    return rebuilt
+
+
+def _bag_without_definitions(
+    attributes: Mapping[str, Any],
+) -> tuple[dict[str, Any], list[Any]] | None:
+    """The attributes with the bag's tool-definition members removed, and those definitions.
+
+    None when the bag holds none, or holds them in a shape we cannot vouch is
+    a list of definitions: the bag is content already, so leaving it is safe.
+    A bag left empty goes too, rather than riding as ``{}``.
+    """
     bag = attributes.get(LLM_INVOCATION_PARAMETERS)
     if not isinstance(bag, str):
         return None
@@ -625,17 +653,13 @@ def normalize_tool_definitions(attributes: Mapping[str, Any] | None) -> dict[str
         return None
     members = [m for m in INVOCATION_PARAMETERS_CONTENT_MEMBERS if m in payload]
     if not members or not all(isinstance(payload[m], list) for m in members):
-        # Absent, or a shape we cannot vouch is a list of definitions: the
-        # bag is content already, so leaving it is safe.
         return None
     definitions = [definition for m in members for definition in payload[m]]
     leftover = {k: v for k, v in payload.items() if k not in members}
     rebuilt = {k: v for k, v in attributes.items() if k != LLM_INVOCATION_PARAMETERS}
     if leftover:
         rebuilt[LLM_INVOCATION_PARAMETERS] = serialize(leftover)
-    if not native:
-        rebuilt[GEN_AI_TOOL_DEFINITIONS] = serialize(definitions)
-    return rebuilt
+    return rebuilt, definitions
 
 
 #: OpenInference's flattened message families and the canonical key each one

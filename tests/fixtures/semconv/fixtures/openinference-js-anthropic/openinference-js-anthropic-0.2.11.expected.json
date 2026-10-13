@@ -1,8 +1,8 @@
 {
   "normalizer": {
     "package": "glassflow-rius",
-    "version": "1.0.0",
-    "commit": "df42f19287225b91f10d6779c846ddab63162882"
+    "version": "1.0.1",
+    "commit": "9d01097273cf0d2073f5b0d49246b739e5e15f4a"
   },
   "recordings": [
     {
@@ -502,12 +502,6 @@
                 }
               },
               {
-                "key": "llm.invocation_parameters",
-                "value": {
-                  "stringValue": "{\"tools\":[{\"name\":\"get_weather\",\"description\":\"Current weather for a city\",\"input_schema\":{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"]}}]}"
-                }
-              },
-              {
                 "key": "llm.model_name",
                 "value": {
                   "stringValue": "claude-haiku-4-5-20251001"
@@ -689,12 +683,6 @@
                 "key": "input.value",
                 "value": {
                   "stringValue": "{\"model\":\"claude-haiku-4-5-20251001\",\"max_tokens\":64,\"tools\":[{\"name\":\"get_weather\",\"description\":\"Current weather for a city\",\"input_schema\":{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"]}}],\"messages\":[{\"role\":\"user\",\"content\":\"Weather in Paris?\"},{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_rec1\",\"name\":\"get_weather\",\"input\":{\"city\":\"Paris\"}}]},{\"role\":\"user\",\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_rec1\",\"content\":\"sunny, 22C\"}]}]}"
-                }
-              },
-              {
-                "key": "llm.invocation_parameters",
-                "value": {
-                  "stringValue": "{\"tools\":[{\"name\":\"get_weather\",\"description\":\"Current weather for a city\",\"input_schema\":{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"]}}]}"
                 }
               },
               {

@@ -1,8 +1,8 @@
 {
   "normalizer": {
     "package": "glassflow-rius",
-    "version": "1.0.0",
-    "commit": "df42f19287225b91f10d6779c846ddab63162882"
+    "version": "1.0.1",
+    "commit": "9d01097273cf0d2073f5b0d49246b739e5e15f4a"
   },
   "recordings": [
     {
@@ -488,12 +488,6 @@
                 }
               },
               {
-                "key": "llm.invocation_parameters",
-                "value": {
-                  "stringValue": "{\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"description\":\"Current weather for a city\",\"parameters\":{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"]}}}]}"
-                }
-              },
-              {
                 "key": "llm.model_name",
                 "value": {
                   "stringValue": "gpt-4o-mini-2024-07-18"
@@ -675,12 +669,6 @@
                 "key": "input.value",
                 "value": {
                   "stringValue": "{\"model\":\"gpt-4o-mini\",\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"description\":\"Current weather for a city\",\"parameters\":{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"]}}}],\"messages\":[{\"role\":\"user\",\"content\":\"Weather in Paris?\"},{\"role\":\"assistant\",\"content\":null,\"tool_calls\":[{\"id\":\"call_rec1\",\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"arguments\":\"{\\\"city\\\":\\\"Paris\\\"}\"}}]},{\"role\":\"tool\",\"tool_call_id\":\"call_rec1\",\"content\":\"sunny, 22C\"}]}"
-                }
-              },
-              {
-                "key": "llm.invocation_parameters",
-                "value": {
-                  "stringValue": "{\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"description\":\"Current weather for a city\",\"parameters\":{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"]}}}]}"
                 }
               },
               {
