@@ -1,0 +1,34 @@
+{
+  "family": "openinference-langchain-openai",
+  "about": "LangChain (Python) with BOTH the LangChain and the openai OpenInference instrumentors enabled, as the rius SDK enables them when both packages are installed. ChatOpenAI calls the OpenAI client, so every model call is recorded twice: on LangChain's ChatOpenAI span and on the openai instrumentor's ChatCompletion span, both with the call's usage. As recorded here, raw, the ChatCompletion span is NOT the ChatOpenAI span's child: openinference-instrumentation-langchain builds its spans from LangChain's callbacks and never makes them current, so the provider call sees no parent and its span is a root span in a trace of its own, inside the ChatOpenAI span's time window and ending first. The rius SDK makes the LangChain span current inside the model call, which nests the provider span and lets it move the ChatOpenAI span's usage to rius.aggregated_usage.*; a replay cannot reproduce that, so the expected result shows both spans keeping their usage, and the SDKs' own end-to-end tests cover the nesting. Same scripted responses as ../openinference-langchain. No network, no API keys, no rius SDK.",
+  "record": "python record.py <recording.json> <environment.json>, in a virtualenv holding exactly the pins below",
+  "recordings": {
+    "openinference-langchain-openai-0.1.79.json": {
+      "python": "3.13.7",
+      "packages": {
+        "openinference-instrumentation-langchain": "0.1.79",
+        "openinference-instrumentation-openai": "0.1.65",
+        "openinference-instrumentation": "0.1.71",
+        "openinference-semantic-conventions": "0.1.41",
+        "langchain-core": "1.6.9",
+        "langchain-openai": "1.7.0",
+        "openai": "3.29.0",
+        "httpx2": "2.13.1",
+        "opentelemetry-api": "1.45.1",
+        "opentelemetry-sdk": "1.45.1"
+      },
+      "scenarios": {
+        "chat": "ChatOpenAI.invoke: a ChatOpenAI span, and a ChatCompletion span in a separate trace that ends first. Both carry the usage.",
+        "chat_stream": "ChatOpenAI.stream with stream_usage. Same shape as chat; the ChatOpenAI span names the requested model, ChatCompletion the response's.",
+        "tool_call": "bind_tools with tool_choice auto; the response is a tool call. Same shape as chat.",
+        "two_calls": "prompt | model | lambda | prompt | model: one chain trace with two ChatOpenAI spans, and each model call's ChatCompletion span in a trace of its own.",
+        "error": "The provider answers 400 (model_not_found): both spans end ERROR and neither carries usage."
+      },
+      "expected": {
+        "file": "openinference-langchain-openai-0.1.79.expected.json",
+        "source": "python-sdk"
+      },
+      "verified": "Re-recorded 2026-10-13 twice in a row in the pinned virtualenv: byte-identical."
+    }
+  }
+}
