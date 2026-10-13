@@ -2,7 +2,7 @@
   "normalizer": {
     "package": "@glassflow-ai/rius",
     "version": "1.1.1",
-    "commit": "8fddd04da1aeb610ec5c4fe40313f1c0848b510c"
+    "commit": "cfeb97f723fbccfeba85ef1179b1e210d8d34ea4"
   },
   "recordings": [
     {
@@ -173,6 +173,12 @@
                 "key": "gen_ai.operation.name",
                 "value": {
                   "stringValue": "agent_step"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "CHAIN"
                 }
               },
               {
@@ -475,6 +481,12 @@
                 "key": "gen_ai.operation.name",
                 "value": {
                   "stringValue": "agent_step"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "CHAIN"
                 }
               },
               {
@@ -787,6 +799,12 @@
                 }
               },
               {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "CHAIN"
+                }
+              },
+              {
                 "key": "rius.aggregated_usage.reasoning.output_tokens",
                 "value": {
                   "intValue": "0"
@@ -1018,6 +1036,12 @@
                 "key": "gen_ai.operation.name",
                 "value": {
                   "stringValue": "agent_step"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "CHAIN"
                 }
               },
               {
@@ -1295,6 +1319,12 @@
                 "key": "http.response.status_code",
                 "value": {
                   "intValue": "400"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "CHAIN"
                 }
               }
             ],
