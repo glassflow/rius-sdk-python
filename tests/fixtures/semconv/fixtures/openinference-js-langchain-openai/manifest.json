@@ -1,0 +1,33 @@
+{
+  "family": "openinference-js-langchain-openai",
+  "about": "LangChain (JavaScript) with BOTH the LangChain and the openai OpenInference instrumentations enabled, the counterpart of ../openinference-langchain-openai with the same scenarios and responses, recorded through a scripted fetch with an AsyncLocalStorage context manager registered: no network, no API keys, no rius SDK. As in Python, the instrumentation never makes its spans current, so the openai span of each model call is a root span in a trace of its own, inside the ChatOpenAI span's time window and ending first, and both carry the call's usage. The rius TypeScript SDK nests it for a chat model's invoke and stream (and the chains that run them) and moves the ChatOpenAI span's usage aside, except when the LangChain span has not started within a short wait (a model called from a callback on LangChain's callback queue), where the call runs un-nested as before. A replay cannot reproduce that nesting, so the expected result shows both spans keeping their usage, and it is the same with or without the SDKs' fixes. This family therefore pins the un-nested case, not the usage move: that is covered only by the SDKs' end-to-end tests. LangChain stamps run records with Date.now() and OpenTelemetry reads performance.now(), so the recorder replaces both with clocks that advance one tick per reading (deterministicClock in _recording.mjs).",
+  "record": "npm ci, then node record.mjs <recording.json> <environment.json>",
+  "recordings": {
+    "openinference-js-langchain-openai-4.1.4.json": {
+      "node": "24.2.0",
+      "packages": {
+        "@arizeai/openinference-instrumentation-langchain": "4.1.4",
+        "@arizeai/openinference-instrumentation-openai": "4.4.1",
+        "@arizeai/openinference-semantic-conventions": "2.14.0",
+        "@langchain/core": "1.2.17",
+        "@langchain/openai": "1.6.2",
+        "openai": "7.32.0",
+        "@opentelemetry/api": "1.9.1",
+        "@opentelemetry/context-async-hooks": "2.12.0",
+        "@opentelemetry/sdk-trace-base": "2.12.0"
+      },
+      "scenarios": {
+        "chat": "ChatOpenAI.invoke: a ChatOpenAI span, and an OpenAI Chat Completions span in a separate trace that ends first. Both carry the usage; the ChatOpenAI span names the requested model, the openai span the response's.",
+        "chat_stream": "ChatOpenAI.stream with streamUsage. Same shape as chat, except that both spans name the requested model and the openai span's status is left unset.",
+        "tool_call": "bindTools with tool_choice auto; the response is a tool call. Same shape as chat.",
+        "two_calls": "prompt | model | lambda | prompt | model: one chain trace with two ChatOpenAI spans, and each model call's openai span in a trace of its own.",
+        "error": "The provider answers 400 (model_not_found): both spans end ERROR and neither carries usage."
+      },
+      "expected": {
+        "file": "openinference-js-langchain-openai-4.1.4.expected.json",
+        "source": "python-sdk"
+      },
+      "verified": "Re-recorded 2026-10-13 several times in a row from the lockfile's node_modules: byte-identical."
+    }
+  }
+}

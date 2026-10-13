@@ -1,10 +1,11 @@
 """Count a model call's usage once when a wrapper span repeats it.
 
-LiteLLM calls the OpenAI client for OpenAI models. With both instrumentors
-enabled (the rius SDK enables every one it finds), each such call is recorded
-twice: on LiteLLM's ``completion`` span and on the openai instrumentor's
-``ChatCompletion`` span, its child, both carrying the call's usage. Every
-backend sum over ``gen_ai.usage.*`` then counts the call twice.
+LiteLLM calls the OpenAI client for OpenAI models, and LangChain's chat models
+call their provider's client. With both instrumentors enabled (the rius SDK
+enables every one it finds), each such call is recorded twice: on the wrapper's
+span (LiteLLM's ``completion``, LangChain's ``ChatOpenAI``) and on the provider
+instrumentor's span (``ChatCompletion``), its child, both carrying the call's
+usage. Every backend sum over ``gen_ai.usage.*`` then counts the call twice.
 
 The child is the call itself, so it keeps the usage. The wrapper's copy moves
 to ``rius.aggregated_usage.*``, the namespace the TypeScript SDK already uses
@@ -12,11 +13,13 @@ for an aggregating producer's invoke_agent span: still on the span for display,
 no longer summed.
 
 Which wrapper repeats its child's usage is decided by end order, never by
-guessing: a child ends before its parent, so by the time a LiteLLM span ends,
+guessing: a child ends before its parent, so by the time a wrapper span ends,
 :class:`WrappedCallTracker` already knows whether an LLM child with usage ended
 under it. The exporter then takes that mark when it exports the wrapper. A
-LiteLLM span with no such child (Anthropic goes through LiteLLM's own HTTP
-handler, so it has none) keeps its usage: it is the only record of the call.
+wrapper span with no such child (Anthropic goes through LiteLLM's own HTTP
+handler, so it has none; a LangChain model whose provider is not instrumented)
+keeps its usage: it is the only record of the call. A LangChain chain span
+above the model span is marked too, and has no usage to move.
 
 Streamed LiteLLM calls depend on :mod:`rius.litellm_stream_context`:
 openinference-instrumentation-litellm starts the stream's span without making
@@ -40,6 +43,10 @@ from .semconv import GEN_AI_USAGE_PREFIX, RIUS_AGGREGATED_USAGE_PREFIX, RIUS_SPA
 
 #: The tracer scope openinference-instrumentation-litellm starts its spans under.
 LITELLM_SCOPE = "openinference.instrumentation.litellm"
+#: The tracer scope openinference-instrumentation-langchain starts its spans under.
+LANGCHAIN_SCOPE = "openinference.instrumentation.langchain"
+#: The instrumentors whose spans wrap a call another instrumentor also records.
+WRAPPER_SCOPES = frozenset({LITELLM_SCOPE, LANGCHAIN_SCOPE})
 
 #: OpenInference's usage family: the child's usage before normalization has
 #: renamed it. A child carrying either spelling repeats the call's usage.
@@ -62,9 +69,9 @@ def _has_usage(attributes: Mapping[str, Any] | None) -> bool:
 
 
 class WrappedCallTracker(SpanProcessor):
-    """Remember which LiteLLM spans have an LLM child that recorded usage.
+    """Remember which wrapper spans have an LLM child that recorded usage.
 
-    ``on_start`` notes every open LiteLLM span; a child that ends with usage
+    ``on_start`` notes every open wrapper span; a child that ends with usage
     under one marks it; :meth:`take` hands the mark to the exporter once. Reads
     only a span's scope, ids and attributes, so a replay can drive it with
     ReadableSpans.
@@ -78,7 +85,7 @@ class WrappedCallTracker(SpanProcessor):
 
     def on_start(self, span: Span, parent_context: otel_context.Context | None = None) -> None:
         scope = span.instrumentation_scope
-        if scope is None or scope.name != LITELLM_SCOPE:
+        if scope is None or scope.name not in WRAPPER_SCOPES:
             return
         with self._lock:
             self._remember(self._open, span.context.span_id)
@@ -92,7 +99,7 @@ class WrappedCallTracker(SpanProcessor):
                 self._remember(self._marked, parent.span_id)
 
     def take(self, span: ReadableSpan) -> bool:
-        """Whether ``span`` is a LiteLLM span whose child recorded the usage.
+        """Whether ``span`` is a wrapper span whose child recorded the usage.
 
         True once per span: the mark is consumed. A pending snapshot never
         consumes it, since the real span is exported after it.

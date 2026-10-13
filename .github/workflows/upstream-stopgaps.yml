@@ -1,0 +1,65 @@
+# Runs the LangChain and LiteLLM span-context stopgaps against the newest
+# released instrumentors and the libraries they hook, resolved now rather than
+# from uv.lock.
+#
+# Both stopgaps read private details of an OpenInference instrumentor, so they
+# install only on the instrumentor versions those details were checked
+# against (VERIFIED_VERSIONS in rius/langchain_span_context.py and
+# rius/litellm_stream_context.py). The extras have no upper bound, so a user
+# who upgrades past that range silently goes back to counting usage twice.
+# The lock never moves on its own, so the main test job cannot see that day
+# coming: this job can. When it fails on a new release, re-read the
+# instrumentor's internals, widen VERIFIED_VERSIONS, and bump the lock.
+#
+# The stopgaps also depend on the libraries the instrumentors trace: the
+# LangChain one wraps private langchain-core methods, and the LiteLLM one runs
+# litellm's streaming functions through the instrumentor's wrappers. Those are
+# the user's own dependencies and move quickly. A reshape there is just as
+# silent (install returns False, or the call runs un-nested), so they move
+# here too.
+#
+# The tests answer every request in-process and guard the socket, so the only
+# network use is the package index.
+name: upstream-stopgaps
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: upstream-stopgaps-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  newest-instrumentors:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+        with:
+          enable-cache: true
+      # Re-resolve only the two instrumentors and the libraries they hook
+      # (and whatever those newly need), so the rest of the environment stays
+      # as locked.
+      - name: Upgrade the instrumentors and hooked libraries past the lock
+        run: |
+          uv lock \
+            --upgrade-package openinference-instrumentation-langchain \
+            --upgrade-package openinference-instrumentation-litellm \
+            --upgrade-package langchain-core \
+            --upgrade-package langchain-openai \
+            --upgrade-package litellm
+          uv sync --group dev
+          uv pip show \
+            openinference-instrumentation-langchain openinference-instrumentation-litellm \
+            langchain-core langchain-openai litellm \
+            | grep -E '^(Name|Version):'
+      - run: uv run --no-sync pytest tests/test_langchain_span_context.py tests/test_litellm_stream_context.py
