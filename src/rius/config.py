@@ -244,12 +244,15 @@ def resolve_config(
             (``RIUS_MAIN_AGENT_ID``), stamped as ``gen_ai.main_agent.id`` (and
             the deprecated ``rius.main_agent.id``). It must be STABLE across
             restarts and deployments — the conventions say it MUST NOT be
-            generated from an in-memory or process-local id. Unset means
-            unset; there is no placeholder.
+            generated from an in-memory or process-local id. Unset here means
+            unset, but ``gen_ai.main_agent.id`` then falls back to the agent
+            name, so renaming the agent changes it; ``rius.main_agent.id``
+            stays absent.
         main_agent_description: What that agent does
             (``RIUS_MAIN_AGENT_DESCRIPTION``), stamped as
-            ``gen_ai.main_agent.description`` (and the deprecated
-            ``rius.main_agent.description``). Unset means unset.
+            ``rius.main_agent.description``, and as
+            ``gen_ai.main_agent.description`` whenever ``gen_ai.main_agent.id``
+            is emitted. Unset means unset.
         main_agent_version: Version of the agent DEFINITION — its prompt,
             tools and policy (``RIUS_MAIN_AGENT_VERSION``), stamped as
             ``rius.main_agent.version``. Deliberately NOT ``service.version``

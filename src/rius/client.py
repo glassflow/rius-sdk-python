@@ -7,7 +7,7 @@ import os
 import threading
 import uuid
 import weakref
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Sequence
 from typing import Any
 
 from opentelemetry import trace
@@ -360,11 +360,18 @@ def init(
             restarts and deployments; the conventions say it MUST NOT be
             generated from an in-memory or process-local id, because a value
             that changes every restart mints a new "agent" every restart.
-            Stamped only when set; there is no placeholder.
+            When it is not set, ``gen_ai.main_agent.id`` falls back to the
+            agent name, so RENAMING THE AGENT CHANGES THE ID unless this is
+            set (a one-time DEBUG log says so); ``rius.main_agent.id`` is
+            stamped only when this is set. With neither an id nor a name
+            (the ``unknown_service`` placeholder), no ``gen_ai.main_agent.*``
+            key is emitted at all: the conventions do not allow the entity
+            without an identifier.
         main_agent_description: What this agent does
             (``RIUS_MAIN_AGENT_DESCRIPTION``), stamped as
-            ``gen_ai.main_agent.description`` and the deprecated
-            ``rius.main_agent.description``. Stamped only when set.
+            ``rius.main_agent.description`` when set, and as
+            ``gen_ai.main_agent.description`` when set and
+            ``gen_ai.main_agent.id`` is emitted.
         main_agent_version: Version of the agent DEFINITION — its prompt,
             tools and policy (``RIUS_MAIN_AGENT_VERSION``), stamped as
             ``rius.main_agent.version``. Deliberately NOT ``service.version``
@@ -449,12 +456,13 @@ def init(
 def _main_agent_attributes(config: GlassflowConfig) -> dict[str, str]:
     """The main-agent resource attributes, each only when known.
 
-    ``gen_ai.main_agent.{name,id,description}`` are the conventions' keys;
-    ``rius.main_agent.{name,id,description}`` carry the same values through
-    their deprecation window, so a sink that only reads the old keys keeps
-    the agent's identity. ``rius.main_agent.version`` has no upstream twin.
+    ``rius.main_agent.*`` (deprecated, kept through their window so a sink
+    that reads only the old keys keeps the agent's identity), plus the
+    conventions' ``gen_ai.main_agent.*`` entity, whose rule lives in
+    ``_upstream_main_agent_attributes``. ``rius.main_agent.version`` has no
+    upstream twin.
 
-    Every one is omitted rather than defaulted, for the reason
+    Every rius key is omitted rather than defaulted, for the reason
     ``service.version`` is: an absent attribute reads as "not told", a
     fabricated one reads as a real (wrong) answer. The name additionally
     drops the ``unknown_service`` placeholder, which is not an identity.
@@ -467,31 +475,58 @@ def _main_agent_attributes(config: GlassflowConfig) -> dict[str, str]:
         attributes[RIUS_MAIN_AGENT_ID] = config.main_agent_id
     if config.main_agent_description:
         attributes[RIUS_MAIN_AGENT_DESCRIPTION] = config.main_agent_description
-    attributes.update(_upstream_main_agent_attributes(attributes))
+    attributes.update(
+        _upstream_main_agent_attributes(
+            name=config.agent_name,
+            configured_id=config.main_agent_id,
+            description=config.main_agent_description,
+        )
+    )
     # Never from config.service_version: different fact, independent lifecycle.
     if config.main_agent_version:
         attributes[RIUS_MAIN_AGENT_VERSION] = config.main_agent_version
     return attributes
 
 
-def _upstream_main_agent_attributes(main_agent: Mapping[str, str]) -> dict[str, str]:
-    """``gen_ai.main_agent.{name,id,description}``, from the resolved
-    ``rius.main_agent.*`` values, so the two families can never disagree.
+# Once per process: the hint is advice about configuration, not news.
+_derived_main_agent_id_hinted = False
 
-    The ONE place the rule for emitting the conventions' main-agent entity
-    lives. Today it is stamped whenever the rius key is: the name without an
-    id too, although the conventions make the id the entity's identity,
-    because in Rius the agent's name is its identity.
+
+def _upstream_main_agent_attributes(
+    *, name: str | None, configured_id: str | None, description: str | None
+) -> dict[str, str]:
+    """The conventions' ``gen_ai.main_agent`` entity: id, name, description.
+
+    The ONE place the rule for emitting it lives. The conventions make
+    ``gen_ai.main_agent.id`` the entity's identity and say the entity MUST NOT
+    be emitted without a stable one. So the id is the configured
+    ``main_agent_id`` when set, otherwise the resolved agent name, as is: it is
+    stable across restarts and readable, but renaming the agent changes it.
+    With neither (no id, and the name empty or the ``unknown_service``
+    placeholder) no ``gen_ai.main_agent.*`` key is emitted at all. Name and
+    description ride only with the id.
+
+    ``rius.main_agent.id`` is NOT derived: it stays the configured id only.
     """
-    return {
-        upstream: main_agent[ours]
-        for ours, upstream in (
-            (RIUS_MAIN_AGENT_NAME, GEN_AI_MAIN_AGENT_NAME),
-            (RIUS_MAIN_AGENT_ID, GEN_AI_MAIN_AGENT_ID),
-            (RIUS_MAIN_AGENT_DESCRIPTION, GEN_AI_MAIN_AGENT_DESCRIPTION),
+    global _derived_main_agent_id_hinted
+    named = _agent.named_agent(name) or None
+    entity_id = configured_id or named
+    if not entity_id:
+        return {}
+    if not configured_id and not _derived_main_agent_id_hinted:
+        _derived_main_agent_id_hinted = True
+        logger.debug(
+            "rius: gen_ai.main_agent.id is the agent name %r because no main_agent_id "
+            "is set; set main_agent_id (RIUS_MAIN_AGENT_ID) to a stable identifier so "
+            "renaming the agent does not change it.",
+            named,
         )
-        if ours in main_agent
-    }
+    attributes = {GEN_AI_MAIN_AGENT_ID: entity_id}
+    if named is not None:
+        attributes[GEN_AI_MAIN_AGENT_NAME] = named
+    if description:
+        attributes[GEN_AI_MAIN_AGENT_DESCRIPTION] = description
+    return attributes
 
 
 def _do_init(

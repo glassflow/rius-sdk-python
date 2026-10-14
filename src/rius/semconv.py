@@ -71,23 +71,29 @@ GEN_AI_AGENT_VERSION = "gen_ai.agent.version"
 
 # The name of the agent this process is, from the same setting as
 # ``gen_ai.agent.name`` on the resource, and suppressed the same way: a process
-# whose name is the unknown_service placeholder stamps none. The conventions
-# make ``gen_ai.main_agent.id`` the entity's identity and say the entity is not
-# emitted without one; the SDKs stamp the name whether or not an id is
-# configured, as they did ``rius.main_agent.name``, because in Rius the agent's
-# name is its identity and most processes have no hosted id. Replaces
-# ``rius.main_agent.name``.
+# whose name is the unknown_service placeholder stamps none. Emitted only
+# with ``gen_ai.main_agent.id``, because the conventions make the id the
+# entity's identity and say the entity is not emitted without one.
+# Replaces ``rius.main_agent.name``.
 GEN_AI_MAIN_AGENT_NAME = "gen_ai.main_agent.name"
 
-# The stable identifier of the agent this process is. The conventions say it
-# MUST NOT be generated from an in-memory or process-local id: a value that
-# changes every restart mints a new "agent" every restart. So it is stamped
-# only when the caller configures one, and there is no default. Replaces
-# ``rius.main_agent.id``.
+# The stable identifier of the agent this process is, and the identity of
+# the conventions' gen_ai.main_agent entity: no id, no entity. It is the
+# configured main-agent id when one is set, otherwise the resolved agent
+# name as is. The name is stable across restarts and readable, which a
+# generated id would not be; the conventions say it MUST NOT come from an
+# in-memory or process-local id. Renaming the agent changes a derived id,
+# so the SDKs log a one-time hint that a stable id can be set. With neither
+# an id nor a usable name (empty, or the unknown_service placeholder), no
+# gen_ai.main_agent.* key is emitted at all.
+#
+# Replaces ``rius.main_agent.id``, which was only ever the configured id: the
+# derived value is never copied into it.
 GEN_AI_MAIN_AGENT_ID = "gen_ai.main_agent.id"
 
 # What the agent this process is does, in free text. Stamped only when
-# configured. Replaces ``rius.main_agent.description``.
+# configured, and only with ``gen_ai.main_agent.id``. Replaces
+# ``rius.main_agent.description``.
 GEN_AI_MAIN_AGENT_DESCRIPTION = "gen_ai.main_agent.description"
 
 # Deprecated: moved to ``gen_ai.main_agent.name``.

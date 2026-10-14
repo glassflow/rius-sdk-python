@@ -1,10 +1,13 @@
+import logging
+
 import pytest
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
+from rius import client as client_module
 from rius import init
-from rius.client import GlassflowClient, build_span_exporter
+from rius.client import GlassflowClient, _upstream_main_agent_attributes, build_span_exporter
 from rius.config import resolve_config
 
 
@@ -249,10 +252,16 @@ def test_unset_main_agent_attributes_are_absent_from_the_resource() -> None:
         assert key not in attrs
 
 
+UPSTREAM_MAIN_AGENT_KEYS = (
+    "gen_ai.main_agent.id",
+    "gen_ai.main_agent.name",
+    "gen_ai.main_agent.description",
+)
+
+
 def test_resource_carries_the_upstream_main_agent_identity() -> None:
     """gen_ai.main_agent.* is the conventions' name for the agent this PROCESS
-    is; it is stamped next to rius.main_agent.*, from the same settings, for as
-    long as the rius keys are in their deprecation window."""
+    is; it is stamped next to rius.main_agent.*, from the same settings."""
     attrs = _resource_with(
         agent_name="checkout-agent",
         main_agent_id="ag_prod_7",
@@ -261,8 +270,64 @@ def test_resource_carries_the_upstream_main_agent_identity() -> None:
     assert attrs["gen_ai.main_agent.name"] == "checkout-agent"
     assert attrs["gen_ai.main_agent.id"] == "ag_prod_7"
     assert attrs["gen_ai.main_agent.description"] == "Takes a cart to a paid order"
-    for field in ("name", "id", "description"):
-        assert attrs[f"gen_ai.main_agent.{field}"] == attrs[f"rius.main_agent.{field}"]
+
+
+def test_a_configured_main_agent_id_wins_over_the_name() -> None:
+    attrs = _resource_with(agent_name="checkout-agent", main_agent_id="ag_prod_7")
+    assert attrs["gen_ai.main_agent.id"] == "ag_prod_7"
+    assert attrs["rius.main_agent.id"] == "ag_prod_7"
+
+
+def test_without_a_configured_id_the_main_agent_id_is_the_agent_name() -> None:
+    """The conventions make the id the entity's identity: no id, no entity.
+    The resolved agent name is stable across restarts, so it stands in."""
+    attrs = _resource_with(
+        agent_name="checkout-agent", main_agent_description="Takes a cart to a paid order"
+    )
+    assert attrs["gen_ai.main_agent.id"] == "checkout-agent"
+    assert attrs["gen_ai.main_agent.name"] == "checkout-agent"
+    assert attrs["gen_ai.main_agent.description"] == "Takes a cart to a paid order"
+    # The derived id is never copied into the deprecated key.
+    assert "rius.main_agent.id" not in attrs
+
+
+def test_a_placeholder_name_without_an_id_emits_no_main_agent_entity() -> None:
+    client = init(
+        span_exporter=(exporter := InMemorySpanExporter()),
+        set_global=False,
+        main_agent_description="Takes a cart to a paid order",
+    )
+    with client.get_tracer().start_as_current_span("op"):
+        pass
+    client.flush()
+    attrs = _resource_of(exporter)
+    assert attrs["service.name"] == "unknown_service"
+    for key in UPSTREAM_MAIN_AGENT_KEYS:
+        assert key not in attrs
+    # rius.main_agent.* is unchanged: the description still rides there.
+    assert attrs["rius.main_agent.description"] == "Takes a cart to a paid order"
+
+
+def test_an_empty_name_without_an_id_emits_no_main_agent_entity() -> None:
+    assert _upstream_main_agent_attributes(name="", configured_id=None, description="d") == {}
+    assert (
+        _upstream_main_agent_attributes(name="unknown_service", configured_id=None, description="d")
+        == {}
+    )
+
+
+def test_a_configured_id_with_a_placeholder_name_gives_the_id_but_no_name() -> None:
+    client = init(
+        span_exporter=(exporter := InMemorySpanExporter()),
+        set_global=False,
+        main_agent_id="ag_prod_7",
+    )
+    with client.get_tracer().start_as_current_span("op"):
+        pass
+    client.flush()
+    attrs = _resource_of(exporter)
+    assert attrs["gen_ai.main_agent.id"] == "ag_prod_7"
+    assert "gen_ai.main_agent.name" not in attrs
 
 
 def test_the_upstream_main_agent_identity_resolves_from_the_environment(
@@ -278,24 +343,34 @@ def test_the_upstream_main_agent_identity_resolves_from_the_environment(
 
 
 def test_the_main_agent_version_has_no_upstream_twin() -> None:
-    attrs = _resource_with(main_agent_version="7")
+    attrs = _resource_with(agent_name="checkout-agent", main_agent_version="7")
     assert "gen_ai.main_agent.version" not in attrs
 
 
-def test_an_unnamed_process_emits_no_upstream_main_agent_name() -> None:
-    client = init(span_exporter=(exporter := InMemorySpanExporter()), set_global=False)
-    with client.get_tracer().start_as_current_span("op"):
-        pass
-    client.flush()
-    attrs = _resource_of(exporter)
-    assert attrs["service.name"] == "unknown_service"
-    assert "gen_ai.main_agent.name" not in attrs
-
-
-def test_unset_upstream_main_agent_attributes_are_absent_from_the_resource() -> None:
+def test_an_unset_description_is_absent_from_the_upstream_entity() -> None:
     attrs = _resource_with(agent_name="checkout-agent")
-    assert "gen_ai.main_agent.id" not in attrs
     assert "gen_ai.main_agent.description" not in attrs
+
+
+def test_a_derived_main_agent_id_logs_one_debug_hint(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setattr(client_module, "_derived_main_agent_id_hinted", False)
+    with caplog.at_level(logging.DEBUG, logger="rius.client"):
+        _resource_with(agent_name="checkout-agent")
+        _resource_with(agent_name="checkout-agent")
+    hints = [r for r in caplog.records if "main_agent_id" in r.getMessage()]
+    assert len(hints) == 1
+    assert hints[0].levelno == logging.DEBUG
+
+
+def test_a_configured_main_agent_id_logs_no_hint(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setattr(client_module, "_derived_main_agent_id_hinted", False)
+    with caplog.at_level(logging.DEBUG, logger="rius.client"):
+        _resource_with(agent_name="checkout-agent", main_agent_id="ag_prod_7")
+    assert not [r for r in caplog.records if "main_agent_id" in r.getMessage()]
 
 
 def test_the_main_agent_version_and_the_service_version_are_independent() -> None:
