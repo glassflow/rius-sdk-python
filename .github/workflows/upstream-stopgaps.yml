@@ -1,22 +1,25 @@
-# Runs the LangChain and LiteLLM span-context stopgaps against the newest
-# released instrumentors and the libraries they hook, resolved now rather than
-# from uv.lock.
+# Runs the LangChain, LiteLLM and LlamaIndex span-context stopgaps against the
+# newest released instrumentors and the libraries they hook, resolved now
+# rather than from uv.lock.
 #
-# Both stopgaps read private details of an OpenInference instrumentor, so they
+# The stopgaps rely on details of an OpenInference instrumentor, so they
 # install only on the instrumentor versions those details were checked
-# against (VERIFIED_VERSIONS in rius/langchain_span_context.py and
-# rius/litellm_stream_context.py). The extras have no upper bound, so a user
-# who upgrades past that range silently goes back to counting usage twice.
+# against (VERIFIED_VERSIONS in rius/langchain_span_context.py,
+# rius/litellm_stream_context.py and rius/llama_index_span_context.py). The
+# extras have no upper bound, so a user who upgrades past that range silently
+# goes back to counting usage twice.
 # The lock never moves on its own, so the main test job cannot see that day
 # coming: this job can. When it fails on a new release, re-read the
 # instrumentor's internals, widen VERIFIED_VERSIONS, and bump the lock.
 #
 # The stopgaps also depend on the libraries the instrumentors trace: the
-# LangChain one wraps private langchain-core methods, and the LiteLLM one runs
-# litellm's streaming functions through the instrumentor's wrappers. Those are
-# the user's own dependencies and move quickly. A reshape there is just as
-# silent (install returns False, or the call runs un-nested), so they move
-# here too.
+# LangChain one wraps private langchain-core methods, the LiteLLM one runs
+# litellm's streaming functions through the instrumentor's wrappers, and the
+# LlamaIndex one adds a span handler to LlamaIndex's dispatcher
+# (llama-index-instrumentation) and wraps the stream methods of its LLM classes
+# (llama-index-core, llama-index-llms-openai). Those are the user's own
+# dependencies and move quickly. A reshape there is just as silent (install
+# returns False, or the call runs un-nested), so they move here too.
 #
 # The tests answer every request in-process and guard the socket, so the only
 # network use is the package index.
@@ -46,7 +49,7 @@ jobs:
       - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
         with:
           enable-cache: true
-      # Re-resolve only the two instrumentors and the libraries they hook
+      # Re-resolve only the instrumentors and the libraries they hook
       # (and whatever those newly need), so the rest of the environment stays
       # as locked.
       - name: Upgrade the instrumentors and hooked libraries past the lock
@@ -54,12 +57,22 @@ jobs:
           uv lock \
             --upgrade-package openinference-instrumentation-langchain \
             --upgrade-package openinference-instrumentation-litellm \
+            --upgrade-package openinference-instrumentation-llama-index \
             --upgrade-package langchain-core \
             --upgrade-package langchain-openai \
-            --upgrade-package litellm
+            --upgrade-package litellm \
+            --upgrade-package llama-index-core \
+            --upgrade-package llama-index-instrumentation \
+            --upgrade-package llama-index-llms-openai
           uv sync --group dev
           uv pip show \
             openinference-instrumentation-langchain openinference-instrumentation-litellm \
+            openinference-instrumentation-llama-index \
             langchain-core langchain-openai litellm \
+            llama-index-core llama-index-instrumentation llama-index-llms-openai \
             | grep -E '^(Name|Version):'
-      - run: uv run --no-sync pytest tests/test_langchain_span_context.py tests/test_litellm_stream_context.py
+      - run: >-
+          uv run --no-sync pytest
+          tests/test_langchain_span_context.py
+          tests/test_litellm_stream_context.py
+          tests/test_llama_index_span_context.py

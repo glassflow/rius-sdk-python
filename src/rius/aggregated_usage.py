@@ -1,9 +1,10 @@
 """Count a model call's usage once when a wrapper span repeats it.
 
 LiteLLM calls the OpenAI client for OpenAI models, and LangChain's chat models
-call their provider's client. With both instrumentors enabled (the rius SDK
-enables every one it finds), each such call is recorded twice: on the wrapper's
-span (LiteLLM's ``completion``, LangChain's ``ChatOpenAI``) and on the provider
+and LlamaIndex's LLMs call their provider's client. With both instrumentors
+enabled (the rius SDK enables every one it finds), each such call is recorded
+twice: on the wrapper's span (LiteLLM's ``completion``, LangChain's
+``ChatOpenAI``, LlamaIndex's ``OpenAI.chat``) and on the provider
 instrumentor's span (``ChatCompletion``), its child, both carrying the call's
 usage. Every backend sum over ``gen_ai.usage.*`` then counts the call twice.
 
@@ -19,14 +20,17 @@ under it. The exporter then takes that mark when it exports the wrapper. A
 wrapper span with no such child (Anthropic goes through LiteLLM's own HTTP
 handler, so it has none; a LangChain model whose provider is not instrumented)
 keeps its usage: it is the only record of the call. A LangChain chain span
-above the model span is marked too, and has no usage to move.
+or a LlamaIndex ``predict`` span above the model span is marked too, and has no
+usage to move.
 
 Streamed LiteLLM calls depend on :mod:`rius.litellm_stream_context`:
 openinference-instrumentation-litellm starts the stream's span without making
 it current, so on its own the OpenAI call is not its child (it is a root span
 in a trace of its own) and no mark is set. That module makes the span current
 for the instrumentor versions it was checked against; on any other version a
-streamed call is still counted twice.
+streamed call is still counted twice. LangChain and LlamaIndex spans are never
+current either, so their calls depend on :mod:`rius.langchain_span_context`
+and :mod:`rius.llama_index_span_context` the same way.
 """
 
 from __future__ import annotations
@@ -45,8 +49,10 @@ from .semconv import GEN_AI_USAGE_PREFIX, RIUS_AGGREGATED_USAGE_PREFIX, RIUS_SPA
 LITELLM_SCOPE = "openinference.instrumentation.litellm"
 #: The tracer scope openinference-instrumentation-langchain starts its spans under.
 LANGCHAIN_SCOPE = "openinference.instrumentation.langchain"
+#: The tracer scope openinference-instrumentation-llama-index starts its spans under.
+LLAMA_INDEX_SCOPE = "openinference.instrumentation.llama_index"
 #: The instrumentors whose spans wrap a call another instrumentor also records.
-WRAPPER_SCOPES = frozenset({LITELLM_SCOPE, LANGCHAIN_SCOPE})
+WRAPPER_SCOPES = frozenset({LITELLM_SCOPE, LANGCHAIN_SCOPE, LLAMA_INDEX_SCOPE})
 
 #: OpenInference's usage family: the child's usage before normalization has
 #: renamed it. A child carrying either spelling repeats the call's usage.

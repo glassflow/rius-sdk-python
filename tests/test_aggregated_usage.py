@@ -10,7 +10,13 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from rius import init
-from rius.aggregated_usage import LITELLM_SCOPE, WrappedCallTracker, move_aggregated_usage
+from rius.aggregated_usage import (
+    LANGCHAIN_SCOPE,
+    LITELLM_SCOPE,
+    LLAMA_INDEX_SCOPE,
+    WrappedCallTracker,
+    move_aggregated_usage,
+)
 from rius.normalization import NormalizingSpanExporter
 from rius.semconv import RIUS_SPAN_PENDING
 
@@ -86,7 +92,15 @@ def test_a_child_with_canonical_usage_counts_too() -> None:
     assert spans["completion"]["rius.aggregated_usage.input_tokens"] == 42
 
 
-def test_only_litellm_wrappers_are_moved() -> None:
+@pytest.mark.parametrize("scope", [LITELLM_SCOPE, LANGCHAIN_SCOPE, LLAMA_INDEX_SCOPE])
+def test_every_wrapper_scope_is_moved(scope: str) -> None:
+    spans = Pipeline().call(wrapper_scope=scope, child=USAGE)
+
+    assert spans["completion"]["rius.aggregated_usage.input_tokens"] == 42
+    assert not [k for k in spans["completion"] if k.startswith("gen_ai.usage.")]
+
+
+def test_only_wrapper_scopes_are_moved() -> None:
     # A span from any other instrumentor may be the only record of its usage.
     spans = Pipeline().call(wrapper_scope="some.other.instrumentation", child=USAGE)
 
