@@ -7,8 +7,9 @@ import os
 import threading
 import uuid
 import weakref
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any
+from urllib.parse import unquote
 
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
@@ -480,6 +481,7 @@ def _main_agent_attributes(config: GlassflowConfig) -> dict[str, str]:
             name=config.agent_name,
             configured_id=config.main_agent_id,
             description=config.main_agent_description,
+            operator=_operator_main_agent_attributes(os.getenv("OTEL_RESOURCE_ATTRIBUTES")),
         )
     )
     # Never from config.service_version: different fact, independent lifecycle.
@@ -492,40 +494,86 @@ def _main_agent_attributes(config: GlassflowConfig) -> dict[str, str]:
 _derived_main_agent_id_hinted = False
 
 
+_UPSTREAM_MAIN_AGENT_KEYS = (
+    GEN_AI_MAIN_AGENT_ID,
+    GEN_AI_MAIN_AGENT_NAME,
+    GEN_AI_MAIN_AGENT_DESCRIPTION,
+)
+
+
+def _operator_main_agent_attributes(raw: str | None) -> dict[str, str]:
+    """The ``gen_ai.main_agent.*`` keys an operator put in
+    ``OTEL_RESOURCE_ATTRIBUTES``, as that variable carries them.
+
+    The format is the spec's: comma-separated ``key=value`` pairs, values
+    percent-encoded. A malformed pair is skipped: ``Resource.create`` already
+    warns about it, and a broken variable must not stop a process starting.
+    """
+    found: dict[str, str] = {}
+    for pair in (raw or "").split(","):
+        key, separator, value = pair.partition("=")
+        if separator and key.strip() in _UPSTREAM_MAIN_AGENT_KEYS:
+            found[key.strip()] = unquote(value.strip())
+    return found
+
+
+def _usable(value: str | None) -> str | None:
+    """``value``, unless it is unset, empty or only whitespace."""
+    return value if value and value.strip() else None
+
+
 def _upstream_main_agent_attributes(
-    *, name: str | None, configured_id: str | None, description: str | None
+    *,
+    name: str | None,
+    configured_id: str | None,
+    description: str | None,
+    operator: Mapping[str, str] | None = None,
 ) -> dict[str, str]:
     """The conventions' ``gen_ai.main_agent`` entity: id, name, description.
 
     The ONE place the rule for emitting it lives. The conventions make
     ``gen_ai.main_agent.id`` the entity's identity and say the entity MUST NOT
-    be emitted without a stable one. So the id is the configured
-    ``main_agent_id`` when set, otherwise the resolved agent name, as is: it is
-    stable across restarts and readable, but renaming the agent changes it.
-    With neither (no id, and the name empty or the ``unknown_service``
-    placeholder) no ``gen_ai.main_agent.*`` key is emitted at all. Name and
-    description ride only with the id.
+    be emitted without a stable one. So the id is, in order: the configured
+    ``main_agent_id`` (the argument, then ``RIUS_MAIN_AGENT_ID``), then a
+    ``gen_ai.main_agent.id`` the operator already put on the resource
+    (``operator``, from ``OTEL_RESOURCE_ATTRIBUTES``), then the resolved agent
+    name, as is: it is stable across restarts and readable, but renaming the
+    agent changes it. An empty or whitespace-only value counts as unset. With
+    none of them (and the name empty or the ``unknown_service`` placeholder)
+    no ``gen_ai.main_agent.*`` key is emitted at all. Name and description
+    ride only with the id.
 
-    ``rius.main_agent.id`` is NOT derived: it stays the configured id only.
+    An operator-set id counts as configured, so it logs no hint. An
+    operator-set name or description is never overwritten.
+
+    ``rius.main_agent.id`` is NOT derived, nor taken from the operator's
+    value: it stays the configured id only.
     """
     global _derived_main_agent_id_hinted
-    named = _agent.named_agent(name) or None
-    entity_id = configured_id or named
-    if not entity_id:
-        return {}
-    if not configured_id and not _derived_main_agent_id_hinted:
-        _derived_main_agent_id_hinted = True
-        logger.debug(
-            "rius: gen_ai.main_agent.id is the agent name %r because no main_agent_id "
-            "is set; set main_agent_id (RIUS_MAIN_AGENT_ID) to a stable identifier so "
-            "renaming the agent does not change it.",
-            named,
-        )
-    attributes = {GEN_AI_MAIN_AGENT_ID: entity_id}
-    if named is not None:
-        attributes[GEN_AI_MAIN_AGENT_NAME] = named
-    if description:
-        attributes[GEN_AI_MAIN_AGENT_DESCRIPTION] = description
+    operator = operator or {}
+    named = _usable(_agent.named_agent(name))
+    configured = _usable(configured_id) or _usable(operator.get(GEN_AI_MAIN_AGENT_ID))
+    entity_id = configured or named
+    attributes: dict[str, str] = {}
+    if entity_id:
+        if not configured and not _derived_main_agent_id_hinted:
+            _derived_main_agent_id_hinted = True
+            logger.debug(
+                "rius: gen_ai.main_agent.id is the agent name %r because no main_agent_id "
+                "is set; set main_agent_id (RIUS_MAIN_AGENT_ID) to a stable identifier so "
+                "renaming the agent does not change it.",
+                named,
+            )
+        attributes[GEN_AI_MAIN_AGENT_ID] = entity_id
+        if named is not None:
+            attributes[GEN_AI_MAIN_AGENT_NAME] = named
+        if description:
+            attributes[GEN_AI_MAIN_AGENT_DESCRIPTION] = description
+    # The operator's own name and description stand, as they would on any
+    # resource the OTel SDK merges them into.
+    for key in (GEN_AI_MAIN_AGENT_NAME, GEN_AI_MAIN_AGENT_DESCRIPTION):
+        if _usable(operator.get(key)):
+            attributes[key] = operator[key]
     return attributes
 
 

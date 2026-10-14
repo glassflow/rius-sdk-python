@@ -205,6 +205,17 @@ def _resource_with(**kwargs: object) -> "dict[str, object]":
     return _resource_of(exporter)
 
 
+def _unnamed_resource_with(**kwargs: object) -> "dict[str, object]":
+    """The resource of a process that names nothing: no service or agent name,
+    so the agent name resolves to the unknown_service placeholder."""
+    exporter = InMemorySpanExporter()
+    client = init(span_exporter=exporter, set_global=False, **kwargs)  # type: ignore[arg-type]
+    with client.get_tracer().start_as_current_span("op"):
+        pass
+    client.flush()
+    return _resource_of(exporter)
+
+
 def test_resource_carries_the_main_agent_identity() -> None:
     """rius.main_agent.* says which agent this PROCESS is. gen_ai.agent.name
     has no resource-level meaning in the conventions and on a span means the
@@ -342,6 +353,82 @@ def test_the_upstream_main_agent_identity_resolves_from_the_environment(
     assert attrs["gen_ai.main_agent.description"] == "Takes a cart to a paid order"
 
 
+def test_an_operator_set_main_agent_id_is_kept_and_counts_as_configured(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An operator who already follows the conventions may put the
+    provider-assigned id in OTEL_RESOURCE_ATTRIBUTES; it is never replaced by
+    the name-derived fallback, and never copied into the deprecated key."""
+    monkeypatch.setenv(
+        "OTEL_RESOURCE_ATTRIBUTES", "gen_ai.main_agent.id=arn%3Aaws%3Abedrock%3Ax%3Aagent%2F42"
+    )
+    attrs = _resource_with(agent_name="checkout-agent")
+    assert attrs["gen_ai.main_agent.id"] == "arn:aws:bedrock:x:agent/42"
+    assert attrs["gen_ai.main_agent.name"] == "checkout-agent"
+    assert "rius.main_agent.id" not in attrs
+
+
+def test_the_main_agent_id_resolves_argument_then_env_then_operator_then_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("OTEL_RESOURCE_ATTRIBUTES", "gen_ai.main_agent.id=from-otel")
+    monkeypatch.setenv("RIUS_MAIN_AGENT_ID", "from-rius-env")
+    assert (
+        _resource_with(agent_name="checkout-agent", main_agent_id="from-argument")[
+            "gen_ai.main_agent.id"
+        ]
+        == "from-argument"
+    )
+    assert _resource_with(agent_name="checkout-agent")["gen_ai.main_agent.id"] == "from-rius-env"
+    monkeypatch.delenv("RIUS_MAIN_AGENT_ID")
+    assert _resource_with(agent_name="checkout-agent")["gen_ai.main_agent.id"] == "from-otel"
+    monkeypatch.delenv("OTEL_RESOURCE_ATTRIBUTES")
+    assert _resource_with(agent_name="checkout-agent")["gen_ai.main_agent.id"] == "checkout-agent"
+
+
+def test_an_operator_set_main_agent_id_with_a_placeholder_name_is_kept(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("OTEL_RESOURCE_ATTRIBUTES", "gen_ai.main_agent.id=from-otel")
+    attrs = _unnamed_resource_with()
+    assert attrs["service.name"] == "unknown_service"
+    assert attrs["gen_ai.main_agent.id"] == "from-otel"
+    assert "gen_ai.main_agent.name" not in attrs
+    assert "rius.main_agent.id" not in attrs
+
+
+def test_an_operator_set_main_agent_name_and_description_are_not_overwritten(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(
+        "OTEL_RESOURCE_ATTRIBUTES",
+        "gen_ai.main_agent.name=Checkout,gen_ai.main_agent.description=Set%20by%20ops",
+    )
+    attrs = _resource_with(
+        agent_name="checkout-agent", main_agent_description="Takes a cart to a paid order"
+    )
+    assert attrs["gen_ai.main_agent.id"] == "checkout-agent"
+    assert attrs["gen_ai.main_agent.name"] == "Checkout"
+    assert attrs["gen_ai.main_agent.description"] == "Set by ops"
+    # rius.main_agent.* is unchanged: still the SDK settings.
+    assert attrs["rius.main_agent.name"] == "checkout-agent"
+    assert attrs["rius.main_agent.description"] == "Takes a cart to a paid order"
+
+
+def test_a_whitespace_only_name_without_an_id_emits_no_main_agent_entity() -> None:
+    assert _upstream_main_agent_attributes(name="   ", configured_id=None, description="d") == {}
+
+
+def test_a_whitespace_only_id_falls_back_to_the_name() -> None:
+    attrs = _upstream_main_agent_attributes(
+        name="checkout-agent", configured_id="   ", description=None
+    )
+    assert attrs == {
+        "gen_ai.main_agent.id": "checkout-agent",
+        "gen_ai.main_agent.name": "checkout-agent",
+    }
+
+
 def test_the_main_agent_version_has_no_upstream_twin() -> None:
     attrs = _resource_with(agent_name="checkout-agent", main_agent_version="7")
     assert "gen_ai.main_agent.version" not in attrs
@@ -362,6 +449,27 @@ def test_a_derived_main_agent_id_logs_one_debug_hint(
     hints = [r for r in caplog.records if "main_agent_id" in r.getMessage()]
     assert len(hints) == 1
     assert hints[0].levelno == logging.DEBUG
+
+
+def test_no_name_and_no_id_logs_no_hint(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    # No entity is emitted, so there is no derived id to warn about.
+    monkeypatch.setattr(client_module, "_derived_main_agent_id_hinted", False)
+    with caplog.at_level(logging.DEBUG, logger="rius.client"):
+        attrs = _unnamed_resource_with()
+    assert "gen_ai.main_agent.id" not in attrs
+    assert not [r for r in caplog.records if "main_agent_id" in r.getMessage()]
+
+
+def test_an_operator_set_main_agent_id_logs_no_hint(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setattr(client_module, "_derived_main_agent_id_hinted", False)
+    monkeypatch.setenv("OTEL_RESOURCE_ATTRIBUTES", "gen_ai.main_agent.id=from-otel")
+    with caplog.at_level(logging.DEBUG, logger="rius.client"):
+        _resource_with(agent_name="checkout-agent")
+    assert not [r for r in caplog.records if "main_agent_id" in r.getMessage()]
 
 
 def test_a_configured_main_agent_id_logs_no_hint(
