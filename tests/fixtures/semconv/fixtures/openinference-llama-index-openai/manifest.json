@@ -1,6 +1,6 @@
 {
   "family": "openinference-llama-index-openai",
-  "about": "LlamaIndex (Python) with BOTH the LlamaIndex and the openai OpenInference instrumentors enabled, as the rius SDK enables them when both packages are installed. llama-index-llms-openai calls the OpenAI client, so every model call is recorded twice: on LlamaIndex's OpenAI.chat (or OpenAI.stream_chat) span and on the openai instrumentor's ChatCompletion span, both with the call's usage. As recorded here, raw, the ChatCompletion span is NOT the LlamaIndex span's child: openinference-instrumentation-llama-index starts its spans from LlamaIndex's dispatcher with start_span and never makes them current, so the provider call sees no parent and its span is a root span in a trace of its own, inside the LlamaIndex span's time window and ending first. The rius Python SDK makes the LlamaIndex LLM span current around the provider call (chat, complete, their async forms, and every step of a stream), which nests the provider span and moves the LlamaIndex span's usage to rius.aggregated_usage.*. A replay cannot reproduce that nesting, so the expected result shows both spans keeping their usage, and it is the same with or without the SDK's fix (glassflow-rius before it, 1.1.0 at aaa3b62, gives this file byte for byte apart from the stamp). This family therefore pins the un-nested case, not the usage move: that is covered only by the SDK's end-to-end tests. Same scripted responses as ../openinference-llama-index. No network, no API keys, no rius SDK.",
+  "about": "LlamaIndex (Python) with BOTH the LlamaIndex and the openai OpenInference instrumentors enabled, as the rius SDK enables them when both packages are installed. llama-index-llms-openai calls the OpenAI client, so every model call is recorded twice: on LlamaIndex's OpenAI.chat (or OpenAI.stream_chat) span and on the openai instrumentor's ChatCompletion span, both with the call's usage. As recorded here, raw, the ChatCompletion span is NOT the LlamaIndex span's child: openinference-instrumentation-llama-index starts its spans from LlamaIndex's dispatcher with start_span and never makes them current, so the provider call sees no parent and its span is a root span in a trace of its own. For a non-streamed call it lies inside the LlamaIndex span's time window and ends first. For a stream the LlamaIndex span's recorded end is when stream_chat returned the generator, so ChatCompletion starts after the LlamaIndex span has ended, and the LlamaIndex span's own first-token event falls after its end. The rius Python SDK makes the LlamaIndex LLM span current around the provider call (chat, complete, their async forms, and every step of a stream), which nests the provider span and moves the LlamaIndex span's usage to rius.aggregated_usage.*. A replay cannot reproduce that nesting, so the expected result shows both spans keeping their usage, and it is the same with or without the SDK's fix (it is produced here by glassflow-rius 1.1.0 at aaa3b62, before the fix, and the fix's branch gives this file byte for byte apart from the stamp). This family therefore pins the un-nested case, not the usage move: that is covered only by the SDK's end-to-end tests. Same scripted responses as ../openinference-llama-index. No network, no API keys, no rius SDK.",
   "record": "python record.py <recording.json> <environment.json>, in a virtualenv holding exactly the pins below",
   "recordings": {
     "openinference-llama-index-openai-4.6.0.json": {
@@ -11,6 +11,7 @@
         "openinference-instrumentation": "0.1.71",
         "openinference-semantic-conventions": "0.1.41",
         "llama-index-core": "0.14.25",
+        "llama-index-instrumentation": "0.6.0",
         "llama-index-llms-openai": "0.8.2",
         "openai": "2.54.0",
         "httpx": "0.28.1",
@@ -19,7 +20,7 @@
       },
       "scenarios": {
         "chat": "OpenAI.chat: an OpenAI.chat span, and a ChatCompletion span in a separate trace that ends first. Both carry the usage.",
-        "chat_stream": "OpenAI.stream_chat. Same shape as chat; both spans carry a first-token event.",
+        "chat_stream": "OpenAI.stream_chat. Not the shape of chat: the stream runs after stream_chat returns the generator, so the OpenAI.stream_chat span ends before the ChatCompletion span (in a separate trace) starts. Both spans carry a first-token event, and the LlamaIndex span's falls after its own end, so its expected gen_ai.response.time_to_first_chunk exceeds its duration. Both carry the usage.",
         "tool_call": "chat_with_tools; the response is a tool call. The LLM-kind _prepare_chat_with_tools span, the chat span and the ChatCompletion span are each in a trace of their own.",
         "tool_response": "chat_with_tools with the assistant's tool call and the tool's result in the history, a text answer out. Same shape as tool_call.",
         "error": "The provider answers 401 (invalid_api_key): both spans end ERROR and neither carries usage."
@@ -28,7 +29,7 @@
         "file": "openinference-llama-index-openai-4.6.0.expected.json",
         "source": "python-sdk"
       },
-      "verified": "Re-recorded 2026-10-14 twice in a row in the pinned virtualenv: byte-identical."
+      "verified": "Re-recorded 2026-10-14 twice in a row in the pinned virtualenv: byte-identical. Re-recorded again after pinning llama-index-instrumentation (the dispatcher that drives the span lifecycle): byte-identical to the committed recording."
     }
   }
 }
