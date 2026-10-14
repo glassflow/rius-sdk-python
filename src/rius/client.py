@@ -7,8 +7,9 @@ import os
 import threading
 import uuid
 import weakref
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any
+from urllib.parse import unquote
 
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
@@ -40,6 +41,9 @@ from .normalization import NormalizingSpanExporter, NormalizingSpanProcessor
 from .pending import PendingSpanProcessor
 from .semconv import (
     GEN_AI_AGENT_NAME,
+    GEN_AI_MAIN_AGENT_DESCRIPTION,
+    GEN_AI_MAIN_AGENT_ID,
+    GEN_AI_MAIN_AGENT_NAME,
     RIUS_MAIN_AGENT_DESCRIPTION,
     RIUS_MAIN_AGENT_ID,
     RIUS_MAIN_AGENT_NAME,
@@ -338,28 +342,40 @@ def init(
             ``[5, 300]``). The server fixes stale at 30s and gone at 60s
             since the last ping, so keep this well under 30s.
         agent_name: Identity both heartbeats and spans group under, stamped
-            on the resource as ``rius.main_agent.name`` AND, unchanged, as
+            on the resource as ``gen_ai.main_agent.name`` AND, unchanged, as
             ``gen_ai.agent.name``; defaults to ``service_name``. The
-            ``rius.main_agent.*`` family is where the process-level question
+            ``gen_ai.main_agent.*`` family is where the process-level question
             "which agent is this?" lives: ``gen_ai.agent.name`` has no
             resource-level meaning in the conventions and on a span means the
-            agent being INVOKED. Both keys are stamped, indefinitely — a swap
-            would break agent identity for every deployment running an SDK
-            newer than the sink, and resource attributes ride once per OTLP
-            batch, so the duplication costs essentially nothing. A process
-            whose name resolves to the ``unknown_service`` placeholder emits
-            no ``rius.main_agent.name`` at all, the same suppression the span
-            helpers apply.
+            agent being INVOKED. Both keys are stamped — a swap would break
+            agent identity for every deployment running an SDK newer than the
+            sink, and resource attributes ride once per OTLP batch, so the
+            duplication costs essentially nothing. The deprecated
+            ``rius.main_agent.name`` carries the same value through its
+            deprecation window. A process whose name resolves to the
+            ``unknown_service`` placeholder emits no main-agent name at all,
+            the same suppression the span helpers apply. It is ALSO the
+            ``gen_ai.main_agent.id`` when no ``main_agent_id`` is set, so
+            renaming the agent changes that id.
         main_agent_id: Stable identifier of the agent this process IS
-            (``RIUS_MAIN_AGENT_ID``), stamped as ``rius.main_agent.id``. It
-            must be STABLE across restarts and deployments; a transient
-            in-memory or process-local id must not be used, exactly as the
-            conventions require of ``gen_ai.agent.id``, because a value that
-            changes every restart mints a new "agent" every restart. Stamped
-            only when set; there is no placeholder.
+            (``RIUS_MAIN_AGENT_ID``), stamped as ``gen_ai.main_agent.id`` and
+            the deprecated ``rius.main_agent.id``. It must be STABLE across
+            restarts and deployments; the conventions say it MUST NOT be
+            generated from an in-memory or process-local id, because a value
+            that changes every restart mints a new "agent" every restart.
+            When it is not set, ``gen_ai.main_agent.id`` is a
+            ``gen_ai.main_agent.id`` already in ``OTEL_RESOURCE_ATTRIBUTES``,
+            else the agent name, so RENAMING THE AGENT CHANGES THE ID unless
+            an id is set (a one-time DEBUG log says so); ``rius.main_agent.id`` is
+            stamped only when this is set. With neither an id nor a name
+            (the ``unknown_service`` placeholder), no ``gen_ai.main_agent.*``
+            key is emitted at all: the conventions do not allow the entity
+            without an identifier.
         main_agent_description: What this agent does
             (``RIUS_MAIN_AGENT_DESCRIPTION``), stamped as
-            ``rius.main_agent.description``. Stamped only when set.
+            ``rius.main_agent.description`` when set, and as
+            ``gen_ai.main_agent.description`` when set and
+            ``gen_ai.main_agent.id`` is emitted.
         main_agent_version: Version of the agent DEFINITION — its prompt,
             tools and policy (``RIUS_MAIN_AGENT_VERSION``), stamped as
             ``rius.main_agent.version``. Deliberately NOT ``service.version``
@@ -442,9 +458,15 @@ def init(
 
 
 def _main_agent_attributes(config: GlassflowConfig) -> dict[str, str]:
-    """The ``rius.main_agent.*`` resource attributes, each only when known.
+    """The main-agent resource attributes, each only when known.
 
-    Every one is omitted rather than defaulted, for the reason
+    ``rius.main_agent.*`` (deprecated, kept through their window so a sink
+    that reads only the old keys keeps the agent's identity), plus the
+    conventions' ``gen_ai.main_agent.*`` entity, whose rule lives in
+    ``_upstream_main_agent_attributes``. ``rius.main_agent.version`` has no
+    upstream twin.
+
+    Every rius key is omitted rather than defaulted, for the reason
     ``service.version`` is: an absent attribute reads as "not told", a
     fabricated one reads as a real (wrong) answer. The name additionally
     drops the ``unknown_service`` placeholder, which is not an identity.
@@ -457,9 +479,105 @@ def _main_agent_attributes(config: GlassflowConfig) -> dict[str, str]:
         attributes[RIUS_MAIN_AGENT_ID] = config.main_agent_id
     if config.main_agent_description:
         attributes[RIUS_MAIN_AGENT_DESCRIPTION] = config.main_agent_description
+    attributes.update(
+        _upstream_main_agent_attributes(
+            name=config.agent_name,
+            configured_id=config.main_agent_id,
+            description=config.main_agent_description,
+            operator=_operator_main_agent_attributes(os.getenv("OTEL_RESOURCE_ATTRIBUTES")),
+        )
+    )
     # Never from config.service_version: different fact, independent lifecycle.
     if config.main_agent_version:
         attributes[RIUS_MAIN_AGENT_VERSION] = config.main_agent_version
+    return attributes
+
+
+# Once per process: the hint is advice about configuration, not news.
+_derived_main_agent_id_hinted = False
+
+
+_UPSTREAM_MAIN_AGENT_KEYS = (
+    GEN_AI_MAIN_AGENT_ID,
+    GEN_AI_MAIN_AGENT_NAME,
+    GEN_AI_MAIN_AGENT_DESCRIPTION,
+)
+
+
+def _operator_main_agent_attributes(raw: str | None) -> dict[str, str]:
+    """The ``gen_ai.main_agent.*`` keys an operator put in
+    ``OTEL_RESOURCE_ATTRIBUTES``, as that variable carries them.
+
+    The format is the spec's: comma-separated ``key=value`` pairs, values
+    percent-encoded. A malformed pair is skipped: ``Resource.create`` already
+    warns about it, and a broken variable must not stop a process starting.
+    """
+    found: dict[str, str] = {}
+    for pair in (raw or "").split(","):
+        key, separator, value = pair.partition("=")
+        if separator and key.strip() in _UPSTREAM_MAIN_AGENT_KEYS:
+            found[key.strip()] = unquote(value.strip())
+    return found
+
+
+def _usable(value: str | None) -> str | None:
+    """``value``, unless it is unset, empty or only whitespace."""
+    return value if value and value.strip() else None
+
+
+def _upstream_main_agent_attributes(
+    *,
+    name: str | None,
+    configured_id: str | None,
+    description: str | None,
+    operator: Mapping[str, str] | None = None,
+) -> dict[str, str]:
+    """The conventions' ``gen_ai.main_agent`` entity: id, name, description.
+
+    The ONE place the rule for emitting it lives. The conventions make
+    ``gen_ai.main_agent.id`` the entity's identity and say the entity MUST NOT
+    be emitted without a stable one. So the id is, in order: the configured
+    ``main_agent_id`` (the argument, then ``RIUS_MAIN_AGENT_ID``), then a
+    ``gen_ai.main_agent.id`` the operator already put on the resource
+    (``operator``, from ``OTEL_RESOURCE_ATTRIBUTES``), then the resolved agent
+    name, as is: it is stable across restarts and readable, but renaming the
+    agent changes it. An empty or whitespace-only value counts as unset. With
+    none of them (and the name empty or the ``unknown_service`` placeholder)
+    no ``gen_ai.main_agent.*`` key is emitted from the SDK's settings. The
+    SDK's name and description ride only with the id; an operator-set one is
+    the operator's own and is passed through as is.
+
+    An operator-set id counts as configured, so it logs no hint. An
+    operator-set name or description is never overwritten.
+
+    ``rius.main_agent.id`` is NOT derived, nor taken from the operator's
+    value: it stays the configured id only.
+    """
+    global _derived_main_agent_id_hinted
+    operator = operator or {}
+    named = _usable(_agent.named_agent(name))
+    configured = _usable(configured_id) or _usable(operator.get(GEN_AI_MAIN_AGENT_ID))
+    entity_id = configured or named
+    attributes: dict[str, str] = {}
+    if entity_id:
+        if not configured and not _derived_main_agent_id_hinted:
+            _derived_main_agent_id_hinted = True
+            logger.debug(
+                "rius: gen_ai.main_agent.id is the agent name %r because no main_agent_id "
+                "is set; set main_agent_id (RIUS_MAIN_AGENT_ID) to a stable identifier so "
+                "renaming the agent does not change it.",
+                named,
+            )
+        attributes[GEN_AI_MAIN_AGENT_ID] = entity_id
+        if named is not None:
+            attributes[GEN_AI_MAIN_AGENT_NAME] = named
+        if description:
+            attributes[GEN_AI_MAIN_AGENT_DESCRIPTION] = description
+    # The operator's own name and description stand, as they would on any
+    # resource the OTel SDK merges them into.
+    for key in (GEN_AI_MAIN_AGENT_NAME, GEN_AI_MAIN_AGENT_DESCRIPTION):
+        if _usable(operator.get(key)):
+            attributes[key] = operator[key]
     return attributes
 
 
@@ -541,13 +659,14 @@ def _do_init(
             # only a service name is unchanged; one that sets both no longer
             # has its spans grouped under a different name than its heartbeats.
             GEN_AI_AGENT_NAME: config.agent_name,
-            # The SAME resolved name under our own namespace, where the
+            # The SAME resolved name as gen_ai.main_agent.name (and, through
+            # its deprecation window, rius.main_agent.name), the keys where the
             # process-level question belongs: gen_ai.agent.name has no
             # resource-level meaning in the conventions and means the INVOKED
-            # agent on a span. Additive on purpose — both keys, indefinitely —
-            # so a deployment on a newer SDK than the sink keeps its identity.
-            # Suppressed on the placeholder by the same rule the span helpers
-            # use: a process that named nothing claims no agent identity.
+            # agent on a span. Additive on purpose, so a deployment on a newer
+            # SDK than the sink keeps its identity. Suppressed on the
+            # placeholder by the same rule the span helpers use: a process
+            # that named nothing claims no agent identity.
             **_main_agent_attributes(config),
             **({RIUS_SDK_GLOBAL_PROVIDER: f"foreign:{foreign_global}"} if foreign_global else {}),
             "telemetry.distro.name": "glassflow-rius",

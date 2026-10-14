@@ -105,7 +105,7 @@ def named_agent(name: str | None) -> str | None:
     """``name``, unless it is the unnamed placeholder, in which case ``None``.
 
     The suppression rule itself, stated once and applied at BOTH scopes: by
-    the span helpers below, and by the resource's ``rius.main_agent.name``,
+    the span helpers below, and by the resource's main-agent name,
     which is the same resolved value. A process that named nothing must claim
     no agent identity anywhere.
     """

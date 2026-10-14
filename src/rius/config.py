@@ -237,17 +237,25 @@ def resolve_config(
             (``RIUS_AGENT_NAME``), stamped on the resource as
             ``gen_ai.agent.name``; defaults to ``service_name`` so the agents
             view and the traces view agree on what an "agent" is. Also
-            stamped as ``rius.main_agent.name``, under the same placeholder
-            suppression the span helpers apply.
+            stamped as ``gen_ai.main_agent.name`` (and the deprecated
+            ``rius.main_agent.name``), under the same placeholder
+            suppression the span helpers apply. It is ALSO the
+            ``gen_ai.main_agent.id`` when no ``main_agent_id`` is set, so
+            renaming the agent changes that id.
         main_agent_id: Stable identifier of the agent this process IS
-            (``RIUS_MAIN_AGENT_ID``), stamped as ``rius.main_agent.id``. It
-            must be STABLE across restarts and deployments — a transient
-            in-memory or process-local id must not be used, exactly as the
-            conventions say for ``gen_ai.agent.id``. Unset means unset;
-            there is no placeholder.
+            (``RIUS_MAIN_AGENT_ID``), stamped as ``gen_ai.main_agent.id`` (and
+            the deprecated ``rius.main_agent.id``). It must be STABLE across
+            restarts and deployments — the conventions say it MUST NOT be
+            generated from an in-memory or process-local id. Unset here means
+            unset, but ``gen_ai.main_agent.id`` then falls back to a
+            ``gen_ai.main_agent.id`` in ``OTEL_RESOURCE_ATTRIBUTES``, then to
+            the agent name, so renaming the agent changes it;
+            ``rius.main_agent.id`` stays absent.
         main_agent_description: What that agent does
             (``RIUS_MAIN_AGENT_DESCRIPTION``), stamped as
-            ``rius.main_agent.description``. Unset means unset.
+            ``rius.main_agent.description``, and as
+            ``gen_ai.main_agent.description`` whenever ``gen_ai.main_agent.id``
+            is emitted. Unset means unset.
         main_agent_version: Version of the agent DEFINITION — its prompt,
             tools and policy (``RIUS_MAIN_AGENT_VERSION``), stamped as
             ``rius.main_agent.version``. Deliberately NOT ``service.version``
