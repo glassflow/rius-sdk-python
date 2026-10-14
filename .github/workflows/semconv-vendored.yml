@@ -40,7 +40,9 @@ jobs:
           if [ -z "$GH_TOKEN" ]; then
             skip "SEMCONV_READ_TOKEN is not set (or this pull request comes from a fork)."
           fi
-          if ! gh api repos/glassflow/rius-semconv --silent 2>/dev/null; then
-            skip "SEMCONV_READ_TOKEN cannot read glassflow/rius-semconv."
+          # Probe a file read, which is what the check does, and keep GitHub's
+          # answer for the warning (it names the status, never the token).
+          if ! err=$(gh api repos/glassflow/rius-semconv/contents/version.txt --silent 2>&1); then
+            skip "SEMCONV_READ_TOKEN cannot read glassflow/rius-semconv (${err})."
           fi
           scripts/sync-semconv.sh --check
