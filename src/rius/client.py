@@ -7,7 +7,7 @@ import os
 import threading
 import uuid
 import weakref
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
 from opentelemetry import trace
@@ -462,18 +462,36 @@ def _main_agent_attributes(config: GlassflowConfig) -> dict[str, str]:
     name = _agent.named_agent(config.agent_name)
     attributes: dict[str, str] = {}
     if name is not None:
-        attributes[GEN_AI_MAIN_AGENT_NAME] = name
         attributes[RIUS_MAIN_AGENT_NAME] = name
     if config.main_agent_id:
-        attributes[GEN_AI_MAIN_AGENT_ID] = config.main_agent_id
         attributes[RIUS_MAIN_AGENT_ID] = config.main_agent_id
     if config.main_agent_description:
-        attributes[GEN_AI_MAIN_AGENT_DESCRIPTION] = config.main_agent_description
         attributes[RIUS_MAIN_AGENT_DESCRIPTION] = config.main_agent_description
+    attributes.update(_upstream_main_agent_attributes(attributes))
     # Never from config.service_version: different fact, independent lifecycle.
     if config.main_agent_version:
         attributes[RIUS_MAIN_AGENT_VERSION] = config.main_agent_version
     return attributes
+
+
+def _upstream_main_agent_attributes(main_agent: Mapping[str, str]) -> dict[str, str]:
+    """``gen_ai.main_agent.{name,id,description}``, from the resolved
+    ``rius.main_agent.*`` values, so the two families can never disagree.
+
+    The ONE place the rule for emitting the conventions' main-agent entity
+    lives. Today it is stamped whenever the rius key is: the name without an
+    id too, although the conventions make the id the entity's identity,
+    because in Rius the agent's name is its identity.
+    """
+    return {
+        upstream: main_agent[ours]
+        for ours, upstream in (
+            (RIUS_MAIN_AGENT_NAME, GEN_AI_MAIN_AGENT_NAME),
+            (RIUS_MAIN_AGENT_ID, GEN_AI_MAIN_AGENT_ID),
+            (RIUS_MAIN_AGENT_DESCRIPTION, GEN_AI_MAIN_AGENT_DESCRIPTION),
+        )
+        if ours in main_agent
+    }
 
 
 def _do_init(
