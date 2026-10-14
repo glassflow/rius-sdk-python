@@ -368,6 +368,16 @@ def test_an_operator_set_main_agent_id_is_kept_and_counts_as_configured(
     assert "rius.main_agent.id" not in attrs
 
 
+def test_an_operator_key_given_twice_takes_its_last_value(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """As the OTel SDKs' resource detectors do."""
+    monkeypatch.setenv(
+        "OTEL_RESOURCE_ATTRIBUTES", "gen_ai.main_agent.id=first,gen_ai.main_agent.id=second"
+    )
+    assert _resource_with(agent_name="checkout-agent")["gen_ai.main_agent.id"] == "second"
+
+
 def test_the_main_agent_id_resolves_argument_then_env_then_operator_then_name(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

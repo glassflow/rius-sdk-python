@@ -543,8 +543,9 @@ def _upstream_main_agent_attributes(
     name, as is: it is stable across restarts and readable, but renaming the
     agent changes it. An empty or whitespace-only value counts as unset. With
     none of them (and the name empty or the ``unknown_service`` placeholder)
-    no ``gen_ai.main_agent.*`` key is emitted at all. Name and description
-    ride only with the id.
+    no ``gen_ai.main_agent.*`` key is emitted from the SDK's settings. The
+    SDK's name and description ride only with the id; an operator-set one is
+    the operator's own and is passed through as is.
 
     An operator-set id counts as configured, so it logs no hint. An
     operator-set name or description is never overwritten.
