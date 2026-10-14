@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/glassflow/rius-sdk-python/compare/v1.1.0...v1.1.1) (2026-10-14)
+
+
+### Bug Fixes
+
+* count a LlamaIndex call's usage once when the OpenAI span recorded it ([#167](https://github.com/glassflow/rius-sdk-python/issues/167)) ([7fb78e4](https://github.com/glassflow/rius-sdk-python/commit/7fb78e4f98d3f0595620b127bb0389a18ffc575a))
+
 ## [1.1.0](https://github.com/glassflow/rius-sdk-python/compare/v1.0.2...v1.1.0) (2026-10-13)
 
 
