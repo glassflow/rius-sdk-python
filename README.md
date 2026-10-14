@@ -76,6 +76,30 @@ variables:
 | `sample_rate`  | `RIUS_SAMPLE_RATE`  | `1.0`                          | Head sampling ratio `0.0`–`1.0` (whole-trace; children follow root). |
 | `capture_content` | `RIUS_CAPTURE_CONTENT` | `true`                    | When false, prompt/response content is stripped at export (metadata still sent). |
 | `bridge_foreign_provider` | `RIUS_BRIDGE_FOREIGN_PROVIDER` | `false`        | Also export the spans of another OpenTelemetry SDK that owns the global provider (see below). |
+| `agent_name`   | `RIUS_AGENT_NAME`        | `service_name`                 | The agent this process is. Also the `gen_ai.main_agent.id` when `main_agent_id` is unset, so renaming it changes that id. |
+| `main_agent_id` | `RIUS_MAIN_AGENT_ID`    | the agent name                 | A stable id for the agent (a registry id or an ARN), stamped as `gen_ai.main_agent.id`. Never a per-process value. |
+| `main_agent_description` | `RIUS_MAIN_AGENT_DESCRIPTION` | —                | What the agent does, stamped as `gen_ai.main_agent.description`. |
+
+The agent this process *is* is described on the resource under the GenAI
+conventions' `gen_ai.main_agent.*`. `gen_ai.main_agent.id` is the entity's
+identity: it is `main_agent_id` when you set it (the argument, then
+`RIUS_MAIN_AGENT_ID`), then a `gen_ai.main_agent.id` you already put in
+`OTEL_RESOURCE_ATTRIBUTES`, and otherwise it falls back to the agent name, so
+**renaming the agent changes the id unless `main_agent_id` is set** (a one-time
+DEBUG log on the `rius.client` logger says so). `gen_ai.main_agent.name` is the
+resolved `agent_name`, and `gen_ai.main_agent.description` is
+`main_agent_description` when set; a name or description you set in
+`OTEL_RESOURCE_ATTRIBUTES` is kept instead. When there is neither an id nor a
+name (the `unknown_service` placeholder), none of the `gen_ai.main_agent.*`
+keys is stamped, because the conventions do not allow the entity without an
+identifier. The deprecated `rius.main_agent.name`, `.id` and `.description`
+keep their old behaviour through their deprecation window
+(`rius.main_agent.id` only ever carries a configured `main_agent_id`), and
+`rius.main_agent.version` (`main_agent_version`, `RIUS_MAIN_AGENT_VERSION`),
+which has no upstream twin, carries the optional agent version.
+`gen_ai.agent.name` is still stamped alongside them, unchanged: the keys are
+additive so that no deployment loses its agent identity between an SDK upgrade
+and a backend one.
 
 `mask` is a code-only option (no env var): pass a callable to `init(mask=...)` and
 it is applied to every content attribute value at export, across our spans and any

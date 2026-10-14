@@ -354,16 +354,19 @@ def init(
             ``rius.main_agent.name`` carries the same value through its
             deprecation window. A process whose name resolves to the
             ``unknown_service`` placeholder emits no main-agent name at all,
-            the same suppression the span helpers apply.
+            the same suppression the span helpers apply. It is ALSO the
+            ``gen_ai.main_agent.id`` when no ``main_agent_id`` is set, so
+            renaming the agent changes that id.
         main_agent_id: Stable identifier of the agent this process IS
             (``RIUS_MAIN_AGENT_ID``), stamped as ``gen_ai.main_agent.id`` and
             the deprecated ``rius.main_agent.id``. It must be STABLE across
             restarts and deployments; the conventions say it MUST NOT be
             generated from an in-memory or process-local id, because a value
             that changes every restart mints a new "agent" every restart.
-            When it is not set, ``gen_ai.main_agent.id`` falls back to the
-            agent name, so RENAMING THE AGENT CHANGES THE ID unless this is
-            set (a one-time DEBUG log says so); ``rius.main_agent.id`` is
+            When it is not set, ``gen_ai.main_agent.id`` is a
+            ``gen_ai.main_agent.id`` already in ``OTEL_RESOURCE_ATTRIBUTES``,
+            else the agent name, so RENAMING THE AGENT CHANGES THE ID unless
+            an id is set (a one-time DEBUG log says so); ``rius.main_agent.id`` is
             stamped only when this is set. With neither an id nor a name
             (the ``unknown_service`` placeholder), no ``gen_ai.main_agent.*``
             key is emitted at all: the conventions do not allow the entity
