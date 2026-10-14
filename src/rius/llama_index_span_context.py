@@ -34,8 +34,17 @@ two places:
   current, taking it down before the chunk reaches the caller.
 
 Entering and leaving happen in one frame per step, and the span handler only
-takes a span down in the thread and asyncio task that put it up, so nothing
-can be left attached or leak into another thread or task.
+takes a span down in the thread and asyncio task that put it up, so a span is
+never taken down in, or leaked into, another thread or task.
+
+Closing a wrapped stream before its end closes the stream it wraps, so the
+LlamaIndex side finishes then rather than whenever the garbage collector gets
+to it. The usage of such an abandoned stream is then not counted twice, though it may
+not be counted at all: the LlamaIndex span ends without usage, and the openai
+instrumentor ends its provider span only when the provider stream is read to
+its end or fails, which an abandoned stream never gets to. The provider span
+can only end inside a step, while the LlamaIndex span is still open, so the
+usage dedup sees it whenever it ends with usage.
 
 It relies on the instrumentor's behaviour rather than its private symbols: it
 starts an LLM span in ``new_span``, before the method runs, keeps a streamed
@@ -47,8 +56,23 @@ upstream-stopgaps workflow runs these tests against the newest releases. It
 steps aside when the span is already current and never raises into the
 caller's code.
 
-Not covered: ``MultiModalLLM`` models, and spans that are not an LLM's (an
-embedding's, a retriever's), whose provider calls still start their own trace.
+Its handler has to run after the instrumentor's, which ``install()`` arranges.
+If the user re-instruments LlamaIndex outside ``rius.init()``
+(``LlamaIndexInstrumentor().uninstrument()`` then ``.instrument()``), the
+instrumentor's handler lands after ours, ours finds no span on ``span_enter``,
+and nesting stops until the next ``init()``. That fails safe: no span is made
+current, so none is made current wrongly.
+
+Not covered:
+
+* ``MultiModalLLM`` models, and spans that are not an LLM's (an embedding's,
+  a retriever's), whose provider calls still start their own trace.
+* A sync LLM method that returns an ``asyncio.Future``. The dispatcher then
+  calls ``span_exit`` from the future's done callback, outside the frame that
+  called ``span_enter``, so the span made current there is never taken down
+  and stays current in the caller's context; the dispatcher leaves its own
+  active span id set the same way. No ``BaseLLM`` method returns a future
+  today, and ``span_enter`` cannot tell that one will.
 """
 
 from __future__ import annotations
@@ -57,6 +81,7 @@ import asyncio
 import functools
 import inspect
 import logging
+import re
 import threading
 import weakref
 from collections.abc import AsyncIterator, Iterator
@@ -93,13 +118,38 @@ def _owner() -> tuple[int, Any]:
     return threading.get_ident(), task
 
 
-def _version_tuple(text: str) -> tuple[int, ...]:
-    return tuple(int(part) for part in text.split(".") if part.isdigit())
+_VERSION = re.compile(r"v?(\d+(?:\.\d+)*)(.*)")
+_PRE_RELEASE = re.compile(r"[-_.]?(a|alpha|b|beta|c|rc|pre|preview|dev)\d*.*")
+
+
+def _version_key(text: str) -> tuple[tuple[int, ...], int] | None:
+    """A sortable key for a release string, or None if it doesn't parse.
+
+    The release numbers, without trailing zeros, then -1 for a pre- or dev
+    release, 0 for the release itself, and 1 for anything after it (a
+    post-release, a local version, an unknown suffix). So ``4.6.0rc1`` sorts
+    before ``4.6.0`` and ``4.6.0.post1`` after it.
+    """
+    match = _VERSION.fullmatch(text.strip().lower())
+    if match is None:
+        return None
+    release = [int(part) for part in match.group(1).split(".")]
+    while len(release) > 1 and release[-1] == 0:
+        release.pop()
+    suffix = match.group(2)
+    if not suffix:
+        phase = 0
+    elif _PRE_RELEASE.fullmatch(suffix):
+        phase = -1
+    else:
+        phase = 1
+    return tuple(release), phase
 
 
 def _verified(installed: str) -> bool:
-    low, high = (_version_tuple(v) for v in VERIFIED_VERSIONS)
-    return low <= _version_tuple(installed) <= high
+    key = _version_key(installed)
+    low, high = (_version_key(v) for v in VERIFIED_VERSIONS)
+    return key is not None and low is not None and high is not None and low <= key <= high
 
 
 def _needs_context(span: Any) -> bool:
@@ -199,6 +249,8 @@ def _handler_class() -> Any:
                     # Not the frame that attached it (a sync method whose
                     # result is a future ends in the event loop): the
                     # context is not ours to reset, and a detach would fail.
+                    # The span stays current in the caller's context; see
+                    # "Not covered" in the module docstring.
                     logger.debug("llama-index span %s ended elsewhere", id_)
             return entered
 
@@ -381,7 +433,9 @@ def uninstall(instrumentor: Any) -> None:
     """Undo :func:`install`, leaving the instrumentor's own state.
 
     A call in flight keeps the handler until it ends, so the span it made
-    current is still taken down: the handler is only disabled then.
+    current is still taken down: the handler is only disabled then. It stays
+    in the dispatcher's handler list after that call ends, as a no-op, and
+    the next :func:`install` reuses it.
     """
     global _subclass_hook
     try:

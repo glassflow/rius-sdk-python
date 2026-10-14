@@ -15,7 +15,7 @@ import itertools
 import json
 import socket
 import threading
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
@@ -302,6 +302,77 @@ def test_an_abandoned_stream_leaves_nothing_current(exported: Exported) -> None:
     asyncio.run(run())
 
 
+def test_closing_a_wrapped_stream_closes_the_stream_it_wraps() -> None:
+    # The inner stream stays referenced here, so the garbage collector cannot
+    # be what closes it: only the wrapper's own close() can.
+    closed: list[str] = []
+
+    def inner() -> Iterator[int]:
+        try:
+            yield 1
+            yield 2
+        except GeneratorExit:
+            closed.append("sync")
+            raise
+
+    source = inner()
+    wrapped = llama_index_span_context._steps_under(SPAN, source)
+    assert next(wrapped) == 1
+    wrapped.close()
+    assert closed == ["sync"]
+    assert _nothing_current()
+
+    async def ainner() -> AsyncIterator[int]:
+        try:
+            yield 1
+            yield 2
+        except GeneratorExit:
+            closed.append("async")
+            raise
+
+    async def run() -> None:
+        asource = ainner()
+        awrapped = llama_index_span_context._asteps_under(SPAN, asource)
+        assert await awrapped.__anext__() == 1
+        await awrapped.aclose()
+        assert closed == ["sync", "async"]
+        assert _nothing_current()
+
+    asyncio.run(run())
+
+
+def _usage_records(spans: list[ReadableSpan]) -> int:
+    return sum(1 for s in spans if "gen_ai.usage.input_tokens" in (s.attributes or {}))
+
+
+def test_an_abandoned_stream_never_counts_its_usage_twice(exported: Exported) -> None:
+    # Abandoned after every chunk it yields, so the provider stream has sent
+    # its usage but was never read to its end. The LlamaIndex span ends with
+    # no usage; the openai instrumentor ends its span only on the provider
+    # stream's end, so the call's usage is counted at most once (today: not
+    # at all, since that span never ends).
+    def abandon() -> None:
+        stream = _llm().stream_chat(MESSAGES)
+        for _ in range(5):
+            next(stream)
+        stream.close()
+
+    async def aabandon() -> None:
+        stream = await _llm().astream_chat(MESSAGES)
+        for _ in range(5):
+            await stream.__anext__()
+        await stream.aclose()
+
+    abandon()
+    asyncio.run(aabandon())
+
+    spans = exported.spans()
+    outer = [s for s in spans if s.name in ("OpenAI.stream_chat", "OpenAI.astream_chat")]
+    assert len(outer) == 2
+    assert _usage_records(spans) <= 1
+    assert _usage_records(outer) == 0
+
+
 def test_a_failing_call_leaves_nothing_current(exported: Exported) -> None:
     exported.answers.fail = True
     with pytest.raises(Exception, match="boom"):
@@ -420,6 +491,38 @@ def test_a_subclass_defined_after_init_is_covered(exported: Exported) -> None:
     assert names[provider.parent.span_id] == "LaterOpenAI.stream_chat"
 
 
+def test_the_subclass_hook_still_runs_an_ancestors_hook(
+    openai_answers: Answers, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Nothing above BaseLLM defines this hook today; one that does (a library's
+    # or a user's base, a mixin) must keep running for classes defined later.
+    seen: list[Any] = []
+
+    def recording_hook(cls: Any, /, **kwargs: Any) -> None:
+        seen.append(cls)
+
+    ancestor = BaseLLM.__mro__[1]
+    monkeypatch.setattr(ancestor, "__pydantic_init_subclass__", classmethod(recording_hook))
+    client = init(
+        span_exporter=InMemorySpanExporter(),
+        set_global=False,
+        instruments=["openai", "llama-index"],
+        heartbeat=False,
+        partial_spans=False,
+    )
+    try:
+
+        class LaterOpenAI(OpenAI):  # type: ignore[misc, valid-type]
+            @llm_chat_callback()  # type: ignore[untyped-decorator, misc]
+            def stream_chat(self, messages: Any, **kwargs: Any) -> Any:
+                return self._stream_chat(messages, **kwargs)
+
+        assert seen == [LaterOpenAI]
+        assert hasattr(LaterOpenAI.__dict__["stream_chat"], llama_index_span_context._MARK)
+    finally:
+        client.shutdown()
+
+
 def test_without_the_provider_instrumentor_llama_index_keeps_its_usage(
     openai_answers: Answers,
 ) -> None:
@@ -533,6 +636,17 @@ def test_uninstall_restores_everything(openai_answers: Answers) -> None:
         ("4.4.2", False),
         ("4.6.1", False),
         ("5.0.0", False),
+        ("4.5.0", True),
+        ("4.6", True),
+        # A pre-release comes before its release, a post-release after it.
+        ("4.6.0rc1", True),
+        ("4.6.0.dev0", True),
+        ("4.4.3rc1", False),
+        ("4.4.3.post1", True),
+        ("4.6.0.post1", False),
+        ("4.6.0post1", False),
+        ("4.6.0+local", False),
+        ("not-a-version", False),
     ],
 )
 def test_only_verified_instrumentor_versions_install(installed: str, expected: bool) -> None:
@@ -633,37 +747,39 @@ def _detach_errors(caplog: pytest.LogCaptureFixture) -> list[str]:
     return [r.getMessage() for r in caplog.records if r.name == "opentelemetry.context"]
 
 
-def test_an_exit_in_another_thread_detaches_nothing(
+def test_an_exit_in_another_thread_does_not_try_to_detach(
     handler: Any, caplog: pytest.LogCaptureFixture
 ) -> None:
-    # A sync method returning a future has its exit run by the event loop:
-    # the attach is in the caller's context, which that thread cannot reset.
+    # Only that the handler doesn't reset a context that isn't its own (which
+    # would fail) and forgets the call. The span it attached stays current in
+    # the caller's context: a known limitation (the module's "Not covered"),
+    # not something this test asks for.
     handler.span_enter(id_="OpenAI.chat-1", instance=_llm())
     try:
         with ThreadPoolExecutor(max_workers=1) as pool:
             pool.submit(
                 handler.span_exit, id_="OpenAI.chat-1", instance=_llm(), result=None
             ).result()
-        assert trace.get_current_span() is SPAN
         assert not handler.busy()
         assert _detach_errors(caplog) == []
     finally:
         otel_context.attach(otel_context.Context())
 
 
-def test_an_exit_in_a_child_task_detaches_nothing(
+def test_an_exit_in_a_child_task_does_not_try_to_detach(
     handler: Any, caplog: pytest.LogCaptureFixture
 ) -> None:
-    async def run() -> Any:
+    # As above, for a task of the same thread.
+    async def run() -> None:
         handler.span_enter(id_="OpenAI.achat-1", instance=_llm())
 
         async def child() -> None:
             handler.span_exit(id_="OpenAI.achat-1", instance=_llm(), result=None)
 
         await asyncio.create_task(child())
-        return trace.get_current_span()
 
-    assert asyncio.run(run()) is SPAN
+    asyncio.run(run())
+    assert not handler.busy()
     assert _detach_errors(caplog) == []
 
 
