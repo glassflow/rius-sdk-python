@@ -10,6 +10,7 @@ gen_ai.usage.cache_creation.input_tokens two weeks after upstream renamed it
 to cache_write. Main is the only watchable surface; this script watches it.
 
 Compares the module-level ``NAME = "gen_ai...."`` constants in
+src/rius/_semconv_generated.py (vendored from rius-semconv) and
 src/rius/semconv.py (the same shape gen-semconv-fixture extraction relies on
 in the TypeScript repo) against the attribute names in the upstream registry
 markdown. An attribute of ours that upstream no longer lists means a rename,
@@ -32,7 +33,8 @@ REGISTRY_URL = (
     "https://raw.githubusercontent.com/open-telemetry/semantic-conventions-genai"
     "/main/docs/registry/attributes/gen-ai.md"
 )
-SEMCONV = Path(__file__).resolve().parent.parent / "src" / "rius" / "semconv.py"
+_PACKAGE = Path(__file__).resolve().parent.parent / "src" / "rius"
+SEMCONV = (_PACKAGE / "_semconv_generated.py", _PACKAGE / "semconv.py")
 
 # Deliberately not upstream attributes; each entry needs a reason.
 RIUS_ONLY = {
@@ -54,7 +56,8 @@ def upstream_attributes() -> set[str]:
 
 
 def emitted_attributes() -> dict[str, str]:
-    consts = re.findall(r'^([A-Z][A-Z_0-9]*) = "([^"]+)"$', SEMCONV.read_text(), re.M)
+    text = "".join(path.read_text() for path in SEMCONV)
+    consts = re.findall(r'^([A-Z][A-Z_0-9]*) = "([^"]+)"$', text, re.M)
     return {
         name: value
         for name, value in consts

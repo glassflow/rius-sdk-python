@@ -1,0 +1,46 @@
+# Checks that src/rius/_semconv_generated.py is byte-identical to the module
+# rius-semconv generates (out/python/_semconv_generated.py) at the release tag
+# its header pins. The module is vendored, not edited: a change to a key, a
+# value or a table belongs in the rius-semconv registry, then a re-pin here
+# with `TAG=<tag> scripts/sync-semconv.sh`.
+#
+# rius-semconv is private, so reading it needs SEMCONV_SOURCE_TOKEN (read
+# access to its contents). Without the token, or when the token cannot read the
+# pinned file (a fork's pull request gets no secrets), the check is SKIPPED
+# with a warning, so a green run is not proof by itself: read the log.
+name: semconv-vendored
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: The vendored module matches its pinned rius-semconv release
+        env:
+          GH_TOKEN: ${{ secrets.SEMCONV_SOURCE_TOKEN }}
+          # No sibling checkout in CI: the script reads the file with gh api.
+          RIUS_SEMCONV: /nonexistent
+        run: |
+          skip() {
+            echo "::warning title=Vendored semconv NOT checked::$1 The vendored src/rius/_semconv_generated.py was not compared with rius-semconv."
+            echo "### Vendored semconv NOT checked" >> "$GITHUB_STEP_SUMMARY"
+            echo "$1" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          }
+          if [ -z "$GH_TOKEN" ]; then
+            skip "SEMCONV_SOURCE_TOKEN is not set (or this pull request comes from a fork)."
+          fi
+          if ! gh api repos/glassflow/rius-semconv --silent 2>/dev/null; then
+            skip "SEMCONV_SOURCE_TOKEN cannot read glassflow/rius-semconv."
+          fi
+          scripts/sync-semconv.sh --check

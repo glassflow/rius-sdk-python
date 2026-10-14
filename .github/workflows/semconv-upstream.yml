@@ -22,6 +22,7 @@ on:
   pull_request:
     paths:
       - "src/rius/semconv.py"
+      - "src/rius/_semconv_generated.py"
       - "scripts/check_upstream_semconv.py"
       - ".github/workflows/semconv-upstream.yml"
   schedule:
