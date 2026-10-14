@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/glassflow/rius-sdk-python/compare/v1.1.1...v1.2.0) (2026-10-14)
+
+
+### Features
+
+* stamp gen_ai.main_agent.{id,name,description} on the resource next to rius.main_agent.* ([#169](https://github.com/glassflow/rius-sdk-python/issues/169)) ([a9c02f3](https://github.com/glassflow/rius-sdk-python/commit/a9c02f3288194c83d158ba15839f06aa0b575a6c))
+
 ## [1.1.1](https://github.com/glassflow/rius-sdk-python/compare/v1.1.0...v1.1.1) (2026-10-14)
 
 
