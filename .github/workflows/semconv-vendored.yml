@@ -4,7 +4,7 @@
 # value or a table belongs in the rius-semconv registry, then a re-pin here
 # with `TAG=<tag> scripts/sync-semconv.sh`.
 #
-# rius-semconv is private, so reading it needs SEMCONV_SOURCE_TOKEN (read
+# rius-semconv is private, so reading it needs SEMCONV_READ_TOKEN (read
 # access to its contents). Without the token, or when the token cannot read the
 # pinned file (a fork's pull request gets no secrets), the check is SKIPPED
 # with a warning, so a green run is not proof by itself: read the log.
@@ -27,7 +27,7 @@ jobs:
 
       - name: The vendored module matches its pinned rius-semconv release
         env:
-          GH_TOKEN: ${{ secrets.SEMCONV_SOURCE_TOKEN }}
+          GH_TOKEN: ${{ secrets.SEMCONV_READ_TOKEN }}
           # No sibling checkout in CI: the script reads the file with gh api.
           RIUS_SEMCONV: /nonexistent
         run: |
@@ -38,9 +38,9 @@ jobs:
             exit 0
           }
           if [ -z "$GH_TOKEN" ]; then
-            skip "SEMCONV_SOURCE_TOKEN is not set (or this pull request comes from a fork)."
+            skip "SEMCONV_READ_TOKEN is not set (or this pull request comes from a fork)."
           fi
           if ! gh api repos/glassflow/rius-semconv --silent 2>/dev/null; then
-            skip "SEMCONV_SOURCE_TOKEN cannot read glassflow/rius-semconv."
+            skip "SEMCONV_READ_TOKEN cannot read glassflow/rius-semconv."
           fi
           scripts/sync-semconv.sh --check

@@ -60,7 +60,7 @@ formatter/linter (no black/isort/flake8). Commit `uv.lock`.
   re-exports them and keeps the helper functions. Never edit the vendored file: change
   the registry, release it, then re-pin with `TAG=<tag> scripts/sync-semconv.sh`. The
   `semconv-vendored` workflow fails on drift, and skips with a warning when
-  `SEMCONV_SOURCE_TOKEN` cannot read rius-semconv.
+  `SEMCONV_READ_TOKEN` cannot read rius-semconv.
 
 ## Testing — TDD (required)
 
