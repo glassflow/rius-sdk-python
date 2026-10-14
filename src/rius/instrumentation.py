@@ -20,7 +20,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from . import langchain_span_context, litellm_stream_context
+from . import langchain_span_context, litellm_stream_context, llama_index_span_context
 
 logger = logging.getLogger(__name__)
 
@@ -151,6 +151,8 @@ def enable_instrumentations(
                         litellm_stream_context.uninstall(instrumentor)
                     elif spec.name == "langchain":
                         langchain_span_context.uninstall(instrumentor)
+                    elif spec.name == "llama-index":
+                        llama_index_span_context.uninstall(instrumentor)
                     instrumentor.uninstrument()
                 else:
                     continue  # someone else's instrumentation: leave it alone
@@ -163,6 +165,10 @@ def enable_instrumentations(
                 # Its spans are never current, so the provider call is not
                 # their child; see langchain_span_context. Never raises.
                 langchain_span_context.install(instrumentor)
+            elif spec.name == "llama-index":
+                # Its spans are never current either; see
+                # llama_index_span_context. Never raises.
+                llama_index_span_context.install(instrumentor)
         except Exception:
             # Instrumentation is best-effort: a broken instrumentor must not
             # take down init().
