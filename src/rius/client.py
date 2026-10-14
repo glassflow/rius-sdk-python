@@ -40,6 +40,9 @@ from .normalization import NormalizingSpanExporter, NormalizingSpanProcessor
 from .pending import PendingSpanProcessor
 from .semconv import (
     GEN_AI_AGENT_NAME,
+    GEN_AI_MAIN_AGENT_DESCRIPTION,
+    GEN_AI_MAIN_AGENT_ID,
+    GEN_AI_MAIN_AGENT_NAME,
     RIUS_MAIN_AGENT_DESCRIPTION,
     RIUS_MAIN_AGENT_ID,
     RIUS_MAIN_AGENT_NAME,
@@ -338,27 +341,29 @@ def init(
             ``[5, 300]``). The server fixes stale at 30s and gone at 60s
             since the last ping, so keep this well under 30s.
         agent_name: Identity both heartbeats and spans group under, stamped
-            on the resource as ``rius.main_agent.name`` AND, unchanged, as
+            on the resource as ``gen_ai.main_agent.name`` AND, unchanged, as
             ``gen_ai.agent.name``; defaults to ``service_name``. The
-            ``rius.main_agent.*`` family is where the process-level question
+            ``gen_ai.main_agent.*`` family is where the process-level question
             "which agent is this?" lives: ``gen_ai.agent.name`` has no
             resource-level meaning in the conventions and on a span means the
-            agent being INVOKED. Both keys are stamped, indefinitely — a swap
-            would break agent identity for every deployment running an SDK
-            newer than the sink, and resource attributes ride once per OTLP
-            batch, so the duplication costs essentially nothing. A process
-            whose name resolves to the ``unknown_service`` placeholder emits
-            no ``rius.main_agent.name`` at all, the same suppression the span
-            helpers apply.
+            agent being INVOKED. Both keys are stamped — a swap would break
+            agent identity for every deployment running an SDK newer than the
+            sink, and resource attributes ride once per OTLP batch, so the
+            duplication costs essentially nothing. The deprecated
+            ``rius.main_agent.name`` carries the same value through its
+            deprecation window. A process whose name resolves to the
+            ``unknown_service`` placeholder emits no main-agent name at all,
+            the same suppression the span helpers apply.
         main_agent_id: Stable identifier of the agent this process IS
-            (``RIUS_MAIN_AGENT_ID``), stamped as ``rius.main_agent.id``. It
-            must be STABLE across restarts and deployments; a transient
-            in-memory or process-local id must not be used, exactly as the
-            conventions require of ``gen_ai.agent.id``, because a value that
-            changes every restart mints a new "agent" every restart. Stamped
-            only when set; there is no placeholder.
+            (``RIUS_MAIN_AGENT_ID``), stamped as ``gen_ai.main_agent.id`` and
+            the deprecated ``rius.main_agent.id``. It must be STABLE across
+            restarts and deployments; the conventions say it MUST NOT be
+            generated from an in-memory or process-local id, because a value
+            that changes every restart mints a new "agent" every restart.
+            Stamped only when set; there is no placeholder.
         main_agent_description: What this agent does
             (``RIUS_MAIN_AGENT_DESCRIPTION``), stamped as
+            ``gen_ai.main_agent.description`` and the deprecated
             ``rius.main_agent.description``. Stamped only when set.
         main_agent_version: Version of the agent DEFINITION — its prompt,
             tools and policy (``RIUS_MAIN_AGENT_VERSION``), stamped as
@@ -442,7 +447,12 @@ def init(
 
 
 def _main_agent_attributes(config: GlassflowConfig) -> dict[str, str]:
-    """The ``rius.main_agent.*`` resource attributes, each only when known.
+    """The main-agent resource attributes, each only when known.
+
+    ``gen_ai.main_agent.{name,id,description}`` are the conventions' keys;
+    ``rius.main_agent.{name,id,description}`` carry the same values through
+    their deprecation window, so a sink that only reads the old keys keeps
+    the agent's identity. ``rius.main_agent.version`` has no upstream twin.
 
     Every one is omitted rather than defaulted, for the reason
     ``service.version`` is: an absent attribute reads as "not told", a
@@ -452,10 +462,13 @@ def _main_agent_attributes(config: GlassflowConfig) -> dict[str, str]:
     name = _agent.named_agent(config.agent_name)
     attributes: dict[str, str] = {}
     if name is not None:
+        attributes[GEN_AI_MAIN_AGENT_NAME] = name
         attributes[RIUS_MAIN_AGENT_NAME] = name
     if config.main_agent_id:
+        attributes[GEN_AI_MAIN_AGENT_ID] = config.main_agent_id
         attributes[RIUS_MAIN_AGENT_ID] = config.main_agent_id
     if config.main_agent_description:
+        attributes[GEN_AI_MAIN_AGENT_DESCRIPTION] = config.main_agent_description
         attributes[RIUS_MAIN_AGENT_DESCRIPTION] = config.main_agent_description
     # Never from config.service_version: different fact, independent lifecycle.
     if config.main_agent_version:
@@ -541,13 +554,14 @@ def _do_init(
             # only a service name is unchanged; one that sets both no longer
             # has its spans grouped under a different name than its heartbeats.
             GEN_AI_AGENT_NAME: config.agent_name,
-            # The SAME resolved name under our own namespace, where the
+            # The SAME resolved name as gen_ai.main_agent.name (and, through
+            # its deprecation window, rius.main_agent.name), the keys where the
             # process-level question belongs: gen_ai.agent.name has no
             # resource-level meaning in the conventions and means the INVOKED
-            # agent on a span. Additive on purpose — both keys, indefinitely —
-            # so a deployment on a newer SDK than the sink keeps its identity.
-            # Suppressed on the placeholder by the same rule the span helpers
-            # use: a process that named nothing claims no agent identity.
+            # agent on a span. Additive on purpose, so a deployment on a newer
+            # SDK than the sink keeps its identity. Suppressed on the
+            # placeholder by the same rule the span helpers use: a process
+            # that named nothing claims no agent identity.
             **_main_agent_attributes(config),
             **({RIUS_SDK_GLOBAL_PROVIDER: f"foreign:{foreign_global}"} if foreign_global else {}),
             "telemetry.distro.name": "glassflow-rius",

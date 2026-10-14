@@ -249,6 +249,55 @@ def test_unset_main_agent_attributes_are_absent_from_the_resource() -> None:
         assert key not in attrs
 
 
+def test_resource_carries_the_upstream_main_agent_identity() -> None:
+    """gen_ai.main_agent.* is the conventions' name for the agent this PROCESS
+    is; it is stamped next to rius.main_agent.*, from the same settings, for as
+    long as the rius keys are in their deprecation window."""
+    attrs = _resource_with(
+        agent_name="checkout-agent",
+        main_agent_id="ag_prod_7",
+        main_agent_description="Takes a cart to a paid order",
+    )
+    assert attrs["gen_ai.main_agent.name"] == "checkout-agent"
+    assert attrs["gen_ai.main_agent.id"] == "ag_prod_7"
+    assert attrs["gen_ai.main_agent.description"] == "Takes a cart to a paid order"
+    for field in ("name", "id", "description"):
+        assert attrs[f"gen_ai.main_agent.{field}"] == attrs[f"rius.main_agent.{field}"]
+
+
+def test_the_upstream_main_agent_identity_resolves_from_the_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("RIUS_AGENT_NAME", "checkout-agent")
+    monkeypatch.setenv("RIUS_MAIN_AGENT_ID", "ag_prod_7")
+    monkeypatch.setenv("RIUS_MAIN_AGENT_DESCRIPTION", "Takes a cart to a paid order")
+    attrs = _resource_with()
+    assert attrs["gen_ai.main_agent.name"] == "checkout-agent"
+    assert attrs["gen_ai.main_agent.id"] == "ag_prod_7"
+    assert attrs["gen_ai.main_agent.description"] == "Takes a cart to a paid order"
+
+
+def test_the_main_agent_version_has_no_upstream_twin() -> None:
+    attrs = _resource_with(main_agent_version="7")
+    assert "gen_ai.main_agent.version" not in attrs
+
+
+def test_an_unnamed_process_emits_no_upstream_main_agent_name() -> None:
+    client = init(span_exporter=(exporter := InMemorySpanExporter()), set_global=False)
+    with client.get_tracer().start_as_current_span("op"):
+        pass
+    client.flush()
+    attrs = _resource_of(exporter)
+    assert attrs["service.name"] == "unknown_service"
+    assert "gen_ai.main_agent.name" not in attrs
+
+
+def test_unset_upstream_main_agent_attributes_are_absent_from_the_resource() -> None:
+    attrs = _resource_with(agent_name="checkout-agent")
+    assert "gen_ai.main_agent.id" not in attrs
+    assert "gen_ai.main_agent.description" not in attrs
+
+
 def test_the_main_agent_version_and_the_service_version_are_independent() -> None:
     """A service at 2.3.1 can run an agent definition at 7. Neither key is
     ever derived from the other, in either direction."""

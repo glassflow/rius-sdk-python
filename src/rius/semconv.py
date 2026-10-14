@@ -55,27 +55,54 @@ GEN_AI_AGENT_ID = "gen_ai.agent.id"
 GEN_AI_AGENT_VERSION = "gen_ai.agent.version"
 
 # --- The MAIN agent: the agent this PROCESS is ---
-# Our own namespace, because the question is ours. ``gen_ai.agent.name`` has no
-# resource-level meaning in the conventions, and ON A SPAN it means the agent
-# being INVOKED — one key answering two different questions, told apart only by
-# which of a resource and a span you happen to be reading. These four keys say
-# "the process emitting this telemetry IS this agent", once per OTLP batch.
+# ``gen_ai.agent.name`` has no resource-level meaning in the conventions, and ON A
+# SPAN it means the agent being INVOKED: one key answering two different
+# questions, told apart only by which of a resource and a span you happen to be
+# reading. The GenAI conventions' gen_ai.main_agent entity answers the
+# process-level question: "the process emitting this telemetry IS this agent",
+# once per OTLP batch. rius.main_agent.{name,id,description} answered it
+# before the conventions did, and are deprecated in favour of these keys;
+# the SDKs stamp both families through the deprecation window.
 #
-# ``gen_ai.agent.name`` stays on the resource alongside them, deliberately and
-# indefinitely: a swap would be a flag day, breaking agent identity for every
-# deployment running an SDK newer than the sink. Resource attributes ride once
-# per batch, not per span, so carrying both costs essentially nothing.
-#
-# Named so a future rename to ``gen_ai.main_agent.*`` is a prefix substitution,
-# should the conventions ever grow the concept.
+# ``gen_ai.agent.name`` stays on the resource alongside them, deliberately: a swap
+# would be a flag day, breaking agent identity for every deployment running an
+# SDK newer than the sink. Resource attributes ride once per batch, not per
+# span, so carrying all of them costs essentially nothing.
+
+# The name of the agent this process is, from the same setting as
+# ``gen_ai.agent.name`` on the resource, and suppressed the same way: a process
+# whose name is the unknown_service placeholder stamps none. The conventions
+# make ``gen_ai.main_agent.id`` the entity's identity and say the entity is not
+# emitted without one; the SDKs stamp the name whether or not an id is
+# configured, as they did ``rius.main_agent.name``, because in Rius the agent's
+# name is its identity and most processes have no hosted id. Replaces
+# ``rius.main_agent.name``.
+GEN_AI_MAIN_AGENT_NAME = "gen_ai.main_agent.name"
+
+# The stable identifier of the agent this process is. The conventions say it
+# MUST NOT be generated from an in-memory or process-local id: a value that
+# changes every restart mints a new "agent" every restart. So it is stamped
+# only when the caller configures one, and there is no default. Replaces
+# ``rius.main_agent.id``.
+GEN_AI_MAIN_AGENT_ID = "gen_ai.main_agent.id"
+
+# What the agent this process is does, in free text. Stamped only when
+# configured. Replaces ``rius.main_agent.description``.
+GEN_AI_MAIN_AGENT_DESCRIPTION = "gen_ai.main_agent.description"
+
+# Deprecated: moved to ``gen_ai.main_agent.name``.
+# Named the agent this process is before the conventions had a key for it.
 RIUS_MAIN_AGENT_NAME = "rius.main_agent.name"
-# The SAME stability constraint the conventions put on ``gen_ai.agent.id``,
-# adopted rather than loosened because we own the namespace: a transient
-# in-memory or process-local id here would mint a new "agent" every restart and
-# make the key useless for grouping. Taking the constraint now is what keeps
-# that future rename mechanical instead of a data-quality problem.
+
+# Deprecated: moved to ``gen_ai.main_agent.id``.
+# Took the same stability constraint the conventions put on ``gen_ai.agent.id``:
+# a transient in-memory or process-local id here would mint a new "agent"
+# every restart and make the key useless for grouping.
 RIUS_MAIN_AGENT_ID = "rius.main_agent.id"
+
+# Deprecated: moved to ``gen_ai.main_agent.description``.
 RIUS_MAIN_AGENT_DESCRIPTION = "rius.main_agent.description"
+
 # The version of the agent DEFINITION — its prompt, tools and policy — which is
 # deliberately NOT ``service.version``. A service can sit at 2.3.1 while its
 # agent definition is at 7, and the two move independently; deriving either
