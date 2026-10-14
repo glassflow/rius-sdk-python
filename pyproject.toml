@@ -122,3 +122,21 @@ markers = [
 python_version = "3.10"
 strict = true
 files = ["src"]
+
+# Not followed: on the releases resolved for Python 3.12+, numpy (which the
+# openai client imports when it is installed, as llama-index-core installs it)
+# and some of llama-index-core's own imports use 3.12-only syntax, which mypy
+# rejects at python_version 3.10. The LlamaIndex stopgap only touches LlamaIndex
+# through Any.
+[[tool.mypy.overrides]]
+module = [
+    "llama_index.*",
+    "llama_index_instrumentation",
+    "llama_index_instrumentation.*",
+    "openinference.instrumentation.llama_index",
+    "openinference.instrumentation.llama_index.*",
+    "numpy",
+    "numpy.*",
+]
+follow_imports = "skip"
+follow_imports_for_stubs = true

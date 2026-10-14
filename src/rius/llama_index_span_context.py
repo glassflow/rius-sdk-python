@@ -134,7 +134,7 @@ def _handler_class() -> Any:
     from llama_index.core.base.llms.base import BaseLLM
     from llama_index.core.instrumentation.span_handlers import BaseSpanHandler
 
-    class _SpanContextHandler(BaseSpanHandler[Any]):
+    class _SpanContextHandler(BaseSpanHandler[Any]):  # type: ignore[misc]
         """Makes an LLM span current while its method runs.
 
         Never keeps spans of its own: ``new_span`` and the ``prepare_*``
@@ -362,9 +362,7 @@ def install(instrumentor: Any) -> bool:
             # The legacy callback handler, or not instrumented: no span handler.
             return False
         from llama_index.core.base.llms.base import BaseLLM
-        from llama_index.core.instrumentation import (  # type: ignore[attr-defined]
-            get_dispatcher,
-        )
+        from llama_index.core.instrumentation import get_dispatcher
 
         if _handler is None:
             _handler = _handler_class()()
@@ -388,9 +386,7 @@ def uninstall(instrumentor: Any) -> None:
     global _subclass_hook
     try:
         from llama_index.core.base.llms.base import BaseLLM
-        from llama_index.core.instrumentation import (  # type: ignore[attr-defined]
-            get_dispatcher,
-        )
+        from llama_index.core.instrumentation import get_dispatcher
 
         if _subclass_hook is not None:
             if BaseLLM.__dict__.get(_SUBCLASS_HOOK) is _subclass_hook:
