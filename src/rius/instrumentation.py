@@ -81,6 +81,30 @@ REGISTRY: tuple[InstrumentorSpec, ...] = (
 )
 
 
+def _dependency_conflict(instrumentor: Any) -> str | None:
+    """Describe why ``instrumentor``'s declared dependencies are unmet, or ``None``.
+
+    Only OpenTelemetry instrumentors declare dependencies; anything else
+    (our own MCP instrumentor, test doubles) has nothing to check.
+    """
+    declared = getattr(instrumentor, "instrumentation_dependencies", None)
+    if declared is None:
+        return None
+    # opentelemetry-instrumentation arrives with the OpenInference packages,
+    # not with the SDK, so it is imported only when an instrumentor needs it.
+    from opentelemetry.instrumentation.dependencies import get_dependency_conflicts
+
+    conflict = get_dependency_conflicts(declared())
+    if conflict is None:
+        return None
+    if conflict.required is None:
+        # An "any of" requirement: OpenTelemetry's own wording covers it.
+        return str(conflict)
+    if conflict.found is None:
+        return f"needs {conflict.required}, which is not installed"
+    return f"needs {conflict.required}, found {conflict.found}"
+
+
 def enable_instrumentations(
     tracer_provider: Any,
     instruments: Sequence[str] | None = None,
@@ -143,6 +167,15 @@ def enable_instrumentations(
             continue
         try:
             instrumentor = getattr(module, spec.class_name)()
+            conflict = _dependency_conflict(instrumentor)
+            if conflict is not None:
+                # OpenTelemetry's instrument() would only log this as a
+                # DependencyConflict and return, leaving the integration off
+                # while we reported it enabled. A newer instrumentor raising
+                # its floor on the library (openinference-anthropic 3.x needs
+                # anthropic>=1.8) is the usual cause, so say what is needed.
+                logger.warning("%s instrumentation skipped: %s", spec.name, conflict)
+                continue
             if getattr(instrumentor, "is_instrumented_by_opentelemetry", False):
                 if spec.name in _ENABLED:
                     # We enabled it previously (e.g. before a shutdown/re-init):
