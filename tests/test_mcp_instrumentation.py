@@ -1,9 +1,9 @@
 """First-class MCP tool-call spans (client side: ClientSession.call_tool).
 
-Runs against BOTH mcp majors: the default suite exercises the locked 1.x,
-and the ci `mcp-v2` job re-runs this module against ``mcp>=2`` (spec
-2026-07-28), whose ``CallToolResult`` renamed its fields to snake_case and
-whose tool calls can return interim ``InputRequiredResult``s.
+Runs against BOTH mcp majors: the default suite exercises the locked 2.x
+(spec 2026-07-28), whose ``CallToolResult`` renamed its fields to snake_case
+and whose tool calls can return interim ``InputRequiredResult``s, and the ci
+`mcp-v1` job re-runs this module against ``mcp>=1.28.1,<2``.
 """
 
 from __future__ import annotations
