@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/glassflow/rius-sdk-python/main/docs/assets/banner.png" alt="Rius by GlassFlow: trace your AI agents with OpenTelemetry" width="100%">
+</p>
+
 # Rius Python SDK
 
 OpenTelemetry-native tracing for AI agents and LLM applications. `glassflow-rius`
@@ -5,7 +9,20 @@ emits [OpenTelemetry GenAI](https://opentelemetry.io/docs/specs/semconv/gen-ai/)
 traces over OTLP to the managed GlassFlow observability platform (or any
 OTLP-compatible backend).
 
-> Status: alpha. APIs may change.
+<p>
+  <a href="https://docs.glassflow.ai/rius/sdk"><b>Docs</b></a> ·
+  <a href="https://docs.glassflow.ai/rius/sdk/reference/python">API reference</a> ·
+  <a href="https://console.rius-glassflow.com">Console</a> ·
+  <a href="https://github.com/glassflow/rius-sdk-python/blob/main/CHANGELOG.md">Changelog</a> ·
+  <a href="https://github.com/glassflow/rius-sdk-python/issues">Issues</a>
+</p>
+
+[![PyPI](https://img.shields.io/pypi/v/glassflow-rius?style=flat-square)](https://pypi.org/project/glassflow-rius/)
+[![Python versions](https://img.shields.io/pypi/pyversions/glassflow-rius?style=flat-square)](https://pypi.org/project/glassflow-rius/)
+[![CI](https://img.shields.io/github/actions/workflow/status/glassflow/rius-sdk-python/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/glassflow/rius-sdk-python/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-6b7280?style=flat-square)](https://github.com/glassflow/rius-sdk-python/blob/main/LICENSE)
+[![OpenTelemetry GenAI](https://img.shields.io/badge/OpenTelemetry-GenAI-425cc7?style=flat-square&logo=opentelemetry&logoColor=white)](https://opentelemetry.io/docs/specs/semconv/gen-ai/)
+[![Downloads](https://img.shields.io/pypi/dm/glassflow-rius?style=flat-square)](https://pypistats.org/packages/glassflow-rius)
 
 ## Install
 
@@ -240,8 +257,8 @@ uv run ruff check . && uv run ruff format --check .
 uv run mypy
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow, and
-[SECURITY.md](SECURITY.md) to report a vulnerability.
+See [CONTRIBUTING.md](https://github.com/glassflow/rius-sdk-python/blob/main/CONTRIBUTING.md)
+for the full workflow, and [SECURITY.md](https://github.com/glassflow/rius-sdk-python/blob/main/SECURITY.md) to report a vulnerability.
 
 ## Releasing
 
