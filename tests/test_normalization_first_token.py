@@ -101,13 +101,18 @@ def test_the_derived_duration_is_seconds_since_span_start() -> None:
     assert value == 0.25
 
 
-def test_an_event_after_the_span_end_is_clamped_to_the_end() -> None:
-    """The backend never places a first chunk after its span's end; nor does this."""
+def test_a_marker_after_the_span_end_is_not_clamped() -> None:
+    """A recorded marker is when the chunk arrived, even after its span ended.
+
+    LlamaIndex's stream_chat span ends when it hands back the generator, before
+    the first chunk. The backend keeps a recorded marker's time as it is (it
+    clamps only an event it places itself), so the duration must agree with it.
+    """
     raw = _raw_span(
         events=[(OPENINFERENCE_FIRST_TOKEN_EVENT, _START_NS + 5_000_000_000)],
         end_ns=_START_NS + 1_000_000_000,
     )
-    assert (_export(raw).attributes or {})[GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK] == 1.0
+    assert (_export(raw).attributes or {})[GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK] == 5.0
 
 
 def test_an_event_before_the_span_start_is_never_negative() -> None:

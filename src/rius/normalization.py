@@ -418,9 +418,10 @@ def first_chunk_from_event(span: ReadableSpan) -> dict[str, Any]:
 
     Native wins, as for attributes: a key the span already carries is left
     out, and the caller adds the rest with setdefault, so a value the table
-    produced is never overwritten either. The duration is
-    never negative, and a marker after the span's end counts as the end, as
-    the backend places a first chunk.
+    produced is never overwritten either. The duration is never negative. A
+    marker after the span's end is not clamped: it is when the chunk arrived
+    (LlamaIndex ends its stream_chat span before the first chunk), and the
+    backend keeps a recorded marker's time as it is.
 
     Unit: ``gen_ai.response.time_to_first_chunk`` is **seconds** (a float),
     matching what ``GenerationSpan.record_first_token`` emits on the native
@@ -444,8 +445,6 @@ def first_chunk_from_event(span: ReadableSpan) -> dict[str, Any]:
         and isinstance(first_token_ns, int)
         and isinstance(start_ns, int)
     ):
-        if isinstance(span.end_time, int):
-            first_token_ns = min(first_token_ns, span.end_time)
         added[GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK] = max(first_token_ns - start_ns, 0) / 1e9
     return added
 
