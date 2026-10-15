@@ -1,4 +1,4 @@
-# Vendored from rius-semconv v1.3.0 out/python/_semconv_generated.py by
+# Vendored from rius-semconv v1.4.0 out/python/_semconv_generated.py by
 # scripts/sync-semconv.sh. Do not edit: change the registry in rius-semconv.
 """Rius semantic conventions: the constants and tables, generated.
 
@@ -839,6 +839,14 @@ _OPERATION_BY_KIND: dict[SpanKind, str] = {
 #     each step of an agent run (one model call and the tools it asked
 #     for), a step within the run rather than an agent invocation, so
 #     CHAIN as well.
+#   - LLM also takes four operations @ai-sdk/otel writes that no convention
+#     defines, kept as written rather than rewritten to chat or given an
+#     invented name: decide (the experimental decision call: an operation
+#     span and its model call, both a billed call to a decision model, so
+#     LLM rather than CHAIN, which would hide the call), and the AI SDK's
+#     own operation ids for speech and transcription (ai.generateSpeech,
+#     ai.transcribe, ai.streamTranscribe), each one call to a remote audio
+#     model. OpenInference has no audio kind, and LLM is its model call.
 _KIND_BY_OPERATION: dict[str, SpanKind] = {
     "chat": SpanKind.LLM,
     "text_completion": SpanKind.LLM,
@@ -852,6 +860,10 @@ _KIND_BY_OPERATION: dict[str, SpanKind] = {
     "invoke_workflow": SpanKind.CHAIN,
     "plan": SpanKind.CHAIN,
     "agent_step": SpanKind.CHAIN,
+    "decide": SpanKind.LLM,
+    "ai.generateSpeech": SpanKind.LLM,
+    "ai.transcribe": SpanKind.LLM,
+    "ai.streamTranscribe": SpanKind.LLM,
 }
 
 # SpanKind (our taxonomy ATTRIBUTE) -> the OpenTelemetry SpanKind FIELD, set

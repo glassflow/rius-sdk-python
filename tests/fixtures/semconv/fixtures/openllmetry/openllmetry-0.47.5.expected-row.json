@@ -1,6 +1,6 @@
 {
   "normalizer": {
-    "package": "argus-core sink",
+    "package": "rius sink",
     "commit": "a18a6dbb9cf00f93e1ff802f2584debdcb5b4430"
   },
   "recordings": [

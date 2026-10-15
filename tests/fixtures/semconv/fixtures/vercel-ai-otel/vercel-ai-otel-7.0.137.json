@@ -1658,6 +1658,428 @@
           }
         }
       ]
+    },
+    {
+      "scenario": "decide",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "gen_ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "decide gpt-6-luna",
+            "kind": "SPAN_KIND_CLIENT",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000003000000",
+            "attributes": [
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "decide"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-6-luna"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "gen_ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000002",
+            "parentSpanId": "0000000000000001",
+            "name": "decide gpt-6-luna",
+            "kind": "SPAN_KIND_CLIENT",
+            "startTimeUnixNano": "1700000000001000000",
+            "endTimeUnixNano": "1700000000002000000",
+            "attributes": [
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "decide"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-6-luna"
+                }
+              },
+              {
+                "key": "gen_ai.usage.input_tokens",
+                "value": {
+                  "intValue": "30"
+                }
+              },
+              {
+                "key": "gen_ai.usage.output_tokens",
+                "value": {
+                  "intValue": "2"
+                }
+              }
+            ],
+            "status": {}
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "generate_speech",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "gen_ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "ai.generateSpeech gpt-4o-mini-tts",
+            "kind": "SPAN_KIND_CLIENT",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000001000000",
+            "attributes": [
+              {
+                "key": "ai.request.text",
+                "value": {
+                  "stringValue": "Paris is the capital of France."
+                }
+              },
+              {
+                "key": "ai.response.audio.format",
+                "value": {
+                  "stringValue": "mp3"
+                }
+              },
+              {
+                "key": "ai.response.audio.media_type",
+                "value": {
+                  "stringValue": "audio/mpeg"
+                }
+              },
+              {
+                "key": "ai.response.audio.size",
+                "value": {
+                  "intValue": "12"
+                }
+              },
+              {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Paris is the capital of France.\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "ai.generateSpeech"
+                }
+              },
+              {
+                "key": "gen_ai.output.type",
+                "value": {
+                  "stringValue": "speech"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini-tts"
+                }
+              },
+              {
+                "key": "gen_ai.request.stream",
+                "value": {
+                  "boolValue": false
+                }
+              }
+            ],
+            "status": {}
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "transcribe",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "gen_ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "ai.transcribe gpt-4o-transcribe",
+            "kind": "SPAN_KIND_CLIENT",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000001000000",
+            "attributes": [
+              {
+                "key": "ai.request.audio.media_type",
+                "value": {
+                  "stringValue": "audio/wav"
+                }
+              },
+              {
+                "key": "ai.request.audio.size",
+                "value": {
+                  "intValue": "8"
+                }
+              },
+              {
+                "key": "ai.response.text",
+                "value": {
+                  "stringValue": "Paris is the capital of France."
+                }
+              },
+              {
+                "key": "ai.response.usage",
+                "value": {
+                  "stringValue": "{\"type\":\"tokens\",\"input_tokens\":14,\"input_token_details\":{\"text_tokens\":0,\"audio_tokens\":14},\"output_tokens\":8,\"total_tokens\":22}"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "ai.transcribe"
+                }
+              },
+              {
+                "key": "gen_ai.output.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"Paris is the capital of France.\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.output.type",
+                "value": {
+                  "stringValue": "text"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-4o-transcribe"
+                }
+              },
+              {
+                "key": "gen_ai.request.stream",
+                "value": {
+                  "boolValue": false
+                }
+              },
+              {
+                "key": "gen_ai.usage.input_token_details.audio_tokens",
+                "value": {
+                  "intValue": "14"
+                }
+              },
+              {
+                "key": "gen_ai.usage.input_token_details.text_tokens",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "gen_ai.usage.input_tokens",
+                "value": {
+                  "intValue": "14"
+                }
+              },
+              {
+                "key": "gen_ai.usage.output_tokens",
+                "value": {
+                  "intValue": "8"
+                }
+              },
+              {
+                "key": "gen_ai.usage.total_tokens",
+                "value": {
+                  "intValue": "22"
+                }
+              }
+            ],
+            "status": {}
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "stream_transcribe",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "gen_ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "ai.streamTranscribe gpt-realtime-whisper",
+            "kind": "SPAN_KIND_CLIENT",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000001000000",
+            "attributes": [
+              {
+                "key": "ai.request.audio.media_type",
+                "value": {
+                  "stringValue": "audio/pcm"
+                }
+              },
+              {
+                "key": "ai.request.audio.size",
+                "value": {
+                  "intValue": "8"
+                }
+              },
+              {
+                "key": "ai.response.text",
+                "value": {
+                  "stringValue": "Paris is the capital of France."
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "ai.streamTranscribe"
+                }
+              },
+              {
+                "key": "gen_ai.output.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"Paris is the capital of France.\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.output.type",
+                "value": {
+                  "stringValue": "text"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-realtime-whisper"
+                }
+              },
+              {
+                "key": "gen_ai.request.stream",
+                "value": {
+                  "boolValue": true
+                }
+              }
+            ],
+            "status": {}
+          }
+        }
+      ]
     }
   ]
 }
