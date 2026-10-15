@@ -57,10 +57,10 @@ with start_as_current_generation("chat", model="gpt-4o", input=messages) as gen:
 ```
 
 Span names are optional. Left out, a span is named the way the OpenTelemetry
-GenAI conventions say it should be — the operation followed by what it acted on:
-`chat gpt-4o`, `embeddings text-embedding-3-small`, `execute_tool get_weather`,
-`invoke_agent planner`, `retrieval product-kb` — degrading to the bare operation
-(`chat`) when that identifier is unknown. `@observe` keeps the function's
+GenAI conventions say it should be: the operation followed by what it acted on,
+such as `chat gpt-4o`, `embeddings text-embedding-3-small`, `execute_tool get_weather`,
+`invoke_agent planner` or `retrieval product-kb`. When that identifier is unknown,
+the name falls back to the bare operation (`chat`). `@observe` keeps the function's
 qualified name for a plain `CHAIN` step, which has no operation; an unnamed
 `start_span()` of that kind is called `chain`. An explicit name always wins.
 
@@ -87,7 +87,7 @@ variables:
 | Argument       | Environment variable     | Default                        | Description                                                          |
 | -------------- | ------------------------ | ------------------------------ | -------------------------------------------------------------------- |
 | `endpoint`     | `RIUS_ENDPOINT`     | `https://ingest.eu.console.rius-glassflow.com` | Base OTLP endpoint. Traces are sent to `<endpoint>/v1/traces`.       |
-| `api_key`      | `RIUS_API_KEY`      | —                              | Injected as an `Authorization: Bearer <key>` header on every export. |
+| `api_key`      | `RIUS_API_KEY`      | none                           | Injected as an `Authorization: Bearer <key>` header on every export. |
 | `service_name` | `RIUS_SERVICE_NAME` | `unknown_service`              | Sets the OpenTelemetry `service.name` resource attribute.            |
 | `disabled`     | `RIUS_DISABLED`     | `false`                        | Kill switch. When true, spans are created but never exported.        |
 | `sample_rate`  | `RIUS_SAMPLE_RATE`  | `1.0`                          | Head sampling ratio `0.0`–`1.0` (whole-trace; children follow root). |
@@ -95,7 +95,7 @@ variables:
 | `bridge_foreign_provider` | `RIUS_BRIDGE_FOREIGN_PROVIDER` | `false`        | Also export the spans of another OpenTelemetry SDK that owns the global provider (see below). |
 | `agent_name`   | `RIUS_AGENT_NAME`        | `service_name`                 | The agent this process is. Also the `gen_ai.main_agent.id` when `main_agent_id` is unset, so renaming it changes that id. |
 | `main_agent_id` | `RIUS_MAIN_AGENT_ID`    | a `gen_ai.main_agent.id` in `OTEL_RESOURCE_ATTRIBUTES`, else the agent name | A stable id for the agent (a registry id or an ARN), stamped as `gen_ai.main_agent.id`. Never a per-process value. |
-| `main_agent_description` | `RIUS_MAIN_AGENT_DESCRIPTION` | —                | What the agent does, stamped as `gen_ai.main_agent.description`. |
+| `main_agent_description` | `RIUS_MAIN_AGENT_DESCRIPTION` | none             | What the agent does, stamped as `gen_ai.main_agent.description`. |
 
 The agent this process *is* is described on the resource under the GenAI
 conventions' `gen_ai.main_agent.*`. `gen_ai.main_agent.id` is the entity's
@@ -236,7 +236,7 @@ Export is designed to never block or crash your application:
 - **Retries.** Transient failures (connection errors, 429/5xx) are retried with
   exponential backoff and jitter, bounded by the export timeout.
 - **Graceful degradation.** If the backend stays down, spans are dropped and an
-  error is logged — exceptions never propagate into application code. A failing
+  error is logged. Exceptions never propagate into application code. A failing
   `mask` callable drops only the affected attribute value (fail closed), never
   the batch.
 - **Flush on shutdown.** Pending spans are flushed automatically at interpreter

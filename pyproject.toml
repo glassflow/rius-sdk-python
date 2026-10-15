@@ -78,6 +78,10 @@ path = "src/rius/__init__.py"
 [tool.hatch.build.targets.wheel]
 packages = ["src/rius"]
 
+[tool.hatch.build.targets.sdist]
+# README images are served from GitHub by absolute URL; keep them out of the sdist.
+exclude = ["docs/assets/"]
+
 [dependency-groups]
 dev = [
     "pytest>=8.0.0",
