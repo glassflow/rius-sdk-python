@@ -254,14 +254,21 @@ def test_v1_structured_content_is_still_recorded_as_output() -> None:
     assert json.loads(span.attributes["output.value"]) == {"result": 5}
 
 
-def test_input_required_round_is_marked_and_records_no_output() -> None:
+def test_input_required_round_records_no_output() -> None:
     span = _record_on_fresh_span(_V2InputRequired())
     assert span.attributes is not None
     # the interim payload (input_requests) is a content surface that is NOT
     # the tool's output; it must never land in output.value
     assert "output.value" not in span.attributes
-    assert span.attributes["mcp.result_type"] == "input_required"
     assert span.status.is_ok
+
+
+def test_input_required_round_emits_no_result_type_attribute() -> None:
+    """No convention defines mcp.result_type and nothing reads it; an interim
+    round stays identifiable as a tool span carrying mcp.method.name."""
+    span = _record_on_fresh_span(_V2InputRequired())
+    assert span.attributes is not None
+    assert "mcp.result_type" not in span.attributes
 
 
 def test_complete_result_carries_no_result_type_attribute() -> None:
@@ -412,8 +419,8 @@ def test_local_tool_span_carries_no_mcp_marker(exported_spans: InMemorySpanExpor
 
 
 def test_interim_input_required_round_keeps_the_mcp_marker() -> None:
-    """MRTR interim rounds used to be marked only by mcp.result_type; the
-    method marker must be there too, or the round is invisible to MCP rollups."""
+    """An MRTR interim round must carry the method marker, or the round is
+    invisible to MCP rollups."""
     from rius.instrumentation_mcp import _call_attributes
 
     inner = InMemorySpanExporter()
@@ -428,7 +435,7 @@ def test_interim_input_required_round_keeps_the_mcp_marker() -> None:
     client.flush()
     (finished,) = inner.get_finished_spans()
     assert finished.attributes is not None
-    assert finished.attributes["mcp.result_type"] == "input_required"
+    assert "mcp.result_type" not in finished.attributes
     assert finished.attributes["mcp.method.name"] == "tools/call"
     assert "mcp.protocol.version" not in finished.attributes
 
