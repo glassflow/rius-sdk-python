@@ -452,7 +452,10 @@ def test_generation_without_first_token_has_no_stream_attributes(
     assert "gen_ai.request.stream" not in span.attributes
 
 
-def test_record_first_token_on_span_without_start_time_skips_attribute() -> None:
+def test_record_first_token_on_span_without_start_time_measures_from_wrapping() -> None:
+    """A non-SDK span has no readable start; the Generation's own creation
+    stands in for it, as in the TypeScript SDK."""
+
     class _Recording:
         def __init__(self) -> None:
             self.events: list[str] = []
@@ -469,9 +472,10 @@ def test_record_first_token_on_span_without_start_time_skips_attribute() -> None
 
     span = _Recording()
     gen = Generation(span)  # type: ignore[arg-type]
+    time.sleep(0.01)
     gen.record_first_token()  # must not raise
     assert span.events == []
-    assert "gen_ai.response.time_to_first_chunk" not in span.attributes
+    assert 0.01 <= span.attributes["gen_ai.response.time_to_first_chunk"] < 5
     assert span.attributes["gen_ai.request.stream"] is True
 
 

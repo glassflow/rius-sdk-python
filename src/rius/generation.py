@@ -142,6 +142,10 @@ class Generation:
     def __init__(self, span: Span) -> None:
         self._span = span
         self._first_token_recorded = False
+        # Monotonic clock at creation: what record_first_token measures the
+        # first chunk against only when the span's start cannot be read (a
+        # non-SDK Span), as in the TypeScript SDK.
+        self._created_monotonic_ns = time.monotonic_ns()
         # Set by _configure; drives the Anthropic input-token summing in
         # set_usage. A bare Generation(span) has no provider and never sums.
         self._provider: str | None = None
@@ -294,16 +298,16 @@ class Generation:
         """
         if self._first_token_recorded or not self._span.is_recording():
             return
-        now_ns = time.time_ns()
         self._first_token_recorded = True
         self._span.set_attribute(GEN_AI_REQUEST_STREAM, True)
-        # Only the SDK span knows its start; a non-SDK Span (or one whose
-        # start_time is unset) records the stream flag alone.
+        # Only the SDK span knows its start; for a non-SDK Span (or one whose
+        # start_time is unset) the Generation's creation stands in for it.
         start_ns = getattr(self._span, "start_time", None)
         if isinstance(start_ns, int):
-            self._span.set_attribute(
-                GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK, max(now_ns - start_ns, 0) / 1e9
-            )
+            elapsed_ns = time.time_ns() - start_ns
+        else:
+            elapsed_ns = time.monotonic_ns() - self._created_monotonic_ns
+        self._span.set_attribute(GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK, max(elapsed_ns, 0) / 1e9)
 
     def set_finish_reasons(self, reasons: str | list[str]) -> None:
         """Record why generation stopped (``gen_ai.response.finish_reasons``).
