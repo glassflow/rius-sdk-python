@@ -6,16 +6,15 @@
 # two weeks after upstream renamed it to cache_write. Polling upstream main
 # is the only watchable surface.
 #
-# Two triggers, two behaviors (same split as the TypeScript repo's
-# semconv-parity workflow): on pull_request drift just fails the job, so a
+# Two triggers, two behaviors: on pull_request drift just fails the job, so a
 # semconv change cannot land against a stale upstream; on schedule, drift
 # files ONE issue (deduplicated by marker) because a rename is a wire change
-# and a judgement call — port it, or declare the attribute RIUS_ONLY — that
-# a bot must not pick.
+# and a judgement call (port it, or declare the attribute RIUS_ONLY) that a
+# bot must not pick.
 #
-# This checks OUR names against upstream; the TypeScript repo's
-# semconv-parity separately checks its mirror against ours, so an upstream
-# rename ported here propagates to TS through the existing machinery.
+# This checks OUR names against upstream. A rename is ported in the
+# rius-semconv registry, not here, and reaches both SDKs when each re-pins
+# the release that carries it.
 name: semconv-upstream
 
 on:
