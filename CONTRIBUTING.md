@@ -12,7 +12,7 @@ The project uses [uv](https://docs.astral.sh/uv/) and supports Python 3.10 and
 newer.
 
 ```bash
-uv sync --group dev
+uv sync --locked --group dev
 ```
 
 Commit `uv.lock` whenever dependencies change. Use `uv` and `ruff` only: no

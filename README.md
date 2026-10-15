@@ -247,7 +247,9 @@ Releases are automated with [release-please](https://github.com/googleapis/relea
 and published to PyPI via Trusted Publishing.
 
 1. Merge changes to `main` using [Conventional Commits](https://www.conventionalcommits.org/)
-   (`feat:` → minor, `fix:` → patch, `feat!:`/`BREAKING CHANGE` → major).
+   (`feat:` → minor, `fix:` → patch). Mark a breaking change with `!` in the PR
+   title (`feat!:` → major); PRs are squash-merged with a blank body, so a
+   `BREAKING CHANGE:` footer is lost.
 2. release-please keeps a **Release PR** open that bumps `__version__` and updates
    `CHANGELOG.md`. Merge it when you want to cut a release.
 3. Merging tags `vX.Y.Z`, creates a GitHub Release, and publishes to PyPI automatically.

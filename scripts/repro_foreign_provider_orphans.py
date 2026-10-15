@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Reproduce RIUS-1070: LLM spans exported with a parent rius never receives.
+"""Reproduce LLM spans exported with a parent rius never receives.
 
 When another SDK registers the OpenTelemetry global tracer provider before
 ``rius.init()``, rius keeps a private provider (the global is write-once) and
@@ -42,7 +42,7 @@ nothing touches the network (Langfuse points at a closed local port).
 
 Run (the Langfuse case needs the extra package; it is not a dev dependency):
 
-    uv run --with 'langfuse>=3,<4' python scripts/repro_rius_1070.py
+    uv run --with 'langfuse>=3,<4' python scripts/repro_foreign_provider_orphans.py
 
 Exits 0 when every case gives its expected verdict (or is skipped), 1
 otherwise (a single ``--case`` run exits 3 when ORPHANED, 4 when skipped, 5
@@ -92,7 +92,7 @@ EXIT_CODES = {
     "UNDETECTED": EXIT_UNDETECTED,
     "UNSTAMPED": EXIT_UNSTAMPED,
 }
-SENTINEL = "RIUS1070-CONTENT-SENTINEL"
+SENTINEL = "FOREIGN-PROVIDER-CONTENT-SENTINEL"
 SESSION_ID = "repro-session"
 USER_ID = "repro-user"
 
@@ -302,7 +302,7 @@ def _init_rius(
     return rius.init(
         endpoint="http://rius.invalid",
         api_key="test",
-        service_name="rius-1070-repro",
+        service_name="foreign-provider-repro",
         span_exporter=exporter,
         instruments=["openai", "anthropic"],
         heartbeat=True,
