@@ -63,7 +63,6 @@ from .semconv import (
     MCP_METHOD_NAME,
     MCP_METHOD_TOOLS_CALL,
     MCP_PROTOCOL_VERSION,
-    MCP_RESULT_TYPE,
     OUTPUT_VALUE,
     TRACER_NAME,
     SpanKind,
@@ -104,11 +103,11 @@ def _record_result(span: Any, result: Any) -> None:
     An interim ``InputRequiredResult`` (MRTR, mcp 2.x) is NOT the tool's
     output: its ``input_requests`` carry elicitation/sampling content, so
     recording them as ``output.value`` would leak conversation content into
-    a tool span. Interim rounds get only the ``mcp.result_type`` marker; the
-    final round of the retry loop records output as usual.
+    a tool span. Interim rounds record nothing here (they stay identifiable
+    as tool spans carrying ``mcp.method.name``); the final round of the
+    retry loop records output as usual.
     """
     if getattr(result, "result_type", None) == "input_required":
-        span.set_attribute(MCP_RESULT_TYPE, "input_required")
         return
     span.set_attribute(OUTPUT_VALUE, _serialize_result(result))
     if _result_is_error(result):
