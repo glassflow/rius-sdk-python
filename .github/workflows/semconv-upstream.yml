@@ -33,11 +33,15 @@ permissions:
   contents: read
 
 jobs:
+  # Runs the PR's own script, so it gets a read-only token. Filing the issue
+  # lives in a separate job that never runs on pull_request.
   check:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      issues: write # the schedule path files the drift issue
+    outputs:
+      code: ${{ steps.check.outputs.code }}
+      report: ${{ steps.check.outputs.report }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -49,21 +53,36 @@ jobs:
           code=${PIPESTATUS[0]}
           set -e
           echo "code=$code" >> "$GITHUB_OUTPUT"
+          {
+            echo "report<<SEMCONV_REPORT_EOF"
+            cat check-output.txt
+            echo "SEMCONV_REPORT_EOF"
+          } >> "$GITHUB_OUTPUT"
           # On pull_request any nonzero code fails the job right here. On
-          # schedule/dispatch, drift (2) falls through to the issue step;
+          # schedule/dispatch, drift (2) falls through to the issue job;
           # fetch/parse breakage (3) still fails the run so it is visible.
           if [ "${{ github.event_name }}" = "pull_request" ] || [ "$code" = "3" ]; then
             exit "$code"
           fi
 
+  file-issue:
+    needs: check
+    if: ${{ github.event_name != 'pull_request' && needs.check.outputs.code == '2' }}
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write # files or updates the drift issue
+    steps:
       - name: File (or update) the drift issue
-        if: ${{ github.event_name != 'pull_request' && steps.check.outputs.code == '2' }}
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          REPORT: ${{ needs.check.outputs.report }}
         run: |
           marker="semconv-upstream-drift"
+          # The backticks in the printf format are a literal Markdown fence.
+          # shellcheck disable=SC2016
           body="$(printf '<!-- %s -->\nUpstream renamed, removed, or re-scoped attributes we emit. This is a wire change and a judgement call: port the rename (SDK + docs + backend read paths), or declare the attribute RIUS_ONLY in scripts/check_upstream_semconv.py with a reason.\n\n```\n%s\n```\n\nLatest run: %s/%s/actions/runs/%s' \
-            "$marker" "$(cat check-output.txt)" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID")"
+            "$marker" "$REPORT" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID")"
           existing=$(gh issue list --state open --search "in:body $marker" --json number --jq '.[0].number')
           if [ -n "$existing" ]; then
             gh issue comment "$existing" --body "$body"

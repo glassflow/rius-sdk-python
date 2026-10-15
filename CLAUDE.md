@@ -59,8 +59,7 @@ formatter/linter (no black/isort/flake8). Commit `uv.lock`.
   byte for byte at a pinned release, as `_semconv_generated.py`; `semconv.py`
   re-exports them and keeps the helper functions. Never edit the vendored file: change
   the registry, release it, then re-pin with `TAG=<tag> scripts/sync-semconv.sh`. The
-  `semconv-vendored` workflow fails on drift, and skips with a warning when
-  `SEMCONV_READ_TOKEN` cannot read rius-semconv.
+  `semconv-vendored` workflow fails on drift.
 
 ## Testing — TDD (required)
 
@@ -83,7 +82,7 @@ formatter/linter (no black/isort/flake8). Commit `uv.lock`.
 ## Git & PR conventions
 
 - **Branch from `main`.** Branch names: `<user>/<TICKET>-short-desc`
-  (e.g. `pablo/gla2-19-observe-decorator`). Linear team key is `GLA2`.
+  (e.g. `pablo/rius-19-observe-decorator`). Linear team key is `RIUS`.
 - **PRs are squash-merged; the PR title becomes the commit on `main`** and is
   what release-please reads (the squash body is blank). PR titles must therefore
   be Conventional Commits: `feat:` (minor), `fix:` (patch), `feat!:` (breaking —
