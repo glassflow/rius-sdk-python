@@ -11,8 +11,7 @@ to cache_write. Main is the only watchable surface; this script watches it.
 
 Compares the module-level ``NAME = "gen_ai...."`` constants in
 src/rius/_semconv_generated.py (vendored from rius-semconv) and
-src/rius/semconv.py (the same shape gen-semconv-fixture extraction relies on
-in the TypeScript repo) against the attribute names in the upstream registry
+src/rius/semconv.py against the attribute names in the upstream registry
 markdown. An attribute of ours that upstream no longer lists means a rename,
 removal, or re-scope: a WIRE change and a judgement call, so the outcome is a
 failing exit for a human, never an auto-fix.
