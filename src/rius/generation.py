@@ -22,7 +22,6 @@ from ._tracer import sdk_tracer
 from .normalization import REQUEST_PARAMETER_GUARDS, SKIP
 from .semconv import (
     ERROR_TYPE,
-    GEN_AI_FIRST_TOKEN_EVENT,
     GEN_AI_INPUT_MESSAGES,
     GEN_AI_OPERATION_NAME,
     GEN_AI_OUTPUT_MESSAGES,
@@ -286,22 +285,20 @@ class Generation:
     def record_first_token(self) -> None:
         """Mark the arrival of the first streamed token.
 
-        Call from a streaming loop when the first content chunk arrives. Records
-        the ``gen_ai.first_token`` event (the timestamp the backend derives
-        time-to-first-token from) and, per the GenAI conventions, the derived
-        ``gen_ai.response.time_to_first_chunk`` (seconds since span start) plus
-        ``gen_ai.request.stream = True``: a first chunk arriving is what tells
-        the SDK the request streamed. Idempotent: only the first call records;
+        Call from a streaming loop when the first content chunk arrives. Records,
+        per the GenAI conventions, ``gen_ai.response.time_to_first_chunk``
+        (seconds since span start; the backend derives time to first token
+        from it) plus ``gen_ai.request.stream = True``: a first chunk arriving
+        is what tells the SDK the request streamed. Idempotent: only the first call records;
         safe to call unconditionally per chunk. A no-op after ``end()``.
         """
         if self._first_token_recorded or not self._span.is_recording():
             return
         now_ns = time.time_ns()
-        self._span.add_event(GEN_AI_FIRST_TOKEN_EVENT, timestamp=now_ns)
         self._first_token_recorded = True
         self._span.set_attribute(GEN_AI_REQUEST_STREAM, True)
         # Only the SDK span knows its start; a non-SDK Span (or one whose
-        # start_time is unset) keeps the event and skips the derived value.
+        # start_time is unset) records the stream flag alone.
         start_ns = getattr(self._span, "start_time", None)
         if isinstance(start_ns, int):
             self._span.set_attribute(

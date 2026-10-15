@@ -1,9 +1,12 @@
-"""Normalization of the OpenInference first-token signal.
+"""Normalization of the first-token signal.
 
-The source is a span EVENT, not an attribute, so it does not go through the
-rule table: ``NormalizingSpanExporter`` rewrites it directly. See the
-``normalization`` module for the shape and why the exporter is the component
-that can do it.
+The canonical signal is the conventions' ``gen_ai.response.time_to_first_chunk``
+span attribute, in seconds. No ``gen_ai.first_token`` event is ever written:
+the backend derives the one it stores from the attribute. OpenInference
+records the first streamed chunk as a span EVENT instead, so the exporter
+derives the attribute from that event's time and leaves the event as it was
+recorded. See the ``normalization`` module for why the exporter is the
+component that can do it.
 """
 
 from __future__ import annotations
@@ -37,13 +40,14 @@ def _raw_span(
     *,
     attributes: dict[str, Any] | None = None,
     events: list[tuple[str, int]] | None = None,
+    end_ns: int | None = None,
 ) -> ReadableSpan:
     """A finished span from a bare OTel provider, never touched by normalization.
 
     Not through ``init()``: its exporter chain already normalizes, so a span
-    collected there would arrive carrying ``gen_ai.first_token`` and every
-    assertion below would pass without the export step doing anything. This
-    input carries only what an instrumentor emits.
+    collected there would arrive already derived and every assertion below
+    would pass without the export step doing anything. This input carries
+    only what an instrumentor emits.
     """
     collected = InMemorySpanExporter()
     provider = TracerProvider()
@@ -54,7 +58,7 @@ def _raw_span(
         )
         for name, timestamp in events or []:
             span.add_event(name, timestamp=timestamp)
-        span.end()
+        span.end(end_time=end_ns if end_ns is not None else _START_NS + 3_000_000_000)
         (finished,) = collected.get_finished_spans()
     finally:
         provider.shutdown()
@@ -74,13 +78,13 @@ def _events(span: ReadableSpan) -> list[tuple[str, int | None]]:
     return [(event.name, event.timestamp) for event in span.events]
 
 
-def test_an_openinference_streaming_span_becomes_indistinguishable_from_a_native_one() -> None:
+def test_an_openinference_streaming_span_gains_the_duration_and_keeps_its_event() -> None:
     raw = _raw_span(
         attributes={"gen_ai.request.model": "gpt-4o"},
         events=[(OPENINFERENCE_FIRST_TOKEN_EVENT, _FIRST_TOKEN_NS)],
     )
     exported = _export(raw)
-    assert _events(exported) == [(GEN_AI_FIRST_TOKEN_EVENT, _FIRST_TOKEN_NS)]
+    assert _events(exported) == [(OPENINFERENCE_FIRST_TOKEN_EVENT, _FIRST_TOKEN_NS)]
     assert dict(exported.attributes or {}) == {
         **dict(raw.attributes or {}),
         GEN_AI_REQUEST_STREAM: True,
@@ -97,19 +101,43 @@ def test_the_derived_duration_is_seconds_since_span_start() -> None:
     assert value == 0.25
 
 
-def test_a_span_already_carrying_the_canonical_form_is_untouched() -> None:
+def test_an_event_after_the_span_end_is_clamped_to_the_end() -> None:
+    """The backend never places a first chunk after its span's end; nor does this."""
+    raw = _raw_span(
+        events=[(OPENINFERENCE_FIRST_TOKEN_EVENT, _START_NS + 5_000_000_000)],
+        end_ns=_START_NS + 1_000_000_000,
+    )
+    assert (_export(raw).attributes or {})[GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK] == 1.0
+
+
+def test_an_event_before_the_span_start_is_never_negative() -> None:
+    raw = _raw_span(events=[(OPENINFERENCE_FIRST_TOKEN_EVENT, _START_NS - 1_000)])
+    assert (_export(raw).attributes or {})[GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK] == 0.0
+
+
+def test_the_first_of_several_markers_is_the_first_chunk() -> None:
+    raw = _raw_span(
+        events=[
+            (OPENINFERENCE_FIRST_TOKEN_EVENT, _FIRST_TOKEN_NS),
+            (OPENINFERENCE_FIRST_TOKEN_EVENT, _FIRST_TOKEN_NS + 500_000_000),
+        ],
+    )
+    exported = _export(raw)
+    assert (exported.attributes or {})[GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK] == 1.5
+    assert _events(exported) == _events(raw)
+
+
+def test_a_span_carrying_the_canonical_form_is_untouched() -> None:
     """Native wins, exactly as it does for attributes."""
     raw = _raw_span(
         attributes={
             GEN_AI_REQUEST_STREAM: True,
             GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK: 0.125,
         },
-        events=[(GEN_AI_FIRST_TOKEN_EVENT, _FIRST_TOKEN_NS)],
+        events=[(OPENINFERENCE_FIRST_TOKEN_EVENT, _FIRST_TOKEN_NS)],
     )
     exported = _export(raw)
     assert exported is raw
-    assert _events(exported) == [(GEN_AI_FIRST_TOKEN_EVENT, _FIRST_TOKEN_NS)]
-    assert (exported.attributes or {})[GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK] == 0.125
 
 
 def test_native_attributes_are_not_overwritten_by_the_derived_ones() -> None:
@@ -122,15 +150,13 @@ def test_native_attributes_are_not_overwritten_by_the_derived_ones() -> None:
     assert (exported.attributes or {})[GEN_AI_REQUEST_STREAM] is True
 
 
-def test_a_duplicate_canonical_event_is_not_added_but_the_source_still_goes() -> None:
+def test_an_older_sdks_first_token_event_passes_through_untouched() -> None:
+    """Spans from SDK releases that still wrote the event carry the duration too."""
     raw = _raw_span(
-        events=[
-            (GEN_AI_FIRST_TOKEN_EVENT, _FIRST_TOKEN_NS),
-            (OPENINFERENCE_FIRST_TOKEN_EVENT, _FIRST_TOKEN_NS + 1),
-        ],
+        attributes={GEN_AI_REQUEST_STREAM: True, GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK: 1.5},
+        events=[(GEN_AI_FIRST_TOKEN_EVENT, _FIRST_TOKEN_NS)],
     )
-    exported = _export(raw)
-    assert _events(exported) == [(GEN_AI_FIRST_TOKEN_EVENT, _FIRST_TOKEN_NS)]
+    assert _export(raw) is raw
 
 
 def test_a_non_streaming_span_gains_nothing() -> None:
@@ -148,24 +174,17 @@ def test_an_unrelated_event_is_left_alone() -> None:
     assert _events(exported) == [("exception", _FIRST_TOKEN_NS)]
 
 
-def test_other_events_are_preserved_in_order() -> None:
-    raw = _raw_span(
-        events=[
-            ("before", _START_NS + 1),
-            (OPENINFERENCE_FIRST_TOKEN_EVENT, _FIRST_TOKEN_NS),
-            ("after", _FIRST_TOKEN_NS + 1),
-        ],
-    )
-    exported = _export(raw)
-    assert _events(exported) == [
+def test_events_are_preserved_in_order() -> None:
+    events = [
         ("before", _START_NS + 1),
-        (GEN_AI_FIRST_TOKEN_EVENT, _FIRST_TOKEN_NS),
+        (OPENINFERENCE_FIRST_TOKEN_EVENT, _FIRST_TOKEN_NS),
         ("after", _FIRST_TOKEN_NS + 1),
     ]
+    assert _events(_export(_raw_span(events=events))) == events
 
 
 def test_nothing_is_mutated_in_place() -> None:
-    """A ReadableSpan shares its event list with every processor on the provider."""
+    """A ReadableSpan shares its attributes with every processor on the provider."""
     other = InMemorySpanExporter()
     exporter = InMemorySpanExporter()
     client = init(span_exporter=exporter, set_global=False, service_name="test-svc", instruments=[])
@@ -178,9 +197,9 @@ def test_nothing_is_mutated_in_place() -> None:
         (normalized,) = exporter.get_finished_spans()
     finally:
         client.shutdown()
-    assert [event.name for event in seen.events] == [OPENINFERENCE_FIRST_TOKEN_EVENT]
     assert GEN_AI_REQUEST_STREAM not in (seen.attributes or {})
-    assert [event.name for event in normalized.events] == [GEN_AI_FIRST_TOKEN_EVENT]
+    assert GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK not in (seen.attributes or {})
+    assert [event.name for event in normalized.events] == [OPENINFERENCE_FIRST_TOKEN_EVENT]
     assert (normalized.attributes or {})[GEN_AI_REQUEST_STREAM] is True
 
 
@@ -194,7 +213,7 @@ def test_it_is_wired_into_init() -> None:
         (finished,) = exporter.get_finished_spans()
     finally:
         client.shutdown()
-    assert [event.name for event in finished.events] == [GEN_AI_FIRST_TOKEN_EVENT]
+    assert [event.name for event in finished.events] == [OPENINFERENCE_FIRST_TOKEN_EVENT]
     assert (finished.attributes or {})[GEN_AI_REQUEST_STREAM] is True
     assert (finished.attributes or {})[GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK] >= 0.0
 
@@ -238,35 +257,40 @@ def test_the_anthropic_instrumentor_still_emits_no_first_token_event() -> None:
     )
 
 
-# --- The metric spelling: a measured duration with no first-token event ------
+# --- The metric spelling: a measured duration and no event -----------------
 #
 # pydantic-ai and @ai-sdk/otel write the conventions' METRIC name onto the
-# chat span, in seconds, and record no event. The backend reads time to first
-# chunk from the event alone, so the exporter both maps the attribute and
-# places the event the span is missing.
+# chat span, in seconds, and record no event. The exporter maps it onto the
+# canonical attribute and adds no event: the duration is the whole signal.
 
 _METRIC = "gen_ai.client.operation.time_to_first_chunk"
 
 
-def test_the_metric_spelling_becomes_the_canonical_attribute_and_event() -> None:
+def test_the_metric_spelling_becomes_the_canonical_attribute_and_no_event() -> None:
     raw = _raw_span(attributes={_METRIC: 1.5})
     out = _export(raw)
     attributes = dict(out.attributes or {})
     assert _METRIC not in attributes
     assert attributes[GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK] == 1.5
     assert attributes[GEN_AI_REQUEST_STREAM] is True
-    assert _events(out) == [(GEN_AI_FIRST_TOKEN_EVENT, _FIRST_TOKEN_NS)]
+    assert _events(out) == []
 
 
-def test_a_canonical_duration_alone_also_gets_its_event() -> None:
+def test_a_canonical_duration_alone_gets_no_event() -> None:
     raw = _raw_span(attributes={GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK: 1.5})
-    assert _events(_export(raw)) == [(GEN_AI_FIRST_TOKEN_EVENT, _FIRST_TOKEN_NS)]
+    out = _export(raw)
+    assert out is raw
+    assert _events(out) == []
 
 
-def test_an_existing_first_token_event_is_never_duplicated() -> None:
-    for name in (GEN_AI_FIRST_TOKEN_EVENT, OPENINFERENCE_FIRST_TOKEN_EVENT):
-        raw = _raw_span(attributes={_METRIC: 0.2}, events=[(name, _FIRST_TOKEN_NS)])
-        assert _events(_export(raw)) == [(GEN_AI_FIRST_TOKEN_EVENT, _FIRST_TOKEN_NS)]
+def test_the_metric_spelling_wins_over_a_marker_derived_duration() -> None:
+    """A measured value is the instrumentor's own; the marker is only inferred."""
+    raw = _raw_span(
+        attributes={_METRIC: 0.2}, events=[(OPENINFERENCE_FIRST_TOKEN_EVENT, _FIRST_TOKEN_NS)]
+    )
+    out = _export(raw)
+    assert (out.attributes or {})[GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK] == 0.2
+    assert _events(out) == [(OPENINFERENCE_FIRST_TOKEN_EVENT, _FIRST_TOKEN_NS)]
 
 
 def test_native_values_win_over_the_metric_spelling() -> None:
@@ -283,21 +307,8 @@ def test_native_values_win_over_the_metric_spelling() -> None:
     assert _METRIC not in attributes
 
 
-def test_the_event_never_lands_after_the_span_ends() -> None:
-    collected = InMemorySpanExporter()
-    provider = TracerProvider()
-    provider.add_span_processor(SimpleSpanProcessor(collected))
-    span = provider.get_tracer("test").start_span(
-        "chat", attributes={_METRIC: 5.0}, start_time=_START_NS
-    )
-    span.end(end_time=_START_NS + 1_000_000)
-    (raw,) = collected.get_finished_spans()
-    provider.shutdown()
-    assert _events(_export(raw)) == [(GEN_AI_FIRST_TOKEN_EVENT, _START_NS + 1_000_000)]
-
-
 @pytest.mark.parametrize("value", [-1.0, "1.5", True, float("nan")])
-def test_an_unusable_duration_is_dropped_without_an_event(value: Any) -> None:
+def test_an_unusable_duration_is_dropped(value: Any) -> None:
     out = _export(_raw_span(attributes={_METRIC: value}))
     attributes = dict(out.attributes or {})
     assert GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK not in attributes
