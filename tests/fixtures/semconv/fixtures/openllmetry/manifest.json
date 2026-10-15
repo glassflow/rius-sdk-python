@@ -1,6 +1,6 @@
 {
   "family": "openllmetry",
-  "about": "Real OpenLLMetry (traceloop-sdk) spans from its OpenAI and Anthropic instrumentors and its decorators, recorded against mocked providers through an httpx/httpx2 mock transport: no network, no API keys, no rius SDK. Three releases, chosen for what changed between them (see each note). Moved here from argus-core's sink testdata, where Kiran first recorded them; the scenarios and responses are unchanged. Only the sink normalizes this family, so the expected result is the row the sink stores.",
+  "about": "Real OpenLLMetry (traceloop-sdk) spans from its OpenAI and Anthropic instrumentors and its decorators, recorded against mocked providers through an httpx/httpx2 mock transport: no network, no API keys, no rius SDK. Three releases, chosen for what changed between them (see each note). Moved here from the Rius backend's sink testdata, where they were first recorded; the scenarios and responses are unchanged. Only the sink normalizes this family, so the expected result is the row the sink stores.",
   "record": "python record.py <recording.json> <environment.json>, in a virtualenv holding exactly the pins below",
   "other_bundled_instrumentors": "traceloop-sdk does not pin its other bundled instrumentors, so the resolver installed newer ones; none of them is exercised here.",
   "recordings": {
@@ -36,7 +36,7 @@
         "file": "openllmetry-0.47.5.expected-row.json",
         "source": "sink"
       },
-      "verified": "Re-recorded 2026-10-12 twice in a row in the pinned virtualenv: byte-identical. Content (names, attributes, events, status) matches the recordings first made in argus-core's sink testdata; only the ids and times, now kept, and the order of event attributes, now sorted, differ.",
+      "verified": "Re-recorded 2026-10-12 twice in a row in the pinned virtualenv: byte-identical. Content (names, attributes, events, status) matches the recordings first made in the Rius backend's sink testdata; only the ids and times, now kept, and the order of event attributes, now sorted, differ.",
       "empty_scenarios": [
         "anthropic_error"
       ]
@@ -73,7 +73,7 @@
         "file": "openllmetry-0.53.4.expected-row.json",
         "source": "sink"
       },
-      "verified": "Re-recorded 2026-10-12 twice in a row in the pinned virtualenv: byte-identical. Content (names, attributes, events, status) matches the recordings first made in argus-core's sink testdata; only the ids and times, now kept, and the order of event attributes, now sorted, differ.",
+      "verified": "Re-recorded 2026-10-12 twice in a row in the pinned virtualenv: byte-identical. Content (names, attributes, events, status) matches the recordings first made in the Rius backend's sink testdata; only the ids and times, now kept, and the order of event attributes, now sorted, differ.",
       "empty_scenarios": [
         "anthropic_error"
       ]
@@ -110,7 +110,7 @@
         "file": "openllmetry-0.62.3.expected-row.json",
         "source": "sink"
       },
-      "verified": "Re-recorded 2026-10-12 twice in a row in the pinned virtualenv: byte-identical. Content (names, attributes, events, status) matches the recordings first made in argus-core's sink testdata; only the ids and times, now kept, and the order of event attributes, now sorted, differ."
+      "verified": "Re-recorded 2026-10-12 twice in a row in the pinned virtualenv: byte-identical. Content (names, attributes, events, status) matches the recordings first made in the Rius backend's sink testdata; only the ids and times, now kept, and the order of event attributes, now sorted, differ."
     }
   }
 }

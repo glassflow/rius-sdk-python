@@ -8,6 +8,22 @@ produce exactly that result, so the three agree with each other without ever
 being compared directly. When one disagrees, the expected result says which
 side changes.
 
+Together they are a conformance suite: for each instrumentor and version, the
+exact normalized output a conforming normalizer must produce, checked three
+ways in CI.
+
+- `tools/check_fixtures.py`: every recording has a manifest entry and an
+  expected result with the same scenarios, span ids and times; the controls
+  equal their recordings; no machine path survives.
+- The replay tests (`tests/test_replay.py`): decoding a recording or an
+  expected result, Python or Node, loses nothing.
+- `weaver registry live-check` (the `live-check` job): every attribute in
+  every expected result is defined by the registry under `model/` with that
+  type. See [Checked against the registry](#checked-against-the-registry).
+
+Each consumer's own conformance test then runs the recordings through its
+normalizer and compares the result with the expected one.
+
 ## Layout
 
 ```
@@ -21,6 +37,7 @@ fixtures/
                        came from, when it was last re-recorded
     <family>-<version>.json            the raw recording
     <family>-<version>.expected.json   the expected normalized result
+  passthrough.yaml     third-party keys live-check allows without a definition
 ```
 
 A family is one instrumentor (`openinference-openai`), named after the package
@@ -115,16 +132,66 @@ Where it comes from (`expected.source` in the manifest):
   output exists to agree with, so the expected result is the **rows** the sink
   stores, in `<recording>.expected-row.json`: for each scenario, the
   ClickHouse rows (after the map and enrich stages, cost included) in span id
-  order, and the argus-core commit that produced them. Written by argus-core's
-  `go run ./internal/conformance/cmd/expect-rows -commit <sha> <recording.json>`
-  (run from `apps/sink`), with the conformance price table, and reviewed by
-  hand. argus-core's conformance test recomputes them.
+  order, and the commit of the Rius backend that produced them. They are
+  written by the backend's conformance tooling, with its conformance price
+  table, and reviewed by hand; the backend's conformance test recomputes them.
+  The backend's source is not public, so anyone can read these files and
+  check a normalizer against them, but only the backend can regenerate them.
 
 JavaScript recordings of families the Python SDK also covers (OpenInference's
 JS instrumentors) take the Python SDK's output as expected, like their Python
 counterparts. A JavaScript-specific step the TypeScript SDK takes live (for
 example qualifying a recorded exception's generic `Error` type at the moment it
 is recorded) cannot run on a replay, so it is not part of any expected result.
+
+## Checked against the registry
+
+CI converts every `*.expected.json` into Weaver samples
+(`tools/expected_to_samples.py`: each recording's resource, its spans and their
+events, with the OTLP value types kept) and runs `weaver registry live-check
+--fail-on violation` on them with the matchers in `.weaver.toml`. Locally:
+
+```
+tools/install_weaver.sh
+python tools/expected_to_samples.py --out /tmp/samples.json
+.weaver/bin/weaver registry live-check -r model --v2 --input-source /tmp/samples.json \
+  --format json --output /tmp/live-check --fail-on violation
+python tools/live_check_findings.py /tmp/live-check/live_check.json
+```
+
+What each finding means:
+
+| Finding | Effect | Why |
+| -- | -- | -- |
+| `missing_attribute` | fails | The expected result carries a key the registry does not define. Define it (a Rius key in `registry/`, an upstream key the SDKs emit as a ref, a key a normalizer reads in `model/inputs/`), or, for a third-party extra the normalizers leave alone, add it to `passthrough.yaml` with a reason. |
+| `type_mismatch` | fails | The key exists with another type: the normalizer or the registry is wrong. |
+| `deprecated` | fails | The expected result carries a key the registry deprecates. |
+| `invalid_format` | fails, except under `ai.*` and `metadata.ai.*` | The Vercel AI SDK spells its own keys in camelCase; the normalizers read some of them, so they are modelled as written. `.weaver.toml` drops only this finding, only there. |
+| `undefined_enum_variant` | reported | `error.type` holds class names by design; `agent_step`, `rerank` and `tool_error` are the values Rius adds to upstream enums; OpenInference's `PROMPT` kind is not one Rius maps. |
+| `not_stable`, `unexpected_attribute`, `missing_namespace`, ... | reported | Advice, not conformance: most upstream GenAI keys are still in development, and a key found only by searching the upstream registries is one Rius does not reference. |
+
+Which keys are checked where:
+
+- A span is matched against every group Rius defines or references
+  (`registry.rius`, `rius.upstream`, `rius.passthrough`, the OpenInference
+  groups and each `rius.normalizer_input.<producer>`), so a key a normalizer
+  reads is checked against the group that models it.
+- A key no matched group has is looked up among every attribute the pinned
+  upstream registries define (`search_all_attributes`), so OpenTelemetry keys
+  that pass through without a ref (`telemetry.sdk.*`, `exception.message`,
+  `server.address`) are still type-checked.
+- The `gen_ai.*` usage spellings other producers write
+  (`gen_ai.usage.details.*`, `gen_ai.aggregated_usage.*`) are left out: this
+  registry may not define `gen_ai.*` keys, so they are decided in
+  `templates/params.yaml`, and `tools/check_usage_keys.py` checks the
+  decisions.
+- A key under a `passthrough.yaml` prefix is left out unless `model/` defines
+  it. An entry can therefore never hide a defined key, and one that leaves
+  nothing out fails the conversion as stale.
+
+The sink families' `*.expected-row.json` are not live-checked: they hold the
+stored ClickHouse rows, whose attribute maps keep every value as a string, so
+no type survives to check. The backend's conformance test checks them.
 
 ## Writing a recorder
 
@@ -195,3 +262,6 @@ precedes its own end.
    lists what the normalizer removed, added, changed and left alone. Write
    anything surprising into the pull request.
 6. `python tools/check_fixtures.py` must be clean.
+7. Run live-check (see [Checked against the registry](#checked-against-the-registry)).
+   A key it reports missing is either defined in the registry or, if the
+   normalizers leave it alone, allowlisted in `passthrough.yaml` with a reason.

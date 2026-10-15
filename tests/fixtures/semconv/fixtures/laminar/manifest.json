@@ -1,6 +1,6 @@
 {
   "family": "laminar",
-  "about": "Real Laminar (lmnr) spans from OpenHands conversations against a scripted OpenAI-compatible model served by record.py itself: no network, no API keys, no rius SDK. Tracing is enabled only by the OTEL_* env vars a user would set; the child process exports OTLP/HTTP to a capture server in record.py, and the captured protobuf spans go through the shared encoder (spans_from_otlp, then scenario_json). lmnr names the resource after sys.argv[0] and ignores OTEL_SERVICE_NAME, and the child runs as record.py, so service.name is record.py. Moved here from argus-core's sink testdata, where Kiran first recorded them; the scenarios are unchanged. Only the sink normalizes this family, so the expected result is the row the sink stores.",
+  "about": "Real Laminar (lmnr) spans from OpenHands conversations against a scripted OpenAI-compatible model served by record.py itself: no network, no API keys, no rius SDK. Tracing is enabled only by the OTEL_* env vars a user would set; the child process exports OTLP/HTTP to a capture server in record.py, and the captured protobuf spans go through the shared encoder (spans_from_otlp, then scenario_json). lmnr names the resource after sys.argv[0] and ignores OTEL_SERVICE_NAME, and the child runs as record.py, so service.name is record.py. Moved here from the Rius backend's sink testdata, where they were first recorded; the scenarios are unchanged. Only the sink normalizes this family, so the expected result is the row the sink stores.",
   "record": "python record.py <recording.json> <environment.json>, in a virtualenv holding exactly the pins below",
   "scrubbing": "After the shared encoder (which numbers UUIDs): the workspace temp dir becomes /workspace, other machine paths <path>, object reprs' addresses 0x0, and username/hostname members <username>/<hostname>.",
   "truncation": "Every string attribute longer than 160 characters, and every such string inside a JSON-valued attribute, is cut to 160 characters plus a '...<N chars truncated>' marker, the JSON kept valid. The OpenHands system prompt and tool descriptions are several KB each. Truncation runs after scrubbing, so how much of a value survives does not depend on the recording machine's temp-dir path.",
@@ -26,7 +26,7 @@
         "file": "lmnr-0.7.64.expected-row.json",
         "source": "sink"
       },
-      "verified": "Re-recorded 2026-10-12 twice in a row in the pinned virtualenv: byte-identical. Content (names, attributes, events, status) matches the recordings first made in argus-core's sink testdata; only the ids and times, now kept, and the order of event attributes, now sorted, differ."
+      "verified": "Re-recorded 2026-10-12 twice in a row in the pinned virtualenv: byte-identical. Content (names, attributes, events, status) matches the recordings first made in the Rius backend's sink testdata; only the ids and times, now kept, and the order of event attributes, now sorted, differ."
     }
   }
 }
