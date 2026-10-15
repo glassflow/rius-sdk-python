@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/glassflow/rius-sdk-python/main/docs/assets/banner.png" alt="Rius by GlassFlow: trace your AI agents with OpenTelemetry" width="100%">
+</p>
+
 # Rius Python SDK
 
 OpenTelemetry-native tracing for AI agents and LLM applications. `glassflow-rius`
@@ -5,7 +9,20 @@ emits [OpenTelemetry GenAI](https://opentelemetry.io/docs/specs/semconv/gen-ai/)
 traces over OTLP to the managed GlassFlow observability platform (or any
 OTLP-compatible backend).
 
-> Status: alpha. APIs may change.
+<p>
+  <a href="https://docs.glassflow.ai/rius/sdk"><b>Docs</b></a> ·
+  <a href="https://docs.glassflow.ai/rius/sdk/reference/python">API reference</a> ·
+  <a href="https://console.rius-glassflow.com">Console</a> ·
+  <a href="https://github.com/glassflow/rius-sdk-python/blob/main/CHANGELOG.md">Changelog</a> ·
+  <a href="https://github.com/glassflow/rius-sdk-python/issues">Issues</a>
+</p>
+
+[![PyPI](https://img.shields.io/pypi/v/glassflow-rius?style=flat-square)](https://pypi.org/project/glassflow-rius/)
+[![Python versions](https://img.shields.io/pypi/pyversions/glassflow-rius?style=flat-square)](https://pypi.org/project/glassflow-rius/)
+[![CI](https://img.shields.io/github/actions/workflow/status/glassflow/rius-sdk-python/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/glassflow/rius-sdk-python/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-6b7280?style=flat-square)](https://github.com/glassflow/rius-sdk-python/blob/main/LICENSE)
+[![OpenTelemetry GenAI](https://img.shields.io/badge/OpenTelemetry-GenAI-425cc7?style=flat-square&logo=opentelemetry&logoColor=white)](https://opentelemetry.io/docs/specs/semconv/gen-ai/)
+[![Downloads](https://img.shields.io/pypi/dm/glassflow-rius?style=flat-square)](https://pypistats.org/packages/glassflow-rius)
 
 ## Install
 
@@ -40,10 +57,10 @@ with start_as_current_generation("chat", model="gpt-4o", input=messages) as gen:
 ```
 
 Span names are optional. Left out, a span is named the way the OpenTelemetry
-GenAI conventions say it should be — the operation followed by what it acted on:
-`chat gpt-4o`, `embeddings text-embedding-3-small`, `execute_tool get_weather`,
-`invoke_agent planner`, `retrieval product-kb` — degrading to the bare operation
-(`chat`) when that identifier is unknown. `@observe` keeps the function's
+GenAI conventions say it should be: the operation followed by what it acted on,
+such as `chat gpt-4o`, `embeddings text-embedding-3-small`, `execute_tool get_weather`,
+`invoke_agent planner` or `retrieval product-kb`. When that identifier is unknown,
+the name falls back to the bare operation (`chat`). `@observe` keeps the function's
 qualified name for a plain `CHAIN` step, which has no operation; an unnamed
 `start_span()` of that kind is called `chain`. An explicit name always wins.
 
@@ -70,7 +87,7 @@ variables:
 | Argument       | Environment variable     | Default                        | Description                                                          |
 | -------------- | ------------------------ | ------------------------------ | -------------------------------------------------------------------- |
 | `endpoint`     | `RIUS_ENDPOINT`     | `https://ingest.eu.console.rius-glassflow.com` | Base OTLP endpoint. Traces are sent to `<endpoint>/v1/traces`.       |
-| `api_key`      | `RIUS_API_KEY`      | —                              | Injected as an `Authorization: Bearer <key>` header on every export. |
+| `api_key`      | `RIUS_API_KEY`      | none                           | Injected as an `Authorization: Bearer <key>` header on every export. |
 | `service_name` | `RIUS_SERVICE_NAME` | `unknown_service`              | Sets the OpenTelemetry `service.name` resource attribute.            |
 | `disabled`     | `RIUS_DISABLED`     | `false`                        | Kill switch. When true, spans are created but never exported.        |
 | `sample_rate`  | `RIUS_SAMPLE_RATE`  | `1.0`                          | Head sampling ratio `0.0`–`1.0` (whole-trace; children follow root). |
@@ -78,7 +95,7 @@ variables:
 | `bridge_foreign_provider` | `RIUS_BRIDGE_FOREIGN_PROVIDER` | `false`        | Also export the spans of another OpenTelemetry SDK that owns the global provider (see below). |
 | `agent_name`   | `RIUS_AGENT_NAME`        | `service_name`                 | The agent this process is. Also the `gen_ai.main_agent.id` when `main_agent_id` is unset, so renaming it changes that id. |
 | `main_agent_id` | `RIUS_MAIN_AGENT_ID`    | a `gen_ai.main_agent.id` in `OTEL_RESOURCE_ATTRIBUTES`, else the agent name | A stable id for the agent (a registry id or an ARN), stamped as `gen_ai.main_agent.id`. Never a per-process value. |
-| `main_agent_description` | `RIUS_MAIN_AGENT_DESCRIPTION` | —                | What the agent does, stamped as `gen_ai.main_agent.description`. |
+| `main_agent_description` | `RIUS_MAIN_AGENT_DESCRIPTION` | none             | What the agent does, stamped as `gen_ai.main_agent.description`. |
 
 The agent this process *is* is described on the resource under the GenAI
 conventions' `gen_ai.main_agent.*`. `gen_ai.main_agent.id` is the entity's
@@ -219,7 +236,7 @@ Export is designed to never block or crash your application:
 - **Retries.** Transient failures (connection errors, 429/5xx) are retried with
   exponential backoff and jitter, bounded by the export timeout.
 - **Graceful degradation.** If the backend stays down, spans are dropped and an
-  error is logged — exceptions never propagate into application code. A failing
+  error is logged. Exceptions never propagate into application code. A failing
   `mask` callable drops only the affected attribute value (fail closed), never
   the batch.
 - **Flush on shutdown.** Pending spans are flushed automatically at interpreter
@@ -240,8 +257,8 @@ uv run ruff check . && uv run ruff format --check .
 uv run mypy
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow, and
-[SECURITY.md](SECURITY.md) to report a vulnerability.
+See [CONTRIBUTING.md](https://github.com/glassflow/rius-sdk-python/blob/main/CONTRIBUTING.md)
+for the full workflow, and [SECURITY.md](https://github.com/glassflow/rius-sdk-python/blob/main/SECURITY.md) to report a vulnerability.
 
 ## Releasing
 

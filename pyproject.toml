@@ -18,7 +18,7 @@ keywords = [
     "rius",
 ]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
@@ -77,6 +77,10 @@ path = "src/rius/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/rius"]
+
+[tool.hatch.build.targets.sdist]
+# README images are served from GitHub by absolute URL; keep them out of the sdist.
+exclude = ["docs/assets/"]
 
 [dependency-groups]
 dev = [
