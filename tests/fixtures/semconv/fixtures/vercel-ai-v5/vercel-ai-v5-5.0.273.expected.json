@@ -1,8 +1,8 @@
 {
   "normalizer": {
     "package": "@glassflow-ai/rius",
-    "version": "1.1.1",
-    "commit": "2e0f732ecd5da2e53f9cd8eb8604178a89f268e5"
+    "version": "1.4.0",
+    "commit": "fb2b18a8268a45c299f5b4e0ddb821fcc111261a"
   },
   "recordings": [
     {
@@ -607,7 +607,7 @@
             "events": [
               {
                 "timeUnixNano": "1700000000002000000",
-                "name": "gen_ai.first_token",
+                "name": "ai.stream.firstChunk",
                 "attributes": [
                   {
                     "key": "ai.response.msToFirstChunk",
