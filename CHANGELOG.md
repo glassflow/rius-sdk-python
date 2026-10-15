@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.3.0](https://github.com/glassflow/rius-sdk-python/compare/v1.2.0...v1.3.0) (2026-10-15)
+
+
+### Features
+
+* classify @ai-sdk/otel's decide, speech and transcription spans as LLM (rius-semconv v1.4.0) ([#172](https://github.com/glassflow/rius-sdk-python/issues/172)) ([c306a1f](https://github.com/glassflow/rius-sdk-python/commit/c306a1f15640bc9ad13b8b1c93eb9ca6bcd81c95))
+
+
+### Bug Fixes
+
+* warn when an instrumentor's dependencies conflict, and test openinference-anthropic 3.x ([#187](https://github.com/glassflow/rius-sdk-python/issues/187)) ([ec0dc99](https://github.com/glassflow/rius-sdk-python/commit/ec0dc9946460e36f53785c2627c97d8790e55611))
+
 ## [1.2.0](https://github.com/glassflow/rius-sdk-python/compare/v1.1.1...v1.2.0) (2026-10-14)
 
 
