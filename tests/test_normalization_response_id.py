@@ -459,13 +459,14 @@ def test_real_anthropic_span_carries_the_response_id_with_capture_off(
 
 
 @pytest.mark.integration
-def test_real_anthropic_create_stream_has_no_output_value_and_so_no_id(
-    anthropic_instrumentor: Any,
+@pytest.mark.parametrize("capture_content", [True, False])
+def test_real_anthropic_create_stream_recovers_the_response_id(
+    anthropic_instrumentor: Any, capture_content: bool
 ) -> None:
-    # Recorded, not invented: for messages.create(stream=True) the anthropic
-    # instrumentor writes no output.value at all, so there is no id to recover
-    # and none is made up. Checked with capture ON, where output.value would
-    # otherwise be visible.
-    attributes = _anthropic_span("create-stream", capture_content=True)
-    assert "output.value" not in attributes
-    assert GEN_AI_RESPONSE_ID not in attributes
+    # Recorded, not invented: from openinference-instrumentation-anthropic 3.x,
+    # messages.create(stream=True) writes output.value (2.x wrote none), so the
+    # id is recovered from it like any other call. With capture off the id
+    # stays and output.value is still removed.
+    attributes = _anthropic_span("create-stream", capture_content=capture_content)
+    assert attributes[GEN_AI_RESPONSE_ID] == "msg_stream"
+    assert ("output.value" in attributes) is capture_content
