@@ -59,8 +59,7 @@ formatter/linter (no black/isort/flake8). Commit `uv.lock`.
   byte for byte at a pinned release, as `_semconv_generated.py`; `semconv.py`
   re-exports them and keeps the helper functions. Never edit the vendored file: change
   the registry, release it, then re-pin with `TAG=<tag> scripts/sync-semconv.sh`. The
-  `semconv-vendored` workflow fails on drift, and skips with a warning when
-  `SEMCONV_READ_TOKEN` cannot read rius-semconv.
+  `semconv-vendored` workflow fails on drift.
 
 ## Testing — TDD (required)
 

@@ -4,10 +4,8 @@
 # value or a table belongs in the rius-semconv registry, then a re-pin here
 # with `TAG=<tag> scripts/sync-semconv.sh`.
 #
-# rius-semconv is private, so reading it needs SEMCONV_READ_TOKEN (read
-# access to its contents). Without the token, or when the token cannot read the
-# pinned file (a fork's pull request gets no secrets), the check is SKIPPED
-# with a warning, so a green run is not proof by itself: read the log.
+# rius-semconv is public, so the workflow's own token reads it and the check
+# also runs on pull requests from forks (which get no secrets).
 name: semconv-vendored
 
 on:
@@ -20,29 +18,16 @@ permissions:
   contents: read
 
 jobs:
-  check:
+  vendored:
+    name: vendored
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: The vendored module matches its pinned rius-semconv release
         env:
-          GH_TOKEN: ${{ secrets.SEMCONV_READ_TOKEN }}
+          # rius-semconv is public; the job token only lifts the API rate limit.
+          GH_TOKEN: ${{ github.token }}
           # No sibling checkout in CI: the script reads the file with gh api.
           RIUS_SEMCONV: /nonexistent
-        run: |
-          skip() {
-            echo "::warning title=Vendored semconv NOT checked::$1 The vendored src/rius/_semconv_generated.py was not compared with rius-semconv."
-            echo "### Vendored semconv NOT checked" >> "$GITHUB_STEP_SUMMARY"
-            echo "$1" >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          }
-          if [ -z "$GH_TOKEN" ]; then
-            skip "SEMCONV_READ_TOKEN is not set (or this pull request comes from a fork)."
-          fi
-          # Probe a file read, which is what the check does, and keep GitHub's
-          # answer for the warning (it names the status, never the token).
-          if ! err=$(gh api repos/glassflow/rius-semconv/contents/version.txt --silent 2>&1); then
-            skip "SEMCONV_READ_TOKEN cannot read glassflow/rius-semconv (${err})."
-          fi
-          scripts/sync-semconv.sh --check
+        run: scripts/sync-semconv.sh --check

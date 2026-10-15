@@ -11,8 +11,8 @@
 # the module and keeps the helper functions.
 #
 # The file is read from a rius-semconv checkout ($RIUS_SEMCONV, default
-# ../rius-semconv) when there is one, else from GitHub with `gh api`, which
-# needs read access to glassflow/rius-semconv (GH_TOKEN in CI).
+# ../rius-semconv) when there is one, else from GitHub with `gh api` (the
+# repository is public; CI passes the job token as GH_TOKEN).
 set -euo pipefail
 
 ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"

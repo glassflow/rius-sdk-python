@@ -238,6 +238,9 @@ uv run ruff check . && uv run ruff format --check .
 uv run mypy
 ```
 
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow, and
+[SECURITY.md](SECURITY.md) to report a vulnerability.
+
 ## Releasing
 
 Releases are automated with [release-please](https://github.com/googleapis/release-please)
