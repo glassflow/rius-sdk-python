@@ -45,10 +45,11 @@ jobs:
   # the user's own `mcp` package is importable, so any major they install is
   # in scope. The two majors have different result shapes (2.x renamed the
   # fields to snake_case and added InputRequiredResult); the default suite
-  # exercises the dev group's 1.x, and this job re-runs the MCP
-  # instrumentation tests with 2.x overlaid so a future rename fails a build
-  # instead of silently un-flagging error results.
-  mcp-v2:
+  # exercises the locked 2.x, and this job re-runs the MCP instrumentation
+  # tests with 1.x overlaid, so users still on 1.x keep their error flags and
+  # protocol version. The first step prints the overlaid version, which shows
+  # in the log that the downgrade took effect.
+  mcp-v1:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -56,7 +57,10 @@ jobs:
         with:
           enable-cache: true
       - run: uv sync --locked --group dev
-      - run: uv run --with "mcp>=2,<3" pytest tests/test_mcp_instrumentation.py
+      - run: >-
+          uv run --with "mcp>=1.28.1,<2"
+          python -c "import importlib.metadata as m; print('mcp', m.version('mcp'))"
+      - run: uv run --with "mcp>=1.28.1,<2" pytest tests/test_mcp_instrumentation.py
 
   # Every instrumentation.REGISTRY entry must resolve against its real package —
   # enable_instrumentations() swallows ImportError, so a typo'd module/class name
