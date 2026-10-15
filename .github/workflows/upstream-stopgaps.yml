@@ -21,6 +21,13 @@
 # dependencies and move quickly. A reshape there is just as silent (install
 # returns False, or the call runs un-nested), so they move here too.
 #
+# The Anthropic instrumentor and the anthropic library move here as well. They
+# have no stopgap, but OpenInference 3.x raised its floor to anthropic>=1.8.0
+# and changed what a streamed messages.create() records, which the lock hid
+# until Dependabot bumped it. The anthropic tests in test_instrumentation.py
+# and test_normalization_response_id.py run against the newest pair so the
+# next such change shows up here first.
+#
 # The tests answer every request in-process and guard the socket, so the only
 # network use is the package index.
 name: upstream-stopgaps
@@ -55,6 +62,8 @@ jobs:
       - name: Upgrade the instrumentors and hooked libraries past the lock
         run: |
           uv lock \
+            --upgrade-package openinference-instrumentation-anthropic \
+            --upgrade-package anthropic \
             --upgrade-package openinference-instrumentation-langchain \
             --upgrade-package openinference-instrumentation-litellm \
             --upgrade-package openinference-instrumentation-llama-index \
@@ -66,6 +75,7 @@ jobs:
             --upgrade-package llama-index-llms-openai
           uv sync --group dev
           uv pip show \
+            openinference-instrumentation-anthropic anthropic \
             openinference-instrumentation-langchain openinference-instrumentation-litellm \
             openinference-instrumentation-llama-index \
             langchain-core langchain-openai litellm \
@@ -76,3 +86,7 @@ jobs:
           tests/test_langchain_span_context.py
           tests/test_litellm_stream_context.py
           tests/test_llama_index_span_context.py
+      - run: >-
+          uv run --no-sync pytest -k anthropic
+          tests/test_instrumentation.py
+          tests/test_normalization_response_id.py

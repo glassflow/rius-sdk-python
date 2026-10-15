@@ -86,7 +86,7 @@ dev = [
     # integration tests for bundled auto-instrumentation
     "openai>=1.0.0",
     "openinference-instrumentation-openai",
-    "anthropic>=0.40.0",
+    "anthropic>=1.8.0",
     "openinference-instrumentation-anthropic",
     "mcp>=1.28.1",
     # litellm 1.82.7 and 1.82.8 were compromised releases; stay above them.

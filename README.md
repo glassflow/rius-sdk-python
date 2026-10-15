@@ -150,9 +150,11 @@ pip install "glassflow-rius[instruments]"   # everything supported
 An extra installs the instrumentation **for** a library, never the library
 itself, so the SDK never pins or upgrades the versions your code runs against:
 `glassflow-rius[anthropic]` expects `anthropic` to be your own dependency,
-which it already is in any project that calls Anthropic. An extra installed
-without its library makes `init()` log a `DependencyConflict` from
-OpenTelemetry and leaves that one integration off.
+which it already is in any project that calls Anthropic. When an
+instrumentation's library is missing or too old, `init()` logs a warning naming
+the version it needs and leaves that one integration off. For example,
+`openinference-instrumentation-anthropic` 3.x needs `anthropic>=1.8.0`; with
+an older `anthropic`, upgrade it or keep the instrumentation on 2.x.
 
 ```python
 rius.init()                          # auto-enables installed instrumentors

@@ -516,3 +516,85 @@ def test_instrumentor_whose_import_raises_non_import_error_is_skipped(
         client = init(span_exporter=InMemorySpanExporter(), set_global=True)
     assert client is not None
     assert any("broken" in r.message for r in caplog.records)
+
+
+@pytest.fixture()
+def conflicting_registry(monkeypatch: pytest.MonkeyPatch) -> type[FakeInstrumentor]:
+    """A fake instrumentor whose declared dependencies the environment fails:
+    it needs a pytest far newer than the installed one."""
+
+    class _Instrumentor(FakeInstrumentor):
+        instrument_calls: list[Any] = []
+        uninstrument_calls: list[Any] = []
+        _instrumented = False
+
+        def instrumentation_dependencies(self) -> tuple[str, ...]:
+            return ("pytest>=999",)
+
+    module = types.ModuleType("conflicting_instrumentation_pkg")
+    module.ConflictingInstrumentor = _Instrumentor  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "conflicting_instrumentation_pkg", module)
+    monkeypatch.setattr(
+        instrumentation,
+        "REGISTRY",
+        (
+            InstrumentorSpec(
+                "conflicting",
+                "conflicting_instrumentation_pkg",
+                "ConflictingInstrumentor",
+                extra="conflicting",
+            ),
+        ),
+    )
+    return _Instrumentor
+
+
+def test_instrumentor_with_a_dependency_conflict_is_skipped_with_a_warning(
+    conflicting_registry: type[FakeInstrumentor], caplog: pytest.LogCaptureFixture
+) -> None:
+    # OpenTelemetry's instrument() only logs a DependencyConflict and returns,
+    # which would leave the integration off while we report it as enabled.
+    # The check runs first, and the warning says which version is needed.
+    import importlib.metadata
+
+    installed = importlib.metadata.version("pytest")
+    with caplog.at_level("WARNING", logger="rius.instrumentation"):
+        enabled = instrumentation.enable_instrumentations(object())
+    assert enabled == []
+    assert conflicting_registry.instrument_calls == []
+    messages = [r.getMessage() for r in caplog.records]
+    assert (
+        f"conflicting instrumentation skipped: needs pytest>=999, found pytest {installed}"
+        in messages
+    )
+
+
+def test_instrumentor_whose_dependency_is_missing_says_it_is_not_installed(
+    conflicting_registry: type[FakeInstrumentor],
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    monkeypatch.setattr(
+        conflicting_registry,
+        "instrumentation_dependencies",
+        lambda self: ("package-that-is-not-installed>=1.0",),
+    )
+    with caplog.at_level("WARNING", logger="rius.instrumentation"):
+        enabled = instrumentation.enable_instrumentations(object())
+    assert enabled == []
+    assert conflicting_registry.instrument_calls == []
+    assert (
+        "conflicting instrumentation skipped: needs package-that-is-not-installed>=1.0, "
+        "which is not installed" in [r.getMessage() for r in caplog.records]
+    )
+
+
+def test_instrumentor_with_satisfied_dependencies_is_enabled(
+    conflicting_registry: type[FakeInstrumentor], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        conflicting_registry, "instrumentation_dependencies", lambda self: ("pytest>=1",)
+    )
+    provider = object()
+    assert instrumentation.enable_instrumentations(provider) == ["conflicting"]
+    assert conflicting_registry.instrument_calls == [provider]
