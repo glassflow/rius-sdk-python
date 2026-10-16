@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.3.1](https://github.com/glassflow/rius-sdk-python/compare/v1.3.0...v1.3.1) (2026-10-16)
+
+
+### Bug Fixes
+
+* stop emitting mcp.result_type on interim MCP rounds ([#190](https://github.com/glassflow/rius-sdk-python/issues/190)) ([3c1b7ec](https://github.com/glassflow/rius-sdk-python/commit/3c1b7ecd2fe30a2e3ba2122e5f2984e1121664e5))
+* stop emitting the gen_ai.first_token event ([#192](https://github.com/glassflow/rius-sdk-python/issues/192)) ([028d6de](https://github.com/glassflow/rius-sdk-python/commit/028d6decebe3010edbf3b9fa4d0f2a9c8a4868de))
+
+
+### Documentation
+
+* add a banner, links and badges to the README ([#189](https://github.com/glassflow/rius-sdk-python/issues/189)) ([bffff7c](https://github.com/glassflow/rius-sdk-python/commit/bffff7cc93463ad707e120bb0816b067bd0865a3))
+
 ## [1.3.0](https://github.com/glassflow/rius-sdk-python/compare/v1.2.0...v1.3.0) (2026-10-15)
 
 
