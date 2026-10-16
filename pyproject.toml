@@ -1,7 +1,7 @@
 [project]
 name = "glassflow-rius"
 dynamic = ["version"]
-description = "GlassFlow Rius SDK — OpenTelemetry-native tracing for AI agents and LLM applications."
+description = "OpenTelemetry-native agent observability: trace every LLM call, tool call and agent step, with cost per call, alerts, and Claude Code / Codex / Cursor session tracing."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
@@ -16,6 +16,11 @@ keywords = [
     "agents",
     "genai",
     "rius",
+    "llm-observability",
+    "agent-observability",
+    "llm-cost",
+    "cost-tracking",
+    "monitoring",
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
