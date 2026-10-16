@@ -377,21 +377,28 @@ def test_manual_generation(exported_spans: InMemorySpanExporter) -> None:
     assert attrs["gen_ai.usage.input_tokens"] == 1
 
 
-# --- record_first_token: the TTFT anchor for streaming ---
+# --- record_first_token: time to first chunk for streaming ---
+# The signal is the conventions' gen_ai.response.time_to_first_chunk attribute
+# alone. No gen_ai.first_token event: the backend derives the one it stores
+# from the attribute, at span start plus the duration.
 
 
 def _first_token_events(span: ReadableSpan) -> list[Event]:
     return [e for e in span.events if e.name == "gen_ai.first_token"]
 
 
-def test_record_first_token_adds_event_between_start_and_end(
+def test_record_first_token_records_the_duration_and_no_event(
     exported_spans: InMemorySpanExporter,
 ) -> None:
     with start_as_current_generation("chat") as gen:
+        time.sleep(0.01)
         gen.record_first_token()
     span = exported_spans.get_finished_spans()[0]
-    (event,) = _first_token_events(span)
-    assert span.start_time <= event.timestamp <= span.end_time
+    assert _first_token_events(span) == []
+    ttfc = span.attributes["gen_ai.response.time_to_first_chunk"]
+    assert isinstance(ttfc, float)
+    assert 0.01 <= ttfc <= (span.end_time - span.start_time) / 1e9
+    assert span.attributes["gen_ai.request.stream"] is True
 
 
 def test_record_first_token_is_idempotent(exported_spans: InMemorySpanExporter) -> None:
@@ -400,7 +407,8 @@ def test_record_first_token_is_idempotent(exported_spans: InMemorySpanExporter) 
         gen.record_first_token()
         gen.record_first_token()
     span = exported_spans.get_finished_spans()[0]
-    assert len(_first_token_events(span)) == 1
+    assert _first_token_events(span) == []
+    assert "gen_ai.response.time_to_first_chunk" in span.attributes
 
 
 def test_record_first_token_after_end_is_noop(exported_spans: InMemorySpanExporter) -> None:
@@ -409,6 +417,7 @@ def test_record_first_token_after_end_is_noop(exported_spans: InMemorySpanExport
     gen.record_first_token()  # must neither raise nor record
     span = exported_spans.get_finished_spans()[0]
     assert _first_token_events(span) == []
+    assert "gen_ai.response.time_to_first_chunk" not in span.attributes
 
 
 def test_record_first_token_on_manual_generation(exported_spans: InMemorySpanExporter) -> None:
@@ -416,31 +425,8 @@ def test_record_first_token_on_manual_generation(exported_spans: InMemorySpanExp
     gen.record_first_token()
     gen.end()
     span = exported_spans.get_finished_spans()[0]
-    assert len(_first_token_events(span)) == 1
-
-
-def test_record_first_token_sets_time_to_first_chunk_and_stream(
-    exported_spans: InMemorySpanExporter,
-) -> None:
-    with start_as_current_generation("chat") as gen:
-        time.sleep(0.01)
-        gen.record_first_token()
-    span = exported_spans.get_finished_spans()[0]
-    ttfc = span.attributes["gen_ai.response.time_to_first_chunk"]
-    assert isinstance(ttfc, float)
-    assert ttfc > 0
-    assert span.attributes["gen_ai.request.stream"] is True
-    assert len(_first_token_events(span)) == 1  # the event is kept, not replaced
-
-
-def test_time_to_first_chunk_matches_event_offset(exported_spans: InMemorySpanExporter) -> None:
-    with start_as_current_generation("chat") as gen:
-        time.sleep(0.02)
-        gen.record_first_token()
-    span = exported_spans.get_finished_spans()[0]
-    (event,) = _first_token_events(span)
-    from_event = (event.timestamp - span.start_time) / 1e9
-    assert abs(span.attributes["gen_ai.response.time_to_first_chunk"] - from_event) < 0.005
+    assert _first_token_events(span) == []
+    assert span.attributes["gen_ai.response.time_to_first_chunk"] >= 0
 
 
 def test_second_record_first_token_does_not_change_time_to_first_chunk(
@@ -466,7 +452,10 @@ def test_generation_without_first_token_has_no_stream_attributes(
     assert "gen_ai.request.stream" not in span.attributes
 
 
-def test_record_first_token_on_span_without_start_time_skips_attribute() -> None:
+def test_record_first_token_on_span_without_start_time_measures_from_wrapping() -> None:
+    """A non-SDK span has no readable start; the Generation's own creation
+    stands in for it, as in the TypeScript SDK."""
+
     class _Recording:
         def __init__(self) -> None:
             self.events: list[str] = []
@@ -483,9 +472,10 @@ def test_record_first_token_on_span_without_start_time_skips_attribute() -> None
 
     span = _Recording()
     gen = Generation(span)  # type: ignore[arg-type]
+    time.sleep(0.01)
     gen.record_first_token()  # must not raise
-    assert span.events == ["gen_ai.first_token"]
-    assert "gen_ai.response.time_to_first_chunk" not in span.attributes
+    assert span.events == []
+    assert 0.01 <= span.attributes["gen_ai.response.time_to_first_chunk"] < 5
     assert span.attributes["gen_ai.request.stream"] is True
 
 

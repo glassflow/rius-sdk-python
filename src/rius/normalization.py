@@ -66,8 +66,8 @@ tests, injected through ``table=``.
 
 Not everything a dialect says is an attribute. OpenInference records the first
 streamed chunk as a span EVENT, so it cannot go through the rule table at all;
-``normalize_first_token_event`` maps it onto ``gen_ai.first_token`` plus the
-canonical streaming attributes, and the exporter applies it alongside the
+``first_chunk_from_event`` derives the canonical streaming attributes from
+it, leaving the event as recorded, and the exporter applies it alongside the
 table. It lives in the exporter for two reasons that agree: the event does not
 exist yet at ``on_start``, and the exporter is rebuilding the attribute dict
 anyway, so the derived attribute is still settable there. A failure is the
@@ -105,7 +105,7 @@ from collections.abc import Callable, Iterable, Mapping, Sequence
 from typing import Any
 
 from opentelemetry import context as otel_context
-from opentelemetry.sdk.trace import Event, ReadableSpan, Span, SpanProcessor
+from opentelemetry.sdk.trace import ReadableSpan, Span, SpanProcessor
 from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
 from opentelemetry.trace import StatusCode
 
@@ -116,7 +116,6 @@ from .semconv import (
     ERROR_TYPE,
     EXCEPTION_EVENT,
     EXCEPTION_TYPE,
-    GEN_AI_FIRST_TOKEN_EVENT,
     GEN_AI_INPUT_MESSAGES,
     GEN_AI_OPERATION_NAME,
     GEN_AI_OUTPUT_MESSAGES,
@@ -398,56 +397,46 @@ class NormalizingSpanProcessor(SpanProcessor):
 OPENINFERENCE_FIRST_TOKEN_EVENT = "First Token Stream Event"
 
 
-def normalize_first_token_event(
-    span: ReadableSpan,
-) -> tuple[tuple[Event, ...] | None, dict[str, Any]]:
-    """Map OpenInference's first-token event onto the canonical shape.
+def first_chunk_from_event(span: ReadableSpan) -> dict[str, Any]:
+    """The canonical streaming attributes for a span marked by OpenInference.
 
-    Returns the rebuilt event tuple (None when nothing changes) and the
-    canonical attributes to add. This does NOT go through
+    Returns the attributes to add: ``gen_ai.request.stream`` and
+    ``gen_ai.response.time_to_first_chunk``, the seconds from the span's start
+    to its first marker. The marker event itself is left as recorded: no
+    ``gen_ai.first_token`` event is ever written, since the backend derives
+    the one it stores from the duration. This does NOT go through
     :class:`NormalizationTable`: the table maps attribute keys, and the source
     here is an event.
 
     It is the exporter's job, not the processor's, for two reasons that point
-    the same way. The event does not exist at ``on_start`` — it is added
-    mid-stream — so a start-time processor has nothing to read. And the
-    derived ``gen_ai.response.time_to_first_chunk`` is an attribute, which the
-    exporter can still set because it rebuilds ``_attributes`` on a copy of
-    the span (see :class:`NormalizingSpanExporter`); it is only the *live*
-    span that is out of reach by then, and we do not need it.
+    the same way. The event does not exist at ``on_start`` (it is added
+    mid-stream), so a start-time processor has nothing to read. And the
+    derived duration is an attribute, which the exporter can still set
+    because it rebuilds ``_attributes`` on a copy of the span (see
+    :class:`NormalizingSpanExporter`); it is only the *live* span that is out
+    of reach by then, and we do not need it.
 
-    Native wins, as for attributes: a span already carrying
-    ``gen_ai.first_token`` keeps it, and canonical attributes already present
-    are never overwritten. The source event is dropped either way — kept, it
-    would double-count as a second first-token marker.
+    Native wins, as for attributes: a key the span already carries is left
+    out, and the caller adds the rest with setdefault, so a value the table
+    produced is never overwritten either. The duration is never negative. A
+    marker after the span's end is not clamped: it is when the chunk arrived
+    (LlamaIndex ends its stream_chat span before the first chunk), and the
+    backend keeps a recorded marker's time as it is.
 
     Unit: ``gen_ai.response.time_to_first_chunk`` is **seconds** (a float),
     matching what ``GenerationSpan.record_first_token`` emits on the native
     path and what the conventions specify.
     """
-    events = span.events
-    if not events or not any(e.name == OPENINFERENCE_FIRST_TOKEN_EVENT for e in events):
-        return None, {}
-
+    events = span.events or ()
+    first_token_ns = next(
+        (e.timestamp for e in events if e.name == OPENINFERENCE_FIRST_TOKEN_EVENT), None
+    )
+    if first_token_ns is None:
+        return {}
     attributes = span.attributes or {}
-    canonical_seen = any(e.name == GEN_AI_FIRST_TOKEN_EVENT for e in events)
-    first_token_ns: int | None = None
-    rebuilt: list[Event] = []
-    for event in events:
-        if event.name != OPENINFERENCE_FIRST_TOKEN_EVENT:
-            rebuilt.append(event)
-            continue
-        if first_token_ns is None:
-            first_token_ns = event.timestamp
-        if canonical_seen:
-            # A duplicate marker; the canonical one is authoritative.
-            continue
-        canonical_seen = True
-        rebuilt.append(Event(GEN_AI_FIRST_TOKEN_EVENT, event.attributes, event.timestamp))
-
     added: dict[str, Any] = {}
     if GEN_AI_REQUEST_STREAM not in attributes:
-        # A first chunk arriving is what proves the request streamed — the
+        # A first chunk arriving is what proves the request streamed: the
         # same inference record_first_token makes.
         added[GEN_AI_REQUEST_STREAM] = True
     start_ns = span.start_time
@@ -457,7 +446,7 @@ def normalize_first_token_event(
         and isinstance(start_ns, int)
     ):
         added[GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK] = max(first_token_ns - start_ns, 0) / 1e9
-    return tuple(rebuilt), added
+    return added
 
 
 #: The GenAI conventions' METRIC name for time to first chunk. pydantic-ai and
@@ -480,35 +469,6 @@ def first_chunk_from_metric(raw: Any) -> Mapping[str, Any]:
     return {GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK: seconds, GEN_AI_REQUEST_STREAM: True}
 
 
-def first_token_event_from_duration(
-    span: ReadableSpan, attributes: Mapping[str, Any]
-) -> tuple[Event, ...] | None:
-    """A ``gen_ai.first_token`` event for a span that measured TTFT but has none.
-
-    The backend reads time to first chunk from the first-token event alone,
-    so a span that carries only the measured duration (pydantic-ai,
-    @ai-sdk/otel) would show no TTFT at all. The event is placed at the span's
-    start plus that duration, so the event and the attribute agree. Never
-    later than the span's end: a duration measured on another clock can
-    overshoot a span that ended right after its first chunk.
-
-    Returns the span's events with the new one appended, or None when the
-    span already has a first-token event (of either spelling) or no usable
-    duration.
-    """
-    events = span.events or ()
-    if any(e.name in (GEN_AI_FIRST_TOKEN_EVENT, OPENINFERENCE_FIRST_TOKEN_EVENT) for e in events):
-        return None
-    seconds = _number(attributes.get(GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK))
-    start_ns = span.start_time
-    if seconds is SKIP or seconds < 0 or not isinstance(start_ns, int):
-        return None
-    timestamp = start_ns + round(seconds * 1e9)
-    if isinstance(span.end_time, int):
-        timestamp = min(timestamp, span.end_time)
-    return (*events, Event(GEN_AI_FIRST_TOKEN_EVENT, {}, timestamp))
-
-
 def error_type_from_exception_event(span: ReadableSpan) -> dict[str, Any]:
     """``error.type`` for a failed span, from its OTel ``exception`` event.
 
@@ -518,7 +478,7 @@ def error_type_from_exception_event(span: ReadableSpan) -> dict[str, Any]:
     helpers set it natively (``_errors.record_error``); this is the same fact
     for the spans we did not write.
 
-    Like :func:`normalize_first_token_event` it reads an EVENT, so it sits
+    Like :func:`first_chunk_from_event` it reads an EVENT, so it sits
     outside :class:`NormalizationTable`, and it is export-stage only: neither
     the event nor the ERROR status exists at ``on_start``. ``error.type`` is
     metadata, not identity, so it never needs to reach a pending snapshot.
@@ -1151,9 +1111,8 @@ class NormalizingSpanExporter(SpanExporter):
         )
         if vectorless is not None:
             new_attributes = vectorless
-        new_events, event_attributes = normalize_first_token_event(span)
         event_attributes = {
-            **event_attributes,
+            **first_chunk_from_event(span),
             **error_type_from_exception_event(span),
             # On the rebuilt attributes, so the taxonomy the table derived
             # decides whether this is an LLM span.
@@ -1170,13 +1129,6 @@ class NormalizingSpanExporter(SpanExporter):
             for key, value in event_attributes.items():
                 base.setdefault(key, value)
             new_attributes = base
-        # Last, on the final attributes: the duration may come from the table
-        # (the metric spelling) or from the span itself.
-        synthesized = first_token_event_from_duration(
-            span, (span.attributes or {}) if new_attributes is None else new_attributes
-        )
-        if synthesized is not None:
-            new_events = synthesized
         # Last, on the canonical keys: a LiteLLM span whose child recorded the
         # same call keeps its usage only as rius.aggregated_usage.*.
         if self._wrapped_calls is not None and self._wrapped_calls.take(span):
@@ -1185,15 +1137,12 @@ class NormalizingSpanExporter(SpanExporter):
             )
             if moved is not None:
                 new_attributes = moved
-        if new_attributes is None and new_events is None:
+        if new_attributes is None:
             return span
         normalized = copy.copy(span)
-        if new_attributes is not None:
-            # Carrying the dropped count: a plain dict would report 0 and hide
-            # a span that hit the attribute-count limit.
-            normalized._attributes = replacement_attributes(span, new_attributes)
-        if new_events is not None:
-            normalized._events = new_events
+        # Carrying the dropped count: a plain dict would report 0 and hide a
+        # span that hit the attribute-count limit.
+        normalized._attributes = replacement_attributes(span, new_attributes)
         return normalized
 
     def force_flush(self, timeout_millis: int = 30_000) -> bool:
@@ -1759,9 +1708,8 @@ OPENINFERENCE_RULES: tuple[AnyRule, ...] = (
         to_int,
     ),
     # Time to first chunk under the conventions' metric name, which
-    # pydantic-ai and @ai-sdk/otel write as a span attribute. The exporter
-    # then gives such a span the first-token event it lacks
-    # (first_token_event_from_duration).
+    # pydantic-ai and @ai-sdk/otel write as a span attribute. The duration is
+    # the whole signal: no first-token event is added.
     ExpandingRule(GEN_AI_CLIENT_TIME_TO_FIRST_CHUNK, first_chunk_from_metric),
     # The request bag: the dedicated model rules above take precedence over
     # its `model` member.
