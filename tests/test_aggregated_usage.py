@@ -206,9 +206,13 @@ def test_init_wires_the_tracker(with_child: bool) -> None:
         assert attributes["gen_ai.usage.input_tokens"] == 42
 
 
-def test_a_wrapper_exported_at_shutdown_keeps_its_usage_aside() -> None:
+def test_a_wrapper_exported_at_shutdown_keeps_its_usage_aside(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     # No flush: the spans are still queued in the batch processor when the
-    # provider shuts down, and the tracker is shut down before it.
+    # provider shuts down, and the tracker is shut down before it. A long
+    # schedule delay keeps the worker from exporting them earlier.
+    monkeypatch.setenv("OTEL_BSP_SCHEDULE_DELAY", "60000")
     sink = InMemorySpanExporter()
     client = init(api_key="test", span_exporter=sink, heartbeat=False, set_global=False)
     langchain = client.get_tracer(LANGCHAIN_SCOPE)
