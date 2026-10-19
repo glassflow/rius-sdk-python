@@ -346,8 +346,18 @@ def test_every_native_media_part_is_rebuilt_into_the_canonical_shape(
     assert _native(part) == written
 
 
-def test_a_native_part_that_cannot_be_read_is_kept_as_it_is() -> None:
-    part = {"type": "uri", "uri": 3}
+@pytest.mark.parametrize(
+    "part",
+    [
+        {"type": "uri", "uri": 3},
+        {"modality": "image", "type": "uri", "x": 1},
+        {"type": "file", "mime_type": "text/plain;charset=x"},
+        {"file_id": None, "type": "file", "modality": "audio"},
+    ],
+)
+def test_a_native_uri_or_file_with_nothing_to_point_to_is_kept_as_it_came(
+    part: dict[str, Any],
+) -> None:
     assert _native(part) == json.dumps([part], separators=(",", ":"))
 
 
@@ -530,6 +540,28 @@ def test_openinference_images_become_media_parts() -> None:
         {"type": "uri", "modality": "image", "uri": "https://example.com/cat.png"},
         _blob("image", None, None, "redacted_upstream"),
     ]
+
+
+@pytest.mark.parametrize(
+    ("member_order", "parts"),
+    [
+        (
+            '{"type":"text","uri":"https://example.com/a.png","type":"uri"}',
+            [{"type": "uri", "modality": "image", "uri": "https://example.com/a.png"}],
+        ),
+        (
+            '{"type":"uri","uri":"https://example.com/a.png","type":"text","content":"hi"}',
+            [{"type": "text", "uri": "https://example.com/a.png", "content": "hi"}],
+        ),
+    ],
+)
+def test_a_duplicate_part_type_is_read_as_its_last_member(
+    member_order: str, parts: list[dict[str, Any]]
+) -> None:
+    raw = '[{"role":"user","parts":[' + member_order + "]}]"
+    out = _export(_span({GEN_AI_INPUT_MESSAGES: raw}))
+    assert out.attributes is not None
+    assert json.loads(str(out.attributes[GEN_AI_INPUT_MESSAGES]))[0]["parts"] == parts
 
 
 def test_native_messages_with_blob_content_are_rewritten() -> None:
