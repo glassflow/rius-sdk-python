@@ -612,6 +612,25 @@ def test_a_native_part_is_rebuilt_in_place_and_every_other_byte_kept() -> None:
     )
 
 
+def test_system_instructions_are_rebuilt_in_place_and_every_other_byte_kept() -> None:
+    raw = '[ {"type": "text", "content": "Be brief."} ,\n  {"type": "blob", "content": "QUJD"} ]'
+    rebuilt = native_media_messages({"gen_ai.system_instructions": raw})
+    assert rebuilt is not None
+    assert rebuilt["gen_ai.system_instructions"] == (
+        '[ {"type": "text", "content": "Be brief."} ,\n  {"type":"blob","modality":"document",'
+        '"byte_size":3,"stripped_reason":"not_captured"} ]'
+    )
+
+
+def test_a_canonical_part_written_with_spaces_is_rewritten_compact() -> None:
+    raw = '[ {"type": "file", "modality": "document", "file_id": "f-1"} ]'
+    rebuilt = native_media_messages({"gen_ai.system_instructions": raw})
+    assert rebuilt is not None
+    assert rebuilt["gen_ai.system_instructions"] == (
+        '[ {"type":"file","modality":"document","file_id":"f-1"} ]'
+    )
+
+
 @pytest.mark.parametrize(
     "raw",
     [
@@ -657,6 +676,40 @@ def test_a_part_type_written_with_an_escape_is_still_rebuilt() -> None:
     assert rebuilt is not None
     assert rebuilt["gen_ai.system_instructions"] == (
         '[{"type":"blob","modality":"document","byte_size":3,"stripped_reason":"not_captured"}]'
+    )
+
+
+@pytest.mark.parametrize(("levels", "rebuilt"), [(500, True), (1000, True), (1001, False)])
+def test_parts_are_rebuilt_up_to_a_thousand_levels_and_a_deeper_value_is_left(
+    levels: int, rebuilt: bool
+) -> None:
+    # The message array, the message, its parts and the tool call are four.
+    arguments = "[" * (levels - 4) + "]" * (levels - 4)
+    raw = (
+        '[{"role":"user","parts":[{"type":"blob","modality":"image","content":"QUFB"},'
+        '{"type":"tool_call","arguments":' + arguments + "}]}]"
+    )
+    out = native_media_messages({GEN_AI_INPUT_MESSAGES: raw})
+    if not rebuilt:
+        assert out is None
+        return
+    assert out is not None
+    assert out[GEN_AI_INPUT_MESSAGES] == raw.replace(
+        '{"type":"blob","modality":"image","content":"QUFB"}',
+        '{"type":"blob","modality":"image","byte_size":3,"stripped_reason":"not_captured"}',
+    )
+
+
+def test_a_value_past_the_part_limit_still_exports_and_is_stripped() -> None:
+    arguments = "[" * 997 + "]" * 997
+    raw = (
+        '[{"role":"user","parts":[{"type":"uri","uri":"data:image/png;base64,QUFB"},'
+        '{"type":"tool_call","arguments":' + arguments + "}]}]"
+    )
+    out = _export(_span({GEN_AI_INPUT_MESSAGES: raw}))
+    assert out.attributes is not None
+    assert str(out.attributes[GEN_AI_INPUT_MESSAGES]).startswith(
+        '[{"role":"user","parts":[{"type":"uri","uri":"[stripped image/png 3 bytes]"}'
     )
 
 
