@@ -31,9 +31,18 @@ TRUNCATION_MARKER = "…(truncated)"
 #: How much of a value is rendered for the media strip to read it whole. Past
 #: it the value is cut and stripped conservatively (see ``_cut_past_budget``).
 MAX_STRIP_CHARS = 1024 * 1024
-#: A run of the base64 alphabet (either variant, with padding) long enough to
-#: be media rather than a word: what the fallback past the budget replaces.
-_BASE64_RUN = re.compile(r"[A-Za-z0-9+/\-_=]{64,}")
+#: A run of the base64 alphabet (either variant, with padding): what the
+#: fallback past the budget replaces once it is long enough to be media (see
+#: ``_MIN_MEDIA_RUN``). A JSON text may write a character of the alphabet as an
+#: escape (PHP writes "/" as "\/", others "+" as "\u002b"), so such an escape
+#: is one character of the run. Each match is a whole run, its length checked
+#: after, so every character is read once.
+_BASE64_RUN = re.compile(
+    r"(?:[A-Za-z0-9+/\-_=]|\\/"
+    r"|\\u00(?:2[bdfBDF]|3[0-9dD]|4[1-9a-fA-F]|5[0-9aAfF]|6[1-9a-fA-F]|7[0-9aA]))+"
+)
+#: The shortest run the fallback takes for media rather than a word.
+_MIN_MEDIA_RUN = 64
 
 # One JSON encoding for every producer of a JSON-valued attribute (this SDK,
 # the TypeScript SDK and the sink): compact separators, raw UTF-8 rather than
@@ -70,7 +79,14 @@ def _cut_past_budget(text: str) -> str:
     result is not byte-identical with the TypeScript SDK's past the budget.
     """
     stripped = strip_raw_payload(text[:MAX_ATTR_CHARS])
-    return _BASE64_RUN.sub(replacement(None, None), stripped) + TRUNCATION_MARKER
+    return _BASE64_RUN.sub(_replace_media_run, stripped) + TRUNCATION_MARKER
+
+
+def _replace_media_run(match: re.Match[str]) -> str:
+    run = match.group()
+    # A backslash starts an escape: "\/" writes one character, "\u00XX" one.
+    length = len(run) - run.count("\\/") - 5 * run.count("\\u")
+    return replacement(None, None) if length >= _MIN_MEDIA_RUN else run
 
 
 def _cut(text: str) -> str:
