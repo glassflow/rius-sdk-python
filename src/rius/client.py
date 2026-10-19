@@ -51,6 +51,8 @@ from .semconv import (
     RIUS_SDK_GLOBAL_PROVIDER,
     SERVICE_INSTANCE_ID,
     SERVICE_VERSION,
+    TELEMETRY_DISTRO_NAME,
+    TELEMETRY_DISTRO_VERSION,
     TRACER_NAME,
 )
 from .session import SessionSpanProcessor
@@ -669,8 +671,8 @@ def _do_init(
             # that named nothing claims no agent identity.
             **_main_agent_attributes(config),
             **({RIUS_SDK_GLOBAL_PROVIDER: f"foreign:{foreign_global}"} if foreign_global else {}),
-            "telemetry.distro.name": "glassflow-rius",
-            "telemetry.distro.version": __version__,
+            TELEMETRY_DISTRO_NAME: "glassflow-rius",
+            TELEMETRY_DISTRO_VERSION: __version__,
         }
     )
     sampler = BridgeAwareSampler(ParentBased(root=TraceIdRatioBased(config.sample_rate)))

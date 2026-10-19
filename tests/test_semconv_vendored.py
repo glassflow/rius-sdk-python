@@ -14,7 +14,7 @@ import rius.semconv as semconv
 
 def test_every_generated_name_is_served_by_semconv_unchanged() -> None:
     names = [name for name in vars(generated) if not name.startswith("__")]
-    names = [name for name in names if name not in {"annotations", "Enum", "OtelSpanKind"}]
+    names = [name for name in names if name not in {"annotations", "Enum"}]
     assert names
     for name in names:
         assert getattr(semconv, name) is getattr(generated, name), name
