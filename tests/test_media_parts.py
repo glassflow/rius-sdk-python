@@ -713,6 +713,15 @@ def test_a_value_past_the_part_limit_still_exports_and_is_stripped() -> None:
     )
 
 
+@pytest.mark.parametrize("parts_only", [False, True])
+def test_a_value_twenty_thousand_levels_deep_is_left_as_it_came(parts_only: bool) -> None:
+    raw = '[{"type":"blob","content":"QUFB","parts":' + "[" * 20000 + "]" * 20000 + "}]"
+    key = "gen_ai.system_instructions" if parts_only else GEN_AI_INPUT_MESSAGES
+    assert native_media_messages({key: raw}) is None
+    out = _export(_span({key: raw}))
+    assert out.attributes is not None
+
+
 def test_native_messages_without_media_are_left_byte_for_byte() -> None:
     raw = '[{"role": "user", "parts": [{"type": "text", "content": "a blob of text"}]}]'
     assert native_media_messages({GEN_AI_OUTPUT_MESSAGES: raw}) is None

@@ -25,6 +25,7 @@ and the registry's rules are exhaustive.
 from __future__ import annotations
 
 import bisect
+import json
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -295,72 +296,12 @@ class _Parser:
         self.i += 1
 
     def value(self) -> _Value:
-        """One value, its arrays and objects walked with an explicit stack, so
-        no nesting the depth limit allows can exhaust the interpreter's."""
-        # Each open container, with the key of the member being read (object).
-        stack: list[tuple[_Value, str]] = []
-        while True:
-            ch = self.peek()
-            if ch == "{" or ch == "[":
-                close = "}" if ch == "{" else "]"
-                node = _Value(self.i, self.i, None)
-                self.i += 1
-                self.enter()
-                if ch == "{":
-                    node.members = []
-                else:
-                    node.items = []
-                self.space()
-                if self.peek() != close:
-                    stack.append((node, self.key() if ch == "{" else ""))
-                    continue
-                self.i += 1
-                done = self.close(node)
-            else:
-                done = self.scalar()
-            while True:
-                if not stack:
-                    return done
-                parent, key = stack[-1]
-                if parent.members is not None:
-                    parent.members.append((key, done))
-                else:
-                    assert parent.items is not None
-                    parent.items.append(done)
-                self.space()
-                if self.peek() == ",":
-                    self.i += 1
-                    self.space()
-                    if parent.members is not None:
-                        stack[-1] = (parent, self.key())
-                    break
-                self.expect("}" if parent.members is not None else "]")
-                stack.pop()
-                done = self.close(parent)
-
-    def key(self) -> str:
-        """An object member's key and its colon, up to its value."""
-        self.space()
-        key = self.string().value
-        self.space()
-        self.expect(":")
-        self.space()
-        return str(key)
-
-    def close(self, node: _Value) -> _Value:
-        """A container whose closing bracket was just read: its span and value
-        (an object's duplicated member keeps its first place and last value,
-        as ``json.loads`` reads it)."""
-        self.depth -= 1
-        node.end = self.i
-        if node.members is not None:
-            node.value = {k: v.value for k, v in node.members}
-        else:
-            node.value = [v.value for v in node.items or ()]
-        return node
-
-    def scalar(self) -> _Value:
-        if self.peek() == '"':
+        ch = self.peek()
+        if ch == "{":
+            return self.object()
+        if ch == "[":
+            return self.array()
+        if ch == '"':
             return self.string()
         for word, val in (("true", True), ("false", False), ("null", None)):
             if self.text.startswith(word, self.i):
@@ -370,10 +311,54 @@ class _Parser:
         if not match:
             raise _NotJson("no value")
         self.i = match.end()
-        number = match.group()
-        # As json.loads reads it: an int unless it has a fraction or exponent.
-        whole = "." not in number and "e" not in number and "E" not in number
-        return _Value(match.start(), match.end(), int(number) if whole else float(number))
+        # A number's value is never read by a rule; only that it is one.
+        return _Value(match.start(), match.end(), 0)
+
+    def object(self) -> _Value:
+        start = self.i
+        self.expect("{")
+        self.enter()
+        members: list[tuple[str, _Value]] = []
+        self.space()
+        if self.peek() == "}":
+            self.i += 1
+        else:
+            while True:
+                self.space()
+                key = self.string()
+                self.space()
+                self.expect(":")
+                self.space()
+                members.append((key.value, self.value()))
+                self.space()
+                if self.peek() == ",":
+                    self.i += 1
+                    continue
+                self.expect("}")
+                break
+        self.depth -= 1
+        return _Value(start, self.i, {k: v.value for k, v in members}, members=members)
+
+    def array(self) -> _Value:
+        start = self.i
+        self.expect("[")
+        self.enter()
+        items: list[_Value] = []
+        self.space()
+        if self.peek() == "]":
+            self.i += 1
+        else:
+            while True:
+                self.space()
+                items.append(self.value())
+                self.space()
+                if self.peek() == ",":
+                    self.i += 1
+                    continue
+                self.expect("]")
+                break
+        self.depth -= 1
+        return _Value(start, self.i, [v.value for v in items], items=items)
 
     def string(self) -> _Value:
         start = self.i
@@ -917,34 +902,129 @@ def _compact(part: Part) -> str:
     return "{" + ",".join(members) + "}"
 
 
-def _part_edit(text: str, node: _Value, edits: list[_Edit]) -> None:
-    """The edit rebuilding one native media part, when its bytes change.
-
-    The part is read as a standard decoder reads it: the last of a
-    duplicated member wins."""
-    if node.members is None:
-        return
-    raw = text[node.start : node.end]
-    rebuilt = native_part(node.value)
-    if rebuilt is None:
-        return
-    encoded = _compact(rebuilt)
-    if encoded != raw:
-        edits.append((node.start, node.end, encoded))
-
-
-def _last_member(node: _Value, key: str) -> _Value | None:
-    found = None
-    for name, value in node.members or ():
-        if name == key:
-            found = value
-    return found
-
-
 #: How many arrays and objects deep a messages value may nest and still have
 #: its parts rebuilt, counting the value's own array: far above any real
 #: message, and the same bound as the TypeScript SDK and the sink.
 MESSAGE_MAX_DEPTH = 1000
+
+
+@dataclass
+class _Open:
+    """An array or object the part scan is inside: what it is in the
+    messages value, the member being read (object), and the part spans found
+    in it so far."""
+
+    is_object: bool
+    role: str
+    start: int
+    key: str | None = None
+    spans: list[tuple[int, int]] | None = None
+
+
+def _key(scan: _Parser) -> str:
+    """An object member's key and its colon, up to its value."""
+    scan.space()
+    key = scan.string().value
+    scan.space()
+    scan.expect(":")
+    scan.space()
+    return str(key)
+
+
+def _role(stack: list[_Open], parts_only: bool) -> str:
+    """What the next value is, from where it sits: the value itself, a
+    message, a message's parts, a part, or anything else."""
+    if not stack:
+        return "root"
+    parent = stack[-1]
+    if parent.role == "root" and not parent.is_object:
+        return "part" if parts_only else "message"
+    if parent.role == "message" and parent.is_object and parent.key == "parts":
+        return "parts"
+    if parent.role == "parts" and not parent.is_object:
+        return "part"
+    return "other"
+
+
+def _part_spans(text: str, parts_only: bool) -> list[tuple[int, int]]:
+    """The spans of the objects a messages value holds as parts, in order:
+    each message's ``parts`` items (the last ``parts`` member wins), or with
+    ``parts_only`` the value's own items.
+
+    A strict RFC 8259 walk with an explicit stack, so no nesting exhausts the
+    interpreter's: a value that does not parse, or nests past
+    MESSAGE_MAX_DEPTH, has none.
+    """
+    scan = _Parser(text, 0, MESSAGE_MAX_DEPTH)
+    stack: list[_Open] = []
+    try:
+        scan.space()
+        while True:
+            role = _role(stack, parts_only)
+            start = scan.i
+            ch = scan.peek()
+            node: _Open | None = None
+            if ch == "{" or ch == "[":
+                node = _Open(ch == "{", role, start, spans=[])
+                close = "}" if node.is_object else "]"
+                scan.i += 1
+                scan.enter()
+                scan.space()
+                if scan.peek() != close:
+                    if node.is_object:
+                        node.key = _key(scan)
+                    stack.append(node)
+                    continue
+                scan.i += 1
+                scan.depth -= 1
+            else:
+                scan.value()  # a string, number or literal: never nests
+            # The value from start to scan.i is done: hand it to its parents.
+            while True:
+                if not stack:
+                    scan.space()
+                    if scan.i != len(text):
+                        return []
+                    return node.spans or [] if node is not None and node.role == "root" else []
+                parent = stack[-1]
+                if role == "part" and node is not None and node.is_object:
+                    assert parent.spans is not None
+                    parent.spans.append((start, scan.i))
+                elif role == "parts":
+                    parent.spans = node.spans if node is not None and not node.is_object else []
+                elif role == "message" and node is not None and node.is_object:
+                    assert parent.spans is not None and node.spans is not None
+                    parent.spans.extend(node.spans)
+                scan.space()
+                if scan.peek() == ",":
+                    scan.i += 1
+                    scan.space()
+                    if parent.is_object:
+                        parent.key = _key(scan)
+                    break
+                scan.expect("}" if parent.is_object else "]")
+                scan.depth -= 1
+                node = stack.pop()
+                role, start = node.role, node.start
+    except _NotJson:
+        return []
+
+
+def _part_edit(raw: str) -> str | None:
+    """One native media part's rebuilt encoding, when its bytes change.
+
+    The part is read with ``json.loads``, as a standard decoder reads it (the
+    last of a duplicated member wins). One nested too deep to load is not
+    rebuilt."""
+    try:
+        part = json.loads(raw)
+    except (ValueError, RecursionError):
+        return None
+    rebuilt = native_part(part) if isinstance(part, dict) else None
+    if rebuilt is None:
+        return None
+    encoded = _compact(rebuilt)
+    return encoded if encoded != raw else None
 
 
 def rebuild_native_parts(text: str, *, parts_only: bool) -> str:
@@ -959,25 +1039,13 @@ def rebuild_native_parts(text: str, *, parts_only: bool) -> str:
     # Every media part names its type, unless an escape spells it.
     if '"blob"' not in text and '"uri"' not in text and '"file"' not in text and "\\" not in text:
         return text
-    try:
-        document = _Parser(text, 0, MESSAGE_MAX_DEPTH).document()
-    except _NotJson:
-        return text
-    if document.items is None:
-        return text
-    edits: list[_Edit] = []
-    for item in document.items:
-        if parts_only:
-            _part_edit(text, item, edits)
-            continue
-        parts = _last_member(item, "parts") if item.members is not None else None
-        for part in parts.items if parts is not None and parts.items is not None else ():
-            _part_edit(text, part, edits)
-    if not edits:
-        return text
     out, last = [], 0
-    for start, end, new in edits:
-        out += [text[last:start], new]
-        last = end
+    for start, end in _part_spans(text, parts_only):
+        encoded = _part_edit(text[start:end])
+        if encoded is not None:
+            out += [text[last:start], encoded]
+            last = end
+    if not out:
+        return text
     out.append(text[last:])
     return "".join(out)
