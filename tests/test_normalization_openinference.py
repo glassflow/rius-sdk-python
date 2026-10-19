@@ -15,7 +15,12 @@ import pytest
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from rius import init
-from rius.normalization import DEFAULT_TABLE, openinference_invocation_parameters
+from rius.normalization import (
+    DEFAULT_TABLE,
+    GEN_AI_USAGE_AUDIO_INPUT_TOKENS,
+    GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS,
+    openinference_invocation_parameters,
+)
 from rius.semconv import (
     GEN_AI_OPERATION_NAME,
     GEN_AI_PROVIDER_NAME,
@@ -198,6 +203,8 @@ def test_anthropic_input_tokens_are_not_summed_again() -> None:
             1,
             99,
         ),
+        ("llm.token_count.prompt_details.audio", GEN_AI_USAGE_AUDIO_INPUT_TOKENS, 1, 99),
+        ("llm.token_count.completion_details.audio", GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS, 1, 99),
     ],
 )
 def test_native_wins_and_the_source_goes(
@@ -222,6 +229,8 @@ def test_native_wins_and_the_source_goes(
             GEN_AI_USAGE_REASONING_OUTPUT_TOKENS,
             7,
         ),
+        ("llm.token_count.prompt_details.audio", GEN_AI_USAGE_AUDIO_INPUT_TOKENS, 7),
+        ("llm.token_count.completion_details.audio", GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS, 7),
     ],
 )
 def test_source_is_mapped_and_deleted(source: str, target: str, value: Any) -> None:
@@ -233,9 +242,7 @@ def test_source_is_mapped_and_deleted(source: str, target: str, value: Any) -> N
     [
         "llm.model_name",
         "llm.token_count.total",
-        "llm.token_count.prompt_details.audio",
         "llm.token_count.prompt_details.cache_input",
-        "llm.token_count.completion_details.audio",
         "llm.cost.total",
         "llm.tools.0.tool.json_schema",
         "llm.input_messages.0.message.content",

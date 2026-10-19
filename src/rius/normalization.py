@@ -1687,6 +1687,13 @@ def openinference_invocation_parameters(
     return produced
 
 
+#: The per-modality audio usage keys. Defined in the rius-semconv registry,
+#: whose rows say planned until an SDK writes them, so the vendored module
+#: does not carry them yet; they move to the semconv import when it does.
+GEN_AI_USAGE_AUDIO_INPUT_TOKENS = "gen_ai.usage.audio.input_tokens"
+GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS = "gen_ai.usage.audio.output_tokens"
+
+
 #: The shipped rules. Order matters where two sources share a target: the
 #: first to produce it wins.
 #:
@@ -1712,7 +1719,6 @@ def openinference_invocation_parameters(
 #: * ``llm.token_count.prompt_details.cache_input`` ("input tokens in the
 #:   prompt that were cached"). It overlaps cache_read and cache_write without
 #:   saying how, so neither canonical cache key can hold it.
-#: * ``llm.token_count.*_details.audio``. No canonical key.
 #: * ``llm.cost.*``. We deliberately do not put cost on the wire; the backend
 #:   prices from the token counts.
 #: * A SUM rule for the input tokens. Every bundled instrumentor already
@@ -1824,6 +1830,10 @@ OPENINFERENCE_RULES: tuple[AnyRule, ...] = (
         GEN_AI_USAGE_REASONING_OUTPUT_TOKENS,
         to_int,
     ),
+    # The audio split of each count: a subset of it, never added to it, as
+    # the per-modality usage keys are defined.
+    Rule("llm.token_count.prompt_details.audio", GEN_AI_USAGE_AUDIO_INPUT_TOKENS, to_int),
+    Rule("llm.token_count.completion_details.audio", GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS, to_int),
     # Two GenAI-shaped spellings of the same counts, each its own rule AFTER
     # the OpenInference one for its target: the OpenInference count keeps the
     # target where a span somehow carries both, and a separate rule rather
