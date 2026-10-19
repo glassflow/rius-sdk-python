@@ -91,7 +91,7 @@ exclude = ["docs/assets/"]
 dev = [
     "pytest>=8.0.0",
     "ruff>=0.17.0",
-    "mypy>=1.11.0",
+    "mypy>=2.4.0",
     # integration tests for bundled auto-instrumentation
     "openai>=1.0.0",
     "openinference-instrumentation-openai",
@@ -99,10 +99,10 @@ dev = [
     "openinference-instrumentation-anthropic",
     "mcp>=1.28.1",
     # litellm 1.82.7 and 1.82.8 were compromised releases; stay above them.
-    "litellm>=1.84.0",
+    "litellm>=1.105.1",
     "openinference-instrumentation-litellm",
     "langchain-core>=0.3.0",
-    "langchain-openai>=0.3.0",
+    "langchain-openai>=1.7.2",
     "openinference-instrumentation-langchain",
     "llama-index-core>=0.12.0",
     "llama-index-llms-openai>=0.3.0",
