@@ -231,6 +231,7 @@ def test_native_wins_and_the_source_goes(
         ),
         ("llm.token_count.prompt_details.audio", GEN_AI_USAGE_AUDIO_INPUT_TOKENS, 7),
         ("llm.token_count.completion_details.audio", GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS, 7),
+        ("gen_ai.usage.input_token_details.audio_tokens", GEN_AI_USAGE_AUDIO_INPUT_TOKENS, 7),
     ],
 )
 def test_source_is_mapped_and_deleted(source: str, target: str, value: Any) -> None:
@@ -243,6 +244,7 @@ def test_source_is_mapped_and_deleted(source: str, target: str, value: Any) -> N
         "llm.model_name",
         "llm.token_count.total",
         "llm.token_count.prompt_details.cache_input",
+        "gen_ai.usage.details.audio_tokens",
         "llm.cost.total",
         "llm.tools.0.tool.json_schema",
         "llm.input_messages.0.message.content",
@@ -764,3 +766,20 @@ def test_a_native_finish_reason_wins_and_the_source_still_goes() -> None:
     out = _normalize({"llm.finish_reason": "stop", GEN_AI_RESPONSE_FINISH_REASONS: ["length"]})
     assert out[GEN_AI_RESPONSE_FINISH_REASONS] == ["length"]
     assert "llm.finish_reason" not in out
+
+
+def test_an_audio_subset_never_changes_the_totals() -> None:
+    out = _normalize(
+        {
+            "llm.token_count.prompt": 100,
+            "llm.token_count.prompt_details.audio": 40,
+            "llm.token_count.completion": 20,
+            "llm.token_count.completion_details.audio": 5,
+        }
+    )
+    assert out == {
+        GEN_AI_USAGE_INPUT_TOKENS: 100,
+        GEN_AI_USAGE_AUDIO_INPUT_TOKENS: 40,
+        GEN_AI_USAGE_OUTPUT_TOKENS: 20,
+        GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS: 5,
+    }

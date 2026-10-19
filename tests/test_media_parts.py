@@ -280,16 +280,78 @@ def test_a_native_blob_mislabelled_image_gets_the_modality_of_its_mime() -> None
     assert message["parts"] == [_blob("document", "application/pdf", 5, "not_captured")]
 
 
-def test_a_native_uri_gets_its_modality_from_its_mime() -> None:
-    uri = {"type": "uri", "mime_type": "image/png", "uri": "https://example.com/a.png"}
-    [message] = normalize_messages([{"role": "user", "parts": [uri]}], "user")
-    assert message["parts"] == [{**uri, "modality": "image"}]
+def _native(part: dict[str, Any]) -> str:
+    """A native part after normalization, as the bytes it is written as."""
+    [message] = normalize_messages([{"role": "user", "parts": [part]}], "user")
+    return json.dumps(message["parts"], separators=(",", ":"))
 
 
-def test_a_native_file_gets_its_modality_from_its_mime() -> None:
+def test_a_native_uri_missing_a_modality_is_rebuilt_with_it_in_shape_order() -> None:
+    uri = {"uri": "https://example.com/a.png", "mime_type": "IMAGE/png", "type": "uri", "x": 1}
+    assert _native(uri) == (
+        '[{"type":"uri","modality":"image","mime_type":"IMAGE/png",'
+        '"uri":"https://example.com/a.png"}]'
+    )
+
+
+def test_a_native_file_missing_a_modality_is_rebuilt_with_it() -> None:
     file = {"type": "file", "mime_type": "audio/wav", "file_id": "f-1"}
-    [message] = normalize_messages([{"role": "user", "parts": [file]}], "user")
-    assert message["parts"] == [{**file, "modality": "audio"}]
+    assert (
+        _native(file)
+        == '[{"type":"file","modality":"audio","mime_type":"audio/wav","file_id":"f-1"}]'
+    )
+
+
+def test_a_native_uri_keeps_the_modality_it_has() -> None:
+    uri = {"type": "uri", "modality": "image", "mime_type": "application/pdf", "uri": "u"}
+    assert _native(uri) == json.dumps([uri], separators=(",", ":"))
+
+
+@pytest.mark.parametrize(
+    "part",
+    [
+        {"type": "uri", "uri": "https://example.com/a"},
+        {"type": "file", "file_id": "f-1", "mime_type": "not a mime"},
+        {"type": "blob", "byte_size": 3},
+    ],
+)
+def test_a_native_part_with_no_mime_and_no_modality_is_left_as_it_is(
+    part: dict[str, Any],
+) -> None:
+    assert _native(part) == json.dumps([part], separators=(",", ":"))
+
+
+def test_a_native_blob_with_content_and_no_hint_is_a_document_with_no_bytes() -> None:
+    blob = {"type": "blob", "content": PNG, "extra": True}
+    assert _native(blob) == (
+        '[{"type":"blob","modality":"document","byte_size":8,"stripped_reason":"not_captured"}]'
+    )
+
+
+def test_an_invalid_mime_is_omitted_never_null() -> None:
+    blob = {"type": "blob", "modality": "image", "mime_type": "png", "content": PNG}
+    assert _native(blob) == (
+        '[{"type":"blob","modality":"image","byte_size":8,"stripped_reason":"not_captured"}]'
+    )
+
+
+@pytest.mark.parametrize(
+    ("filename", "modality"),
+    [
+        ("a.webm", "video"),
+        ("a.MOV", "video"),
+        ("a.flac", "audio"),
+        ("a.txt", "document"),
+        ("a", "document"),
+    ],
+)
+def test_a_filename_names_the_modality_of_file_data(filename: str, modality: str) -> None:
+    parts = _parts([{"type": "file", "file": {"file_data": PNG, "filename": filename}}])
+    assert parts == [_blob(modality, None, 8, "not_captured")]
+
+
+def test_a_gemini_part_with_no_mime_is_a_document() -> None:
+    assert _parts([{"inline_data": {"data": PNG}}]) == [_blob("document", None, 8, "not_captured")]
 
 
 def test_a_native_uri_holding_a_data_url_is_a_blob() -> None:
@@ -308,7 +370,21 @@ def test_an_unknown_typed_part_passes_through_unchanged() -> None:
 
 def test_an_image_url_part_is_never_wrapped_in_a_text_part() -> None:
     parts = _parts([{"type": "image_url", "image_url": {"url": "data:image/png;base64,"}}])
-    assert parts == [_blob("image", "image/png", None, "redacted_upstream")]
+    assert parts == [_blob("image", "image/png", 0, "not_captured")]
+
+
+@pytest.mark.parametrize(
+    ("url", "part"),
+    [
+        ("data:text/plain,hi", _blob("document", "text/plain", None, "not_captured")),
+        ("data:None;url,None", _blob("image", None, None, "redacted_upstream")),
+        ("data:image/png,", _blob("image", "image/png", None, "redacted_upstream")),
+    ],
+)
+def test_a_data_url_that_is_not_base64_is_a_blob_with_no_size(
+    url: str, part: dict[str, Any]
+) -> None:
+    assert _parts([{"type": "image_url", "image_url": {"url": url}}]) == [part]
 
 
 # --- the generation helpers end to end ---
@@ -347,11 +423,11 @@ def test_set_input_records_the_blob_and_no_bytes(exported_spans: InMemorySpanExp
         }
     ]
     sizes = json.loads(str(span.attributes["rius.context.sizes"]))
-    assert sizes["input_messages"][0]["parts"][1] == {
-        "type": "blob",
-        "modality": "image",
-        "byte_size": 75_008,
-    }
+    assert sizes["input_messages"][0]["parts"] == [
+        {"type": "text", "bytes": len(b"inline  too")},
+        {"type": "blob", "modality": "image", "byte_size": 8},
+        {"type": "blob", "modality": "image", "byte_size": 75_008},
+    ]
 
 
 # --- the strip before the cap ---

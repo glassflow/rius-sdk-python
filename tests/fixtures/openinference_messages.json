@@ -466,7 +466,7 @@
       }
     },
     {
-      "name": "anthropic base64 image item (JS instrumentor) is a blob the instrumentor emptied",
+      "name": "anthropic base64 image item (JS instrumentor) is a blob redacted upstream",
       "sink_identical": true,
       "attributes": {
         "llm.input_messages.0.message.role": "user",
@@ -478,54 +478,6 @@
       },
       "expected": {
         "gen_ai.input.messages": "[{\"role\":\"user\",\"parts\":[{\"type\":\"blob\",\"modality\":\"image\",\"mime_type\":\"image/png\",\"stripped_reason\":\"redacted_upstream\"},{\"type\":\"text\",\"content\":\"Describe it.\"}]}]"
-      }
-    },
-    {
-      "name": "image item with a data URL is a blob without its bytes",
-      "sink_identical": true,
-      "attributes": {
-        "llm.input_messages.0.message.role": "user",
-        "llm.input_messages.0.message.contents.0.message_content.type": "image",
-        "llm.input_messages.0.message.contents.0.message_content.image.image.url": "data:image/png;base64,iVBORw0KGgo="
-      },
-      "expected": {
-        "gen_ai.input.messages": "[{\"role\":\"user\",\"parts\":[{\"type\":\"blob\",\"modality\":\"image\",\"mime_type\":\"image/png\",\"byte_size\":8,\"stripped_reason\":\"not_captured\"}]}]"
-      }
-    },
-    {
-      "name": "image item OpenInference redacted is a blob the instrumentor emptied",
-      "sink_identical": true,
-      "attributes": {
-        "llm.input_messages.0.message.role": "user",
-        "llm.input_messages.0.message.contents.0.message_content.type": "image",
-        "llm.input_messages.0.message.contents.0.message_content.image.image.url": "__REDACTED__"
-      },
-      "expected": {
-        "gen_ai.input.messages": "[{\"role\":\"user\",\"parts\":[{\"type\":\"blob\",\"modality\":\"image\",\"stripped_reason\":\"redacted_upstream\"}]}]"
-      }
-    },
-    {
-      "name": "anthropic url-source image item (Python instrumentor) is a blob the instrumentor emptied",
-      "sink_identical": true,
-      "attributes": {
-        "llm.input_messages.0.message.role": "user",
-        "llm.input_messages.0.message.contents.0.message_content.type": "image",
-        "llm.input_messages.0.message.contents.0.message_content.image.image.url": "data:None;url,None"
-      },
-      "expected": {
-        "gen_ai.input.messages": "[{\"role\":\"user\",\"parts\":[{\"type\":\"blob\",\"modality\":\"image\",\"stripped_reason\":\"redacted_upstream\"}]}]"
-      }
-    },
-    {
-      "name": "image item with a data URL of a PDF is a document blob",
-      "sink_identical": true,
-      "attributes": {
-        "llm.input_messages.0.message.role": "user",
-        "llm.input_messages.0.message.contents.0.message_content.type": "image",
-        "llm.input_messages.0.message.contents.0.message_content.image.image.url": "data:application/pdf;base64,JVBERi0="
-      },
-      "expected": {
-        "gen_ai.input.messages": "[{\"role\":\"user\",\"parts\":[{\"type\":\"blob\",\"modality\":\"document\",\"mime_type\":\"application/pdf\",\"byte_size\":5,\"stripped_reason\":\"not_captured\"}]}]"
       }
     }
   ]

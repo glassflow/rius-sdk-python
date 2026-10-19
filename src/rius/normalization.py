@@ -110,7 +110,15 @@ from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
 from opentelemetry.trace import Link, StatusCode
 
 from ._attributes import replacement_attributes
-from ._media import has_media_marker, is_mime, native_media_parts, strip_raw_payload, url_part
+from ._media import (
+    OPENINFERENCE_REDACTED,
+    REDACTED_UPSTREAM,
+    blob_part,
+    has_media_marker,
+    native_part,
+    strip_raw_payload,
+    url_part,
+)
 from ._serde import serialize
 from .aggregated_usage import WrappedCallTracker, move_aggregated_usage
 from .semconv import (
@@ -758,8 +766,11 @@ def _image_part(item: dict[str, str]) -> dict[str, Any]:
     for a url source, and an item with no URL at all (the JS Anthropic
     instrumentor's, carrying ``image.media_type`` when the source had one).
     """
+    url = item.get(_IMAGE_URL, "")
     mime = item.get(_IMAGE_MEDIA_TYPE)
-    return url_part(item.get(_IMAGE_URL), "image", mime if is_mime(mime) else None)
+    if url in ("", OPENINFERENCE_REDACTED):
+        return blob_part("image", mime, None, REDACTED_UPSTREAM)
+    return url_part(url, "image", mime)
 
 
 #: The fields a tool_use contents item may carry to count as a copy of a tool
@@ -1095,12 +1106,13 @@ _NATIVE_MESSAGE_KEYS = (GEN_AI_INPUT_MESSAGES, GEN_AI_OUTPUT_MESSAGES, _GEN_AI_S
 
 
 def _conformant_parts(parts: list[Any]) -> bool:
-    """Make each media part in ``parts`` conformant, in place; True if any changed."""
+    """Make each native media part in ``parts`` conformant, in place; True if
+    any changed."""
     changed = False
     for i, part in enumerate(parts):
-        fixed = native_media_parts(part)
-        if fixed is not None and fixed != [part]:
-            parts[i : i + 1] = fixed
+        fixed = native_part(part) if isinstance(part, dict) else None
+        if fixed is not None:
+            parts[i] = fixed
             changed = True
     return changed
 
@@ -1834,6 +1846,15 @@ OPENINFERENCE_RULES: tuple[AnyRule, ...] = (
     # the per-modality usage keys are defined.
     Rule("llm.token_count.prompt_details.audio", GEN_AI_USAGE_AUDIO_INPUT_TOKENS, to_int),
     Rule("llm.token_count.completion_details.audio", GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS, to_int),
+    # @ai-sdk/otel's flattening of a provider's input_token_details on a
+    # transcription span: the audio subset of the input, after the
+    # OpenInference spelling. pydantic-ai's gen_ai.usage.details.audio_tokens
+    # stays unmapped: it names no direction, so it fits neither audio key.
+    Rule(
+        "gen_ai.usage.input_token_details.audio_tokens",
+        GEN_AI_USAGE_AUDIO_INPUT_TOKENS,
+        to_int,
+    ),
     # Two GenAI-shaped spellings of the same counts, each its own rule AFTER
     # the OpenInference one for its target: the OpenInference count keeps the
     # target where a span somehow carries both, and a separate rule rather

@@ -43,7 +43,10 @@ A part is ``{"type": "text", "bytes"}``, ``{"type": "tool_call", "tool",
 ``{"type": "blob" | "uri" | "file", "modality", "byte_size"}`` (``byte_size``
 the size of the media itself, when known, and never ``bytes``: a blob carries
 no content to size) or, for any other part type, ``{"type": <type>}`` with no
-size. Roles are the literal
+size. A text part's ``bytes`` are its prose only: a media token in it (a data
+URL, keyed base64, a Buffer, whatever the raw-payload strip replaces) follows
+it as a blob entry of its own, its modality from the token's mime type
+(document when it names none). Every media entry carries a modality. Roles are the literal
 role strings of the normalized messages; ``tool`` is the tool NAME (resolved
 through the call id for responses), ``null`` when unknown.
 
@@ -55,6 +58,8 @@ from __future__ import annotations
 
 import json
 from typing import Any
+
+from ._media import modality_of, split_media
 
 DETAIL_WINDOW = 50
 MAX_SIZES_BYTES = 8192
@@ -134,33 +139,48 @@ def _call_names(*message_lists: list[Any] | None) -> dict[str, str | None]:
     return names
 
 
-def _part_entry(part: Any, call_names: dict[str, str | None]) -> dict[str, Any]:
+def _media_entry(part_type: str, modality: Any, byte_size: Any) -> dict[str, Any]:
+    """A media entry: its modality (document when nothing names one, the
+    contract's fallback for media with no hint) and the media's own size."""
+    entry: dict[str, Any] = {"type": part_type, "modality": modality}
+    if isinstance(byte_size, int) and not isinstance(byte_size, bool) and byte_size >= 0:
+        entry["byte_size"] = byte_size
+    return entry
+
+
+def _part_entries(part: Any, call_names: dict[str, str | None]) -> list[dict[str, Any]]:
     part_type = _part_type(part)
     if part_type == "text":
-        return {"type": "text", "bytes": _text_bytes(part.get("content"))}
+        content = part.get("content")
+        if not isinstance(content, str):
+            return [{"type": "text", "bytes": _text_bytes(content)}]
+        # A media token in the text (a data URL, keyed base64, a Buffer) is
+        # not prose: it follows the text as a blob entry of its own.
+        prose, tokens = split_media(content)
+        return [{"type": "text", "bytes": prose}] + [
+            _media_entry("blob", modality_of(token.mime) or "document", token.byte_size)
+            for token in tokens
+        ]
     if part_type == "tool_call":
         name = part.get("name")
         tool = name if isinstance(name, str) else None
-        return {"type": "tool_call", "tool": tool, "bytes": _canonical_bytes(part)}
+        return [{"type": "tool_call", "tool": tool, "bytes": _canonical_bytes(part)}]
     if part_type == "tool_call_response":
         call_id = part.get("id")
         tool = call_names.get(call_id) if isinstance(call_id, str) else None
-        return {"type": "tool_call_response", "tool": tool, "bytes": _canonical_bytes(part)}
+        return [{"type": "tool_call_response", "tool": tool, "bytes": _canonical_bytes(part)}]
     if part_type in _MEDIA_TYPES:
-        entry: dict[str, Any] = {"type": part_type}
-        if isinstance(part.get("modality"), str):
-            entry["modality"] = part["modality"]
-        size = part.get("byte_size")
-        if isinstance(size, int) and not isinstance(size, bool):
-            entry["byte_size"] = size
-        return entry
-    return {"type": part_type}
+        modality = part.get("modality")
+        if not isinstance(modality, str):
+            modality = modality_of(part.get("mime_type")) or "document"
+        return [_media_entry(part_type, modality, part.get("byte_size"))]
+    return [{"type": part_type}]
 
 
 def _message_entry(message: Any, call_names: dict[str, str | None]) -> dict[str, Any]:
     return {
         "role": _role(message),
-        "parts": [_part_entry(part, call_names) for part in _parts(message)],
+        "parts": [entry for part in _parts(message) for entry in _part_entries(part, call_names)],
     }
 
 
