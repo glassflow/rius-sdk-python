@@ -38,13 +38,15 @@ from rius import observe, start_as_current_generation, start_as_current_span
 from rius.semconv import SpanKind
 
 rius.init(
-    api_key="glassflow_...",          # or set RIUS_API_KEY
-    service_name="my-agent",          # or set RIUS_SERVICE_NAME
+    api_key="glassflow_...",  # or set RIUS_API_KEY
+    service_name="my-agent",  # or set RIUS_SERVICE_NAME
 )
+
 
 # 1. Decorator — trace a whole function
 @observe
 def handle(query: str) -> str: ...
+
 
 # 2. Context manager — trace a block
 with start_as_current_span("retrieve", kind=SpanKind.RETRIEVER) as obs:
@@ -132,9 +134,9 @@ visible; with a `mask`, the mask runs over them (the status description is
 offered under `key="status.description"`).
 
 ```python
-rius.init(mask=lambda value: "[REDACTED]")   # redact all captured content
+rius.init(mask=lambda value: "[REDACTED]")  # redact all captured content
 rius.init(mask=lambda value, *, key: hash_pii(value) if "input" in key else value)
-rius.init(capture_content=False)             # drop content entirely, keep metadata
+rius.init(capture_content=False)  # drop content entirely, keep metadata
 ```
 
 ### Running next to another OpenTelemetry SDK
@@ -174,9 +176,9 @@ the version it needs and leaves that one integration off. For example,
 an older `anthropic`, upgrade it or keep the instrumentation on 2.x.
 
 ```python
-rius.init()                          # auto-enables installed instrumentors
-rius.init(instruments=["openai"])    # restrict to specific ones
-rius.init(instruments=[])            # disable auto-instrumentation
+rius.init()  # auto-enables installed instrumentors
+rius.init(instruments=["openai"])  # restrict to specific ones
+rius.init(instruments=[])  # disable auto-instrumentation
 ```
 
 Supported instruments: `openai`, `anthropic`, `langchain`, `llama-index`,
