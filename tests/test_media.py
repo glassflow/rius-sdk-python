@@ -38,8 +38,16 @@ def test_every_golden_example_strips_to_its_exact_output(golden: dict[str, Any])
 
 
 @pytest.mark.parametrize("golden", GOLDEN, ids=[g["name"] for g in GOLDEN])
-def test_stripping_a_golden_output_again_changes_nothing(golden: dict[str, Any]) -> None:
-    assert strip_raw_payload(golden["output"]) == golden["output"]
+def test_stripping_a_golden_output_again_gives_its_second_output(golden: dict[str, Any]) -> None:
+    # Unchanged, but for the one input class the contract names: a candidate
+    # that parses only once pass 1 has run, whose second output it lists.
+    second = golden.get("second_output", golden["output"])
+    assert strip_raw_payload(golden["output"]) == second
+    assert strip_raw_payload(second) == second
+
+
+def test_a_golden_example_holds_a_second_pass() -> None:
+    assert any("second_output" in g for g in GOLDEN)
 
 
 def test_the_golden_examples_are_there() -> None:

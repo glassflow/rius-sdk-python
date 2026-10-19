@@ -1,0 +1,388 @@
+# Usage keys: a decision for every token, usage and cost key an instrumentor
+# sends, and what each normalizer does with it.
+#
+# A value present on a span under a name nothing reads is priced as zero, or
+# not priced at all, and nobody notices. So every key in a recorded fixture
+# whose name matches one of `match` needs an entry here, and
+# tools/check_usage_keys.py fails CI when a recording carries one that has
+# none. A new instrumentor version that adds a usage key fails there, not in
+# production.
+#
+# The same tool checks each entry against the recordings' expected results:
+# a normalizer listed in `mapped_by` must remove the key and leave its target
+# on that span; one that is not listed must leave the key alone. Python is
+# checked on the families the Python SDK produced the expected result for,
+# TypeScript on the Vercel families, the sink on the rows of the sink-only
+# families. The generated table, out/docs/usage-keys.md, lists every entry
+# with the families it was recorded in.
+#
+# Fields
+#
+#   key        The exact attribute key. Or:
+#   prefix     A key prefix, for a namespace whose members all share one
+#              decision.
+#   decision   canonical  a key the conventions (or our rius.* namespace)
+#                         define: what the normalizers produce. Must be a
+#                         registry attribute, or under a registry prefix.
+#              mapped     another spelling of a canonical count; the
+#                         normalizers in `mapped_by` rewrite it to `target`
+#                         and drop it.
+#              ignored    left on the span on purpose; `reason` says why
+#                         nothing should read it as usage.
+#              not_usage  matches `match` but is not a usage count (a request
+#                         parameter, a throughput figure, a diagnostic).
+#              gap        a count that reaches no canonical key yet and
+#                         should; `reason` says what is lost.
+#   target     For mapped: the canonical key it becomes.
+#   mapped_by  For mapped: the normalizers that map it (python, typescript,
+#              sink). The others leave it on the span.
+#   go         The sink's Go constant for the key, when it names one.
+#              check_parity.py counts these constants as classified.
+#   reason     Why. Required for ignored, not_usage and gap, where nothing
+#              reads the key as usage.
+#   type       int, double or string (a usage object written whole as
+#              JSON). A key without it is an int count; the keys under a
+#              prefix without it may hold any type.
+#
+# `producers` names who writes the keys no convention defines, by key prefix.
+# tools/to_weaver.py files each such key under model/inputs/<producer>.yaml
+# with its decision. Keys under gen_ai.* are never filed there: the namespace
+# is OpenTelemetry's, so the Weaver registry must not define them.
+
+#: Case-insensitive substrings of an attribute key that make it a usage key.
+match: [token, usage, cost, price]
+
+normalizers: [python, typescript, sink]
+
+producers:
+  openinference:
+    name: OpenInference
+    prefixes: [llm.token_count., llm.cost., metadata.ai.]
+  openllmetry:
+    name: OpenLLMetry
+    prefixes: [llm.usage.]
+  vercel:
+    name: the Vercel AI SDK
+    prefixes: [ai.]
+  pydantic_ai:
+    name: pydantic-ai
+    prefixes: [operation.cost, pydantic_ai.]
+
+keys:
+  # --- Canonical -------------------------------------------------------------
+
+  - key: gen_ai.usage.input_tokens
+    decision: canonical
+  - key: gen_ai.usage.output_tokens
+    decision: canonical
+  - key: gen_ai.usage.cache_read.input_tokens
+    decision: canonical
+  - key: gen_ai.usage.cache_write.input_tokens
+    decision: canonical
+  - key: gen_ai.usage.reasoning.output_tokens
+    decision: canonical
+  - key: gen_ai.usage.text.input_tokens
+    decision: canonical
+  - key: gen_ai.usage.text.output_tokens
+    decision: canonical
+  - key: gen_ai.usage.text.cache_read.input_tokens
+    decision: canonical
+  - key: gen_ai.usage.image.input_tokens
+    decision: canonical
+  - key: gen_ai.usage.image.output_tokens
+    decision: canonical
+  - key: gen_ai.usage.image.cache_read.input_tokens
+    decision: canonical
+  - key: gen_ai.usage.audio.input_tokens
+    decision: canonical
+  - key: gen_ai.usage.audio.output_tokens
+    decision: canonical
+  - key: gen_ai.usage.audio.cache_read.input_tokens
+    decision: canonical
+  - prefix: rius.aggregated_usage.
+    decision: canonical
+    reason: |
+      A whole agent run's usage, moved off gen_ai.usage.* by the TypeScript
+      SDK on producers known to repeat it on each call's span. Never read as
+      usage, so the run is not counted twice.
+
+  # --- OpenInference (llm.*) ---------------------------------------------------
+
+  - key: llm.token_count.prompt
+    decision: mapped
+    target: gen_ai.usage.input_tokens
+    mapped_by: [python, typescript, sink]
+    go: LLMTokenCountPrompt
+    reason: |
+      Copied, never summed with the cache counts: every bundled instrumentor
+      already reports it inclusive of them.
+  - key: llm.token_count.completion
+    decision: mapped
+    target: gen_ai.usage.output_tokens
+    mapped_by: [python, typescript, sink]
+    go: LLMTokenCountCompletion
+  - key: llm.token_count.prompt_details.cache_read
+    decision: mapped
+    target: gen_ai.usage.cache_read.input_tokens
+    mapped_by: [python, typescript, sink]
+    go: LLMTokenCountPromptCacheRead
+  - key: llm.token_count.prompt_details.cache_write
+    decision: mapped
+    target: gen_ai.usage.cache_write.input_tokens
+    mapped_by: [python, typescript, sink]
+    go: LLMTokenCountPromptCacheWrite
+  - key: llm.token_count.completion_details.reasoning
+    decision: mapped
+    target: gen_ai.usage.reasoning.output_tokens
+    mapped_by: [python, typescript, sink]
+    go: LLMTokenCountCompletionReasoning
+  - key: llm.token_count.total
+    decision: ignored
+    go: LLMTokenCountTotal
+    reason: |
+      The conventions define no total: they record input and output and leave
+      the sum to the reader. The sink reads it for validation only.
+  - key: llm.token_count.prompt_details.audio
+    decision: mapped
+    target: gen_ai.usage.audio.input_tokens
+    mapped_by: [python, typescript]
+    reason: A subset of the input count, never added to it.
+  - key: llm.token_count.completion_details.audio
+    decision: mapped
+    target: gen_ai.usage.audio.output_tokens
+    mapped_by: [python, typescript]
+    reason: A subset of the output count, never added to it.
+  - key: llm.cost.total
+    type: double
+    decision: ignored
+    reason: |
+      Cost stays off the wire on purpose: the backend prices from the token
+      counts with its own table, so a producer's figure is never trusted.
+
+  # --- GenAI-shaped spellings from other producers ---------------------------
+
+  - key: gen_ai.usage.cache_creation.input_tokens
+    decision: mapped
+    target: gen_ai.usage.cache_write.input_tokens
+    mapped_by: [python, typescript, sink]
+    go: GenAIUsageCacheCreationInputTokens
+    reason: |
+      The cache-write count's name before the conventions renamed it.
+      Current releases still send it (pydantic-ai, @ai-sdk/otel), and the
+      backend prices cache writes from the canonical key alone.
+
+  # pydantic-ai: usage details, run totals, its own cost and cache health.
+
+  - key: gen_ai.usage.details.reasoning_tokens
+    decision: mapped
+    target: gen_ai.usage.reasoning.output_tokens
+    mapped_by: [python, typescript, sink]
+    go: GenAIUsageDetailsReasoningTokens
+    reason: pydantic-ai's OpenAI reasoning split.
+  - key: gen_ai.usage.details.thinking_tokens
+    decision: mapped
+    target: gen_ai.usage.reasoning.output_tokens
+    mapped_by: [python, typescript, sink]
+    go: GenAIUsageDetailsThinkingTokens
+    reason: pydantic-ai's Anthropic reasoning split.
+  - key: gen_ai.usage.details.thoughts_tokens
+    decision: mapped
+    target: gen_ai.usage.reasoning.output_tokens
+    mapped_by: [python, typescript, sink]
+    go: GenAIUsageDetailsThoughtsTokens
+    reason: pydantic-ai's Google reasoning split.
+  - key: gen_ai.usage.details.cache_read_tokens
+    decision: mapped
+    target: gen_ai.usage.cache_read.input_tokens
+    mapped_by: [sink]
+    go: GenAIUsageDetailsCacheReadTokens
+    reason: |
+      pydantic-ai's backwards-compatible copy of the cache-read count, which
+      it also writes under the canonical key. The sink maps it only as a
+      fallback; the SDKs leave it, since the canonical key is always there.
+  - key: gen_ai.usage.details.cache_write_tokens
+    decision: mapped
+    target: gen_ai.usage.cache_write.input_tokens
+    mapped_by: [sink]
+    go: GenAIUsageDetailsCacheWriteTokens
+    reason: As cache_read_tokens, for cache writes.
+  - key: gen_ai.usage.details.audio_tokens
+    decision: ignored
+    reason: |
+      No single direction: pydantic-ai writes it with no input or output in
+      the name, so it cannot map to either audio key.
+  - key: gen_ai.usage.input_token_details.audio_tokens
+    decision: mapped
+    target: gen_ai.usage.audio.input_tokens
+    mapped_by: [python, typescript]
+    reason: |
+      @ai-sdk/otel's flattening of a provider's input_token_details on a
+      transcription span (OpenAI's gpt-4o-transcribe). A subset of the input
+      count, never added to it.
+  - key: gen_ai.usage.input_token_details.text_tokens
+    decision: ignored
+    reason: As input_token_details.audio_tokens, for the text part of the input.
+  - prefix: gen_ai.aggregated_usage.
+    decision: ignored
+    reason: |
+      pydantic-ai's whole-run total on its agent span, next to each call's
+      usage on the call's own span. Reading it as usage would count the run
+      twice; it stays under its own name, which nothing reads.
+  - key: operation.cost
+    type: double
+    decision: ignored
+    reason: |
+      pydantic-ai's own price for the call. Cost stays off the wire on
+      purpose, as with llm.cost.total.
+  - prefix: pydantic_ai.cache.
+    decision: not_usage
+    reason: |
+      pydantic-ai's prompt-cache health diagnostics (the cached prefix a
+      conversation established, hit ratio, misses), not provider usage.
+
+  # --- OpenLLMetry and Laminar (sink only) ------------------------------------
+
+  - key: gen_ai.usage.prompt_tokens
+    decision: mapped
+    target: gen_ai.usage.input_tokens
+    mapped_by: [sink]
+    reason: OpenLLMetry's input count before the GenAI rename (0.47 and earlier).
+  - key: gen_ai.usage.completion_tokens
+    decision: mapped
+    target: gen_ai.usage.output_tokens
+    mapped_by: [sink]
+    reason: OpenLLMetry's output count before the GenAI rename (0.47 and earlier).
+  - key: gen_ai.usage.cache_read_input_tokens
+    decision: mapped
+    target: gen_ai.usage.cache_read.input_tokens
+    mapped_by: [sink]
+    reason: OpenLLMetry's and Laminar's cache-read count (Anthropic's field name).
+  - key: gen_ai.usage.cache_creation_input_tokens
+    decision: mapped
+    target: gen_ai.usage.cache_write.input_tokens
+    mapped_by: [sink]
+    reason: OpenLLMetry's and Laminar's cache-write count (Anthropic's field name).
+  - key: gen_ai.usage.reasoning_tokens
+    decision: mapped
+    target: gen_ai.usage.reasoning.output_tokens
+    mapped_by: [sink]
+    reason: OpenLLMetry's reasoning count.
+  - key: llm.usage.reasoning_tokens
+    decision: mapped
+    target: gen_ai.usage.reasoning.output_tokens
+    mapped_by: [sink]
+    reason: OpenLLMetry's reasoning count in older releases.
+  - key: gen_ai.usage.total_tokens
+    decision: ignored
+    reason: |
+      Not a convention key: OpenLLMetry's total. No canonical key holds a
+      total, so it stays on the span as an extra.
+  - key: llm.usage.total_tokens
+    decision: ignored
+    reason: OpenLLMetry's and Laminar's total, as gen_ai.usage.total_tokens.
+
+  # --- Vercel AI SDK v5/v6 (ai.*) ---------------------------------------------
+  #
+  # A model call (doGenerate, doStream, doEmbed) maps its counts to
+  # gen_ai.usage.*; a wrapper (generateText, streamText, embed ...) maps the
+  # run's total, which repeats its calls', to rius.aggregated_usage.*. Where
+  # v6 writes both spellings of a count, the detailed one wins.
+
+  - key: ai.usage.inputTokens
+    decision: mapped
+    target: gen_ai.usage.input_tokens
+    mapped_by: [typescript, sink]
+    reason: Inclusive of the cached tokens, as the canonical key is.
+  - key: ai.usage.promptTokens
+    decision: ignored
+    reason: |
+      v5's input count on generateText and generateObject, left unread on
+      purpose. On a model call the AI SDK writes the same value to
+      gen_ai.usage.input_tokens itself. On the generateText wrapper v5 takes
+      it from the LAST step's response, not the run's total (v5's streams and
+      v6 report the total under ai.usage.inputTokens), so mapping it to
+      rius.aggregated_usage.* would put a short total under a key that
+      promises the whole run.
+  - key: ai.usage.tokens
+    decision: mapped
+    target: gen_ai.usage.input_tokens
+    mapped_by: [typescript, sink]
+    reason: An embedding call's input count (ai.embed, ai.embedMany and their doEmbed).
+  - key: ai.usage.outputTokens
+    decision: mapped
+    target: gen_ai.usage.output_tokens
+    mapped_by: [typescript, sink]
+  - key: ai.usage.completionTokens
+    decision: ignored
+    reason: v5's output count on generateText and generateObject; as ai.usage.promptTokens.
+  - key: ai.usage.inputTokenDetails.cacheReadTokens
+    decision: mapped
+    target: gen_ai.usage.cache_read.input_tokens
+    mapped_by: [typescript, sink]
+  - key: ai.usage.cachedInputTokens
+    decision: mapped
+    target: gen_ai.usage.cache_read.input_tokens
+    mapped_by: [typescript, sink]
+    reason: |
+      v5's cache-read count, still written beside the detailed spelling by
+      v6. Without it cached input was priced as uncached.
+  - key: ai.usage.inputTokenDetails.cacheWriteTokens
+    decision: mapped
+    target: gen_ai.usage.cache_write.input_tokens
+    mapped_by: [typescript, sink]
+  - key: ai.usage.outputTokenDetails.reasoningTokens
+    decision: mapped
+    target: gen_ai.usage.reasoning.output_tokens
+    mapped_by: [typescript, sink]
+  - key: ai.usage.reasoningTokens
+    decision: mapped
+    target: gen_ai.usage.reasoning.output_tokens
+    mapped_by: [typescript, sink]
+    reason: v5's reasoning count, still written beside the detailed spelling by v6.
+  - key: ai.usage.inputTokenDetails.noCacheTokens
+    decision: ignored
+    reason: |
+      The uncached remainder of ai.usage.inputTokens. The conventions record
+      the inclusive input count and the cached part; this is their difference.
+  - key: ai.usage.outputTokenDetails.textTokens
+    decision: ignored
+    reason: |
+      The non-reasoning remainder of ai.usage.outputTokens; the conventions
+      record the inclusive output count and the reasoning part.
+  - key: ai.usage.totalTokens
+    decision: ignored
+    reason: A total; the conventions define none.
+  - key: ai.settings.maxOutputTokens
+    decision: not_usage
+    reason: |
+      A request parameter, mapped to gen_ai.request.max_tokens (which the AI
+      SDK also writes itself on a model call).
+  - key: ai.response.usage
+    type: string
+    decision: ignored
+    reason: |
+      @ai-sdk/otel's speech and transcription spans, with its usage option:
+      the provider's usage object whole, as a JSON string, in whatever units
+      the provider bills (tokens, seconds, characters). The integration also
+      writes its numeric leaves on the same span as gen_ai.usage.<key>, which
+      is what is read (input_tokens, output_tokens) or decided above, so
+      parsing this would count the same usage twice.
+  - key: ai.response.avgOutputTokensPerSecond
+    type: double
+    decision: not_usage
+    reason: A throughput figure, not a count.
+  - key: metadata.ai.response.avgOutputTokensPerSecond
+    type: double
+    decision: not_usage
+    reason: |
+      @arizeai/openinference-vercel's metadata.* mirror of
+      ai.response.avgOutputTokensPerSecond. No recording carries it: the
+      TypeScript SDK no longer runs that transform. An app can still run the
+      package's span processor itself on a provider the SDK bridges onto, and
+      its spans then carry the mirror, so the entry stays.
+
+  # --- Request parameters ---------------------------------------------------
+
+  - key: gen_ai.request.max_tokens
+    decision: not_usage
+    reason: A request parameter (registry/model_parameters.yaml), not usage.
