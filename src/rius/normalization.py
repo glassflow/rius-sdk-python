@@ -116,6 +116,7 @@ from ._media import (
     blob_part,
     has_media_marker,
     native_part,
+    same_part,
     strip_raw_payload,
     url_part,
 )
@@ -1111,7 +1112,7 @@ def _conformant_parts(parts: list[Any]) -> bool:
     changed = False
     for i, part in enumerate(parts):
         fixed = native_part(part) if isinstance(part, dict) else None
-        if fixed is not None:
+        if fixed is not None and not same_part(fixed, part):
             parts[i] = fixed
             changed = True
     return changed

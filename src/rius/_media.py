@@ -821,45 +821,63 @@ def _gemini_part(item: Part) -> list[Part] | None:
     if isinstance(file, dict):
         uri = file.get("file_uri", file.get("fileUri"))
         if isinstance(uri, str):
-            return [url_part(uri, "document", file.get("mime_type", file.get("mimeType")))]
+            mime = file.get("mime_type", file.get("mimeType"))
+            return [url_part(uri, _uri_modality(uri), mime)]
     return None
 
 
-def native_part(part: Part) -> Part | None:
-    """A native semconv media part in the normalized shape, or None when it is
-    already in it (or is not one this can read), to be kept as it is.
+def _uri_modality(uri: str) -> str:
+    """The modality a URI's filename extension names (its path, without the
+    query or fragment); document when it names none we know."""
+    path = uri.split("#", 1)[0].split("?", 1)[0]
+    return _filename_modality(path.rsplit("/", 1)[-1])
 
-    * A blob carrying content is rebuilt without it: sized from it,
+
+def native_part(part: Part) -> Part | None:
+    """A native semconv media part rebuilt into the canonical shape, or None
+    when it cannot be (a uri with no URI string, a file with no id), to be
+    kept as it is.
+
+    Every readable part is rebuilt: members in the contract's order, any
+    other member dropped, ``mime_type`` only when it is token/token.
+
+    * A blob carrying content becomes a stripped blob: sized from it,
       ``not_captured``, its modality from its MIME type first (some producers
       label every file an image), else the one it has, else document.
-    * Any other part keeps a modality it has. One missing it is rebuilt with
-      it filled from the MIME type; one with neither is kept as it is.
+    * Any other part keeps a modality it has, else takes one from its MIME
+      type, else (a uri) from its filename extension, else document. A blob
+      without content keeps a valid size and stripped_reason.
     * A uri holding a data URL is a blob: a data URL is never a uri.
-    * A rebuilt part has exactly the normalized members.
     """
     written = part.get("modality")
-    own = isinstance(written, str) and written in MODALITIES
-    kind = str(written) if own else "document"
+    own = written if isinstance(written, str) and written in MODALITIES else None
     part_type = part.get("type")
     mime = part.get("mime_type")
     if part_type == "blob" and isinstance(part.get("content"), str):
-        return base64_blob(part["content"], kind, mime)
+        return base64_blob(part["content"], own or "document", mime)
     if part_type == "uri" and is_data_url(part.get("uri")):
-        return data_url_blob(part["uri"], kind, mime)
-    if own or not is_mime(mime):
-        return None
+        return data_url_blob(part["uri"], own or "document", mime)
     if part_type == "blob":
         size = part.get("byte_size")
         reason = part.get("stripped_reason")
         if reason not in STRIPPED_REASONS:
             reason = REDACTED_UPSTREAM if part.get("content") is None else NOT_CAPTURED
         sized = isinstance(size, int) and not isinstance(size, bool) and size >= 0
-        return blob_part(kind, mime, size if sized else None, str(reason))
-    if part_type == "uri" and isinstance(part.get("uri"), str):
-        return uri_part(kind, mime, part["uri"])
-    if part_type == "file" and isinstance(part.get("file_id"), str):
-        return file_part(kind, mime, part["file_id"])
-    return None
+        rebuilt = blob_part("document", mime, size if sized else None, str(reason))
+    elif part_type == "uri" and isinstance(part.get("uri"), str):
+        rebuilt = uri_part(_uri_modality(part["uri"]), mime, part["uri"])
+    elif part_type == "file" and isinstance(part.get("file_id"), str):
+        rebuilt = file_part("document", mime, part["file_id"])
+    else:
+        return None
+    if own is not None:
+        rebuilt["modality"] = own  # a modality the part has is kept
+    return rebuilt
+
+
+def same_part(a: Part, b: Part) -> bool:
+    """Equal, member order included: the order is part of the shape."""
+    return list(a.items()) == list(b.items())
 
 
 def has_media_marker(text: str) -> bool:

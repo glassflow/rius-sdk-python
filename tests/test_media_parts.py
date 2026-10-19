@@ -308,16 +308,46 @@ def test_a_native_uri_keeps_the_modality_it_has() -> None:
 
 
 @pytest.mark.parametrize(
-    "part",
+    ("part", "written"),
     [
-        {"type": "uri", "uri": "https://example.com/a"},
-        {"type": "file", "file_id": "f-1", "mime_type": "not a mime"},
-        {"type": "blob", "byte_size": 3},
+        (
+            {"type": "uri", "uri": "https://x"},
+            '[{"type":"uri","modality":"document","uri":"https://x"}]',
+        ),
+        (
+            {"uri": "u", "mime_type": "application/pdf", "modality": "image", "type": "uri"},
+            '[{"type":"uri","modality":"image","mime_type":"application/pdf","uri":"u"}]',
+        ),
+        (
+            {"type": "uri", "mime_type": "text/plain;charset=x", "uri": "u"},
+            '[{"type":"uri","modality":"document","uri":"u"}]',
+        ),
+        (
+            {"type": "uri", "uri": "https://example.com/clip.mov?sig=1"},
+            '[{"type":"uri","modality":"video","uri":"https://example.com/clip.mov?sig=1"}]',
+        ),
+        (
+            {"type": "file", "file_id": "file-abc123", "name": "x"},
+            '[{"type":"file","modality":"document","file_id":"file-abc123"}]',
+        ),
+        (
+            {"stripped_reason": "not_captured", "type": "blob", "byte_size": 3, "x": None},
+            '[{"type":"blob","modality":"document","byte_size":3,"stripped_reason":"not_captured"}]',
+        ),
+        (
+            {"type": "blob", "modality": "image", "byte_size": True},
+            '[{"type":"blob","modality":"image","stripped_reason":"redacted_upstream"}]',
+        ),
     ],
 )
-def test_a_native_part_with_no_mime_and_no_modality_is_left_as_it_is(
-    part: dict[str, Any],
+def test_every_native_media_part_is_rebuilt_into_the_canonical_shape(
+    part: dict[str, Any], written: str
 ) -> None:
+    assert _native(part) == written
+
+
+def test_a_native_part_that_cannot_be_read_is_kept_as_it_is() -> None:
+    part = {"type": "uri", "uri": 3}
     assert _native(part) == json.dumps([part], separators=(",", ":"))
 
 
