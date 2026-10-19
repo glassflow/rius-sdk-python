@@ -1030,6 +1030,618 @@
           }
         }
       ]
+    },
+    {
+      "scenario": "image_base64",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "python"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.45.1"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "openinference.instrumentation.anthropic",
+            "version": "3.0.3"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "messages.create",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000001000000",
+            "attributes": [
+              {
+                "key": "input.mime_type",
+                "value": {
+                  "stringValue": "application/json"
+                }
+              },
+              {
+                "key": "input.value",
+                "value": {
+                  "stringValue": "{\"model\": \"claude-haiku-4-5-20251001\", \"max_tokens\": 64, \"messages\": [{\"role\": \"user\", \"content\": [{\"type\": \"text\", \"text\": \"What is in this image?\"}, {\"type\": \"image\", \"source\": {\"type\": \"base64\", \"media_type\": \"image/png\", \"data\": \"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAACklEQVR42mNgAAAAAgAB5Sfe/AAAAABJRU5ErkJggg==\"}}]}]}"
+                }
+              },
+              {
+                "key": "llm.finish_reason",
+                "value": {
+                  "stringValue": "end_turn"
+                }
+              },
+              {
+                "key": "llm.input_messages.0.message.contents.0.message_content.text",
+                "value": {
+                  "stringValue": "What is in this image?"
+                }
+              },
+              {
+                "key": "llm.input_messages.0.message.contents.0.message_content.type",
+                "value": {
+                  "stringValue": "text"
+                }
+              },
+              {
+                "key": "llm.input_messages.0.message.contents.1.message_content.image.image.url",
+                "value": {
+                  "stringValue": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAACklEQVR42mNgAAAAAgAB5Sfe/AAAAABJRU5ErkJggg=="
+                }
+              },
+              {
+                "key": "llm.input_messages.0.message.contents.1.message_content.type",
+                "value": {
+                  "stringValue": "image"
+                }
+              },
+              {
+                "key": "llm.input_messages.0.message.role",
+                "value": {
+                  "stringValue": "user"
+                }
+              },
+              {
+                "key": "llm.invocation_parameters",
+                "value": {
+                  "stringValue": "{\"max_tokens\": 64}"
+                }
+              },
+              {
+                "key": "llm.model_name",
+                "value": {
+                  "stringValue": "claude-haiku-4-5-20251001"
+                }
+              },
+              {
+                "key": "llm.output_messages.0.message.contents.0.message_content.text",
+                "value": {
+                  "stringValue": "A tiny image."
+                }
+              },
+              {
+                "key": "llm.output_messages.0.message.contents.0.message_content.type",
+                "value": {
+                  "stringValue": "text"
+                }
+              },
+              {
+                "key": "llm.output_messages.0.message.role",
+                "value": {
+                  "stringValue": "assistant"
+                }
+              },
+              {
+                "key": "llm.provider",
+                "value": {
+                  "stringValue": "anthropic"
+                }
+              },
+              {
+                "key": "llm.request.model_name",
+                "value": {
+                  "stringValue": "claude-haiku-4-5-20251001"
+                }
+              },
+              {
+                "key": "llm.response.model_name",
+                "value": {
+                  "stringValue": "claude-haiku-4-5-20251001"
+                }
+              },
+              {
+                "key": "llm.system",
+                "value": {
+                  "stringValue": "anthropic"
+                }
+              },
+              {
+                "key": "llm.token_count.completion",
+                "value": {
+                  "intValue": "9"
+                }
+              },
+              {
+                "key": "llm.token_count.prompt",
+                "value": {
+                  "intValue": "50"
+                }
+              },
+              {
+                "key": "llm.token_count.prompt_details.cache_read",
+                "value": {
+                  "intValue": "16"
+                }
+              },
+              {
+                "key": "llm.token_count.prompt_details.cache_write",
+                "value": {
+                  "intValue": "8"
+                }
+              },
+              {
+                "key": "llm.token_count.total",
+                "value": {
+                  "intValue": "59"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "LLM"
+                }
+              },
+              {
+                "key": "output.mime_type",
+                "value": {
+                  "stringValue": "application/json"
+                }
+              },
+              {
+                "key": "output.value",
+                "value": {
+                  "stringValue": "{\"id\":\"msg_rec1\",\"container\":null,\"content\":[{\"citations\":null,\"text\":\"A tiny image.\",\"type\":\"text\"}],\"diagnostics\":null,\"model\":\"claude-haiku-4-5-20251001\",\"role\":\"assistant\",\"stop_details\":null,\"stop_reason\":\"end_turn\",\"stop_sequence\":null,\"type\":\"message\",\"usage\":{\"cache_creation\":null,\"cache_creation_input_tokens\":8,\"cache_read_input_tokens\":16,\"inference_geo\":null,\"input_tokens\":26,\"output_tokens\":9,\"output_tokens_details\":null,\"server_tool_use\":null,\"service_tier\":null}}"
+                }
+              }
+            ],
+            "status": {
+              "code": "STATUS_CODE_OK"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "image_url",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "python"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.45.1"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "openinference.instrumentation.anthropic",
+            "version": "3.0.3"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "messages.create",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000001000000",
+            "attributes": [
+              {
+                "key": "input.mime_type",
+                "value": {
+                  "stringValue": "application/json"
+                }
+              },
+              {
+                "key": "input.value",
+                "value": {
+                  "stringValue": "{\"model\": \"claude-haiku-4-5-20251001\", \"max_tokens\": 64, \"messages\": [{\"role\": \"user\", \"content\": [{\"type\": \"text\", \"text\": \"What is in this image?\"}, {\"type\": \"image\", \"source\": {\"type\": \"url\", \"url\": \"https://example.com/cat.png\"}}]}]}"
+                }
+              },
+              {
+                "key": "llm.finish_reason",
+                "value": {
+                  "stringValue": "end_turn"
+                }
+              },
+              {
+                "key": "llm.input_messages.0.message.contents.0.message_content.text",
+                "value": {
+                  "stringValue": "What is in this image?"
+                }
+              },
+              {
+                "key": "llm.input_messages.0.message.contents.0.message_content.type",
+                "value": {
+                  "stringValue": "text"
+                }
+              },
+              {
+                "key": "llm.input_messages.0.message.contents.1.message_content.image.image.url",
+                "value": {
+                  "stringValue": "data:None;url,None"
+                }
+              },
+              {
+                "key": "llm.input_messages.0.message.contents.1.message_content.type",
+                "value": {
+                  "stringValue": "image"
+                }
+              },
+              {
+                "key": "llm.input_messages.0.message.role",
+                "value": {
+                  "stringValue": "user"
+                }
+              },
+              {
+                "key": "llm.invocation_parameters",
+                "value": {
+                  "stringValue": "{\"max_tokens\": 64}"
+                }
+              },
+              {
+                "key": "llm.model_name",
+                "value": {
+                  "stringValue": "claude-haiku-4-5-20251001"
+                }
+              },
+              {
+                "key": "llm.output_messages.0.message.contents.0.message_content.text",
+                "value": {
+                  "stringValue": "A tiny image."
+                }
+              },
+              {
+                "key": "llm.output_messages.0.message.contents.0.message_content.type",
+                "value": {
+                  "stringValue": "text"
+                }
+              },
+              {
+                "key": "llm.output_messages.0.message.role",
+                "value": {
+                  "stringValue": "assistant"
+                }
+              },
+              {
+                "key": "llm.provider",
+                "value": {
+                  "stringValue": "anthropic"
+                }
+              },
+              {
+                "key": "llm.request.model_name",
+                "value": {
+                  "stringValue": "claude-haiku-4-5-20251001"
+                }
+              },
+              {
+                "key": "llm.response.model_name",
+                "value": {
+                  "stringValue": "claude-haiku-4-5-20251001"
+                }
+              },
+              {
+                "key": "llm.system",
+                "value": {
+                  "stringValue": "anthropic"
+                }
+              },
+              {
+                "key": "llm.token_count.completion",
+                "value": {
+                  "intValue": "9"
+                }
+              },
+              {
+                "key": "llm.token_count.prompt",
+                "value": {
+                  "intValue": "50"
+                }
+              },
+              {
+                "key": "llm.token_count.prompt_details.cache_read",
+                "value": {
+                  "intValue": "16"
+                }
+              },
+              {
+                "key": "llm.token_count.prompt_details.cache_write",
+                "value": {
+                  "intValue": "8"
+                }
+              },
+              {
+                "key": "llm.token_count.total",
+                "value": {
+                  "intValue": "59"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "LLM"
+                }
+              },
+              {
+                "key": "output.mime_type",
+                "value": {
+                  "stringValue": "application/json"
+                }
+              },
+              {
+                "key": "output.value",
+                "value": {
+                  "stringValue": "{\"id\":\"msg_rec1\",\"container\":null,\"content\":[{\"citations\":null,\"text\":\"A tiny image.\",\"type\":\"text\"}],\"diagnostics\":null,\"model\":\"claude-haiku-4-5-20251001\",\"role\":\"assistant\",\"stop_details\":null,\"stop_reason\":\"end_turn\",\"stop_sequence\":null,\"type\":\"message\",\"usage\":{\"cache_creation\":null,\"cache_creation_input_tokens\":8,\"cache_read_input_tokens\":16,\"inference_geo\":null,\"input_tokens\":26,\"output_tokens\":9,\"output_tokens_details\":null,\"server_tool_use\":null,\"service_tier\":null}}"
+                }
+              }
+            ],
+            "status": {
+              "code": "STATUS_CODE_OK"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "document_pdf",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "python"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.45.1"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "openinference.instrumentation.anthropic",
+            "version": "3.0.3"
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "messages.create",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000001000000",
+            "attributes": [
+              {
+                "key": "input.mime_type",
+                "value": {
+                  "stringValue": "application/json"
+                }
+              },
+              {
+                "key": "input.value",
+                "value": {
+                  "stringValue": "{\"model\": \"claude-haiku-4-5-20251001\", \"max_tokens\": 64, \"messages\": [{\"role\": \"user\", \"content\": [{\"type\": \"text\", \"text\": \"Summarize this document.\"}, {\"type\": \"document\", \"source\": {\"type\": \"base64\", \"media_type\": \"application/pdf\", \"data\": \"JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2JqCjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4KZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA3MiA3Ml0gPj4KZW5kb2JqCnhyZWYKMCA0CjAwMDAwMDAwMDAgNjU1MzUgZiAKMDAwMDAwMDAwOSAwMDAwMCBuIAowMDAwMDAwMDU4IDAwMDAwIG4gCjAwMDAwMDAxMTUgMDAwMDAgbiAKdHJhaWxlcgo8PCAvU2l6ZSA0IC9Sb290IDEgMCBSID4+CnN0YXJ0eHJlZgoxODQKJSVFT0YK\"}}]}]}"
+                }
+              },
+              {
+                "key": "llm.finish_reason",
+                "value": {
+                  "stringValue": "end_turn"
+                }
+              },
+              {
+                "key": "llm.input_messages.0.message.contents.0.message_content.text",
+                "value": {
+                  "stringValue": "Summarize this document."
+                }
+              },
+              {
+                "key": "llm.input_messages.0.message.contents.0.message_content.type",
+                "value": {
+                  "stringValue": "text"
+                }
+              },
+              {
+                "key": "llm.input_messages.0.message.role",
+                "value": {
+                  "stringValue": "user"
+                }
+              },
+              {
+                "key": "llm.invocation_parameters",
+                "value": {
+                  "stringValue": "{\"max_tokens\": 64}"
+                }
+              },
+              {
+                "key": "llm.model_name",
+                "value": {
+                  "stringValue": "claude-haiku-4-5-20251001"
+                }
+              },
+              {
+                "key": "llm.output_messages.0.message.contents.0.message_content.text",
+                "value": {
+                  "stringValue": "A tiny image."
+                }
+              },
+              {
+                "key": "llm.output_messages.0.message.contents.0.message_content.type",
+                "value": {
+                  "stringValue": "text"
+                }
+              },
+              {
+                "key": "llm.output_messages.0.message.role",
+                "value": {
+                  "stringValue": "assistant"
+                }
+              },
+              {
+                "key": "llm.provider",
+                "value": {
+                  "stringValue": "anthropic"
+                }
+              },
+              {
+                "key": "llm.request.model_name",
+                "value": {
+                  "stringValue": "claude-haiku-4-5-20251001"
+                }
+              },
+              {
+                "key": "llm.response.model_name",
+                "value": {
+                  "stringValue": "claude-haiku-4-5-20251001"
+                }
+              },
+              {
+                "key": "llm.system",
+                "value": {
+                  "stringValue": "anthropic"
+                }
+              },
+              {
+                "key": "llm.token_count.completion",
+                "value": {
+                  "intValue": "9"
+                }
+              },
+              {
+                "key": "llm.token_count.prompt",
+                "value": {
+                  "intValue": "50"
+                }
+              },
+              {
+                "key": "llm.token_count.prompt_details.cache_read",
+                "value": {
+                  "intValue": "16"
+                }
+              },
+              {
+                "key": "llm.token_count.prompt_details.cache_write",
+                "value": {
+                  "intValue": "8"
+                }
+              },
+              {
+                "key": "llm.token_count.total",
+                "value": {
+                  "intValue": "59"
+                }
+              },
+              {
+                "key": "openinference.span.kind",
+                "value": {
+                  "stringValue": "LLM"
+                }
+              },
+              {
+                "key": "output.mime_type",
+                "value": {
+                  "stringValue": "application/json"
+                }
+              },
+              {
+                "key": "output.value",
+                "value": {
+                  "stringValue": "{\"id\":\"msg_rec1\",\"container\":null,\"content\":[{\"citations\":null,\"text\":\"A tiny image.\",\"type\":\"text\"}],\"diagnostics\":null,\"model\":\"claude-haiku-4-5-20251001\",\"role\":\"assistant\",\"stop_details\":null,\"stop_reason\":\"end_turn\",\"stop_sequence\":null,\"type\":\"message\",\"usage\":{\"cache_creation\":null,\"cache_creation_input_tokens\":8,\"cache_read_input_tokens\":16,\"inference_geo\":null,\"input_tokens\":26,\"output_tokens\":9,\"output_tokens_details\":null,\"server_tool_use\":null,\"service_tier\":null}}"
+                }
+              }
+            ],
+            "status": {
+              "code": "STATUS_CODE_OK"
+            }
+          }
+        }
+      ]
     }
   ]
 }

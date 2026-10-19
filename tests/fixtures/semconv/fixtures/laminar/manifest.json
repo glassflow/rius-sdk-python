@@ -15,18 +15,20 @@
         "opentelemetry-sdk": "1.45.0",
         "opentelemetry-exporter-otlp-proto-http": "1.45.0"
       },
-      "note": "First recorded on Python 3.12.13; re-recorded on 3.12.9, as 3.12.13 has no macOS arm64 build. The spans' content is the same.",
+      "note": "First recorded on Python 3.12.13; re-recorded on 3.12.9, as 3.12.13 has no macOS arm64 build. The spans' content is the same. Record with a PATH that has no `python` on it (`env PATH=/usr/bin:/bin <venv>/bin/python record.py ...`): the OpenHands terminal tool records `command -v python` into the spans, so a `python` on PATH changes the existing scenarios.",
       "scenarios": {
         "agent_metadata": "chat_tool_calls with Conversation(observability_metadata={\"agent.name\": \"billing-agent\"}): every span carries lmnr.association.properties.metadata.agent.name.",
         "chat_tool_calls": "Chat-completions path: the model calls terminal, then finish. Each LLM call is an llm.openai/fake wrapper (cache counts only) with a litellm.completion child carrying the model, usage and messages.",
         "llm_error": "The model answers 401. The litellm.completion child and the wrapper both end ERROR with an exception event. Matches a real Anthropic auth failure captured with a bad key (same span tree, status and exception types; provider anthropic).",
-        "responses_api_wrapper_only": "api_mode=responses: lmnr does not instrument litellm.responses, so the llm.openai/fake wrapper is the only LLM span and carries only the cache counts. Matches a real gpt-4.1-mini capture, where the wrapper also carries gen_ai.usage.cost (absent here: the fake model has no litellm price)."
+        "responses_api_wrapper_only": "api_mode=responses: lmnr does not instrument litellm.responses, so the llm.openai/fake wrapper is the only LLM span and carries only the cache counts. Matches a real gpt-4.1-mini capture, where the wrapper also carries gen_ai.usage.cost (absent here: the fake model has no litellm price).",
+        "image_base64": "The task message carries an ImageContent with a PNG data URL beside the text; the scripted model is not vision-capable.",
+        "image_https_url": "The task message carries an ImageContent with an https URL beside the text; the scripted model is not vision-capable."
       },
       "expected": {
         "file": "lmnr-0.7.64.expected-row.json",
         "source": "sink"
       },
-      "verified": "Re-recorded 2026-10-12 twice in a row in the pinned virtualenv: byte-identical. Content (names, attributes, events, status) matches the recordings first made in the Rius backend's sink testdata; only the ids and times, now kept, and the order of event attributes, now sorted, differ."
+      "verified": "Re-recorded 2026-10-19 twice in a row in the pinned virtualenv: byte-identical. Content (names, attributes, events, status) matches the recordings first made in the Rius backend's sink testdata; only the ids and times, now kept, and the order of event attributes, now sorted, differ."
     }
   }
 }

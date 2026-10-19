@@ -19,13 +19,16 @@
         "chat_stream": "Streaming chat (message_start ... message_stop events). The instrumentor records no first-token event for Anthropic streams.",
         "tool_call": "A tool definition with tool_choice auto; the response is a tool_use block.",
         "tool_response": "The follow-up: the assistant's tool_use and the user's tool_result in the input, a text answer out.",
-        "error": "The provider answers 400 (invalid_request_error): an exception event and an ERROR status."
+        "error": "The provider answers 400 (invalid_request_error): an exception event and an ERROR status.",
+        "image_base64": "A user message with text and an image block with a base64 source (a 67-byte PNG).",
+        "image_url": "A user message with text and an image block with a url source.",
+        "document_pdf": "A user message with text and a document block with a base64 source (a one-page PDF)."
       },
       "expected": {
         "file": "openinference-anthropic-3.0.3.expected.json",
         "source": "python-sdk"
       },
-      "verified": "Re-recorded 2026-10-12 twice in a row in the pinned virtualenv: byte-identical."
+      "verified": "Re-recorded 2026-10-19 twice in a row in the pinned virtualenv: byte-identical."
     }
   }
 }

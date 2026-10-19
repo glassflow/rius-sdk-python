@@ -1,5 +1,5 @@
 {
-  "about": "Where this SDK's normalizer, replaying a shared recording from rius-semconv, produces something other than the recording's stored expected result. Each entry is reviewed and says why it is allowed. tests/test_conformance.py fails on any difference not listed here and on a listed one that no longer occurs, so fixing a difference means deleting its entry in the same change. `key` is an attribute key, or one of `events`, `status`, `name`, `kind`; `\"*\"` covers every difference in the family.",
+  "about": "Where this SDK's normalizer, replaying a shared recording from rius-semconv, produces something other than the recording's stored expected result. Each entry is reviewed and says why it is allowed. tests/test_conformance.py fails on any difference not listed here and on a listed one that no longer occurs, so fixing a difference means deleting its entry in the same change. `key` is an attribute key, or one of `events`, `status`, `name`, `kind`, or `scenario` for a recorded scenario with no expected result; `\"*\"` covers every difference in the family.",
   "differences": [
     {
       "family": "vercel-ai-otel",
@@ -45,6 +45,11 @@
       "family": "vercel-ai-otel",
       "key": "rius.aggregated_usage.reasoning.output_tokens",
       "reason": "As ai.usage.outputTokenDetails.reasoningTokens, and on a step's or a run's span also as gen_ai.usage.input_tokens."
+    },
+    {
+      "family": "vercel-ai-otel",
+      "key": "scenario",
+      "reason": "The media scenarios (image_file, pdf_file, text_plain_file, audio_file) were recorded with the media parts contract, and their expected result comes from the TypeScript SDK, which has not produced it yet."
     },
     {
       "family": "vercel-ai-v5",

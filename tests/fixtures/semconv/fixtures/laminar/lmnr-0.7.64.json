@@ -4316,6 +4316,718 @@
           }
         }
       ]
+    },
+    {
+      "scenario": "image_base64",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "record.py"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "lmnr.tracer",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "conversation",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000007000000",
+            "attributes": [
+              {
+                "key": "lmnr.association.properties.session_id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "lmnr.span.ids_path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000002"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_source",
+                "value": {
+                  "stringValue": "python"
+                }
+              },
+              {
+                "key": "lmnr.span.language_version",
+                "value": {
+                  "stringValue": "python@3.12"
+                }
+              },
+              {
+                "key": "lmnr.span.parent_ids_path",
+                "value": {
+                  "arrayValue": {}
+                }
+              },
+              {
+                "key": "lmnr.span.parent_path",
+                "value": {
+                  "arrayValue": {}
+                }
+              },
+              {
+                "key": "lmnr.span.path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "conversation"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.sdk_version",
+                "value": {
+                  "stringValue": "0.7.64"
+                }
+              },
+              {
+                "key": "lmnr.span.type",
+                "value": {
+                  "stringValue": "DEFAULT"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "lmnr.tracer",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000002",
+            "parentSpanId": "0000000000000001",
+            "name": "conversation.send_message",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000001000000",
+            "endTimeUnixNano": "1700000000002000000",
+            "attributes": [
+              {
+                "key": "lmnr.association.properties.session_id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "lmnr.span.ids_path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000002"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000003"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.input",
+                "value": {
+                  "stringValue": "{\"message\":{\"role\":\"user\",\"content\":[{\"cache_prompt\":false,\"type\":\"text\",\"text\":\"Print 'hello from openhands' in the terminal, then finish.\"},{\"cache_prompt\":false,\"type\":\"image\",\"image_urls\":[\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAACklEQVR42mNgAAAAAgAB5Sfe/AAAAABJRU5ErkJggg==\"]}],\"tool_calls\":null,\"tool_call_id\":null,\"name\":null,\"reasoning_content\":null,\"thinking_blocks\":[],\"responses_reasoning_item\":null}}"
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_source",
+                "value": {
+                  "stringValue": "python"
+                }
+              },
+              {
+                "key": "lmnr.span.language_version",
+                "value": {
+                  "stringValue": "python@3.12"
+                }
+              },
+              {
+                "key": "lmnr.span.path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "conversation"
+                      },
+                      {
+                        "stringValue": "conversation.send_message"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.sdk_version",
+                "value": {
+                  "stringValue": "0.7.64"
+                }
+              },
+              {
+                "key": "lmnr.span.type",
+                "value": {
+                  "stringValue": "DEFAULT"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "lmnr.tracer",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000003",
+            "parentSpanId": "0000000000000001",
+            "name": "conversation.run",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000003000000",
+            "endTimeUnixNano": "1700000000006000000",
+            "attributes": [
+              {
+                "key": "lmnr.association.properties.session_id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "lmnr.span.ids_path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000002"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000004"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.input",
+                "value": {
+                  "stringValue": "{}"
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_source",
+                "value": {
+                  "stringValue": "python"
+                }
+              },
+              {
+                "key": "lmnr.span.language_version",
+                "value": {
+                  "stringValue": "python@3.12"
+                }
+              },
+              {
+                "key": "lmnr.span.path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "conversation"
+                      },
+                      {
+                        "stringValue": "conversation.run"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.sdk_version",
+                "value": {
+                  "stringValue": "0.7.64"
+                }
+              },
+              {
+                "key": "lmnr.span.type",
+                "value": {
+                  "stringValue": "DEFAULT"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "lmnr.tracer",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000004",
+            "parentSpanId": "0000000000000003",
+            "name": "agent.step",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000004000000",
+            "endTimeUnixNano": "1700000000005000000",
+            "attributes": [
+              {
+                "key": "lmnr.association.properties.session_id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "lmnr.span.ids_path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000002"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000004"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000005"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.input",
+                "value": {
+                  "stringValue": "{\"on_token\":null,\"conversation\":\"<openhands.sdk.conversation.impl.local_conversation.LocalConversation object at 0x0>\"}"
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_source",
+                "value": {
+                  "stringValue": "python"
+                }
+              },
+              {
+                "key": "lmnr.span.language_version",
+                "value": {
+                  "stringValue": "python@3.12"
+                }
+              },
+              {
+                "key": "lmnr.span.path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "conversation"
+                      },
+                      {
+                        "stringValue": "conversation.run"
+                      },
+                      {
+                        "stringValue": "agent.step"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.sdk_version",
+                "value": {
+                  "stringValue": "0.7.64"
+                }
+              },
+              {
+                "key": "lmnr.span.type",
+                "value": {
+                  "stringValue": "DEFAULT"
+                }
+              }
+            ],
+            "status": {}
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "image_https_url",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "record.py"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "lmnr.tracer",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "conversation",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000007000000",
+            "attributes": [
+              {
+                "key": "lmnr.association.properties.session_id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "lmnr.span.ids_path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000002"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_source",
+                "value": {
+                  "stringValue": "python"
+                }
+              },
+              {
+                "key": "lmnr.span.language_version",
+                "value": {
+                  "stringValue": "python@3.12"
+                }
+              },
+              {
+                "key": "lmnr.span.parent_ids_path",
+                "value": {
+                  "arrayValue": {}
+                }
+              },
+              {
+                "key": "lmnr.span.parent_path",
+                "value": {
+                  "arrayValue": {}
+                }
+              },
+              {
+                "key": "lmnr.span.path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "conversation"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.sdk_version",
+                "value": {
+                  "stringValue": "0.7.64"
+                }
+              },
+              {
+                "key": "lmnr.span.type",
+                "value": {
+                  "stringValue": "DEFAULT"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "lmnr.tracer",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000002",
+            "parentSpanId": "0000000000000001",
+            "name": "conversation.send_message",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000001000000",
+            "endTimeUnixNano": "1700000000002000000",
+            "attributes": [
+              {
+                "key": "lmnr.association.properties.session_id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "lmnr.span.ids_path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000002"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000003"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.input",
+                "value": {
+                  "stringValue": "{\"message\":{\"role\":\"user\",\"content\":[{\"cache_prompt\":false,\"type\":\"text\",\"text\":\"Print 'hello from openhands' in the terminal, then finish.\"},{\"cache_prompt\":false,\"type\":\"image\",\"image_urls\":[\"https://example.com/cat.png\"]}],\"tool_calls\":null,\"tool_call_id\":null,\"name\":null,\"reasoning_content\":null,\"thinking_blocks\":[],\"responses_reasoning_item\":null}}"
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_source",
+                "value": {
+                  "stringValue": "python"
+                }
+              },
+              {
+                "key": "lmnr.span.language_version",
+                "value": {
+                  "stringValue": "python@3.12"
+                }
+              },
+              {
+                "key": "lmnr.span.path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "conversation"
+                      },
+                      {
+                        "stringValue": "conversation.send_message"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.sdk_version",
+                "value": {
+                  "stringValue": "0.7.64"
+                }
+              },
+              {
+                "key": "lmnr.span.type",
+                "value": {
+                  "stringValue": "DEFAULT"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "lmnr.tracer",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000003",
+            "parentSpanId": "0000000000000001",
+            "name": "conversation.run",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000003000000",
+            "endTimeUnixNano": "1700000000006000000",
+            "attributes": [
+              {
+                "key": "lmnr.association.properties.session_id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "lmnr.span.ids_path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000002"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000004"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.input",
+                "value": {
+                  "stringValue": "{}"
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_source",
+                "value": {
+                  "stringValue": "python"
+                }
+              },
+              {
+                "key": "lmnr.span.language_version",
+                "value": {
+                  "stringValue": "python@3.12"
+                }
+              },
+              {
+                "key": "lmnr.span.path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "conversation"
+                      },
+                      {
+                        "stringValue": "conversation.run"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.sdk_version",
+                "value": {
+                  "stringValue": "0.7.64"
+                }
+              },
+              {
+                "key": "lmnr.span.type",
+                "value": {
+                  "stringValue": "DEFAULT"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "lmnr.tracer",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000004",
+            "parentSpanId": "0000000000000003",
+            "name": "agent.step",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000004000000",
+            "endTimeUnixNano": "1700000000005000000",
+            "attributes": [
+              {
+                "key": "lmnr.association.properties.session_id",
+                "value": {
+                  "stringValue": "00000000-0000-0000-0000-000000000001"
+                }
+              },
+              {
+                "key": "lmnr.span.ids_path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000002"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000004"
+                      },
+                      {
+                        "stringValue": "00000000-0000-0000-0000-000000000005"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.input",
+                "value": {
+                  "stringValue": "{\"on_token\":null,\"conversation\":\"<openhands.sdk.conversation.impl.local_conversation.LocalConversation object at 0x0>\"}"
+                }
+              },
+              {
+                "key": "lmnr.span.instrumentation_source",
+                "value": {
+                  "stringValue": "python"
+                }
+              },
+              {
+                "key": "lmnr.span.language_version",
+                "value": {
+                  "stringValue": "python@3.12"
+                }
+              },
+              {
+                "key": "lmnr.span.path",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "conversation"
+                      },
+                      {
+                        "stringValue": "conversation.run"
+                      },
+                      {
+                        "stringValue": "agent.step"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "lmnr.span.sdk_version",
+                "value": {
+                  "stringValue": "0.7.64"
+                }
+              },
+              {
+                "key": "lmnr.span.type",
+                "value": {
+                  "stringValue": "DEFAULT"
+                }
+              }
+            ],
+            "status": {}
+          }
+        }
+      ]
     }
   ]
 }

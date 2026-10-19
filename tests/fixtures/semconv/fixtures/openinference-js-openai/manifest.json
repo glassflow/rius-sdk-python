@@ -18,13 +18,18 @@
         "tool_call": "A tool definition with tool_choice auto; the response is a tool call.",
         "tool_response": "The follow-up: the assistant's tool call and the tool's result in the input, a text answer out.",
         "error": "The provider answers 400 (model_not_found): an exception event and an ERROR status.",
-        "embeddings": "One embeddings call; the response vector is three floats."
+        "embeddings": "One embeddings call; the response vector is three floats.",
+        "image_data_url": "A user message with a text part and an image_url part holding a 1x1 PNG as a data URL.",
+        "image_https_url": "A user message with a text part and an image_url part holding an https URL.",
+        "image_redacted": "A user message with a text part and an image_url part holding a data URL over 32,000 characters: the instrumentor writes __REDACTED__ in the flattened message and keeps the full data URL in input.value.",
+        "input_audio": "gpt-4o-audio-preview with an input_audio part (WAV, base64). The flattened messages keep only the text part; the audio exists only in input.value.",
+        "audio_output": "gpt-4o-audio-preview answering with message.audio (base64 WAV and a transcript). The flattened output message has only its role; the audio exists only in output.value."
       },
       "expected": {
         "file": "openinference-js-openai-4.4.1.expected.json",
         "source": "python-sdk"
       },
-      "verified": "Re-recorded 2026-10-12 several times in a row from the lockfile's node_modules: byte-identical."
+      "verified": "Re-recorded 2026-10-19 twice in a row from the lockfile's node_modules (Node 24.2.0): byte-identical, and the earlier scenarios unchanged."
     }
   }
 }

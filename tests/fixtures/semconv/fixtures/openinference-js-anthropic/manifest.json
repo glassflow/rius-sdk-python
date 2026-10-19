@@ -17,13 +17,16 @@
         "chat_stream": "Streaming chat (message_start ... message_stop). No first-token event.",
         "tool_call": "A tool definition with tool_choice auto; the response is a tool_use block.",
         "tool_response": "The assistant's tool_use and the user's tool_result in the input, a text answer out.",
-        "error": "The provider answers 400 (invalid_request_error)."
+        "error": "The provider answers 400 (invalid_request_error).",
+        "image_base64": "An image block with a base64 source (1x1 PNG). The flattened message keeps image.media_type and image.type, not the data; the data exists only in input.value.",
+        "image_url": "An image block with a url source. The flattened message has only message_content.type = image; the URL exists only in input.value.",
+        "document_pdf": "A document block with a base64 PDF source. The flattened message has only the text part; the PDF exists only in input.value."
       },
       "expected": {
         "file": "openinference-js-anthropic-0.2.11.expected.json",
         "source": "python-sdk"
       },
-      "verified": "Re-recorded 2026-10-12 several times in a row from the lockfile's node_modules: byte-identical."
+      "verified": "Re-recorded 2026-10-19 twice in a row from the lockfile's node_modules (Node 24.2.0): byte-identical, and the earlier scenarios unchanged."
     }
   }
 }
