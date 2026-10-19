@@ -47,11 +47,6 @@
       "reason": "As ai.usage.outputTokenDetails.reasoningTokens, and on a step's or a run's span also as gen_ai.usage.input_tokens."
     },
     {
-      "family": "vercel-ai-otel",
-      "key": "scenario",
-      "reason": "The media scenarios (image_file, pdf_file, text_plain_file, audio_file) were recorded with the media parts contract, and their expected result comes from the TypeScript SDK, which has not produced it yet."
-    },
-    {
       "family": "vercel-ai-v5",
       "key": "*",
       "reason": "The TypeScript SDK is the reference here: its normalizer maps the AI SDK's ai.* dialect onto the conventions. The Python SDK has no ai.* mapping (the AI SDK is JavaScript-only, so it never sees these spans live), so the raw spans pass through."
