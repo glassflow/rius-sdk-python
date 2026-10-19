@@ -15,6 +15,7 @@ import json
 from typing import Any
 
 import pytest
+from opentelemetry.attributes import BoundedAttributes
 from opentelemetry.sdk.trace import Event, ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import Link, SpanContext
@@ -713,6 +714,19 @@ def test_a_value_past_the_part_limit_still_exports_and_is_stripped() -> None:
     )
 
 
+def test_a_duplicated_parts_member_is_read_as_its_last() -> None:
+    blob = '{"type":"blob","content":"QUJD"}'
+    rebuilt = '{"type":"blob","modality":"document","byte_size":3,"stripped_reason":"not_captured"}'
+    first = '[{"role":"user","parts":[' + blob + '],"parts":[{"type":"text","content":"hi"}]}]'
+    assert native_media_messages({GEN_AI_INPUT_MESSAGES: first}) is None
+    last = '[{"role":"user","parts":[' + blob + '],"parts":[' + blob + "]}]"
+    out = native_media_messages({GEN_AI_INPUT_MESSAGES: last})
+    assert out is not None
+    assert out[GEN_AI_INPUT_MESSAGES] == (
+        '[{"role":"user","parts":[' + blob + '],"parts":[' + rebuilt + "]}]"
+    )
+
+
 @pytest.mark.parametrize("parts_only", [False, True])
 def test_a_value_twenty_thousand_levels_deep_is_left_as_it_came(parts_only: bool) -> None:
     raw = '[{"type":"blob","content":"QUFB","parts":' + "[" * 20000 + "]" * 20000 + "}]"
@@ -773,6 +787,19 @@ def test_the_exporter_strips_event_and_link_attributes() -> None:
     }
     assert out.events[0].timestamp == 5
     assert out.links[0].attributes == {"note": "[stripped image/png 8 bytes]"}
+
+
+def test_a_stripped_event_or_link_keeps_its_dropped_attribute_count() -> None:
+    url = f"data:image/png;base64,{PNG}"
+    attributes = BoundedAttributes(maxlen=1, attributes={"lost": 1, "note": url})
+    assert attributes.dropped == 1
+    event = Event("exception", attributes, 5)
+    link = Link(SpanContext(trace_id=1, span_id=3, is_remote=False), attributes)
+    out = _export(_span({"k": "v"}, events=(event,), links=(link,)))
+    assert out.events[0].attributes == {"note": "[stripped image/png 8 bytes]"}
+    assert out.events[0].dropped_attributes == 1
+    assert out.links[0].attributes == {"note": "[stripped image/png 8 bytes]"}
+    assert out.links[0].dropped_attributes == 1
 
 
 def test_a_span_with_no_media_is_exported_as_it_came() -> None:

@@ -1170,7 +1170,9 @@ def _stripped_events(span: ReadableSpan) -> tuple[Event, ...] | None:
     if all(attributes is None for _, attributes in rebuilt):
         return None
     return tuple(
-        event if attributes is None else Event(event.name, attributes, event.timestamp)
+        event
+        if attributes is None
+        else Event(event.name, replacement_attributes(event, attributes), event.timestamp)
         for event, attributes in rebuilt
     )
 
@@ -1182,7 +1184,7 @@ def _stripped_links(span: ReadableSpan) -> tuple[Link, ...] | None:
     if all(attributes is None for _, attributes in rebuilt):
         return None
     return tuple(
-        link if attributes is None else Link(link.context, attributes)
+        link if attributes is None else Link(link.context, replacement_attributes(link, attributes))
         for link, attributes in rebuilt
     )
 
