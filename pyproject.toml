@@ -91,7 +91,7 @@ exclude = ["docs/assets/"]
 dev = [
     "pytest>=8.0.0",
     "ruff>=0.6.0",
-    "mypy>=1.11.0",
+    "mypy>=2.4.0",
     # integration tests for bundled auto-instrumentation
     "openai>=1.0.0",
     "openinference-instrumentation-openai",
