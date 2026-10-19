@@ -77,8 +77,12 @@ def kind_for_operation(operation: str) -> str | None:
 
 
 def otel_span_kind(kind: SpanKind) -> OtelSpanKind:
-    """The OpenTelemetry ``SpanKind`` field a span of taxonomy ``kind`` should carry."""
-    return _OTEL_KIND_BY_KIND[kind]
+    """The OpenTelemetry ``SpanKind`` field a span of taxonomy ``kind`` should carry.
+
+    The generated table holds the member's name, so the generated module needs
+    no OpenTelemetry import; the member is looked up here.
+    """
+    return OtelSpanKind[_OTEL_KIND_BY_KIND[kind]]
 
 
 def compose_span_name(kind: SpanKind, attributes: Mapping[str, str | int]) -> str:
