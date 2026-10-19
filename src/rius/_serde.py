@@ -10,8 +10,12 @@ The strip has to see the whole document, since a cut one does not parse and
 only its data URLs could be found. So the work is bounded by a larger budget,
 ``MAX_STRIP_CHARS``, rather than by the cap: encoding stops there instead of
 rendering an unbounded payload (the 2026-09 review measured rendering whole
-and cutting at 200x the cost on large tool results). A payload past the budget
-is cut first and stripped as the cut text it then is.
+and cutting at 200x the cost on large tool results), and the strip's own cost
+on the caller's thread stays bounded. A payload past the budget is cut first:
+the cut text no longer parses, so only its data URLs are found, and a keyed
+image's base64 would survive. A conservative fallback replaces every run of
+the base64 alphabet long enough to be media. That guard is this SDK's own: past
+the budget the text is not byte-identical with the TypeScript SDK's.
 """
 
 from __future__ import annotations
@@ -20,14 +24,16 @@ import json
 import re
 from typing import Any
 
-from ._media import strip_raw_payload
+from ._media import replacement, strip_raw_payload
 
 MAX_ATTR_CHARS = 32 * 1024
 TRUNCATION_MARKER = "…(truncated)"
 #: How much of a value is rendered for the media strip to read it whole. Past
-#: it the media is too large to strip as a document; 8 MiB holds the images and
-#: PDFs providers accept inline.
-MAX_STRIP_CHARS = 8 * 1024 * 1024
+#: it the value is cut and stripped conservatively (see ``_cut_past_budget``).
+MAX_STRIP_CHARS = 1024 * 1024
+#: A run of the base64 alphabet (either variant, with padding) long enough to
+#: be media rather than a word: what the fallback past the budget replaces.
+_BASE64_RUN = re.compile(r"[A-Za-z0-9+/\-_=]{64,}")
 
 # One JSON encoding for every producer of a JSON-valued attribute (this SDK,
 # the TypeScript SDK and the sink): compact separators, raw UTF-8 rather than
@@ -49,7 +55,22 @@ def _escape_surrogate(match: re.Match[str]) -> str:
 
 def truncate(text: str) -> str:
     """``text`` with its media stripped, cut at the attribute cap, the cut marked."""
+    if len(text) > MAX_STRIP_CHARS:
+        return _cut_past_budget(text)
     return _cut(strip_raw_payload(text))
+
+
+def _cut_past_budget(text: str) -> str:
+    """A text past the strip budget: cut to the cap, its data URLs stripped,
+    then every remaining base64-alphabet run of 64 or more characters replaced.
+
+    An SDK-local guard, not the contract's strip: the cut text no longer
+    parses, so a keyed image's base64 is not found by its rule, and the
+    fallback takes it, along with any long word of the same alphabet. The
+    result is not byte-identical with the TypeScript SDK's past the budget.
+    """
+    stripped = strip_raw_payload(text[:MAX_ATTR_CHARS])
+    return _BASE64_RUN.sub(replacement(None, None), stripped) + TRUNCATION_MARKER
 
 
 def _cut(text: str) -> str:
@@ -99,7 +120,5 @@ def _bounded_dumps(value: Any) -> str:
         chunks.append(chunk)
         size += len(chunk)
         if size > MAX_STRIP_CHARS:
-            # Cut, so it no longer parses: only its data URLs are stripped.
-            cut = "".join(chunks)[:MAX_ATTR_CHARS]
-            return strip_raw_payload(cut) + TRUNCATION_MARKER
+            return _cut_past_budget("".join(chunks))
     return truncate("".join(chunks))
