@@ -586,6 +586,80 @@ def test_native_messages_with_blob_content_are_rewritten() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    ("size", "written"),
+    [("8.0", ',"byte_size":8'), ("8e0", ',"byte_size":8'), ("8.5", ""), ("9007199254740992", "")],
+)
+def test_a_native_blob_keeps_a_size_that_is_a_safe_whole_count(size: str, written: str) -> None:
+    raw = '[{"type":"blob","byte_size":' + size + ',"stripped_reason":"not_captured"}]'
+    rebuilt = native_media_messages({"gen_ai.system_instructions": raw})
+    assert rebuilt is not None
+    assert rebuilt["gen_ai.system_instructions"] == (
+        '[{"type":"blob","modality":"document"' + written + ',"stripped_reason":"not_captured"}]'
+    )
+
+
+def test_a_native_part_is_rebuilt_in_place_and_every_other_byte_kept() -> None:
+    raw = (
+        '[ {"role": "user", "parts": [ {"type": "blob", "content": "QUJD",'
+        ' "mime_type": "image/png"} ] } ]'
+    )
+    rebuilt = native_media_messages({GEN_AI_INPUT_MESSAGES: raw})
+    assert rebuilt is not None
+    assert rebuilt[GEN_AI_INPUT_MESSAGES] == (
+        '[ {"role": "user", "parts": [ {"type":"blob","modality":"image",'
+        '"mime_type":"image/png","byte_size":3,"stripped_reason":"not_captured"} ] } ]'
+    )
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        # already canonical, spaced only around it
+        '[\n  {"role": "user", "parts": [ {"type":"uri","modality":"image",'
+        '"uri":"https://example.com/a.png"} ]}\n]',
+        # a number spelled 1e2 elsewhere, and a non-ASCII escape kept as written
+        '[{"role":"user","n":1e2,"parts":[{"type":"text","content":"caf\\u00e9"},'
+        '{"type":"file","modality":"document","file_id":"f-1"}]}]',
+    ],
+)
+def test_a_value_whose_parts_are_canonical_is_kept_byte_for_byte(raw: str) -> None:
+    assert native_media_messages({GEN_AI_INPUT_MESSAGES: raw}) is None
+
+
+def test_only_the_rebuilt_part_is_rewritten_and_its_neighbours_keep_their_bytes() -> None:
+    raw = (
+        '[{"role":"user", "parts":[ {"type":"text","content":"caf\\u00e9 \\/"} ,'
+        ' {"uri": "https://x/a.mov?sig=1", "type": "uri", "extra": [1, 2]} ]},'
+        ' {"role":"assistant","parts":[]}]'
+    )
+    rebuilt = native_media_messages({GEN_AI_OUTPUT_MESSAGES: raw})
+    assert rebuilt is not None
+    assert rebuilt[GEN_AI_OUTPUT_MESSAGES] == (
+        '[{"role":"user", "parts":[ {"type":"text","content":"caf\\u00e9 \\/"} ,'
+        ' {"type":"uri","modality":"video","uri":"https://x/a.mov?sig=1"} ]},'
+        ' {"role":"assistant","parts":[]}]'
+    )
+
+
+def test_a_rebuilt_part_is_written_with_the_minimal_escapes() -> None:
+    raw = '[{"type": "file", "file_id": "f\\u00e9\\u2028\\u0001\\"", "mime_type": "x"}]'
+    rebuilt = native_media_messages({"gen_ai.system_instructions": raw})
+    assert rebuilt is not None
+    assert rebuilt["gen_ai.system_instructions"] == (
+        '[{"type":"file","modality":"document","file_id":"fé \\u0001\\""}]'
+    )
+
+
+def test_a_part_type_written_with_an_escape_is_still_rebuilt() -> None:
+    raw = '[{"type": "\\u0062lob", "content": "QUJD"}]'
+    rebuilt = native_media_messages({"gen_ai.system_instructions": raw})
+    assert rebuilt is not None
+    assert rebuilt["gen_ai.system_instructions"] == (
+        '[{"type":"blob","modality":"document","byte_size":3,"stripped_reason":"not_captured"}]'
+    )
+
+
 def test_native_messages_without_media_are_left_byte_for_byte() -> None:
     raw = '[{"role": "user", "parts": [{"type": "text", "content": "a blob of text"}]}]'
     assert native_media_messages({GEN_AI_OUTPUT_MESSAGES: raw}) is None

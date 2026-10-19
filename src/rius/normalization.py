@@ -114,9 +114,7 @@ from ._media import (
     OPENINFERENCE_REDACTED,
     REDACTED_UPSTREAM,
     blob_part,
-    has_media_marker,
-    native_part,
-    same_part,
+    rebuild_native_parts,
     strip_raw_payload,
     url_part,
 )
@@ -1106,18 +1104,6 @@ _GEN_AI_SYSTEM_INSTRUCTIONS = "gen_ai.system_instructions"
 _NATIVE_MESSAGE_KEYS = (GEN_AI_INPUT_MESSAGES, GEN_AI_OUTPUT_MESSAGES, _GEN_AI_SYSTEM_INSTRUCTIONS)
 
 
-def _conformant_parts(parts: list[Any]) -> bool:
-    """Make each native media part in ``parts`` conformant, in place; True if
-    any changed."""
-    changed = False
-    for i, part in enumerate(parts):
-        fixed = native_part(part) if isinstance(part, dict) else None
-        if fixed is not None and not same_part(fixed, part):
-            parts[i] = fixed
-            changed = True
-    return changed
-
-
 def native_media_messages(attributes: Mapping[str, Any] | None) -> dict[str, Any] | None:
     """The native message keys with every media part made conformant.
 
@@ -1125,8 +1111,8 @@ def native_media_messages(attributes: Mapping[str, Any] | None) -> dict[str, Any
     instrumentation that already speaks the conventions can still write a
     blob WITH its bytes (pydantic-ai does), label a PDF an image
     (``@ai-sdk/otel`` does), or put a data URL in a uri part. Each such part
-    is rewritten as the contract shapes it (see ``_media.native_part``) and
-    the key re-encoded; a key holding no such part is left byte for byte.
+    is rewritten in place as the contract shapes it (see
+    ``_media.native_part``); every other byte of the key stays as it came.
     The raw payloads (``pydantic_ai.all_messages`` and the like) are not
     touched here: they are never mined for parts, and the strip replaces
     their media in place.
@@ -1136,26 +1122,13 @@ def native_media_messages(attributes: Mapping[str, Any] | None) -> dict[str, Any
     rebuilt: dict[str, Any] | None = None
     for key in _NATIVE_MESSAGE_KEYS:
         raw = attributes.get(key)
-        if not isinstance(raw, str) or not has_media_marker(raw):
+        if not isinstance(raw, str):
             continue
-        try:
-            messages = json.loads(raw)
-        except ValueError:
-            continue
-        if not isinstance(messages, list):
-            continue
-        changed = False
-        if key == _GEN_AI_SYSTEM_INSTRUCTIONS:
-            changed = _conformant_parts(messages)
-        else:
-            for message in messages:
-                parts = message.get("parts") if isinstance(message, dict) else None
-                if isinstance(parts, list) and _conformant_parts(parts):
-                    changed = True
-        if changed:
+        fixed = rebuild_native_parts(raw, parts_only=key == _GEN_AI_SYSTEM_INSTRUCTIONS)
+        if fixed != raw:
             if rebuilt is None:
                 rebuilt = dict(attributes)
-            rebuilt[key] = serialize(messages)
+            rebuilt[key] = fixed
     return rebuilt
 
 

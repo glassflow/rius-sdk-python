@@ -6,6 +6,8 @@ import json
 import pathlib
 from typing import Any
 
+import pytest
+
 from rius._context_sizes import (
     DETAIL_WINDOW,
     MAX_SIZES_BYTES,
@@ -319,6 +321,20 @@ def test_a_media_part_with_no_modality_and_no_mime_is_a_document() -> None:
             {"type": "blob", "modality": "document", "byte_size": 2},
         )
     ]
+
+
+@pytest.mark.parametrize(
+    ("size", "recorded"), [(8.0, 8), (0, 0), (8.5, None), (2**53, None), (True, None), (-1, None)]
+)
+def test_a_media_size_is_kept_only_when_it_is_a_safe_whole_count(
+    size: Any, recorded: int | None
+) -> None:
+    part = {"type": "blob", "modality": "image", "byte_size": size}
+    sizes = json.loads(context_sizes(None, [{"role": "user", "parts": [part]}], None))
+    expected: dict[str, Any] = {"type": "blob", "modality": "image"}
+    if recorded is not None:
+        expected["byte_size"] = recorded
+    assert sizes["input_messages"] == [_message("user", expected)]
 
 
 def test_the_contracts_media_example_is_what_a_blob_records() -> None:

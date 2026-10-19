@@ -59,7 +59,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from ._media import modality_of, split_media
+from ._media import modality_of, safe_size, split_media
 
 DETAIL_WINDOW = 50
 MAX_SIZES_BYTES = 8192
@@ -143,8 +143,9 @@ def _media_entry(part_type: str, modality: Any, byte_size: Any) -> dict[str, Any
     """A media entry: its modality (document when nothing names one, the
     contract's fallback for media with no hint) and the media's own size."""
     entry: dict[str, Any] = {"type": part_type, "modality": modality}
-    if isinstance(byte_size, int) and not isinstance(byte_size, bool) and byte_size >= 0:
-        entry["byte_size"] = byte_size
+    size = safe_size(byte_size)
+    if size is not None:
+        entry["byte_size"] = size
     return entry
 
 

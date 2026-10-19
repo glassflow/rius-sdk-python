@@ -25,6 +25,7 @@ and the registry's rules are exhaustive.
 from __future__ import annotations
 
 import bisect
+import json
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -261,14 +262,15 @@ class _Parser:
     at most MAX_DEPTH deep counting the ``depth`` arrays and objects around the
     text. The depth limit bounds the recursion, so no input raises out."""
 
-    def __init__(self, text: str, depth: int) -> None:
+    def __init__(self, text: str, depth: int, max_depth: int = MAX_DEPTH) -> None:
         self.text = text
         self.i = 0
         self.depth = depth
+        self.max_depth = max_depth
 
     def enter(self) -> None:
         self.depth += 1
-        if self.depth > MAX_DEPTH:
+        if self.depth > self.max_depth:
             raise _NotJson("too deep")
 
     def document(self) -> _Value:
@@ -621,6 +623,21 @@ def _with_mime(part: Part, mime: Any) -> Part:
     return part
 
 
+#: The largest whole number JavaScript holds exactly (Number.MAX_SAFE_INTEGER).
+MAX_SAFE_INTEGER = 2**53 - 1
+
+
+def safe_size(value: Any) -> int | None:
+    """A byte size as the TypeScript SDK and the sink read one: a whole,
+    non-negative, exactly representable number (``8``, ``8.0`` and ``8e0``
+    alike), else None."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    if not 0 <= value <= MAX_SAFE_INTEGER or value != int(value):
+        return None
+    return int(value)
+
+
 def blob_part(kind: str, mime: Any, byte_size: int | None, reason: str) -> Part:
     """A blob: inline bytes, never their content."""
     part = _with_mime({"type": "blob", "modality": modality_of(mime) or kind}, mime)
@@ -862,8 +879,7 @@ def native_part(part: Part) -> Part | None:
         reason = part.get("stripped_reason")
         if reason not in STRIPPED_REASONS:
             reason = REDACTED_UPSTREAM if part.get("content") is None else NOT_CAPTURED
-        sized = isinstance(size, int) and not isinstance(size, bool) and size >= 0
-        rebuilt = blob_part("document", mime, size if sized else None, str(reason))
+        rebuilt = blob_part("document", mime, safe_size(size), str(reason))
     elif part_type == "uri" and isinstance(part.get("uri"), str):
         rebuilt = uri_part(_uri_modality(part["uri"]), mime, part["uri"])
     elif part_type == "file" and isinstance(part.get("file_id"), str):
@@ -875,12 +891,77 @@ def native_part(part: Part) -> Part | None:
     return rebuilt
 
 
-def same_part(a: Part, b: Part) -> bool:
-    """Equal, member order included: the order is part of the shape."""
-    return list(a.items()) == list(b.items())
+def _compact(part: Part) -> str:
+    """A rebuilt part as JSON.stringify writes it: compact, strings with the
+    strip's minimal escapes. Its members are strings and whole numbers."""
+    members = (
+        f'"{json_escape(key)}":'
+        + (f'"{json_escape(value)}"' if isinstance(value, str) else str(value))
+        for key, value in part.items()
+    )
+    return "{" + ",".join(members) + "}"
 
 
-def has_media_marker(text: str) -> bool:
-    """Whether a messages value could hold a part ``native_part`` rewrites:
-    every such part names its type in the JSON. A cheap test before parsing."""
-    return '"blob"' in text or '"uri"' in text or '"file"' in text
+def _part_edit(text: str, node: _Value, edits: list[_Edit]) -> None:
+    """The edit rebuilding one native media part, when its bytes change.
+
+    The part is read with ``json.loads``, as a standard decoder reads it (the
+    last of a duplicated member wins); only its span is the parser's."""
+    if node.members is None:
+        return
+    raw = text[node.start : node.end]
+    rebuilt = native_part(json.loads(raw))
+    if rebuilt is None:
+        return
+    encoded = _compact(rebuilt)
+    if encoded != raw:
+        edits.append((node.start, node.end, encoded))
+
+
+def _last_member(node: _Value, key: str) -> _Value | None:
+    found = None
+    for name, value in node.members or ():
+        if name == key:
+            found = value
+    return found
+
+
+#: How deep a messages value may nest and still be parsed for its parts: far
+#: above any real message, and within the interpreter's recursion limit.
+MESSAGE_MAX_DEPTH = 400
+
+
+def rebuild_native_parts(text: str, *, parts_only: bool) -> str:
+    """A messages value with every native media part rebuilt, in place.
+
+    Only a rebuilt part's own bytes are rewritten, compact; every other byte
+    of the value stays as it came, and a value with nothing to rebuild, or
+    that does not parse, is returned unchanged. ``parts_only`` is a value
+    that is itself a list of parts (system instructions); otherwise each
+    message's ``parts`` are rebuilt.
+    """
+    # Every media part names its type, unless an escape spells it.
+    if '"blob"' not in text and '"uri"' not in text and '"file"' not in text and "\\" not in text:
+        return text
+    try:
+        document = _Parser(text, 0, MESSAGE_MAX_DEPTH).document()
+    except (_NotJson, RecursionError):
+        return text
+    if document.items is None:
+        return text
+    edits: list[_Edit] = []
+    for item in document.items:
+        if parts_only:
+            _part_edit(text, item, edits)
+            continue
+        parts = _last_member(item, "parts") if item.members is not None else None
+        for part in parts.items if parts is not None and parts.items is not None else ():
+            _part_edit(text, part, edits)
+    if not edits:
+        return text
+    out, last = [], 0
+    for start, end, new in edits:
+        out += [text[last:start], new]
+        last = end
+    out.append(text[last:])
+    return "".join(out)
