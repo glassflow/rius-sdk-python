@@ -106,6 +106,27 @@ def test_a_string_with_no_media_comes_back_as_the_same_object() -> None:
     assert strip_raw_payload(text) is text
 
 
+# The pre-check skips the parse only when no rule's words are written out:
+# each case here needs one word of the check, and the reference strips it.
+@pytest.mark.parametrize(
+    ("text", "stripped"),
+    [
+        # A key hidden by a \u escape: only the "\u" in the text says to parse.
+        (
+            '{"mime_type":"image/png","d\\u0061ta":"QUJD"}',
+            '{"mime_type":"image/png","d\\u0061ta":"[stripped image/png 3 bytes]"}',
+        ),
+        # A base64 source: "source" is the only context word written out.
+        (
+            '{"source":{"type":"base64","data":"QUJD"}}',
+            '{"source":{"type":"base64","data":"[stripped unknown 3 bytes]"}}',
+        ),
+    ],
+)
+def test_the_pre_check_lets_through_every_media_the_rules_find(text: str, stripped: str) -> None:
+    assert strip_raw_payload(text) == stripped
+
+
 @pytest.mark.parametrize(
     ("value", "size"),
     [
