@@ -25,9 +25,10 @@ and the registry's rules are exhaustive.
 from __future__ import annotations
 
 import bisect
+import functools
 import json
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
 from typing import Any
 
@@ -47,6 +48,8 @@ MIME_PATTERN = re.compile(r"[A-Za-z0-9!#$&^_.+-]+/[A-Za-z0-9!#$&^_.+-]+")
 DATA_URL_PATTERN = re.compile(
     r'[dD][aA][tT][aA]:([^;,:\t\n\f\r "]*)(;[^;,:\t\n\f\r "]*)*;base64,([A-Za-z0-9+/_-]*={0,2})'
 )
+#: Text every rule (b) token holds: the pattern's own literal.
+DATA_URL_TEXT = ";base64,"
 #: Rule (d): a Buffer object.
 BUFFER_TYPE = "Buffer"
 BUFFER_ARRAY_KEY = "data"
@@ -142,13 +145,43 @@ def is_replacement(value: str) -> bool:
 # change. The structure follows the reference so the two can be read side by
 # side: rules (d), then (e), then (b), on each value in document order.
 
-#: An object's members in document order, duplicates kept.
-Members = list[tuple[str, Any]]
+
+#: Up to this many members a lookup scans them; past it they are indexed.
+_SCAN_MEMBERS = 16
+
+
+class Members:
+    """An object's members in document order, duplicates kept, with a large
+    object's values indexed by key on first lookup (a rule asks for a few keys
+    several times)."""
+
+    __slots__ = ("_by_key", "items", "names")
+
+    def __init__(self, items: list[tuple[str, Any]]) -> None:
+        self.items = items
+        self.names = {name for name, _ in items}
+        self._by_key: dict[str, list[Any]] | None = None
+
+    def __iter__(self) -> Iterator[tuple[str, Any]]:
+        return iter(self.items)
+
+    def values(self, key: str) -> Iterable[Any]:
+        """The values of the members named ``key``, in document order."""
+        if key not in self.names:
+            return ()
+        if len(self.items) <= _SCAN_MEMBERS:
+            return (value for name, value in self.items if name == key)
+        if self._by_key is None:
+            by_key: dict[str, list[Any]] = {}
+            for name, value in self.items:
+                by_key.setdefault(name, []).append(value)
+            self._by_key = by_key
+        return self._by_key.get(key, [])
 
 
 def _first(members: Members, key: str, ok: Callable[[Any], bool]) -> Any:
     """The value of the first member named ``key`` for which ``ok`` holds."""
-    return next((v for k, v in members if k == key and ok(v)), None)
+    return next((v for v in members.values(key) if ok(v)), None)
 
 
 def _sibling_string(value: Any) -> bool:
@@ -219,7 +252,7 @@ class _NotJson(ValueError):
     pass
 
 
-@dataclass
+@dataclass(slots=True)
 class _Value:
     """A JSON value: its span on the text, its Python value, and its members
     (object), items (array) or the segments mapping each decoded character to
@@ -255,6 +288,26 @@ _SHORT_ESCAPES = {
 }
 _HEX = frozenset("0123456789abcdefABCDEF")
 _PLAIN_RUN = re.compile(r'[^"\\\x00-\x1f]*')
+_SIMPLE_STRING = re.compile(r'"([^"\\\x00-\x1f]*)"')
+_SPACE = re.compile(r"[ \t\n\r]*")
+#: An escape-free member key and its colon, with the space around them.
+_MEMBER_KEY = re.compile(r'[ \t\n\r]*"([^"\\\x00-\x1f]*)"[ \t\n\r]*:[ \t\n\r]*')
+#: The separator after a member or an item, with the space before it.
+_OBJECT_SEPARATOR = re.compile(r"[ \t\n\r]*([,}])")
+_PLAIN_MEMBER_STRING = re.compile(r'"([^"\\\x00-\x1f]*)"[ \t\n\r]*([,}])')
+_ARRAY_SEPARATOR = re.compile(r"[ \t\n\r]*([,\]])")
+#: The value every parsed object holds: rules read an object's members, never
+#: the object as a value (a rule comparing a member to a string, or testing it
+#: for a list, sees an object as neither).
+_OBJECT_VALUE: Any = object()
+#: Shared leaves: a literal's value is all a rule reads of it, and a number's
+#: not even that, so neither needs a node of its own.
+_LITERALS = (
+    ("true", _Value(0, 0, True)),
+    ("false", _Value(0, 0, False)),
+    ("null", _Value(0, 0, None)),
+)
+_NUMBER_LEAF = _Value(0, 0, 0)
 
 
 class _Parser:
@@ -282,10 +335,9 @@ class _Parser:
         return value
 
     def space(self) -> None:
-        text, i = self.text, self.i
-        while i < len(text) and text[i] in ASCII_WHITESPACE:
-            i += 1
-        self.i = i
+        match = _SPACE.match(self.text, self.i)
+        assert match is not None  # the pattern matches the empty string
+        self.i = match.end()
 
     def peek(self) -> str:
         return self.text[self.i] if self.i < len(self.text) else ""
@@ -296,26 +348,29 @@ class _Parser:
         self.i += 1
 
     def value(self) -> _Value:
-        ch = self.peek()
+        ch = self.text[self.i : self.i + 1]
         if ch == "{":
             return self.object()
         if ch == "[":
             return self.array()
         if ch == '"':
             return self.string()
-        for word, val in (("true", True), ("false", False), ("null", None)):
+        for word, leaf in _LITERALS:
             if self.text.startswith(word, self.i):
-                start, self.i = self.i, self.i + len(word)
-                return _Value(start, self.i, val)
+                self.i += len(word)
+                return leaf
         match = _NUMBER.match(self.text, self.i)
         if not match:
             raise _NotJson("no value")
         self.i = match.end()
-        # A number's value is never read by a rule; only that it is one.
-        return _Value(match.start(), match.end(), 0)
+        # A number's value and span are never read by a rule; only that it is one.
+        return _NUMBER_LEAF
 
     def object(self) -> _Value:
-        start = self.i
+        # The loops read a member's key and colon, and each separator, with one
+        # match; anything those patterns miss takes the general path, which
+        # fails as the plain grammar would.
+        text, start = self.text, self.i
         self.expect("{")
         self.enter()
         members: list[tuple[str, _Value]] = []
@@ -324,23 +379,40 @@ class _Parser:
             self.i += 1
         else:
             while True:
-                self.space()
-                key = self.string()
-                self.space()
-                self.expect(":")
-                self.space()
-                members.append((key.value, self.value()))
-                self.space()
-                if self.peek() == ",":
-                    self.i += 1
+                key = _MEMBER_KEY.match(text, self.i)
+                if key is not None:
+                    name = key.group(1)
+                    self.i = key.end()
+                else:
+                    self.space()
+                    name = self.string().value
+                    self.space()
+                    self.expect(":")
+                    self.space()
+                plain = _PLAIN_MEMBER_STRING.match(text, self.i)
+                if plain is not None:
+                    # The commonest member: an escape-free string, then the separator.
+                    value, close = plain.group(1, 2)
+                    at = self.i
+                    segments = [(0, at + 1, 0)] if value else []
+                    members.append((name, _Value(at, plain.end(1) + 1, value, segments=segments)))
+                    self.i = plain.end()
+                    if close == "}":
+                        break
                     continue
-                self.expect("}")
-                break
+                members.append((name, self.value()))
+                sep = _OBJECT_SEPARATOR.match(text, self.i)
+                if sep is None:
+                    raise _NotJson("expected ',' or '}'")
+                self.i = sep.end()
+                if sep.group(1) == "}":
+                    break
         self.depth -= 1
-        return _Value(start, self.i, {k: v.value for k, v in members}, members=members)
+        # No rule reads an object as a value, only its members.
+        return _Value(start, self.i, _OBJECT_VALUE, members=members)
 
     def array(self) -> _Value:
-        start = self.i
+        text, start = self.text, self.i
         self.expect("[")
         self.enter()
         items: list[_Value] = []
@@ -351,19 +423,26 @@ class _Parser:
             while True:
                 self.space()
                 items.append(self.value())
-                self.space()
-                if self.peek() == ",":
-                    self.i += 1
-                    continue
-                self.expect("]")
-                break
+                sep = _ARRAY_SEPARATOR.match(text, self.i)
+                if sep is None:
+                    raise _NotJson("expected ',' or ']'")
+                self.i = sep.end()
+                if sep.group(1) == "]":
+                    break
         self.depth -= 1
         return _Value(start, self.i, [v.value for v in items], items=items)
 
     def string(self) -> _Value:
         start = self.i
-        self.expect('"')
         text = self.text
+        simple = _SIMPLE_STRING.match(text, start)
+        if simple is not None:
+            # No escape: one run, or none for the empty string.
+            self.i = simple.end()
+            value = simple.group(1)
+            return _Value(start, self.i, value, segments=[(0, start + 1, 0)] if value else [])
+        self.expect('"')
+        i, end = self.i, len(text)
         out: list[str] = []
         # Runs of plain characters, and escapes, each as (decoded index, raw
         # index, raw length of the escape or 0 for a run): what maps a decoded
@@ -371,39 +450,41 @@ class _Parser:
         segments: list[tuple[int, int, int]] = []
         decoded = 0
         while True:
-            run = _PLAIN_RUN.match(text, self.i)
+            run = _PLAIN_RUN.match(text, i)
             assert run is not None  # the pattern matches the empty string
-            if run.end() > self.i:
-                segments.append((decoded, self.i, 0))
+            if run.end() > i:
+                segments.append((decoded, i, 0))
                 out.append(run.group())
-                decoded += run.end() - self.i
-                self.i = run.end()
-            if self.i >= len(text):
+                decoded += run.end() - i
+                i = run.end()
+            if i >= end:
                 raise _NotJson("unterminated string")
-            ch, at = text[self.i], self.i
+            ch, at = text[i], i
             if ch == '"':
-                self.i += 1
+                i += 1
                 break
             if ch != "\\":
                 raise _NotJson("control character in string")
-            kind = text[self.i + 1 : self.i + 2]
-            if kind in _SHORT_ESCAPES:
-                out.append(_SHORT_ESCAPES[kind])
-                self.i += 2
+            kind = text[i + 1 : i + 2]
+            short = _SHORT_ESCAPES.get(kind)
+            if short is not None:
+                out.append(short)
+                i += 2
             elif kind == "u":
-                code = self.hex4(self.i + 2)
-                self.i += 6
-                if 0xD800 <= code < 0xDC00 and text.startswith("\\u", self.i):
-                    low = self.hex4(self.i + 2)
+                code = self.hex4(i + 2)
+                i += 6
+                if 0xD800 <= code < 0xDC00 and text.startswith("\\u", i):
+                    low = self.hex4(i + 2)
                     if 0xDC00 <= low < 0xE000:
                         code = 0x10000 + ((code - 0xD800) << 10) + (low - 0xDC00)
-                        self.i += 6
+                        i += 6
                 out.append(chr(code))
             else:
                 raise _NotJson("bad escape")
-            segments.append((decoded, at, self.i - at))
+            segments.append((decoded, at, i - at))
             decoded += 1
-        return _Value(start, self.i, "".join(out), segments=segments)
+        self.i = i
+        return _Value(start, i, "".join(out), segments=segments)
 
     def hex4(self, at: int) -> int:
         digits = self.text[at : at + 4]
@@ -434,20 +515,19 @@ _ESCAPES = {
 }
 
 
+_NEEDS_ESCAPE = re.compile('["\\\\\x00-\x1f\ud800-\udfff]')
+
+
 def json_escape(text: str) -> str:
     """Text as written inside a JSON string: the minimal escapes JSON.stringify
     writes (lowercase ``\\u00xx`` for other controls and lone surrogates), and
     nothing else."""
-    out = []
-    for ch in text:
-        code = ord(ch)
-        if ch in _ESCAPES:
-            out.append(_ESCAPES[ch])
-        elif code < 0x20 or 0xD800 <= code < 0xE000:
-            out.append(f"\\u{code:04x}")
-        else:
-            out.append(ch)
-    return "".join(out)
+    return _NEEDS_ESCAPE.sub(_escaped, text)
+
+
+def _escaped(match: re.Match[str]) -> str:
+    ch = match.group()
+    return _ESCAPES.get(ch) or f"\\u{ord(ch):04x}"
 
 
 #: An edit on a text: replace text[start:end] by the string.
@@ -464,6 +544,7 @@ class MediaToken:
     byte_size: int | None
 
 
+@functools.lru_cache(maxsize=256)
 def _literal(mime: str | None, byte_size: int | None) -> str:
     return '"' + json_escape(replacement(mime, byte_size)) + '"'
 
@@ -489,10 +570,15 @@ def _strip_text(text: str, depth: int, tokens: list[MediaToken]) -> list[_Edit]:
     return edits
 
 
+def _members(node: _Value) -> Members:
+    assert node.members is not None
+    return Members([(key, child.value) for key, child in node.members])
+
+
 def _walk(
     node: _Value,
     parent_key: str | None,
-    holder: Members | None,
+    holder: _Value | None,
     depth: int,
     tokens: list[MediaToken],
     edits: list[_Edit],
@@ -500,10 +586,15 @@ def _walk(
     """Rules (d), then (e), then (b), on one value. ``holder`` is the nearest
     enclosing object (through arrays), for rule (d)'s mime type."""
     if node.members is not None:
-        members = [(key, child.value) for key, child in node.members]
+        if not any(key in _RULE_KEYS for key, _ in node.members):
+            # No member a rule (d) or (e) replaces: only the children can hold one.
+            for key, child in node.members:
+                _walk(child, key, node, depth + 1, tokens, edits)
+            return
+        members = _members(node)
         data = _buffer_data(members)
         if data is not None:
-            mime = _mime_key(BUFFER_MIME_KEYS, holder or [])
+            mime = _mime_key(BUFFER_MIME_KEYS, _members(holder) if holder else Members([]))
             tokens.append(MediaToken("d", mime, len(data)))
             edits.append((node.start, node.end, _literal(mime, len(data))))
             return
@@ -511,7 +602,7 @@ def _walk(
         mime = _keyed_mime(members, parent_key) if keyed else None
         for i, (key, child) in enumerate(node.members):
             if i not in keyed:
-                _walk(child, key, members, depth + 1, tokens, edits)
+                _walk(child, key, node, depth + 1, tokens, edits)
             elif child.items is None:
                 _keyed_edit(child, mime, tokens, edits)
             else:
@@ -520,17 +611,24 @@ def _walk(
                     if _keyed_string(item.value):
                         _keyed_edit(item, mime, tokens, edits)
                     else:
-                        _walk(item, key, members, depth + 2, tokens, edits)
+                        _walk(item, key, node, depth + 2, tokens, edits)
     elif node.items is not None:
         for child in node.items:
             _walk(child, parent_key, holder, depth + 1, tokens, edits)
     elif node.segments is not None:
+        if not _may_hold_media(node.value):
+            return  # the same test the whole text passed: no token can be in it
         # A JSON string: strip its unescaped value, then map each edit back to
         # the raw characters and write it escaped for this level.
         for start, end, text in _strip_text(node.value, depth, tokens):
             raw_start = node.raw_span(start)[0]
             raw_end = node.raw_span(end - 1)[1] if end > start else raw_start
             edits.append((raw_start, raw_end, json_escape(text)))
+
+
+#: The member keys rules (d) and (e) replace: an object with none of them is
+#: only walked into.
+_RULE_KEYS = frozenset((BUFFER_ARRAY_KEY, KEYED_BLOB_KEY, *KEYED_KEYS))
 
 
 def _keyed_edit(
@@ -542,16 +640,30 @@ def _keyed_edit(
     edits.append((node.start, node.end, _literal(mime, size)))
 
 
-#: Text every token holds, written out, when no ``\u`` escape could hide it:
-#: rule (b)'s literal ``;base64,``, rule (d)'s ``Buffer`` and rule (e)'s keys
-#: (``blob`` for the content of a blob part). The other JSON escapes write
-#: none of these characters, so a string holding none of them, and no
-#: ``\u``, has no token. Most attributes are such strings, and skip the parse.
-_TOKEN_TEXT = (";base64,", "Buffer", "data", "b64_json", "result", "blob")
+#: Rule (e) replaces a keyed member only beside a sibling mime key, under a
+#: parent key, or in a base64 source, so one of these words is written out too.
+_KEYED_CONTEXT_TEXT = (*KEYED_SIBLING_KEYS, *KEYED_PARENT_KEYS, KEYED_SOURCE_KEY)
 
 
 def _may_hold_media(text: str) -> bool:
-    return "\\u" in text or any(needle in text for needle in _TOKEN_TEXT)
+    """False only when no rule can find a token in ``text``.
+
+    Every token needs its rule's words written out, unless a ``\\u`` escape
+    hides them: rule (b)'s literal ``;base64,``, rule (d)'s ``Buffer`` and
+    ``data``, and rule (e)'s keyed key with its context word, or ``blob`` and
+    ``content`` for a blob part. The other JSON escapes write none of these
+    characters. Most attributes, and most strings inside them, hold none and
+    skip the parse; the test holds for a JSON string's unescaped value too.
+    """
+    if "\\u" in text or DATA_URL_TEXT in text:
+        return True
+    if BUFFER_TYPE in text and BUFFER_ARRAY_KEY in text:
+        return True
+    if KEYED_BLOB_TYPE in text and KEYED_BLOB_KEY in text:
+        return True
+    return any(key in text for key in KEYED_KEYS) and any(
+        word in text for word in _KEYED_CONTEXT_TEXT
+    )
 
 
 def _strip(text: str, tokens: list[MediaToken]) -> tuple[str, list[_Edit]]:
