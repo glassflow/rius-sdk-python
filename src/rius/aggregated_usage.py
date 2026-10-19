@@ -122,11 +122,9 @@ class WrappedCallTracker(SpanProcessor):
             books.popitem(last=False)
 
     def shutdown(self) -> None:
-        # The marks stay: the provider shuts processors down in registration
-        # order, so the batch processor registered after this one exports its
-        # queued wrappers afterwards and still needs them. The books are bounded.
-        with self._lock:
-            self._open.clear()
+        # Nothing is cleared: spans ending or exported after this still need
+        # the books, which are bounded.
+        pass
 
     def force_flush(self, timeout_millis: int = 30_000) -> bool:
         return True
