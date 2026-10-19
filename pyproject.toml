@@ -99,7 +99,7 @@ dev = [
     "openinference-instrumentation-anthropic",
     "mcp>=1.28.1",
     # litellm 1.82.7 and 1.82.8 were compromised releases; stay above them.
-    "litellm>=1.84.0",
+    "litellm>=1.105.1",
     "openinference-instrumentation-litellm",
     "langchain-core>=0.3.0",
     "langchain-openai>=0.3.0",
