@@ -204,3 +204,61 @@ def test_init_wires_the_tracker(with_child: bool) -> None:
         assert "gen_ai.usage.input_tokens" not in attributes
     else:
         assert attributes["gen_ai.usage.input_tokens"] == 42
+
+
+def test_a_wrapper_exported_at_shutdown_keeps_its_usage_aside(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # No flush: the spans are still queued in the batch processor when the
+    # provider shuts down, and the tracker is shut down before it. A long
+    # schedule delay keeps the worker from exporting them earlier.
+    monkeypatch.setenv("OTEL_BSP_SCHEDULE_DELAY", "60000")
+    sink = InMemorySpanExporter()
+    client = init(api_key="test", span_exporter=sink, heartbeat=False, set_global=False)
+    langchain = client.get_tracer(LANGCHAIN_SCOPE)
+    with langchain.start_as_current_span("ChatOpenAI") as parent:
+        parent.set_attributes({"openinference.span.kind": "LLM", **USAGE})
+        openai = client.get_tracer(OPENAI_SCOPE)
+        with openai.start_as_current_span("ChatCompletion") as child:
+            child.set_attributes({"openinference.span.kind": "LLM", **USAGE})
+    client.shutdown()
+
+    wrapper = next(s for s in sink.get_finished_spans() if s.name == "ChatOpenAI")
+    attributes = dict(wrapper.attributes or {})
+    assert attributes["rius.aggregated_usage.input_tokens"] == 42
+    assert not any(key.startswith("gen_ai.usage.") for key in attributes)
+
+
+def test_shutting_the_tracker_down_keeps_its_marks() -> None:
+    # The batch processor exports its queue after the tracker has shut down.
+    tracker = WrappedCallTracker()
+    provider = TracerProvider()
+    provider.add_span_processor(tracker)
+    wrapper = provider.get_tracer(LITELLM_SCOPE)
+    openai = provider.get_tracer(OPENAI_SCOPE)
+    with (
+        wrapper.start_as_current_span("completion") as parent,
+        openai.start_as_current_span("ChatCompletion") as child,
+    ):
+        child.set_attributes(USAGE)
+    tracker.shutdown()
+    assert isinstance(parent, ReadableSpan)
+    assert tracker.take(parent)
+
+
+def test_a_wrapper_still_open_at_shutdown_is_still_marked() -> None:
+    # Another thread can end spans after the tracker shuts down and before the
+    # batch processor does, which still exports them.
+    tracker = WrappedCallTracker()
+    provider = TracerProvider()
+    provider.add_span_processor(tracker)
+    wrapper = provider.get_tracer(LITELLM_SCOPE)
+    openai = provider.get_tracer(OPENAI_SCOPE)
+    with (
+        wrapper.start_as_current_span("completion") as parent,
+        openai.start_as_current_span("ChatCompletion") as child,
+    ):
+        child.set_attributes(USAGE)
+        tracker.shutdown()
+    assert isinstance(parent, ReadableSpan)
+    assert tracker.take(parent)

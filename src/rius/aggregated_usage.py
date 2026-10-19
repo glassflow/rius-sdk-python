@@ -122,9 +122,9 @@ class WrappedCallTracker(SpanProcessor):
             books.popitem(last=False)
 
     def shutdown(self) -> None:
-        with self._lock:
-            self._open.clear()
-            self._marked.clear()
+        # Nothing is cleared: spans ending or exported after this still need
+        # the books, which are bounded.
+        pass
 
     def force_flush(self, timeout_millis: int = 30_000) -> bool:
         return True
