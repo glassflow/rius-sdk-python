@@ -1,10 +1,17 @@
 """Value serialization for span attributes: JSON with a safe fallback and a bound.
 
 The bound is 32 KB of serialized text, shared with the TypeScript SDK so a
-payload lands the same size whichever SDK produced it. It bounds the WORK as
-well as the output: encoding stops once the cap is reached rather than
-rendering a multi-megabyte payload and then cutting it, which the 2026-09
-review measured at 200x the cost on large tool results.
+payload lands the same size whichever SDK produced it. Media is stripped from
+the text BEFORE it is cut (``_media.strip_raw_payload``): an image's base64 is
+replaced in place by a short marker, so a request holding one stays whole JSON
+instead of being cut inside the bytes, and no prefix of the bytes is kept.
+
+The strip has to see the whole document, since a cut one does not parse and
+only its data URLs could be found. So the work is bounded by a larger budget,
+``MAX_STRIP_CHARS``, rather than by the cap: encoding stops there instead of
+rendering an unbounded payload (the 2026-09 review measured rendering whole
+and cutting at 200x the cost on large tool results). A payload past the budget
+is cut first and stripped as the cut text it then is.
 """
 
 from __future__ import annotations
@@ -13,8 +20,14 @@ import json
 import re
 from typing import Any
 
+from ._media import strip_raw_payload
+
 MAX_ATTR_CHARS = 32 * 1024
 TRUNCATION_MARKER = "…(truncated)"
+#: How much of a value is rendered for the media strip to read it whole. Past
+#: it the media is too large to strip as a document; 8 MiB holds the images and
+#: PDFs providers accept inline.
+MAX_STRIP_CHARS = 8 * 1024 * 1024
 
 # One JSON encoding for every producer of a JSON-valued attribute (this SDK,
 # the TypeScript SDK and the sink): compact separators, raw UTF-8 rather than
@@ -35,7 +48,11 @@ def _escape_surrogate(match: re.Match[str]) -> str:
 
 
 def truncate(text: str) -> str:
-    """Cut ``text`` at the attribute cap, marking the cut."""
+    """``text`` with its media stripped, cut at the attribute cap, the cut marked."""
+    return _cut(strip_raw_payload(text))
+
+
+def _cut(text: str) -> str:
     if len(text) > MAX_ATTR_CHARS:
         return text[:MAX_ATTR_CHARS] + TRUNCATION_MARKER
     return text
@@ -73,13 +90,16 @@ def _bounded_dumps(value: Any) -> str:
     # iterencode without _one_shot takes the pure-Python path, which yields
     # chunks lazily as it walks the value; the C encoder renders everything
     # first. A small payload costs a few extra microseconds this way; a large
-    # one stops being walked at the cap instead of being rendered whole.
+    # one stops being walked at the strip budget instead of being rendered
+    # whole.
     chunks: list[str] = []
     size = 0
     for chunk in _encoder.iterencode(value, _one_shot=False):
         chunk = _SURROGATE.sub(_escape_surrogate, chunk)
         chunks.append(chunk)
         size += len(chunk)
-        if size > MAX_ATTR_CHARS:
-            return "".join(chunks)[:MAX_ATTR_CHARS] + TRUNCATION_MARKER
-    return "".join(chunks)
+        if size > MAX_STRIP_CHARS:
+            # Cut, so it no longer parses: only its data URLs are stripped.
+            cut = "".join(chunks)[:MAX_ATTR_CHARS]
+            return strip_raw_payload(cut) + TRUNCATION_MARKER
+    return truncate("".join(chunks))

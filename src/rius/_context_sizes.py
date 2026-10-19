@@ -39,8 +39,11 @@ messages keep per-part detail); the window halves while the whole string
 exceeds ``MAX_SIZES_BYTES``, and the attribute is never truncated.
 
 A part is ``{"type": "text", "bytes"}``, ``{"type": "tool_call", "tool",
-"bytes"}``, ``{"type": "tool_call_response", "tool", "bytes"}`` or, for any
-other part type, ``{"type": <type>}`` with no size. Roles are the literal
+"bytes"}``, ``{"type": "tool_call_response", "tool", "bytes"}``, a media part
+``{"type": "blob" | "uri" | "file", "modality", "byte_size"}`` (``byte_size``
+the size of the media itself, when known, and never ``bytes``: a blob carries
+no content to size) or, for any other part type, ``{"type": <type>}`` with no
+size. Roles are the literal
 role strings of the normalized messages; ``tool`` is the tool NAME (resolved
 through the call id for responses), ``null`` when unknown.
 
@@ -61,6 +64,7 @@ SIZES_VERSION = 1
 # and everything else (user, tool results, unknown roles) as user-side.
 _SYSTEM_ROLES = ("system", "developer")
 _ASSISTANT_ROLES = ("assistant",)
+_MEDIA_TYPES = ("blob", "uri", "file")
 
 
 def _dumps(value: Any) -> str:
@@ -142,6 +146,14 @@ def _part_entry(part: Any, call_names: dict[str, str | None]) -> dict[str, Any]:
         call_id = part.get("id")
         tool = call_names.get(call_id) if isinstance(call_id, str) else None
         return {"type": "tool_call_response", "tool": tool, "bytes": _canonical_bytes(part)}
+    if part_type in _MEDIA_TYPES:
+        entry: dict[str, Any] = {"type": part_type}
+        if isinstance(part.get("modality"), str):
+            entry["modality"] = part["modality"]
+        size = part.get("byte_size")
+        if isinstance(size, int) and not isinstance(size, bool):
+            entry["byte_size"] = size
+        return entry
     return {"type": part_type}
 
 

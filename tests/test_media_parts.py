@@ -1,0 +1,506 @@
+"""Media content becomes semconv blob / uri / file parts, and no bytes leave.
+
+One test per row of the media contract's mapping table
+(rius-semconv ``registry/media_parts.yaml``), for the paths this SDK owns: the
+generation helpers (``set_input`` / ``set_output`` with raw provider dicts),
+OpenInference's flattened messages, and the native semconv parts another
+instrumentation writes. The rows no recorded family proves (Gemini, the OpenAI
+Responses API, Anthropic url and file sources, ...) are proven here. Then the
+exporter's last pass, the raw-payload strip, over every string attribute.
+"""
+
+from __future__ import annotations
+
+import json
+from typing import Any
+
+import pytest
+from opentelemetry.sdk.trace import Event, ReadableSpan
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.trace import Link, SpanContext
+
+from rius._serde import MAX_ATTR_CHARS, TRUNCATION_MARKER, serialize, text_value
+from rius.generation import Generation, normalize_messages
+from rius.normalization import (
+    NormalizingSpanExporter,
+    native_media_messages,
+    reassemble_openinference_messages,
+    strip_media,
+)
+from rius.semconv import GEN_AI_INPUT_MESSAGES, GEN_AI_OUTPUT_MESSAGES
+
+PNG = "iVBORw0KGgo="  # 8 bytes
+WAV = "UklGRiQAAABXQVZF"  # 12 bytes
+PDF = "JVBERi0="  # 5 bytes
+
+
+def _parts(content: Any, role: str = "user") -> list[dict[str, Any]]:
+    [message] = normalize_messages([{"role": role, "content": content}], role)
+    parts: list[dict[str, Any]] = message["parts"]
+    return parts
+
+
+def _blob(modality: str, mime: str | None, size: int | None, reason: str) -> dict[str, Any]:
+    part: dict[str, Any] = {"type": "blob", "modality": modality}
+    if mime is not None:
+        part["mime_type"] = mime
+    if size is not None:
+        part["byte_size"] = size
+    part["stripped_reason"] = reason
+    return part
+
+
+# --- openai.chat ---
+
+
+def test_openai_image_data_url_is_a_blob_with_the_urls_mime() -> None:
+    url = f"data:image/png;base64,{PNG}"
+    assert _parts([{"type": "image_url", "image_url": {"url": url}}]) == [
+        _blob("image", "image/png", 8, "not_captured")
+    ]
+
+
+def test_openai_image_https_url_is_a_uri() -> None:
+    url = "https://example.com/cat.png"
+    assert _parts([{"type": "image_url", "image_url": {"url": url, "detail": "low"}}]) == [
+        {"type": "uri", "modality": "image", "uri": url}
+    ]
+
+
+def test_openai_input_audio_is_an_audio_blob_typed_by_its_format() -> None:
+    assert _parts([{"type": "input_audio", "input_audio": {"data": WAV, "format": "wav"}}]) == [
+        _blob("audio", "audio/wav", 12, "not_captured")
+    ]
+
+
+def test_openai_file_id_is_a_document_file() -> None:
+    assert _parts([{"type": "file", "file": {"file_id": "file-abc"}}]) == [
+        {"type": "file", "modality": "document", "file_id": "file-abc"}
+    ]
+
+
+def test_openai_file_data_takes_its_modality_from_the_data_url() -> None:
+    file = {"file_data": f"data:application/pdf;base64,{PDF}", "filename": "a.png"}
+    assert _parts([{"type": "file", "file": file}]) == [
+        _blob("document", "application/pdf", 5, "not_captured")
+    ]
+
+
+def test_openai_file_data_without_a_mime_takes_its_modality_from_the_filename() -> None:
+    file = {"file_data": PNG, "filename": "chart.PNG"}
+    assert _parts([{"type": "file", "file": file}]) == [_blob("image", None, 8, "not_captured")]
+
+
+def test_openai_reply_audio_is_a_blob_then_its_transcript() -> None:
+    [message] = normalize_messages(
+        [
+            {
+                "role": "assistant",
+                "content": None,
+                "audio": {"id": "audio_1", "data": WAV, "transcript": "Hello."},
+            }
+        ],
+        "assistant",
+    )
+    assert message == {
+        "role": "assistant",
+        "parts": [
+            _blob("audio", None, 12, "not_captured"),
+            {"type": "text", "content": "Hello."},
+        ],
+    }
+
+
+# --- openai.responses ---
+
+
+@pytest.mark.parametrize(
+    ("item", "part"),
+    [
+        (
+            {"type": "input_image", "image_url": f"data:image/jpeg;base64,{PNG}"},
+            _blob("image", "image/jpeg", 8, "not_captured"),
+        ),
+        (
+            {"type": "input_image", "image_url": "https://example.com/a.jpg", "detail": "auto"},
+            {"type": "uri", "modality": "image", "uri": "https://example.com/a.jpg"},
+        ),
+        (
+            {"type": "input_image", "file_id": "file-img"},
+            {"type": "file", "modality": "image", "file_id": "file-img"},
+        ),
+        (
+            {"type": "input_file", "file_id": "file-doc", "filename": "q3.pdf"},
+            {"type": "file", "modality": "document", "file_id": "file-doc"},
+        ),
+        (
+            {
+                "type": "input_file",
+                "file_data": f"data:application/pdf;base64,{PDF}",
+                "filename": "q3.pdf",
+            },
+            _blob("document", "application/pdf", 5, "not_captured"),
+        ),
+        (
+            {"type": "input_file", "file_url": "https://example.com/q3.pdf"},
+            {"type": "uri", "modality": "document", "uri": "https://example.com/q3.pdf"},
+        ),
+    ],
+)
+def test_openai_responses_inputs(item: dict[str, Any], part: dict[str, Any]) -> None:
+    assert _parts([{"type": "input_text", "text": "look"}, item])[1:] == [part]
+
+
+def test_openai_responses_generated_image_is_an_image_blob() -> None:
+    item = {
+        "type": "image_generation_call",
+        "id": "ig_1",
+        "status": "completed",
+        "output_format": "png",
+        "result": PNG,
+    }
+    assert normalize_messages([item], "assistant") == [
+        {"role": "assistant", "parts": [_blob("image", "image/png", 8, "not_captured")]}
+    ]
+
+
+# --- anthropic.messages ---
+
+
+def test_anthropic_base64_image_is_a_blob_typed_by_its_media_type() -> None:
+    source = {"type": "base64", "media_type": "image/png", "data": PNG}
+    assert _parts([{"type": "image", "source": source}]) == [
+        _blob("image", "image/png", 8, "not_captured")
+    ]
+
+
+def test_anthropic_base64_document_is_a_document_blob() -> None:
+    source = {"type": "base64", "media_type": "application/pdf", "data": PDF}
+    assert _parts([{"type": "document", "source": source}]) == [
+        _blob("document", "application/pdf", 5, "not_captured")
+    ]
+
+
+def test_anthropic_image_labelled_with_a_non_image_mime_is_not_an_image() -> None:
+    source = {"type": "base64", "media_type": "application/pdf", "data": PDF}
+    assert _parts([{"type": "image", "source": source}])[0]["modality"] == "document"
+
+
+@pytest.mark.parametrize(("block_type", "modality"), [("image", "image"), ("document", "document")])
+def test_anthropic_url_source_is_a_uri(block_type: str, modality: str) -> None:
+    source = {"type": "url", "url": "https://example.com/x"}
+    assert _parts([{"type": block_type, "source": source}]) == [
+        {"type": "uri", "modality": modality, "uri": "https://example.com/x"}
+    ]
+
+
+@pytest.mark.parametrize(("block_type", "modality"), [("image", "image"), ("document", "document")])
+def test_anthropic_file_source_is_a_file(block_type: str, modality: str) -> None:
+    source = {"type": "file", "file_id": "file_011"}
+    assert _parts([{"type": block_type, "source": source}]) == [
+        {"type": "file", "modality": modality, "file_id": "file_011"}
+    ]
+
+
+def test_anthropic_text_document_is_text_to_the_model() -> None:
+    text_source = {"type": "text", "media_type": "text/plain", "data": "The grass is green."}
+    content_source = {
+        "type": "content",
+        "content": [{"type": "text", "text": "One."}, {"type": "text", "text": "Two."}],
+    }
+    assert _parts(
+        [
+            {"type": "document", "source": text_source},
+            {"type": "document", "source": content_source},
+        ]
+    ) == [
+        {"type": "text", "content": "The grass is green."},
+        {"type": "text", "content": "One."},
+        {"type": "text", "content": "Two."},
+    ]
+
+
+# --- gemini.generate_content ---
+
+
+@pytest.mark.parametrize("spelling", ["inline_data", "inlineData"])
+def test_gemini_inline_data_is_a_blob_typed_by_its_mime(spelling: str) -> None:
+    mime_key = "mime_type" if spelling == "inline_data" else "mimeType"
+    part = {spelling: {mime_key: "audio/mp3", "data": WAV}}
+    assert _parts([part]) == [_blob("audio", "audio/mp3", 12, "not_captured")]
+
+
+@pytest.mark.parametrize("spelling", ["file_data", "fileData"])
+def test_gemini_file_data_is_a_uri_typed_by_its_mime(spelling: str) -> None:
+    keys = ("mime_type", "file_uri") if spelling == "file_data" else ("mimeType", "fileUri")
+    uri = "gs://bucket/clip.mp4"
+    part = {spelling: {keys[0]: "video/mp4", keys[1]: uri}}
+    assert _parts([part]) == [
+        {"type": "uri", "modality": "video", "mime_type": "video/mp4", "uri": uri}
+    ]
+
+
+def test_gemini_parts_in_a_parts_message_are_media_parts_too() -> None:
+    [message] = normalize_messages(
+        [
+            {
+                "role": "user",
+                "parts": [
+                    {"text": "what is this"},
+                    {"inline_data": {"mime_type": "image/png", "data": PNG}},
+                ],
+            }
+        ],
+        "user",
+    )
+    assert message["parts"] == [
+        {"text": "what is this"},
+        _blob("image", "image/png", 8, "not_captured"),
+    ]
+
+
+# --- semconv.native ---
+
+
+def test_a_native_blob_with_content_is_stripped() -> None:
+    blob = {"type": "blob", "mime_type": "image/png", "modality": "image", "content": PNG}
+    [message] = normalize_messages([{"role": "user", "parts": [blob]}], "user")
+    assert message["parts"] == [_blob("image", "image/png", 8, "not_captured")]
+
+
+def test_a_stripped_blob_is_left_as_it_is() -> None:
+    blob = _blob("image", "image/png", 8, "not_captured")
+    [message] = normalize_messages([{"role": "user", "parts": [dict(blob)]}], "user")
+    assert message["parts"] == [blob]
+
+
+def test_a_native_blob_mislabelled_image_gets_the_modality_of_its_mime() -> None:
+    blob = {"type": "blob", "modality": "image", "mime_type": "application/pdf", "content": PDF}
+    [message] = normalize_messages([{"role": "user", "parts": [blob]}], "user")
+    assert message["parts"] == [_blob("document", "application/pdf", 5, "not_captured")]
+
+
+def test_a_native_uri_gets_its_modality_from_its_mime() -> None:
+    uri = {"type": "uri", "mime_type": "image/png", "uri": "https://example.com/a.png"}
+    [message] = normalize_messages([{"role": "user", "parts": [uri]}], "user")
+    assert message["parts"] == [{**uri, "modality": "image"}]
+
+
+def test_a_native_file_gets_its_modality_from_its_mime() -> None:
+    file = {"type": "file", "mime_type": "audio/wav", "file_id": "f-1"}
+    [message] = normalize_messages([{"role": "user", "parts": [file]}], "user")
+    assert message["parts"] == [{**file, "modality": "audio"}]
+
+
+def test_a_native_uri_holding_a_data_url_is_a_blob() -> None:
+    uri = {"type": "uri", "modality": "image", "uri": f"data:image/png;base64,{PNG}"}
+    [message] = normalize_messages([{"role": "user", "parts": [uri]}], "user")
+    assert message["parts"] == [_blob("image", "image/png", 8, "not_captured")]
+
+
+# --- what is unknown passes through ---
+
+
+def test_an_unknown_typed_part_passes_through_unchanged() -> None:
+    part = {"type": "video_frame", "data": {"frame": 3}}
+    assert _parts([part]) == [part]
+
+
+def test_an_image_url_part_is_never_wrapped_in_a_text_part() -> None:
+    parts = _parts([{"type": "image_url", "image_url": {"url": "data:image/png;base64,"}}])
+    assert parts == [_blob("image", "image/png", None, "redacted_upstream")]
+
+
+# --- the generation helpers end to end ---
+
+
+def test_set_input_records_the_blob_and_no_bytes(exported_spans: InMemorySpanExporter) -> None:
+    from rius import start_as_current_generation
+
+    big = "iVBORw0KGgo" + "A" * 100_000 + "="
+    with start_as_current_generation(model="m") as generation:
+        assert isinstance(generation, Generation)
+        generation.set_input(
+            [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": f"inline data:image/png;base64,{PNG} too"},
+                        {
+                            "type": "image",
+                            "source": {"type": "base64", "media_type": "image/png", "data": big},
+                        },
+                    ],
+                }
+            ]
+        )
+    [span] = exported_spans.get_finished_spans()
+    messages = span.attributes[GEN_AI_INPUT_MESSAGES]
+    assert isinstance(messages, str)
+    assert json.loads(messages) == [
+        {
+            "role": "user",
+            "parts": [
+                {"type": "text", "content": "inline [stripped image/png 8 bytes] too"},
+                _blob("image", "image/png", 75_008, "not_captured"),
+            ],
+        }
+    ]
+    sizes = json.loads(str(span.attributes["rius.context.sizes"]))
+    assert sizes["input_messages"][0]["parts"][1] == {
+        "type": "blob",
+        "modality": "image",
+        "byte_size": 75_008,
+    }
+
+
+# --- the strip before the cap ---
+
+
+def test_a_request_with_a_large_image_stays_whole_json() -> None:
+    big = "A" * (MAX_ATTR_CHARS * 4)
+    request = {
+        "model": "claude",
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image",
+                        "source": {"type": "base64", "media_type": "image/png", "data": big},
+                    }
+                ],
+            }
+        ],
+    }
+    text = serialize(request)
+    assert not text.endswith(TRUNCATION_MARKER)
+    assert json.loads(text)["messages"][0]["content"][0]["source"]["data"] == (
+        f"[stripped image/png {len(big) * 3 // 4} bytes]"
+    )
+
+
+def test_a_string_input_is_stripped_before_it_is_cut() -> None:
+    text = "x" * 10 + f"data:image/png;base64,{'A' * (MAX_ATTR_CHARS * 2)}" + " end"
+    assert (
+        text_value(text) == "x" * 10 + f"[stripped image/png {MAX_ATTR_CHARS * 3 // 2} bytes] end"
+    )
+
+
+# --- the exporter ---
+
+
+def _span(
+    attributes: dict[str, Any], events: tuple[Event, ...] = (), links: tuple[Link, ...] = ()
+) -> ReadableSpan:
+    context = SpanContext(trace_id=1, span_id=2, is_remote=False)
+    return ReadableSpan(
+        name="s", context=context, attributes=attributes, events=events, links=links
+    )
+
+
+def _export(span: ReadableSpan) -> ReadableSpan:
+    sink = InMemorySpanExporter()
+    NormalizingSpanExporter(sink).export([span])
+    [out] = sink.get_finished_spans()
+    return out
+
+
+def test_openinference_images_become_media_parts() -> None:
+    prefix = "llm.input_messages.0.message."
+    attributes = {
+        prefix + "role": "user",
+        prefix + "contents.0.message_content.type": "image",
+        prefix + "contents.0.message_content.image.image.url": f"data:image/png;base64,{PNG}",
+        prefix + "contents.1.message_content.type": "image",
+        prefix + "contents.1.message_content.image.image.url": "https://example.com/cat.png",
+        prefix + "contents.2.message_content.type": "image",
+        prefix + "contents.2.message_content.image.image.url": "__REDACTED__",
+    }
+    rebuilt = reassemble_openinference_messages(attributes)
+    assert rebuilt is not None
+    assert json.loads(rebuilt[GEN_AI_INPUT_MESSAGES])[0]["parts"] == [
+        _blob("image", "image/png", 8, "not_captured"),
+        {"type": "uri", "modality": "image", "uri": "https://example.com/cat.png"},
+        _blob("image", None, None, "redacted_upstream"),
+    ]
+
+
+def test_native_messages_with_blob_content_are_rewritten() -> None:
+    raw = json.dumps(
+        [
+            {
+                "role": "user",
+                "parts": [
+                    {"type": "text", "content": "What is in this image?"},
+                    {"type": "blob", "mime_type": "image/png", "modality": "image", "content": PNG},
+                ],
+            }
+        ],
+        separators=(",", ":"),
+    )
+    rebuilt = native_media_messages({GEN_AI_INPUT_MESSAGES: raw})
+    assert rebuilt is not None
+    assert rebuilt[GEN_AI_INPUT_MESSAGES] == (
+        '[{"role":"user","parts":[{"type":"text","content":"What is in this image?"},'
+        '{"type":"blob","modality":"image","mime_type":"image/png","byte_size":8,'
+        '"stripped_reason":"not_captured"}]}]'
+    )
+
+
+def test_native_messages_without_media_are_left_byte_for_byte() -> None:
+    raw = '[{"role": "user", "parts": [{"type": "text", "content": "a blob of text"}]}]'
+    assert native_media_messages({GEN_AI_OUTPUT_MESSAGES: raw}) is None
+
+
+def test_system_instructions_are_parts_and_are_rewritten() -> None:
+    raw = '[{"type":"blob","modality":"image","content":"' + PNG + '"}]'
+    rebuilt = native_media_messages({"gen_ai.system_instructions": raw})
+    assert rebuilt is not None
+    assert json.loads(rebuilt["gen_ai.system_instructions"]) == [
+        _blob("image", None, 8, "not_captured")
+    ]
+
+
+def test_the_strip_reaches_every_string_attribute_and_array_element() -> None:
+    url = f"data:image/png;base64,{PNG}"
+    stripped = strip_media({"input.value": f'{{"url":"{url}"}}', "tags": ("ok", url), "n": 3})
+    assert stripped == {
+        "input.value": '{"url":"[stripped image/png 8 bytes]"}',
+        "tags": ("ok", "[stripped image/png 8 bytes]"),
+        "n": 3,
+    }
+
+
+def test_nothing_to_strip_returns_none() -> None:
+    assert strip_media({"input.value": "hello", "n": 1}) is None
+
+
+def test_the_exporter_strips_raw_payloads_in_place() -> None:
+    raw = (
+        '{"model": "gpt-4o", "messages": [{"role": "user", "content": [{"type": "input_audio", '
+        f'"input_audio": {{"data": "{WAV}", "format": "wav"}}}}]}}]}}'
+    )
+    out = _export(_span({"input.value": raw, "output.value": "plain"}))
+    assert out.attributes is not None
+    assert out.attributes["input.value"] == raw.replace(
+        f'"{WAV}"', '"[stripped audio/wav 12 bytes]"'
+    )
+    assert out.attributes["output.value"] == "plain"
+
+
+def test_the_exporter_strips_event_and_link_attributes() -> None:
+    url = f"data:image/png;base64,{PNG}"
+    event = Event("exception", {"exception.message": f"bad image {url}"}, 5)
+    link = Link(SpanContext(trace_id=1, span_id=3, is_remote=False), {"note": url})
+    out = _export(_span({"k": "v"}, events=(event,), links=(link,)))
+    assert out.events[0].attributes == {
+        "exception.message": "bad image [stripped image/png 8 bytes]"
+    }
+    assert out.events[0].timestamp == 5
+    assert out.links[0].attributes == {"note": "[stripped image/png 8 bytes]"}
+
+
+def test_a_span_with_no_media_is_exported_as_it_came() -> None:
+    span = _span({"input.value": '{"a": "data"}'})
+    assert _export(span) is span

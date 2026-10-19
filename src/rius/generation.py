@@ -17,6 +17,7 @@ from opentelemetry.trace import Span
 
 from ._context_sizes import context_sizes
 from ._errors import error_type, record_error
+from ._media import base64_blob, media_parts, native_media_parts
 from ._serde import serialize
 from ._tracer import sdk_tracer
 from .normalization import REQUEST_PARAMETER_GUARDS, SKIP
@@ -55,15 +56,30 @@ from .user import user
 Messages = str | list[Any]
 
 
-def _normalize_part(item: Any) -> dict[str, Any]:
-    """Convert one content-list entry into a spec message part."""
+def _text_parts(item: Any) -> list[dict[str, Any]]:
+    """What is text to the model, as text parts: a string, or a text block."""
+    if isinstance(item, dict) and item.get("type") == "text" and "text" in item:
+        return [{"type": "text", "content": item["text"]}]
+    return _normalize_part(item)
+
+
+def _normalize_part(item: Any) -> list[dict[str, Any]]:
+    """Convert one content-list entry into spec message parts (usually one).
+
+    Image, audio and file content becomes a semconv ``blob``, ``uri`` or
+    ``file`` part whatever the provider's shape (see ``_media.media_parts``),
+    and a blob never carries the bytes.
+    """
     if isinstance(item, dict):
         # OpenAI multimodal text part {"type": "text", "text": ...}
         if item.get("type") == "text" and "text" in item:
-            return {"type": "text", "content": item["text"]}
+            return [{"type": "text", "content": item["text"]}]
+        media = media_parts(item, _text_parts)
+        if media is not None:
+            return media
         if "type" in item:
-            return item  # already-typed part: pass through
-    return {"type": "text", "content": item if isinstance(item, str) else serialize(item)}
+            return [item]  # already-typed part: pass through
+    return [{"type": "text", "content": item if isinstance(item, str) else serialize(item)}]
 
 
 def _normalize_message(message: Any, default_role: str) -> dict[str, Any]:
@@ -80,7 +96,15 @@ def _normalize_message(message: Any, default_role: str) -> dict[str, Any]:
     if "parts" in message:
         normalized = dict(message)
         normalized.setdefault("role", default_role)
+        if isinstance(message["parts"], list):
+            normalized["parts"] = [new for part in message["parts"] for new in _native(part)]
         return normalized
+    if "role" not in message and "content" not in message:
+        # A media item standing alone, as a Responses image_generation_call
+        # output item does.
+        media = media_parts(message, _text_parts)
+        if media is not None:
+            return {"role": default_role, "parts": media}
 
     role = message.get("role", default_role)
     if role == "tool" and "tool_call_id" in message:
@@ -100,9 +124,16 @@ def _normalize_message(message: Any, default_role: str) -> dict[str, Any]:
     if isinstance(content, str):
         parts.append({"type": "text", "content": content})
     elif isinstance(content, list):
-        parts.extend(_normalize_part(item) for item in content)
+        for item in content:
+            parts.extend(_normalize_part(item))
     elif content is not None:
         parts.append({"type": "text", "content": serialize(content)})
+    audio = message.get("audio")
+    if isinstance(audio, dict) and "data" in audio:
+        # An OpenAI chat reply's spoken audio: the blob, then its transcript.
+        parts.append(base64_blob(audio.get("data"), None, "audio"))
+        if isinstance(audio.get("transcript"), str):
+            parts.append({"type": "text", "content": audio["transcript"]})
     for call in message.get("tool_calls") or []:
         if isinstance(call, dict):
             function = call.get("function") or {}
@@ -115,6 +146,13 @@ def _normalize_message(message: Any, default_role: str) -> dict[str, Any]:
                 }
             )
     return {"role": role, "parts": parts}
+
+
+def _native(part: Any) -> list[Any]:
+    """A part of an already-shaped message: media made conformant (a blob
+    stripped), and any other part kept as it is."""
+    media = native_media_parts(part)
+    return [part] if media is None else list(media)
 
 
 def normalize_messages(messages: Messages, default_role: str) -> list[dict[str, Any]]:

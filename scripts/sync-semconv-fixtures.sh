@@ -9,8 +9,9 @@
 # normalized result; tests/test_conformance.py replays them through this SDK's
 # normalizer. Only the data is copied (manifests, recordings, expected results
 # and the format README), never the recorders, plus the two Python modules that
-# decode and encode a recording, vendored unchanged under tests/conformance/.
-# SOURCE records the commit the copy came from.
+# decode and encode a recording, vendored unchanged under tests/conformance/,
+# and registry/media_parts.yaml, whose golden examples tests/test_media.py runs
+# through the raw-payload strip. SOURCE records the commit the copy came from.
 set -euo pipefail
 
 ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
@@ -30,11 +31,12 @@ COMMIT="$(git -C "$SRC" rev-parse "$REF^{commit}")"
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
-git -C "$SRC" archive "$COMMIT" fixtures | tar -x -C "$WORK"
+git -C "$SRC" archive "$COMMIT" fixtures registry/media_parts.yaml | tar -x -C "$WORK"
 
 rm -rf "$DATA"
 mkdir -p "$DATA/fixtures"
 cp "$WORK/fixtures/README.md" "$DATA/fixtures/README.md"
+cp "$WORK/registry/media_parts.yaml" "$DATA/media_parts.yaml"
 for family in "$WORK"/fixtures/*/; do
   name="$(basename "$family")"
   [[ "$name" == _* ]] && continue

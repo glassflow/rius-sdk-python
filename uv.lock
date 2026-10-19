@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.10"
 resolution-markers = [
     "python_full_version >= '3.15'",
@@ -1040,6 +1040,7 @@ dev = [
     { name = "openinference-instrumentation-llama-index" },
     { name = "openinference-instrumentation-openai" },
     { name = "pytest" },
+    { name = "pyyaml" },
     { name = "ruff" },
 ]
 
@@ -1078,6 +1079,7 @@ dev = [
     { name = "openinference-instrumentation-llama-index" },
     { name = "openinference-instrumentation-openai" },
     { name = "pytest", specifier = ">=8.0.0" },
+    { name = "pyyaml", specifier = ">=6.0" },
     { name = "ruff", specifier = ">=0.17.0" },
 ]
 

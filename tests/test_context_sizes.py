@@ -257,15 +257,59 @@ def test_orphan_tool_result_without_id_is_a_text_part() -> None:
 def test_non_text_parts_are_marked_by_type_without_size() -> None:
     message = {
         "role": "user",
+        "content": [{"type": "text", "text": "look"}, {"type": "audio", "data": "..."}],
+    }
+    assert _sizes(input_messages=[message])["input_messages"] == [
+        _message("user", _text(4), {"type": "audio"})
+    ]
+
+
+def test_a_media_part_carries_its_modality_and_media_size_never_bytes() -> None:
+    message = {
+        "role": "user",
         "content": [
-            {"type": "text", "text": "look"},
             {"type": "image_url", "image_url": {"url": "data:image/png;base64,AAAA"}},
-            {"type": "audio", "data": "..."},
+            {"type": "image_url", "image_url": {"url": "https://example.com/cat.png"}},
+            {"type": "input_file", "file_id": "file-1", "filename": "report.pdf"},
+            {"type": "image_url", "image_url": {"url": "__REDACTED__"}},
         ],
     }
     assert _sizes(input_messages=[message])["input_messages"] == [
-        _message("user", _text(4), {"type": "image_url"}, {"type": "audio"})
+        _message(
+            "user",
+            {"type": "blob", "modality": "image", "byte_size": 3},
+            {"type": "uri", "modality": "image"},
+            {"type": "file", "modality": "document"},
+            {"type": "blob", "modality": "image"},
+        )
     ]
+
+
+def test_the_contracts_media_example_is_what_a_blob_records() -> None:
+    sizes = context_sizes(
+        None,
+        [
+            {
+                "role": "user",
+                "parts": [
+                    {"type": "text", "content": "What is this?"},
+                    {
+                        "type": "blob",
+                        "modality": "image",
+                        "mime_type": "image/png",
+                        "byte_size": 48213,
+                        "stripped_reason": "not_captured",
+                    },
+                ],
+            }
+        ],
+        [{"role": "assistant", "parts": [{"type": "text", "content": "A cat on a mat, asleep."}]}],
+    )
+    assert sizes == (
+        '{"version":1,"input_messages":[{"role":"user","parts":[{"type":"text","bytes":13},'
+        '{"type":"blob","modality":"image","byte_size":48213}]}],'
+        '"output_messages":[{"role":"assistant","parts":[{"type":"text","bytes":23}]}]}'
+    )
 
 
 def test_part_with_missing_or_non_string_type_is_unknown() -> None:
