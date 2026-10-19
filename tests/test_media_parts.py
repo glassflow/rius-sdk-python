@@ -20,7 +20,7 @@ from opentelemetry.sdk.trace import Event, ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import Link, SpanContext
 
-from rius._serde import MAX_ATTR_CHARS, TRUNCATION_MARKER, serialize, text_value
+from rius._serde import MAX_ATTR_CHARS, MAX_STRIP_CHARS, TRUNCATION_MARKER, serialize, text_value
 from rius.generation import Generation, normalize_messages
 from rius.normalization import (
     NormalizingSpanExporter,
@@ -758,6 +758,32 @@ def test_the_strip_reaches_every_string_attribute_and_array_element() -> None:
         "tags": ("ok", "[stripped image/png 8 bytes]"),
         "n": 3,
     }
+
+
+def _past_the_budget() -> str:
+    # A third-party request of several MB: an Anthropic image source.
+    data = "iVBORw0KGgo" * (3 * MAX_STRIP_CHARS // 11)
+    source = {"type": "base64", "media_type": "image/png", "data": data}
+    return json.dumps({"messages": [{"role": "user", "content": [{"source": source}]}]})
+
+
+def _stripped_past_the_budget(text: Any) -> None:
+    assert isinstance(text, str)
+    assert text.endswith(TRUNCATION_MARKER)
+    assert len(text) <= MAX_ATTR_CHARS + len(TRUNCATION_MARKER)
+    assert "[stripped unknown unknown bytes]" in text
+    assert "iVBORw0KGgo" * 6 not in text
+
+
+def test_a_third_party_value_past_the_budget_is_stripped_by_the_fallback() -> None:
+    raw = _past_the_budget()
+    assert len(raw) > MAX_STRIP_CHARS
+    out = _export(_span({"input.value": raw, "tags": ("ok", raw)}))
+    assert out.attributes is not None
+    _stripped_past_the_budget(out.attributes["input.value"])
+    tags = out.attributes["tags"]
+    assert isinstance(tags, tuple) and tags[0] == "ok"
+    _stripped_past_the_budget(tags[1])
 
 
 def test_nothing_to_strip_returns_none() -> None:

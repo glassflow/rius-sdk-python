@@ -69,6 +69,18 @@ def truncate(text: str) -> str:
     return _cut(strip_raw_payload(text))
 
 
+def strip_within_budget(text: str) -> str:
+    """``text`` with its media stripped, the work bounded by the strip budget.
+
+    Under the budget it is the contract's strip and nothing else, so a value
+    another instrumentation recorded keeps its length. Past it, the value is
+    cut and stripped as ``truncate`` does (see ``_cut_past_budget``).
+    """
+    if len(text) > MAX_STRIP_CHARS:
+        return _cut_past_budget(text)
+    return strip_raw_payload(text)
+
+
 def _cut_past_budget(text: str) -> str:
     """A text past the strip budget: cut to the cap, its data URLs stripped,
     then every remaining base64-alphabet run of 64 or more characters replaced.

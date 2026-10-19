@@ -115,10 +115,9 @@ from ._media import (
     REDACTED_UPSTREAM,
     blob_part,
     rebuild_native_parts,
-    strip_raw_payload,
     url_part,
 )
-from ._serde import serialize
+from ._serde import serialize, strip_within_budget
 from .aggregated_usage import WrappedCallTracker, move_aggregated_usage
 from .semconv import (
     ERROR_TYPE,
@@ -1133,10 +1132,13 @@ def native_media_messages(attributes: Mapping[str, Any] | None) -> dict[str, Any
 
 
 def _stripped_value(value: Any) -> Any:
+    # Bounded by the strip budget, as a value this SDK records is: a
+    # third-party payload of several MB is cut and stripped conservatively
+    # instead of parsed whole on the export thread.
     if isinstance(value, str):
-        return strip_raw_payload(value)
+        return strip_within_budget(value)
     if isinstance(value, (list, tuple)) and any(isinstance(v, str) for v in value):
-        return type(value)(strip_raw_payload(v) if isinstance(v, str) else v for v in value)
+        return type(value)(strip_within_budget(v) if isinstance(v, str) else v for v in value)
     return value
 
 
@@ -1149,7 +1151,8 @@ def strip_media(attributes: Mapping[str, Any] | None) -> dict[str, Any] | None:
     keys), the message keys this exporter built or kept, and anything else a
     string can hide a data URL in. Each media token is replaced in place and
     every other byte stays (see ``_media.strip_raw_payload``), so a span the
-    sink strips again comes out the same.
+    sink strips again comes out the same. A value past the strip budget is cut
+    and stripped conservatively instead (see ``_serde.strip_within_budget``).
     """
     if not attributes:
         return None
