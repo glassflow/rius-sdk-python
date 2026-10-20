@@ -1678,9 +1678,9 @@ def openinference_invocation_parameters(
     return produced
 
 
-#: The per-modality audio usage keys. Defined in the rius-semconv registry,
-#: whose rows say planned until an SDK writes them, so the vendored module
-#: does not carry them yet; they move to the semconv import when it does.
+#: The per-modality audio usage keys. Canonical in the rius-semconv registry;
+#: the vendored module is pinned at v1.6.0, before they were generated, so it
+#: lacks the constants. They move to the semconv import when it is re-pinned.
 GEN_AI_USAGE_AUDIO_INPUT_TOKENS = "gen_ai.usage.audio.input_tokens"
 GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS = "gen_ai.usage.audio.output_tokens"
 
