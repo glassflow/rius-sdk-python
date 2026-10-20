@@ -6,7 +6,7 @@
 #
 #   blob  {"type":"blob","modality","mime_type"?,"byte_size"?,"stripped_reason"}
 #         Inline bytes, with no `content`. byte_size is the decoded length,
-#         omitted when the bytes never reached us.
+#         omitted when it is unknown.
 #   uri   {"type":"uri","modality","mime_type"?,"uri"}
 #         Referenced by URL. A data: URL is never a uri: it becomes a blob.
 #   file  {"type":"file","modality","mime_type"?,"file_id"}
@@ -15,10 +15,8 @@
 # Their members are written in the order shown, and a member whose value is
 # unknown is omitted, never null: see part_shapes.
 #
-# The modality comes from the MIME type when it is known: image/* is image,
-# audio/* audio, video/* video, anything else (PDF, text/*, office formats)
-# document. With no MIME type it comes from the provider's part kind. It is
-# never guessed as image for a non-image MIME type.
+# Every normalized media part carries a modality. The rule that picks it is in
+# part_shapes (rules).
 #
 # A part whose type no normalizer recognizes passes through unchanged as a
 # generic part. It is never wrapped in a text part.
@@ -123,7 +121,9 @@ raw_payloads:
     of SpanAttributes. tools/check_fixtures.py scans more than the strip covers:
     it also scans the resource and scope attributes of a recording. That scan is
     a check, not a strip rule, and media in those attributes would still be a
-    bug.
+    bug. An SDK may bound the work it spends on one very large value. Past that
+    bound no media survives, but byte identity with the other implementations
+    is not promised.
   order: >-
     A normalizer first builds parts from the message keys (the source rule).
     Stripping runs last, over every string attribute in scope, including the
@@ -132,9 +132,9 @@ raw_payloads:
     holding a data URL gets rule (b) in place. So in a message key (and in the
     sink's InputMessages and OutputMessages columns) a blob part never has a
     content member, while in any other attribute or column a blob part's content
-    may be a complete replacement, the one rule (e) writes there.
-    The fixture check holds expected results to exactly this: a normalized blob part carries no content.
-    Within one pass, every rule reads the text as it was before the pass: rule
+    may be a complete replacement, the one rule (e) writes there. The fixture
+    check holds expected results to exactly this: a normalized blob part
+    carries no content. Within one pass, every rule reads the text as it was before the pass: rule
     (e) takes its context and its mime type from each object's member values as
     they were, never from a sibling the same pass has already rewritten (see
     members). A walker that rewrites the document in place must keep reading the
@@ -626,6 +626,29 @@ raw_payloads:
       tokens:
         - {rule: e, mime: unknown, byte_size: 3}
         - {rule: b, mime: image/png, byte_size: 3}
+    - name: a_mime_with_a_colon_is_no_data_url
+      note: 'The mime type of rule (b) cannot hold a colon, so the first data: is no token start: the match begins at the second data: and the first stays as text.'
+      input: 'data:data:image/png;base64,QUFB'
+      output: 'data:[stripped image/png 3 bytes]'
+      tokens:
+        - {rule: b, mime: image/png, byte_size: 3}
+    - name: a_colon_inside_the_mime_leaves_the_data_url
+      note: 'Because the mime type cannot hold a colon, a data URL whose mime type or parameter has one (text/x:y) is not matched and stays as it came. This is the cost of keeping rule (b) linear.'
+      input: 'data:text/x:y;base64,QUFB'
+      output: 'data:text/x:y;base64,QUFB'
+      tokens: []
+    - name: duplicate_mime_keys_take_the_first_that_qualifies
+      note: 'Both members are mediaType. The first is not a valid mime, so the second, the first that qualifies, gives the mime type.'
+      input: '{"mediaType":"a b","mediaType":"image/png","data":"QUFB"}'
+      output: '{"mediaType":"a b","mediaType":"image/png","data":"[stripped image/png 3 bytes]"}'
+      tokens:
+        - {rule: e, mime: image/png, byte_size: 3}
+    - name: duplicate_type_any_member_makes_a_buffer
+      note: 'In the strip a condition on type holds when any member meets it, so one type member equal to Buffer makes this a Buffer object whatever the others say. Part building reads only the last type member instead (see part_shapes).'
+      input: '{"file":{"type":"text","type":"Buffer","data":[1]}}'
+      output: '{"file":"[stripped unknown 1 bytes]"}'
+      tokens:
+        - {rule: d, mime: unknown, byte_size: 1}
 
 part_shapes:
   # The exact serialized form of a normalized part in a message key. The
@@ -645,22 +668,61 @@ part_shapes:
     - A member whose value is unknown is omitted, never written as null. This applies to mime_type and byte_size.
     - mime_type is written only when it is a valid token/token MIME type, matching the replacement's mime_pattern in full. Anything else is omitted.
     - The modality is taken from the prefix of the MIME type, matched case-insensitively. image/* is image, audio/* audio, video/* video, anything else document.
-    - A native part is rebuilt into this canonical shape when it is a blob that still carries content, or a media part whose modality is missing. Its other members are not kept.
-    - A file part, or any part with no MIME type and no other hint, falls back to the modality document. With no MIME type, the filename extension is the hint (see extensions).
-    - A data URL that is not base64 (`data:<mime>,<payload>`) becomes a blob with the stripped_reason not_captured and no byte_size. When its payload is empty or `None`, it becomes a blob with the stripped_reason redacted_upstream.
+    - 'Every native media part in a message key (blob, uri or file) is always rebuilt into its canonical shape: members in the pinned order, extra members dropped, and every member that is unknown omitted. The only exception is a uri part whose uri is not a string, or a file part whose file_id is not a string: it is left as it came. Any string is a usable uri or file_id, the empty string included. Every other normalized media part carries a modality.'
+    - 'Parts are rebuilt only in a message-key value that parses as JSON and nests at most 1000 levels deep. Arrays and objects count together from the value''s root, which is level 1: the message array, a message, its parts array and a tool call part are 4 levels. A value nested deeper (a tool call whose arguments add 997 more arrays makes 1001 levels) is left as it came, every part in it included; at 1000 levels its parts are rebuilt. The implementation counts the depth itself and never relies on its parser''s or its language''s recursion limit. The strip still runs on a value left this way.'
+    - 'The modality that the part already has is kept, when it is one of modalities (any other value is ignored), except for a blob whose content is a string and a uri holding a data URL (below). Otherwise it is taken from the MIME type, then from the filename extension (see extensions), then from the part kind the provider gives it (an image, audio, video, file or document item is a hint), and otherwise it is document. A file part with no valid modality and no MIME type gets document; no member of a file part is read for an extension. Any other part with no MIME type and no other hint also gets document.'
+    - 'A blob whose `content` is a string is rebuilt with stripped_reason not_captured and a byte_size taken from the content under the size rule of the strip (omitted when the size is unknown). Its modality comes from its MIME type first, then from the modality it has, then document: a PDF blob labelled image is a document. A content string that is itself a data URL follows the data URL rules below, with the part''s mime_type as the hint and the same modality order. A blob in a message key never carries content.'
+    - 'A blob with no string `content` keeps a stripped_reason that is one of stripped_reasons. Otherwise its stripped_reason is redacted_upstream when it has no content member or a null one, and not_captured when its content is any other value. It keeps a byte_size that is a whole, non-negative number no larger than 2^53 - 1 (8, 8.0 and 8e0 alike, written 8); any other byte_size is omitted.'
+    - 'A uri part, or a provider uri such as a Gemini file_data, whose URI is a data URL is never a uri: it becomes a blob under the data URL rules below. A native uri part takes that blob''s modality as a blob whose content is a string does: from the MIME type first, then the modality it has, then document.'
+    - 'When a part has duplicate `type` members, the last one wins, as in a standard JSON decoder. The strip is different: there, a condition on `type` holds when any member qualifies.'
+    - 'A base64 data URL (rule (b)''s pattern matching the whole string) becomes a blob with the stripped_reason not_captured. Its mime type is the URL''s when that is a valid token/token MIME type, else the hint (a native part''s mime_type). Its byte_size is that of the base64 run under the size rule of the strip: an empty run is 0 bytes, and an invalid run has no byte_size.'
+    - A data URL that is not base64 (`data:<mime>,<payload>`) becomes a blob with the stripped_reason not_captured and no byte_size. Its mime type is the text after `data:` up to the first `;` or `,`, when that is a valid token/token MIME type, else the hint; its payload is everything after the first comma. This rule also covers a URL that names base64 but whose run does not match rule (b), such as `data:image/png;base64,@@`. When its payload is empty or `None`, it becomes a blob with the stripped_reason redacted_upstream.
+    - 'When a normalizer rebuilds a native part inside an existing message-key value, it edits in place: only that part object token is replaced by its canonical compact serialization (no spaces, the minimal escaping of the strip), and every other byte of the value stays as it came. A value with nothing to rebuild stays byte for byte. Messages a normalizer builds itself are serialized compactly.'
+  in_place_examples:
+    - name: only_the_part_is_replaced
+      from: 'A spaced message value holding a native blob with content and a MIME type, and no modality.'
+      input: '[ {"role": "user", "parts": [ {"type": "blob", "content": "QUJD", "mime_type": "image/png"} ] } ]'
+      output: '[ {"role": "user", "parts": [ {"type":"blob","modality":"image","mime_type":"image/png","byte_size":3,"stripped_reason":"not_captured"} ] } ]'
   examples:
     - name: blob_with_a_known_size
       from: 'A base64 data URL of image/png, 8 bytes decoded.'
       part: '{"type":"blob","modality":"image","mime_type":"image/png","byte_size":8,"stripped_reason":"not_captured"}'
     - name: blob_whose_bytes_never_arrived
-      from: 'An image part whose content is the placeholder the instrumentor wrote, with no MIME type.'
-      part: '{"type":"blob","modality":"document","stripped_reason":"redacted_upstream"}'
+      from: 'An image item whose content is the placeholder the instrumentor wrote, with no MIME type: the part kind the provider gives it is the modality hint.'
+      part: '{"type":"blob","modality":"image","stripped_reason":"redacted_upstream"}'
     - name: data_url_that_is_not_base64
       from: 'The data URL data:text/plain,hello.'
       part: '{"type":"blob","modality":"document","mime_type":"text/plain","stripped_reason":"not_captured"}'
     - name: data_url_that_is_not_base64_and_empty
       from: 'The data URL data:image/png, with no payload.'
       part: '{"type":"blob","modality":"image","mime_type":"image/png","stripped_reason":"redacted_upstream"}'
+    - name: blob_with_content_and_no_hint
+      from: 'A native blob part with a content member holding the base64 iVBORw0KGgo= and neither a MIME type nor a modality.'
+      part: '{"type":"blob","modality":"document","byte_size":8,"stripped_reason":"not_captured"}'
+    - name: blob_with_content_labelled_image_for_a_pdf
+      from: 'A native blob part with a content member holding the base64 JVBERi0=, the mime_type application/pdf and the modality image, as @ai-sdk/otel writes a PDF: the MIME type wins over the modality it has.'
+      part: '{"type":"blob","modality":"document","mime_type":"application/pdf","byte_size":5,"stripped_reason":"not_captured"}'
+    - name: blob_with_content_that_is_an_empty_base64_data_url
+      from: 'A native blob part with the mime_type image/png and a content member holding data:;base64, which names no mime type and has an empty run: the part''s mime_type is the hint.'
+      part: '{"type":"blob","modality":"image","mime_type":"image/png","byte_size":0,"stripped_reason":"not_captured"}'
+    - name: blob_with_no_content_and_no_stripped_reason
+      from: 'A native blob part with the modality audio and neither content nor stripped_reason.'
+      part: '{"type":"blob","modality":"audio","stripped_reason":"redacted_upstream"}'
+    - name: blob_with_content_that_is_not_a_string
+      from: 'A native blob part whose content is the number 5 and whose byte_size is 8.0, with no stripped_reason.'
+      part: '{"type":"blob","modality":"document","byte_size":8,"stripped_reason":"not_captured"}'
+    - name: uri_with_no_mime_type_and_no_modality
+      from: 'A uri part for https://example.com/download with neither a MIME type nor a modality.'
+      part: '{"type":"uri","modality":"document","uri":"https://example.com/download"}'
+    - name: uri_with_members_out_of_order_keeps_its_modality
+      from: 'A uri part written as uri, modality image, type uri and an extra member, in that order.'
+      part: '{"type":"uri","modality":"image","uri":"https://example.com/talk"}'
+    - name: uri_with_an_invalid_mime_type
+      from: 'A uri part with the mime_type text/plain;charset=x, which is not token/token.'
+      part: '{"type":"uri","modality":"document","uri":"https://example.com/notes"}'
+    - name: uri_that_is_a_data_url
+      from: 'A uri part, or a Gemini file_data, whose URI is data:image/png;base64,iVBORw0KGgo=.'
+      part: '{"type":"blob","modality":"image","mime_type":"image/png","byte_size":8,"stripped_reason":"not_captured"}'
     - name: uri_with_a_mime_type
       from: 'An audio part by URL, with the MIME type audio/mpeg.'
       part: '{"type":"uri","modality":"audio","mime_type":"audio/mpeg","uri":"https://example.com/a.mp3"}'
@@ -846,7 +908,7 @@ rows:
     modality: from_mime
     paths: [native]
     fixtures: [openllmetry/image_https_url]
-    note: Unchanged, and modality is filled from the mime type when missing. OpenLLMetry 0.62 writes it in gen_ai.input.messages.
+    note: Rebuilt into its canonical shape (see part_shapes). A modality it has is kept, else it comes from the mime type, then the URI's filename extension, then document. OpenLLMetry 0.62 writes it in gen_ai.input.messages.
 
   - source: semconv.native
     shape: file part
@@ -856,7 +918,7 @@ rows:
     paths: [native]
     fixtures: []
     reason: No recorded family; covered by the SDK pass-through unit tests.
-    note: Unchanged, and modality is filled from the mime type when missing.
+    note: Rebuilt into its canonical shape (see part_shapes). A modality it has is kept, else it comes from the mime type, then document.
 
   - source: openinference.llm
     shape: image.image.url = data:None;url,None

@@ -145,12 +145,12 @@ keys:
   - key: llm.token_count.prompt_details.audio
     decision: mapped
     target: gen_ai.usage.audio.input_tokens
-    mapped_by: [python, typescript]
+    mapped_by: [python, typescript, sink]
     reason: A subset of the input count, never added to it.
   - key: llm.token_count.completion_details.audio
     decision: mapped
     target: gen_ai.usage.audio.output_tokens
-    mapped_by: [python, typescript]
+    mapped_by: [python, typescript, sink]
     reason: A subset of the output count, never added to it.
   - key: llm.cost.total
     type: double
@@ -214,14 +214,18 @@ keys:
   - key: gen_ai.usage.input_token_details.audio_tokens
     decision: mapped
     target: gen_ai.usage.audio.input_tokens
-    mapped_by: [python, typescript]
+    mapped_by: [python, typescript, sink]
     reason: |
       @ai-sdk/otel's flattening of a provider's input_token_details on a
       transcription span (OpenAI's gpt-4o-transcribe). A subset of the input
       count, never added to it.
   - key: gen_ai.usage.input_token_details.text_tokens
-    decision: ignored
-    reason: As input_token_details.audio_tokens, for the text part of the input.
+    decision: gap
+    reason: |
+      The text subset of a transcription span's input, beside
+      input_token_details.audio_tokens. It belongs in
+      gen_ai.usage.text.input_tokens, but no normalizer maps it yet, so the
+      text split of the input is not attributed.
   - prefix: gen_ai.aggregated_usage.
     decision: ignored
     reason: |

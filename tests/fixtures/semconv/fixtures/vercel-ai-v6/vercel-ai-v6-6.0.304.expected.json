@@ -2,7 +2,7 @@
   "normalizer": {
     "package": "@glassflow-ai/rius",
     "version": "1.4.1",
-    "commit": "1523bf5dce342097d32555635567e412372b1940"
+    "commit": "62979d546ba2b8b14396e5d5007e06c7e61af320"
   },
   "recordings": [
     {
