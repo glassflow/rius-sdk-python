@@ -731,7 +731,8 @@ def _content_part(
       It must hold nothing but the call's fields, and each of them must equal
       one tool call's; otherwise it is not provably a copy, and is serialized.
     * An image item is a media part (see :func:`_image_part`), never a text
-      part holding the item.
+      part holding the item. One whose url is not a string has no target to
+      point at, so it is left as it came, serialized like any other item.
     * Anything else (a reasoning block, a text item carrying an id or a
       signature, an item without a type) becomes a text part holding the
       item serialized, as the generation helper does with content it has no
@@ -743,7 +744,7 @@ def _content_part(
         return {"type": "text", "content": item["text"]}
     if item.get("type") == "tool_use" and _repeats_a_tool_call(item, tool_calls):
         return None
-    if item.get("type") == "image":
+    if item.get("type") == "image" and isinstance(item.get(_IMAGE_URL, ""), str):
         return _image_part(item)
     return {"type": "text", "content": serialize({k: item[k] for k in sorted(item)})}
 

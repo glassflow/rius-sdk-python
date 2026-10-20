@@ -543,6 +543,17 @@ def test_openinference_images_become_media_parts() -> None:
     ]
 
 
+@pytest.mark.parametrize("url", [None, 7, ["https://example.com/cat.png"]])
+def test_an_image_item_whose_url_is_not_a_string_makes_no_media_part(url: Any) -> None:
+    from rius.normalization import _content_part
+
+    item = {"type": "image", "image.image.url": url}
+    part = _content_part(item, {})
+    assert part is not None
+    assert part["type"] == "text"
+    assert "uri" not in part
+
+
 @pytest.mark.parametrize(
     ("member_order", "parts"),
     [
