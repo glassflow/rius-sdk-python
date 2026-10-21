@@ -716,6 +716,19 @@ def test_a_typed_block_with_a_bedrock_key_is_not_a_media_part() -> None:
     assert _parts([block]) == [block]
 
 
+@pytest.mark.parametrize(
+    "block",
+    [
+        {"type": "input_image"},
+        {"type": "input_image", "file_id": 5},
+        {"type": "input_image", "image_url": None},
+    ],
+    ids=["no_reference", "file_id_that_is_not_a_string", "image_url_that_is_null"],
+)
+def test_an_input_image_with_no_string_reference_stays_as_it_came(block: dict[str, Any]) -> None:
+    assert _parts([block]) == [block]
+
+
 def test_bedrock_converse_s3_location_is_not_a_media_part() -> None:
     block = {"image": {"format": "png", "source": {"s3Location": {"uri": "s3://b/a.png"}}}}
     assert _parts([block]) == [
