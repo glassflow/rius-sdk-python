@@ -66,6 +66,7 @@ KEYED_BLOB_KEY = "content"
 KEYED_TYPED_KEYS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("base64", ("image", "audio", "video", "file", "text-plain")),
     ("input_audio", ("input_audio",)),
+    ("inputAudio", ("input_audio",)),
 )
 #: Keys holding base64 in an object under the source key, whatever its type.
 KEYED_SOURCE_BYTES_KEYS = ("bytes",)
@@ -895,6 +896,9 @@ def media_parts(item: Any) -> list[Part] | None:
         return [url_part(url, "image")] if isinstance(url, str) else None
     if block_type == "input_audio":
         audio = item.get("input_audio")
+        if not isinstance(audio, str) and isinstance(item.get("inputAudio"), str):
+            # Mistral's TypeScript SDK spells it inputAudio.
+            audio = item["inputAudio"]
         if isinstance(audio, str):
             # Mistral's audio chunk: the bare base64, with no format.
             return [base64_blob(audio, "audio", None)]
@@ -917,7 +921,7 @@ def media_parts(item: Any) -> list[Part] | None:
         return [base64_blob(item["result"], "image", fmt and f"image/{fmt}")]
     if block_type in ("image", "document"):
         return _anthropic_source(block_type, item.get("source"))
-    return _bedrock_part(item) or _gemini_part(item)
+    return (None if "type" in item else _bedrock_part(item)) or _gemini_part(item)
 
 
 #: A LangChain v1 standard content block's type, when it carries base64, and
@@ -932,11 +936,11 @@ _LANGCHAIN_KINDS = {
 
 
 def _bedrock_part(item: Part) -> list[Part] | None:
-    """A Bedrock Converse image, video or document block, which has no type,
-    by its source's bytes: base64 (or, from boto3, a bytes object) a blob. An
-    image's format names its mime type; a video or document format is not
-    always a MIME subtype, so it names none."""
-    for kind in ("image", "video", "document"):
+    """A Bedrock Converse image, video, audio or document block, which has no
+    type, by its source's bytes: base64 (or, from boto3, a bytes object) is a
+    blob. An image's format names its mime type; a video, audio or document
+    format is not always a MIME subtype, so it names none."""
+    for kind in ("image", "video", "audio", "document"):
         block = item.get(kind)
         if not isinstance(block, dict):
             continue

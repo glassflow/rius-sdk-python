@@ -269,6 +269,12 @@ def test_mistral_input_audio_string_is_an_audio_blob_with_no_mime() -> None:
     ]
 
 
+def test_mistral_typescript_input_audio_string_is_an_audio_blob_with_no_mime() -> None:
+    assert _parts([{"type": "input_audio", "inputAudio": WAV}]) == [
+        _blob("audio", None, 12, "not_captured")
+    ]
+
+
 def test_mistral_input_audio_data_url_takes_the_urls_mime() -> None:
     url = f"data:audio/wav;base64,{WAV}"
     assert _parts([{"type": "input_audio", "input_audio": url}]) == [
@@ -334,6 +340,10 @@ def test_langchain_v1_block_with_a_non_media_type_is_not_a_media_part() -> None:
             _blob("document", None, 5, "not_captured"),
         ),
         (
+            {"audio": {"format": "mp3", "source": {"bytes": WAV}}},
+            _blob("audio", None, 12, "not_captured"),
+        ),
+        (
             {"image": {"source": {"bytes": PNG}}},
             _blob("image", None, 8, "not_captured"),
         ),
@@ -348,6 +358,16 @@ def test_bedrock_converse_source_bytes_is_a_blob(
 def test_bedrock_converse_bytes_object_is_a_blob_sized_by_its_length() -> None:
     block = {"image": {"format": "jpeg", "source": {"bytes": b"\xff\xd8\xff\xe0"}}}
     assert _parts([block]) == [_blob("image", "image/jpeg", 4, "not_captured")]
+
+
+def test_bedrock_converse_audio_bytes_object_is_a_blob_sized_by_its_length() -> None:
+    block = {"audio": {"format": "wav", "source": {"bytes": b"RIFF"}}}
+    assert _parts([block]) == [_blob("audio", None, 4, "not_captured")]
+
+
+def test_a_typed_block_with_a_bedrock_key_is_not_a_media_part() -> None:
+    block = {"type": "custom", "image": {"format": "png", "source": {"bytes": PNG}}}
+    assert _parts([block]) == [block]
 
 
 def test_bedrock_converse_s3_location_is_not_a_media_part() -> None:
