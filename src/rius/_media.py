@@ -62,21 +62,26 @@ KEYED_SOURCE_KEY = "source"
 KEYED_SOURCE_TYPE = "base64"
 KEYED_BLOB_TYPE = "blob"
 KEYED_BLOB_KEY = "content"
-#: (key, value): a member that is context for the keys, as a sibling mime key
-#: is (the LangChain v0 ``{"source_type":"base64","data":...}``).
-KEYED_BASE64_MARKERS = (("source_type", "base64"),)
+#: (key, value, keys): a member that makes its own keys, in the same object,
+#: hold base64 (the LangChain v0 ``{"source_type":"base64","data":...}``).
+KEYED_BASE64_MARKERS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
+    ("source_type", "base64", ("data",)),
+)
 
 
 @dataclass(frozen=True)
 class TypedKey:
     """A key holding base64 whenever its object has one of the types, and,
-    when it names parent keys, sits under one of them. ``keeps_urls`` leaves
-    a string that starts with a URL scheme to rule (b); ``holder_mime`` reads
-    the holder's mime keys when the object names no mime itself."""
+    when it names parent keys, sits under one of them, and, when it names
+    holder types, the nearest object holding it has one of them.
+    ``keeps_urls`` leaves a URL to rule (b) (see ``_kept_url``);
+    ``holder_mime`` reads the holder's mime keys when the object names no
+    mime itself."""
 
     key: str
     types: tuple[str, ...]
     parent_keys: tuple[str, ...] | None = None
+    holder_types: tuple[str, ...] | None = None
     keeps_urls: bool = False
     holder_mime: bool = False
 
@@ -89,7 +94,14 @@ KEYED_TYPED_KEYS = (
     TypedKey("image", ("image",), keeps_urls=True),
     # v7 tagged data in a Vercel file part's data or image part's image: the
     # tag names no mime, so the part's mediaType does.
-    TypedKey("data", ("data",), ("data", "image"), keeps_urls=True, holder_mime=True),
+    TypedKey(
+        "data",
+        ("data",),
+        parent_keys=("data", "image"),
+        holder_types=("file", "image"),
+        keeps_urls=True,
+        holder_mime=True,
+    ),
 )
 #: Rule (e)'s URL scheme, matched at the start of a value: an ASCII letter,
 #: then letters, digits, ``+``, ``-`` or ``.``, then a colon. Base64 holds no
@@ -245,34 +257,53 @@ def _buffer_data(members: Members) -> list[Any] | None:
     return data if isinstance(data, list) else None
 
 
-def _typed_keys(members: Members, parent_key: str | None) -> list[TypedKey]:
-    """The typed keys that hold in an object: it has one of their types, and
-    its parent key is one of their parent keys, if they name any."""
+def _typed_keys(members: Members, parent_key: str | None, holder: Members | None) -> list[TypedKey]:
+    """The typed keys that hold in an object: it has one of their types, its
+    parent key is one of their parent keys, if they name any, and its holder
+    (the nearest enclosing object) has one of their holder types, if they
+    name any."""
     return [
         typed
         for typed in KEYED_TYPED_KEYS
         if (typed.parent_keys is None or parent_key in typed.parent_keys)
+        and (
+            typed.holder_types is None
+            or (holder is not None and any(v in typed.holder_types for v in holder.values("type")))
+        )
         and any(v in typed.types for v in members.values("type"))
     ]
 
 
-def _url_keys(members: Members, parent_key: str | None) -> frozenset[str]:
+def _url_keys(members: Members, parent_key: str | None, holder: Members | None) -> frozenset[str]:
     """The keys whose URL strings rule (e) leaves to rule (b): those of a
     typed key that keeps URLs and holds in the object."""
-    return frozenset(t.key for t in _typed_keys(members, parent_key) if t.keeps_urls)
+    return frozenset(t.key for t in _typed_keys(members, parent_key, holder) if t.keeps_urls)
+
+
+def _kept_url(value: str) -> bool:
+    """A string a key that keeps URLs leaves to rule (b): it starts with a URL
+    scheme, and the scheme is not data (in any ASCII case) or rule (b)
+    replaces the whole string. Any other data: string (wrapped,
+    percent-encoded, or with a run rule (b) stops short in) stays a rule (e)
+    token, replaced whole, so no byte of its payload survives."""
+    scheme = URL_SCHEME.match(value)
+    if scheme is None:
+        return False
+    if scheme.group()[:-1].lower() != "data":
+        return True
+    return DATA_URL_PATTERN.fullmatch(value) is not None
 
 
 def _keyed_token(key: str, value: Any, urls: frozenset[str]) -> bool:
     """A string rule (e) replaces under ``key``: a keyed string, unless the key
-    keeps URLs and the string starts with a URL scheme."""
-    return _keyed_string(value) and not (key in urls and URL_SCHEME.match(value) is not None)
+    keeps URLs and the string is one it leaves to rule (b)."""
+    return _keyed_string(value) and not (key in urls and _kept_url(value))
 
 
-def _keyed_positions(members: Members, parent_key: str | None) -> set[int]:
+def _keyed_positions(members: Members, parent_key: str | None, holder: Members | None) -> set[int]:
     """Rule (e): the positions of the members holding base64 media."""
     context = (
         any(k in KEYED_SIBLING_KEYS and _sibling_string(v) for k, v in members)
-        or any(k == key and v == value for key, value in KEYED_BASE64_MARKERS for k, v in members)
         or parent_key in KEYED_PARENT_KEYS
         or (
             parent_key == KEYED_SOURCE_KEY
@@ -280,12 +311,15 @@ def _keyed_positions(members: Members, parent_key: str | None) -> set[int]:
         )
     )
     keys = set(KEYED_KEYS) if context else set()
+    for marker, marked, marker_keys in KEYED_BASE64_MARKERS:
+        if any(v == marked for v in members.values(marker)):
+            keys.update(marker_keys)
     if _first(members, "type", lambda v: v == KEYED_BLOB_TYPE) is not None:
         keys.add(KEYED_BLOB_KEY)
-    keys.update(t.key for t in _typed_keys(members, parent_key))
+    keys.update(t.key for t in _typed_keys(members, parent_key, holder))
     if parent_key == KEYED_SOURCE_KEY:
         keys.update(KEYED_SOURCE_BYTES_KEYS)
-    urls = _url_keys(members, parent_key)
+    urls = _url_keys(members, parent_key, holder)
     return {
         i
         for i, (k, v) in enumerate(members)
@@ -314,7 +348,7 @@ def _keyed_mime(
         mime = template.replace("<value>", sibling)
         if is_mime(mime):
             return mime
-    if holder is not None and any(t.holder_mime for t in _typed_keys(members, parent_key)):
+    if holder is not None and any(t.holder_mime for t in _typed_keys(members, parent_key, holder)):
         return _mime_key(KEYED_MIME_KEYS, holder)
     return None
 
@@ -669,10 +703,10 @@ def _walk(
             tokens.append(MediaToken("d", mime, len(data)))
             edits.append((node.start, node.end, _literal(mime, len(data))))
             return
-        keyed = _keyed_positions(members, parent_key)
-        holder_members = _members(holder) if keyed and holder else None
+        holder_members = _members(holder) if holder else None
+        keyed = _keyed_positions(members, parent_key, holder_members)
         mime = _keyed_mime(members, parent_key, holder_members) if keyed else None
-        urls = _url_keys(members, parent_key) if keyed else frozenset()
+        urls = _url_keys(members, parent_key, holder_members) if keyed else frozenset()
         for i, (key, child) in enumerate(node.members):
             if i not in keyed:
                 _walk(child, key, node, depth + 1, tokens, edits)
@@ -726,7 +760,7 @@ def _keyed_edit(
 #: written out too.
 _KEYED_CONTEXT_TEXT = (
     *KEYED_SIBLING_KEYS,
-    *(key for key, _ in KEYED_BASE64_MARKERS),
+    *(key for key, _, _ in KEYED_BASE64_MARKERS),
     *KEYED_PARENT_KEYS,
     KEYED_SOURCE_KEY,
 )
