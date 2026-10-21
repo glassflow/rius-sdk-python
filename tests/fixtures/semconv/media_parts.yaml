@@ -964,10 +964,10 @@ rows:
     direction: input
     normalized: blob
     modality: from_mime
-    paths: [passthrough, openllmetry, laminar]
+    paths: [passthrough, laminar]
     fixtures: []
     reason: No recorded family; covered by the SDK pass-through unit tests.
-    note: 'The block {"image":{"format":"png","source":{"bytes":...}}}, with no type. An image''s mime type is image/<format>; a video or document format is not always a MIME subtype (three_gp, docx), so it gives none, and the modality comes from the block. A source by s3Location is not mapped yet and stays as it came.'
+    note: 'The block {"image":{"format":"png","source":{"bytes":...}}}, with no type. An image''s mime type is image/<format>; a video or document format is not always a MIME subtype (three_gp, docx), so it gives none, and the modality comes from the block. A source by s3Location is not mapped yet and stays as it came. OpenLLMetry content is a block list only when every block has a type, so Bedrock content there stays text, with its bytes stripped per raw_payloads.'
 
   - source: gemini.generate_content
     shape: inline_data {mime_type, data}
