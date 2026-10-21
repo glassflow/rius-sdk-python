@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.4.0](https://github.com/glassflow/rius-sdk-python/compare/v1.3.1...v1.4.0) (2026-10-21)
+
+
+### Features
+
+* map pydantic-ai's Gemini image and audio token details onto the modality usage keys ([#209](https://github.com/glassflow/rius-sdk-python/issues/209)) ([ea6589c](https://github.com/glassflow/rius-sdk-python/commit/ea6589c51a54901e73a0972c39cd97578cfb0a79))
+* media leaves the SDK as stripped semconv parts ([#202](https://github.com/glassflow/rius-sdk-python/issues/202)) ([81f2424](https://github.com/glassflow/rius-sdk-python/commit/81f2424756aab5596e5491727d01af90df3a7422))
+* vendor rius-semconv v1.6.0 ([#199](https://github.com/glassflow/rius-sdk-python/issues/199)) ([f70b191](https://github.com/glassflow/rius-sdk-python/commit/f70b1913b1c8e88edff83ba9bc70be0b85acf6cc))
+
+
+### Bug Fixes
+
+* keep wrapper usage aside for spans exported at shutdown ([#200](https://github.com/glassflow/rius-sdk-python/issues/200)) ([9e96d52](https://github.com/glassflow/rius-sdk-python/commit/9e96d520b1b2ebbcb195fe9a0fec1b2091087672))
+* media contract round 3: byte objects, new strip rules, LangChain v1 reference blocks ([#207](https://github.com/glassflow/rius-sdk-python/issues/207)) ([14e5ae2](https://github.com/glassflow/rius-sdk-python/commit/14e5ae2f68a662300489e0883b1079e2e199a557))
+* settle non-http URIs and empty or redacted media references ([#205](https://github.com/glassflow/rius-sdk-python/issues/205)) ([5d55593](https://github.com/glassflow/rius-sdk-python/commit/5d55593c868a2eed3e22a2c27e8be76398f4981c))
+* strip a data URL that follows a link or wraps across lines ([#211](https://github.com/glassflow/rius-sdk-python/issues/211)) ([5460370](https://github.com/glassflow/rius-sdk-python/commit/5460370f2e42f52796e2bf922b1c2ca3b57c83ac))
+* strip and size a large inline data URL without the repeated passes ([#210](https://github.com/glassflow/rius-sdk-python/issues/210)) ([d1b7100](https://github.com/glassflow/rius-sdk-python/commit/d1b7100a9d3abf91bc18f103c031b538308d937b))
+* strip LangChain v1, Bedrock and Mistral audio base64 ([#204](https://github.com/glassflow/rius-sdk-python/issues/204)) ([c4fe893](https://github.com/glassflow/rius-sdk-python/commit/c4fe89336f71c65a725fa66d70c23f778aaf704c))
+
 ## [1.3.1](https://github.com/glassflow/rius-sdk-python/compare/v1.3.0...v1.3.1) (2026-10-16)
 
 
