@@ -17,6 +17,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from rius import init
 from rius.normalization import (
     DEFAULT_TABLE,
+    GEN_AI_USAGE_AUDIO_CACHE_READ_INPUT_TOKENS,
     GEN_AI_USAGE_AUDIO_INPUT_TOKENS,
     GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS,
     openinference_invocation_parameters,
@@ -245,6 +246,7 @@ def test_source_is_mapped_and_deleted(source: str, target: str, value: Any) -> N
         "llm.token_count.total",
         "llm.token_count.prompt_details.cache_input",
         "gen_ai.usage.details.audio_tokens",
+        "gen_ai.usage.details.audio_tool_use_prompt_tokens",
         "llm.cost.total",
         "llm.tools.0.tool.json_schema",
         "llm.input_messages.0.message.content",
@@ -798,6 +800,14 @@ _MODALITY_SOURCES = {
         "gen_ai.usage.details.audio_cache_tokens": "gen_ai.usage.audio.cache_read.input_tokens",
         "gen_ai.usage.details.audio_candidates_tokens": "gen_ai.usage.audio.output_tokens",
     },
+    "typed audio": {
+        "gen_ai.usage.details.input_audio_tokens": "gen_ai.usage.audio.input_tokens",
+        "gen_ai.usage.details.cache_audio_read_tokens": GEN_AI_USAGE_AUDIO_CACHE_READ_INPUT_TOKENS,
+        "gen_ai.usage.details.output_audio_tokens": "gen_ai.usage.audio.output_tokens",
+    },
+    "live audio": {
+        "gen_ai.usage.details.audio_response_tokens": "gen_ai.usage.audio.output_tokens",
+    },
 }
 
 
@@ -849,13 +859,13 @@ def test_the_gemini_audio_split_lands_on_the_audio_keys_and_the_totals_are_not_s
     }
 
 
-@pytest.mark.parametrize("modality", ["image", "audio"])
+@pytest.mark.parametrize("modality", list(_MODALITY_SOURCES))
 def test_a_zero_modality_count_is_a_count(modality: str) -> None:
     sources = _MODALITY_SOURCES[modality]
     assert _normalize(dict.fromkeys(sources, 0)) == dict.fromkeys(sources.values(), 0)
 
 
-@pytest.mark.parametrize("modality", ["image", "audio"])
+@pytest.mark.parametrize("modality", list(_MODALITY_SOURCES))
 def test_native_modality_keys_win_and_the_sources_still_go(modality: str) -> None:
     sources = _MODALITY_SOURCES[modality]
     native = {target: 5 for target in sources.values()}
@@ -863,7 +873,7 @@ def test_native_modality_keys_win_and_the_sources_still_go(modality: str) -> Non
     assert out == native
 
 
-@pytest.mark.parametrize("modality", ["image", "audio"])
+@pytest.mark.parametrize("modality", list(_MODALITY_SOURCES))
 def test_an_unparseable_modality_count_is_dropped(modality: str) -> None:
     assert _normalize(dict.fromkeys(_MODALITY_SOURCES[modality], "lots")) == {}
 
@@ -881,3 +891,105 @@ def test_the_openinference_audio_count_beats_the_pydantic_ai_one() -> None:
         GEN_AI_USAGE_AUDIO_INPUT_TOKENS: 300,
         GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS: 80,
     }
+
+
+def test_the_ai_sdk_audio_count_beats_the_pydantic_ai_ones() -> None:
+    out = _normalize(
+        {
+            "gen_ai.usage.input_token_details.audio_tokens": 7,
+            "gen_ai.usage.details.input_audio_tokens": 21,
+            "gen_ai.usage.details.audio_prompt_tokens": 14,
+        }
+    )
+    assert out == {GEN_AI_USAGE_AUDIO_INPUT_TOKENS: 7}
+
+
+def test_the_openinference_audio_count_beats_the_typed_pydantic_ai_one() -> None:
+    out = _normalize(
+        {
+            "llm.token_count.prompt_details.audio": 300,
+            "llm.token_count.completion_details.audio": 80,
+            "gen_ai.usage.details.input_audio_tokens": 14,
+            "gen_ai.usage.details.output_audio_tokens": 15,
+        }
+    )
+    assert out == {
+        GEN_AI_USAGE_AUDIO_INPUT_TOKENS: 300,
+        GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS: 80,
+    }
+
+
+def test_on_gemini_the_typed_audio_counts_beat_the_splits_which_still_go() -> None:
+    out = _normalize(
+        {
+            "gen_ai.usage.input_tokens": 520,
+            "gen_ai.usage.output_tokens": 300,
+            "gen_ai.usage.cache_read.input_tokens": 100,
+            "gen_ai.usage.details.input_audio_tokens": 320,
+            "gen_ai.usage.details.cache_audio_read_tokens": 100,
+            "gen_ai.usage.details.output_audio_tokens": 250,
+            "gen_ai.usage.details.audio_prompt_tokens": 300,
+            "gen_ai.usage.details.audio_tool_use_prompt_tokens": 20,
+            "gen_ai.usage.details.audio_cache_tokens": 100,
+            "gen_ai.usage.details.audio_candidates_tokens": 250,
+        }
+    )
+    assert out == {
+        "gen_ai.usage.input_tokens": 520,
+        "gen_ai.usage.output_tokens": 300,
+        "gen_ai.usage.cache_read.input_tokens": 100,
+        "gen_ai.usage.audio.input_tokens": 320,
+        "gen_ai.usage.audio.cache_read.input_tokens": 100,
+        "gen_ai.usage.audio.output_tokens": 250,
+        "gen_ai.usage.details.audio_tool_use_prompt_tokens": 20,
+    }
+
+
+def test_the_gemini_live_response_split_lands_on_the_audio_output_key() -> None:
+    out = _normalize(
+        {
+            "gen_ai.usage.output_tokens": 103,
+            "gen_ai.usage.details.text_response_tokens": 22,
+            "gen_ai.usage.details.audio_response_tokens": 81,
+        }
+    )
+    assert out == {
+        "gen_ai.usage.output_tokens": 103,
+        "gen_ai.usage.details.text_response_tokens": 22,
+        "gen_ai.usage.audio.output_tokens": 81,
+    }
+
+
+def test_the_typed_output_count_beats_the_live_response_split() -> None:
+    out = _normalize(
+        {
+            "gen_ai.usage.details.output_audio_tokens": 81,
+            "gen_ai.usage.details.audio_response_tokens": 80,
+        }
+    )
+    assert out == {GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS: 81}
+
+
+def test_openai_through_pydantic_ai_maps_the_typed_counts_and_keeps_audio_tokens() -> None:
+    out = _normalize(
+        {
+            "gen_ai.usage.details.audio_tokens": 40,
+            "gen_ai.usage.details.input_audio_tokens": 30,
+            "gen_ai.usage.details.output_audio_tokens": 40,
+        }
+    )
+    assert out == {
+        "gen_ai.usage.details.audio_tokens": 40,
+        GEN_AI_USAGE_AUDIO_INPUT_TOKENS: 30,
+        GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS: 40,
+    }
+
+
+def test_a_typed_audio_count_that_will_not_parse_lets_the_gemini_split_through() -> None:
+    out = _normalize(
+        {
+            "gen_ai.usage.details.input_audio_tokens": "lots",
+            "gen_ai.usage.details.audio_prompt_tokens": 300,
+        }
+    )
+    assert out == {GEN_AI_USAGE_AUDIO_INPUT_TOKENS: 300}

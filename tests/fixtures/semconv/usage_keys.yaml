@@ -209,43 +209,94 @@ keys:
   - key: gen_ai.usage.details.audio_tokens
     decision: ignored
     reason: |
-      No single direction: pydantic-ai writes it with no input or output in
-      the name, so it cannot map to either audio key.
+      pydantic-ai's OpenAI output audio count: its chat adapter copies
+      completion_tokens_details whole, and its realtime adapter writes the
+      output audio under this name. The name carries no direction, and
+      pydantic-ai writes the same count as details.output_audio_tokens,
+      which is mapped, so this copy stays.
+
+  # pydantic-ai's typed audio counts, which it fills from genai-prices'
+  # extractors for every provider (Google, OpenAI and the OpenAI realtime
+  # API) and writes as details.<input|cache|output>_audio_tokens. They carry
+  # a direction and one name across providers, so they map ahead of the
+  # Gemini splits below; on a Gemini span both arrive, the first wins and
+  # both are removed, so nothing is counted twice.
+  - key: gen_ai.usage.details.input_audio_tokens
+    decision: mapped
+    target: gen_ai.usage.audio.input_tokens
+    mapped_by: [python, typescript, sink]
+    reason: |
+      pydantic-ai's audio input count. A subset of the input count, never
+      added to it. On Gemini it is the audio prompt split plus the audio
+      tool-use prompt split, so it wins over details.audio_prompt_tokens.
+      OpenInference's and @ai-sdk/otel's audio input keys win over it.
+  - key: gen_ai.usage.details.cache_audio_read_tokens
+    decision: mapped
+    target: gen_ai.usage.audio.cache_read.input_tokens
+    mapped_by: [python, typescript, sink]
+    reason: |
+      pydantic-ai's cached audio input count. A subset of the cache-read
+      count, never added to it. Wins over details.audio_cache_tokens, which
+      carries the same count on Gemini.
+  - key: gen_ai.usage.details.output_audio_tokens
+    decision: mapped
+    target: gen_ai.usage.audio.output_tokens
+    mapped_by: [python, typescript, sink]
+    reason: |
+      pydantic-ai's audio output count. A subset of the output count, never
+      added to it. Wins over details.audio_candidates_tokens and
+      details.audio_response_tokens, which carry the same count on Gemini.
+      OpenInference's audio output key wins over it.
 
   # pydantic-ai's Gemini splits: Google's per-modality counts, written as
-  # details.<modality>_<prompt|cache|candidates|tool_use_prompt>_tokens.
+  # details.<modality>_<prompt|cache|candidates|response|tool_use_prompt>_tokens.
   # Each prompt, cache and candidates split is a subset of the input,
   # cache-read and output count, never added to it.
   - key: gen_ai.usage.details.image_prompt_tokens
     decision: mapped
     target: gen_ai.usage.image.input_tokens
     mapped_by: [python, typescript, sink]
-    reason: Google's image input split (promptTokensDetails, modality IMAGE).
+    reason: |
+      pydantic-ai's Google image input split (promptTokensDetails, modality
+      IMAGE). A subset of the input count, never added to it.
   - key: gen_ai.usage.details.image_cache_tokens
     decision: mapped
     target: gen_ai.usage.image.cache_read.input_tokens
     mapped_by: [python, typescript, sink]
-    reason: Google's cached image split (cacheTokensDetails, modality IMAGE).
+    reason: |
+      pydantic-ai's Google cached image split (cacheTokensDetails, modality
+      IMAGE). A subset of the cache-read count, never added to it.
   - key: gen_ai.usage.details.image_candidates_tokens
     decision: mapped
     target: gen_ai.usage.image.output_tokens
     mapped_by: [python, typescript, sink]
-    reason: Google's image output split (candidatesTokensDetails, modality IMAGE).
+    reason: |
+      pydantic-ai's Google image output split (candidatesTokensDetails,
+      modality IMAGE). A subset of the output count, never added to it.
   - key: gen_ai.usage.details.audio_prompt_tokens
     decision: mapped
     target: gen_ai.usage.audio.input_tokens
     mapped_by: [python, typescript, sink]
-    reason: Google's audio input split (promptTokensDetails, modality AUDIO).
+    reason: |
+      pydantic-ai's Google audio input split (promptTokensDetails, modality
+      AUDIO). A subset of the input count, never added to it. A fallback for
+      details.input_audio_tokens, which wins.
   - key: gen_ai.usage.details.audio_cache_tokens
     decision: mapped
     target: gen_ai.usage.audio.cache_read.input_tokens
     mapped_by: [python, typescript, sink]
-    reason: Google's cached audio split (cacheTokensDetails, modality AUDIO).
+    reason: |
+      pydantic-ai's Google cached audio split (cacheTokensDetails, modality
+      AUDIO). A subset of the cache-read count, never added to it. A fallback
+      for details.cache_audio_read_tokens, which wins.
   - key: gen_ai.usage.details.audio_candidates_tokens
     decision: mapped
     target: gen_ai.usage.audio.output_tokens
     mapped_by: [python, typescript, sink]
-    reason: Google's audio output split (candidatesTokensDetails, modality AUDIO).
+    reason: |
+      pydantic-ai's Google audio output split (candidatesTokensDetails,
+      modality AUDIO). A subset of the output count, never added to it. A
+      fallback for details.output_audio_tokens, which wins.
   - key: gen_ai.usage.details.image_tool_use_prompt_tokens
     decision: ignored
     reason: |
@@ -258,6 +309,22 @@ keys:
       The image output split on pydantic-ai's realtime path (the Gemini Live
       API's responseTokensDetails). Live output is text or audio, so no image
       count is expected there, and nothing reads one.
+  - key: gen_ai.usage.details.audio_response_tokens
+    decision: mapped
+    target: gen_ai.usage.audio.output_tokens
+    mapped_by: [python, typescript, sink]
+    reason: |
+      pydantic-ai's Google audio output split on its realtime path (the
+      Gemini Live API's responseTokensDetails, modality AUDIO). A subset of
+      the output count, never added to it. A fallback for
+      details.output_audio_tokens, which wins.
+  - key: gen_ai.usage.details.audio_tool_use_prompt_tokens
+    decision: ignored
+    reason: |
+      The audio part of Google's tool-use prompt, a second audio input split
+      beside audio_prompt_tokens. pydantic-ai already adds it into
+      details.input_audio_tokens, which is mapped, and a normalizer renames
+      a count, never adds two, so it stays.
   - key: gen_ai.usage.input_token_details.audio_tokens
     decision: mapped
     target: gen_ai.usage.audio.input_tokens
