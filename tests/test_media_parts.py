@@ -182,7 +182,13 @@ CONTRACT_EXAMPLE_INPUTS: dict[str, dict[str, Any]] = {
 
 #: Part examples only the Vercel AI SDK dialect makes, which this SDK does not
 #: normalize (the TypeScript SDK and the sink do).
-VERCEL_ONLY = {"vercel_file_by_url_with_no_media_type", "blob_from_an_unknown_v7_data_tag"}
+VERCEL_ONLY = {
+    "vercel_file_by_url_with_no_media_type",
+    "blob_from_an_unknown_v7_data_tag",
+    "vercel_file_by_a_link_followed_by_a_data_url",
+    "vercel_file_by_a_url_tag_holding_a_data_url_after_a_link",
+    "vercel_image_by_a_link_followed_by_a_data_url",
+}
 
 PART_EXAMPLES = contract()["part_shapes"]["examples"]
 
@@ -193,9 +199,42 @@ CONTRACT_EXAMPLE_INPUTS.update(
 )
 
 
+#: The keys of OpenInference's flattened content item, as a provider example
+#: writes them: relative to the content prefix.
+OPENINFERENCE_ITEM = "message_content."
+
+
+def _is_vercel(item: dict[str, Any]) -> bool:
+    """A Vercel file or image part: read by the TypeScript SDK and the sink."""
+    kind = item.get("type")
+    return (kind == "file" and "data" in item) or (kind == "image" and "image" in item)
+
+
+#: The part examples that carry a provider item this SDK reads by its URI.
+PROVIDER_EXAMPLES = [
+    e for e in PART_EXAMPLES if "provider" in e and not _is_vercel(json.loads(e["provider"]))
+]
+
+
+def _provider_part(item: dict[str, Any]) -> dict[str, Any]:
+    """The part a provider item becomes: OpenInference's flattened image item
+    through the flattened messages, any other through the generation helper."""
+    if not any(key.startswith(OPENINFERENCE_ITEM) for key in item):
+        [part] = _parts([item])
+        return part
+    message = "llm.input_messages.0.message."
+    attributes = {message + "role": "user"}
+    attributes.update({message + "contents.0." + key: value for key, value in item.items()})
+    rebuilt = reassemble_openinference_messages(attributes)
+    assert rebuilt is not None
+    [part] = json.loads(rebuilt[GEN_AI_INPUT_MESSAGES])[0]["parts"]
+    return dict(part)
+
+
 def test_every_contract_part_example_is_made_here_or_is_vercel_only() -> None:
     names = {e["name"] for e in PART_EXAMPLES}
-    assert names - VERCEL_ONLY == set(CONTRACT_EXAMPLE_INPUTS)
+    provider = {e["name"] for e in PROVIDER_EXAMPLES}
+    assert names - VERCEL_ONLY == set(CONTRACT_EXAMPLE_INPUTS) | provider
     assert names >= VERCEL_ONLY
     for example in PART_EXAMPLES:
         if example["name"] in VERCEL_ONLY:
@@ -210,6 +249,32 @@ def test_every_contract_part_example_is_made_here_or_is_vercel_only() -> None:
 def test_a_contract_part_example_is_made_byte_for_byte(example: dict[str, Any]) -> None:
     [part] = _parts([CONTRACT_EXAMPLE_INPUTS[example["name"]]])
     assert json.dumps(part, separators=(",", ":")) == example["part"]
+
+
+@pytest.mark.parametrize("example", PROVIDER_EXAMPLES, ids=lambda e: str(e["name"]))
+def test_a_contract_provider_example_is_made_byte_for_byte(example: dict[str, Any]) -> None:
+    part = _provider_part(json.loads(example["provider"]))
+    assert json.dumps(part, separators=(",", ":")) == example["part"]
+
+
+def test_every_provider_uri_reader_has_a_contract_example() -> None:
+    # The image_url, input_image, Anthropic url source, input_file, Gemini
+    # file_data and OpenInference image readers, each with a link followed by
+    # a data URL, which must be a blob.
+    items = [json.loads(e["provider"]) for e in PROVIDER_EXAMPLES]
+    readers = {
+        "image_url": lambda i: i.get("type") == "image_url",
+        "input_image": lambda i: i.get("type") == "input_image",
+        "anthropic": lambda i: isinstance(i.get("source"), dict),
+        "input_file": lambda i: i.get("type") == "input_file",
+        "gemini": lambda i: "file_data" in i,
+        "openinference": lambda i: any(k.startswith(OPENINFERENCE_ITEM) for k in i),
+    }
+    for reader, read in readers.items():
+        assert any(
+            read(i) and "_by_a_link_followed_by_a_" in e["name"]
+            for i, e in zip(items, PROVIDER_EXAMPLES, strict=True)
+        ), reader
 
 
 @pytest.mark.parametrize(
@@ -558,6 +623,49 @@ def test_an_empty_or_redacted_reference_is_a_blob_redacted_upstream(
     ],
 )
 def test_a_usable_reference_wins_over_a_dropped_one(
+    item: dict[str, Any], part: dict[str, Any]
+) -> None:
+    assert _parts([item]) == [part]
+
+
+#: A link followed by a wrapped data URL: no link to keep, nor a size to read.
+LINK_AND_DATA_URL = "https://x/a.wav\ndata:image/png;base64,iVBO\nRw0KGgo="
+
+
+@pytest.mark.parametrize(
+    ("item", "part"),
+    [
+        # An input_file takes a usable file_id, then file_data, before its file_url.
+        (
+            {"type": "input_file", "file_id": "file-1", "file_url": LINK_AND_DATA_URL},
+            {"type": "file", "modality": "document", "file_id": "file-1"},
+        ),
+        (
+            {"type": "input_file", "file_data": PNG, "file_url": LINK_AND_DATA_URL},
+            _blob("document", None, 8, "not_captured"),
+        ),
+        (
+            {"type": "input_file", "file_id": "", "file_url": LINK_AND_DATA_URL},
+            _blob("document", None, None, "not_captured"),
+        ),
+        # An input_image takes its image_url before its file_id.
+        (
+            {"type": "input_image", "image_url": LINK_AND_DATA_URL, "file_id": "file-1"},
+            _blob("image", None, None, "not_captured"),
+        ),
+        # A Gemini file_uri holding data: names no modality by its extension.
+        (
+            {"file_data": {"file_uri": LINK_AND_DATA_URL}},
+            _blob("document", None, None, "not_captured"),
+        ),
+        ({"file_data": {"file_uri": "data:,a.wav"}}, _blob("document", None, None, "not_captured")),
+        (
+            {"fileData": {"mimeType": "audio/wav", "fileUri": LINK_AND_DATA_URL}},
+            _blob("audio", "audio/wav", None, "not_captured"),
+        ),
+    ],
+)
+def test_a_uri_holding_a_data_url_is_read_in_the_readers_order(
     item: dict[str, Any], part: dict[str, Any]
 ) -> None:
     assert _parts([item]) == [part]
