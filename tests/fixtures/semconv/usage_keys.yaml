@@ -211,6 +211,53 @@ keys:
     reason: |
       No single direction: pydantic-ai writes it with no input or output in
       the name, so it cannot map to either audio key.
+
+  # pydantic-ai's Gemini splits: Google's per-modality counts, written as
+  # details.<modality>_<prompt|cache|candidates|tool_use_prompt>_tokens.
+  # Each prompt, cache and candidates split is a subset of the input,
+  # cache-read and output count, never added to it.
+  - key: gen_ai.usage.details.image_prompt_tokens
+    decision: mapped
+    target: gen_ai.usage.image.input_tokens
+    mapped_by: [python, typescript, sink]
+    reason: Google's image input split (promptTokensDetails, modality IMAGE).
+  - key: gen_ai.usage.details.image_cache_tokens
+    decision: mapped
+    target: gen_ai.usage.image.cache_read.input_tokens
+    mapped_by: [python, typescript, sink]
+    reason: Google's cached image split (cacheTokensDetails, modality IMAGE).
+  - key: gen_ai.usage.details.image_candidates_tokens
+    decision: mapped
+    target: gen_ai.usage.image.output_tokens
+    mapped_by: [python, typescript, sink]
+    reason: Google's image output split (candidatesTokensDetails, modality IMAGE).
+  - key: gen_ai.usage.details.audio_prompt_tokens
+    decision: mapped
+    target: gen_ai.usage.audio.input_tokens
+    mapped_by: [python, typescript, sink]
+    reason: Google's audio input split (promptTokensDetails, modality AUDIO).
+  - key: gen_ai.usage.details.audio_cache_tokens
+    decision: mapped
+    target: gen_ai.usage.audio.cache_read.input_tokens
+    mapped_by: [python, typescript, sink]
+    reason: Google's cached audio split (cacheTokensDetails, modality AUDIO).
+  - key: gen_ai.usage.details.audio_candidates_tokens
+    decision: mapped
+    target: gen_ai.usage.audio.output_tokens
+    mapped_by: [python, typescript, sink]
+    reason: Google's audio output split (candidatesTokensDetails, modality AUDIO).
+  - key: gen_ai.usage.details.image_tool_use_prompt_tokens
+    decision: ignored
+    reason: |
+      The image part of Google's tool-use prompt, a second image input split
+      beside image_prompt_tokens. The image input key would be their sum, and
+      a normalizer renames a count, never adds two, so it stays.
+  - key: gen_ai.usage.details.image_response_tokens
+    decision: ignored
+    reason: |
+      The image output split on pydantic-ai's realtime path (the Gemini Live
+      API's responseTokensDetails). Live output is text or audio, so no image
+      count is expected there, and nothing reads one.
   - key: gen_ai.usage.input_token_details.audio_tokens
     decision: mapped
     target: gen_ai.usage.audio.input_tokens

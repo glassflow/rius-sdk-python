@@ -783,3 +783,101 @@ def test_an_audio_subset_never_changes_the_totals() -> None:
         GEN_AI_USAGE_OUTPUT_TOKENS: 20,
         GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS: 5,
     }
+
+
+# --- pydantic-ai's Gemini image and audio usage details ---------------------
+
+_MODALITY_SOURCES = {
+    "image": {
+        "gen_ai.usage.details.image_prompt_tokens": "gen_ai.usage.image.input_tokens",
+        "gen_ai.usage.details.image_cache_tokens": "gen_ai.usage.image.cache_read.input_tokens",
+        "gen_ai.usage.details.image_candidates_tokens": "gen_ai.usage.image.output_tokens",
+    },
+    "audio": {
+        "gen_ai.usage.details.audio_prompt_tokens": "gen_ai.usage.audio.input_tokens",
+        "gen_ai.usage.details.audio_cache_tokens": "gen_ai.usage.audio.cache_read.input_tokens",
+        "gen_ai.usage.details.audio_candidates_tokens": "gen_ai.usage.audio.output_tokens",
+    },
+}
+
+
+def test_the_gemini_image_split_lands_on_the_image_keys_and_the_totals_are_not_summed() -> None:
+    out = _normalize(
+        {
+            "gen_ai.usage.input_tokens": 276,
+            "gen_ai.usage.output_tokens": 1374,
+            "gen_ai.usage.cache_read.input_tokens": 200,
+            "gen_ai.usage.details.text_prompt_tokens": 18,
+            "gen_ai.usage.details.image_prompt_tokens": 258,
+            "gen_ai.usage.details.image_cache_tokens": 200,
+            "gen_ai.usage.details.image_candidates_tokens": 1120,
+            "gen_ai.usage.details.thoughts_tokens": 149,
+        }
+    )
+    assert out == {
+        "gen_ai.usage.input_tokens": 276,
+        "gen_ai.usage.output_tokens": 1374,
+        "gen_ai.usage.cache_read.input_tokens": 200,
+        "gen_ai.usage.details.text_prompt_tokens": 18,
+        "gen_ai.usage.image.input_tokens": 258,
+        "gen_ai.usage.image.cache_read.input_tokens": 200,
+        "gen_ai.usage.image.output_tokens": 1120,
+        GEN_AI_USAGE_REASONING_OUTPUT_TOKENS: 149,
+    }
+
+
+def test_the_gemini_audio_split_lands_on_the_audio_keys_and_the_totals_are_not_summed() -> None:
+    out = _normalize(
+        {
+            "gen_ai.usage.input_tokens": 500,
+            "gen_ai.usage.output_tokens": 300,
+            "gen_ai.usage.cache_read.input_tokens": 100,
+            "gen_ai.usage.details.text_prompt_tokens": 200,
+            "gen_ai.usage.details.audio_prompt_tokens": 300,
+            "gen_ai.usage.details.audio_cache_tokens": 100,
+            "gen_ai.usage.details.audio_candidates_tokens": 250,
+        }
+    )
+    assert out == {
+        "gen_ai.usage.input_tokens": 500,
+        "gen_ai.usage.output_tokens": 300,
+        "gen_ai.usage.cache_read.input_tokens": 100,
+        "gen_ai.usage.details.text_prompt_tokens": 200,
+        "gen_ai.usage.audio.input_tokens": 300,
+        "gen_ai.usage.audio.cache_read.input_tokens": 100,
+        "gen_ai.usage.audio.output_tokens": 250,
+    }
+
+
+@pytest.mark.parametrize("modality", ["image", "audio"])
+def test_a_zero_modality_count_is_a_count(modality: str) -> None:
+    sources = _MODALITY_SOURCES[modality]
+    assert _normalize(dict.fromkeys(sources, 0)) == dict.fromkeys(sources.values(), 0)
+
+
+@pytest.mark.parametrize("modality", ["image", "audio"])
+def test_native_modality_keys_win_and_the_sources_still_go(modality: str) -> None:
+    sources = _MODALITY_SOURCES[modality]
+    native = {target: 5 for target in sources.values()}
+    out = _normalize({**dict.fromkeys(sources, 99), **native})
+    assert out == native
+
+
+@pytest.mark.parametrize("modality", ["image", "audio"])
+def test_an_unparseable_modality_count_is_dropped(modality: str) -> None:
+    assert _normalize(dict.fromkeys(_MODALITY_SOURCES[modality], "lots")) == {}
+
+
+def test_the_openinference_audio_count_beats_the_pydantic_ai_one() -> None:
+    out = _normalize(
+        {
+            "llm.token_count.prompt_details.audio": 300,
+            "llm.token_count.completion_details.audio": 80,
+            "gen_ai.usage.details.audio_prompt_tokens": 14,
+            "gen_ai.usage.details.audio_candidates_tokens": 15,
+        }
+    )
+    assert out == {
+        GEN_AI_USAGE_AUDIO_INPUT_TOKENS: 300,
+        GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS: 80,
+    }

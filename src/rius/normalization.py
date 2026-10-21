@@ -1673,11 +1673,16 @@ def openinference_invocation_parameters(
     return produced
 
 
-#: The per-modality audio usage keys. Canonical in the rius-semconv registry;
-#: the vendored module is pinned at v1.6.0, before they were generated, so it
-#: lacks the constants. They move to the semconv import when it is re-pinned.
+#: The per-modality audio and image usage keys. Canonical in the rius-semconv
+#: registry; the vendored module is pinned at v1.6.0, before they were
+#: generated, so it lacks the constants. They move to the semconv import when it
+#: is re-pinned.
 GEN_AI_USAGE_AUDIO_INPUT_TOKENS = "gen_ai.usage.audio.input_tokens"
 GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS = "gen_ai.usage.audio.output_tokens"
+GEN_AI_USAGE_AUDIO_CACHE_READ_INPUT_TOKENS = "gen_ai.usage.audio.cache_read.input_tokens"
+GEN_AI_USAGE_IMAGE_INPUT_TOKENS = "gen_ai.usage.image.input_tokens"
+GEN_AI_USAGE_IMAGE_OUTPUT_TOKENS = "gen_ai.usage.image.output_tokens"
+GEN_AI_USAGE_IMAGE_CACHE_READ_INPUT_TOKENS = "gen_ai.usage.image.cache_read.input_tokens"
 
 
 #: The shipped rules. Order matters where two sources share a target: the
@@ -1853,7 +1858,7 @@ OPENINFERENCE_RULES: tuple[AnyRule, ...] = (
     # and Google's thoughts_tokens. One per provider, so a span should carry
     # at most one; if it carries several, this order decides and all of them
     # go, as in the sink. Separate rules so one that won't parse does not
-    # block the next. The rest of the namespace has no canonical key.
+    # block the next.
     Rule(
         "gen_ai.usage.details.reasoning_tokens",
         GEN_AI_USAGE_REASONING_OUTPUT_TOKENS,
@@ -1867,6 +1872,41 @@ OPENINFERENCE_RULES: tuple[AnyRule, ...] = (
     Rule(
         "gen_ai.usage.details.thoughts_tokens",
         GEN_AI_USAGE_REASONING_OUTPUT_TOKENS,
+        to_int,
+    ),
+    # pydantic-ai also writes Google's per-modality counts there, as
+    # <modality>_<prompt|cache|candidates>_tokens. The image and audio ones are
+    # subsets of the input, cache-read and output totals, never added to them.
+    # The audio ones sit after OpenInference's, which keep their targets where a
+    # span carries both. The rest of the namespace has no canonical key.
+    Rule(
+        "gen_ai.usage.details.image_prompt_tokens",
+        GEN_AI_USAGE_IMAGE_INPUT_TOKENS,
+        to_int,
+    ),
+    Rule(
+        "gen_ai.usage.details.image_cache_tokens",
+        GEN_AI_USAGE_IMAGE_CACHE_READ_INPUT_TOKENS,
+        to_int,
+    ),
+    Rule(
+        "gen_ai.usage.details.image_candidates_tokens",
+        GEN_AI_USAGE_IMAGE_OUTPUT_TOKENS,
+        to_int,
+    ),
+    Rule(
+        "gen_ai.usage.details.audio_prompt_tokens",
+        GEN_AI_USAGE_AUDIO_INPUT_TOKENS,
+        to_int,
+    ),
+    Rule(
+        "gen_ai.usage.details.audio_cache_tokens",
+        GEN_AI_USAGE_AUDIO_CACHE_READ_INPUT_TOKENS,
+        to_int,
+    ),
+    Rule(
+        "gen_ai.usage.details.audio_candidates_tokens",
+        GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS,
         to_int,
     ),
     # Time to first chunk under the conventions' metric name, which
