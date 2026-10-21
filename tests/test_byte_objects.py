@@ -301,3 +301,41 @@ def test_a_span_set_attribute_byte_object_from_the_sdk_pipeline() -> None:
     assert finished.attributes["input.value"] == MARKER
     assert list(finished.attributes["output.value"]) == ["[stripped unknown 2 bytes]", MARKER]
     assert finished.events[0].attributes == {"payload": MARKER}
+
+
+#: OpenTelemetry Python's set_attribute turns a bytearray or memoryview into a
+#: tuple of its items (both are Sequences), before any exporter sees it: only
+#: bytes reaches the exporter as a byte object on this path.
+_HELD_AS_ITEMS = pytest.mark.xfail(
+    strict=True, reason="OpenTelemetry holds a bytearray or memoryview as a tuple of ints"
+)
+
+
+@pytest.mark.parametrize(
+    "example",
+    [
+        pytest.param(
+            e,
+            id=str(e["name"]),
+            marks=[_HELD_AS_ITEMS]
+            if "bytearray" in e["value"] or "memoryview" in e["value"]
+            else [],
+        )
+        for e in ATTRIBUTE_VALUES
+        if e["language"] == "python"
+    ],
+)
+def test_an_attribute_values_example_through_set_attribute(
+    example: dict[str, Any],
+) -> None:
+    # OpenTelemetry holds a list as a tuple and copies a mapping; the walked
+    # value is set back in the form it holds.
+    inner = InMemorySpanExporter()
+    client = init(span_exporter=inner, set_global=False)
+    span = client.get_tracer().start_span("raw")
+    span.set_attribute("payload", _value(example["value"]))
+    span.end()
+    client.flush()
+    [finished] = inner.get_finished_spans()
+    assert finished.attributes is not None
+    assert _as_written(finished.attributes["payload"]) == example["output"]

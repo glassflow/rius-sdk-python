@@ -956,7 +956,15 @@ raw_payloads:
         is instead one string: the JSON the SDK serializes the array to under
         the rule above, `[1,"[stripped unknown 2 bytes]"]`, its numbers
         written as that SDK writes them. An array that held no byte object is
-        kept, its elements walked. The sink does the same with an OTLP
+        kept, its elements walked. The SDK then sets the walked value in the
+        form its OpenTelemetry attribute API holds. OpenTelemetry Python holds a
+        mapping and a nested array, so it sets them as they are. OpenTelemetry
+        JS holds neither, so a walked value that held a byte object and is
+        then a mapping or an array holding an array or a mapping is set as one
+        string: the JSON the SDK serializes the value to under the rule above,
+        every byte object a quoted marker and every array an array, so
+        `{k: [1, bytes]}` is `{"k":[1,"[stripped unknown 2 bytes]"]}`, encoded
+        once, never holding a mixed array's own JSON as a string. The sink does the same with an OTLP
         AnyValue: a bytes_value, alone or at any depth of array_value and
         kvlist_value, is the marker, N the number of bytes it holds, and an
         array_value that mixes a bytes_value with a value that is then no
@@ -969,8 +977,9 @@ raw_payloads:
         (above), which is JSON and so quoted. generators/media_parts.py
         attribute_value and otlp_attribute_value are the reference, and the
         TypeScript examples run through the replacer the tests hold; each
-        example's output is the attribute value: a string, an array of them,
-        a mapping, or an array's JSON.
+        example's output is the attribute value the SDK sets: a string, an
+        array of them, a mapping (Python and the sink), or an array's or a
+        mapping's JSON.
       examples:
         - name: python_bytes_attribute
           language: python
@@ -994,6 +1003,21 @@ raw_payloads:
           note: An array of a number and a marker would not be homogeneous, so it is the array's JSON.
           value: '[1, b"ab"]'
           output: '[1,"[stripped unknown 2 bytes]"]'
+        - name: python_byte_object_in_a_mapping
+          language: python
+          note: OpenTelemetry Python holds a mapping, so it is set as a mapping.
+          value: '{"img": b"abc"}'
+          output: {img: '[stripped unknown 3 bytes]'}
+        - name: python_byte_object_beside_a_number_in_a_mapping
+          language: python
+          note: The mixed array is its JSON, and the mapping around it stays a mapping.
+          value: '{"k": [1, b"ab"]}'
+          output: {k: '[1,"[stripped unknown 2 bytes]"]'}
+        - name: python_byte_object_beside_a_number_in_a_nested_array
+          language: python
+          note: The inner array is its JSON, so the outer one is an array of strings.
+          value: '[[1, b"a"]]'
+          output: ['[1,"[stripped unknown 1 bytes]"]']
         - name: typescript_buffer_attribute
           language: typescript
           value: 'Buffer.from([137, 80, 78, 71])'
@@ -1002,15 +1026,34 @@ raw_payloads:
           language: typescript
           value: '[new Uint8Array(2), new ArrayBuffer(3)]'
           output: ['[stripped unknown 2 bytes]', '[stripped unknown 3 bytes]']
+        - name: typescript_byte_objects_beside_strings_in_an_array_attribute
+          language: typescript
+          value: '[new Uint8Array(2), "x"]'
+          output: ['[stripped unknown 2 bytes]', 'x']
         - name: typescript_byte_objects_in_a_mapping_and_a_nested_array
           language: typescript
-          note: A Uint16Array of 2 items is 4 bytes.
+          note: OpenTelemetry JS holds no mapping, so the mapping is its JSON, one string. A Uint16Array of 2 items is 4 bytes.
           value: '{ k: new Uint16Array(2), n: [[new DataView(new ArrayBuffer(3))], ["x"]] }'
-          output: {k: '[stripped unknown 4 bytes]', n: [['[stripped unknown 3 bytes]'], ['x']]}
+          output: '{"k":"[stripped unknown 4 bytes]","n":[["[stripped unknown 3 bytes]"],["x"]]}'
+        - name: typescript_byte_object_in_a_nested_array
+          language: typescript
+          note: OpenTelemetry JS holds no nested array, so the array is its JSON.
+          value: '[[new Uint8Array(3)], ["x"]]'
+          output: '[["[stripped unknown 3 bytes]"],["x"]]'
         - name: typescript_byte_object_beside_a_number
           language: typescript
           value: '[1, new Uint8Array(2)]'
           output: '[1,"[stripped unknown 2 bytes]"]'
+        - name: typescript_byte_object_beside_a_number_in_a_mapping
+          language: typescript
+          note: The mapping is its JSON, encoded once, so the mixed array in it is an array, not its own JSON as a string.
+          value: '{ k: [1, new Uint8Array(2)] }'
+          output: '{"k":[1,"[stripped unknown 2 bytes]"]}'
+        - name: typescript_byte_object_beside_a_number_in_a_nested_array
+          language: typescript
+          note: The inner array is its JSON, so the outer one is an array of strings, which OpenTelemetry JS holds.
+          value: '[[1, new Uint8Array(1)]]'
+          output: ['[1,"[stripped unknown 1 bytes]"]']
         - name: otlp_bytes_value
           language: otlp
           note: An OTLP JSON AnyValue; the protobuf bytes_value is the same 8 bytes.
