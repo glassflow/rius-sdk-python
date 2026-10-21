@@ -132,13 +132,17 @@ def is_mime(value: Any) -> bool:
     return isinstance(value, str) and MIME_PATTERN.fullmatch(value) is not None
 
 
-_BASE64_STANDARD = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789")
-_BASE64_STANDARD_EXTRA = frozenset("+/")
-_BASE64_URL_SAFE_EXTRA = frozenset("-_")
-_BASE64_ALL = _BASE64_STANDARD | _BASE64_STANDARD_EXTRA | _BASE64_URL_SAFE_EXTRA
+#: Both alphabets, as bytes: what ``bytes.translate`` deletes to find any other
+#: character. A set of a large string's characters costs several times more.
+_BASE64_ALPHABETS = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/-_"
+_ASCII_WHITESPACE_BYTES = ASCII_WHITESPACE.encode()
 
 
-_WHITESPACE_GONE = str.maketrans("", "", ASCII_WHITESPACE)
+def _mixed_alphabets(text: str | bytes) -> bool:
+    """Characters of both alphabets' extras: standard (``+/``) and URL-safe (``-_``)."""
+    if isinstance(text, str):
+        return ("+" in text or "/" in text) and ("-" in text or "_" in text)
+    return (b"+" in text or b"/" in text) and (b"-" in text or b"_" in text)
 
 
 def base64_size(value: str) -> int | None:
@@ -148,15 +152,29 @@ def base64_size(value: str) -> int | None:
     one alphabet (standard or URL-safe, never mixed), at most two ``=`` at the
     end, and a length that is a multiple of 4, so unpadded base64 is not.
     """
-    text = value.translate(_WHITESPACE_GONE)
-    body = text.rstrip("=")
-    padding = len(text) - len(body)
-    chars = set(body)
-    if padding > 2 or len(text) % 4 or not chars <= _BASE64_ALL:
+    # Any other character, ASCII or not, sits before the padding: not base64.
+    if not value.isascii():
         return None
-    if chars & _BASE64_STANDARD_EXTRA and chars & _BASE64_URL_SAFE_EXTRA:
+    text = value.encode("ascii").translate(None, _ASCII_WHITESPACE_BYTES)
+    body = text.rstrip(b"=")
+    padding = len(text) - len(body)
+    if padding > 2 or len(text) % 4 or body.translate(None, _BASE64_ALPHABETS):
+        return None
+    if _mixed_alphabets(body):
         return None
     return len(text) * 3 // 4 - padding
+
+
+def data_url_size(run: str) -> int | None:
+    """``base64_size`` of a data URL's base64 run (``DATA_URL_PATTERN``'s group 3).
+
+    The pattern has already held the run to the two alphabets, with no
+    whitespace and at most two ``=`` at the end, so only the length and the
+    mixed-alphabet rule are left to check.
+    """
+    if len(run) % 4 or _mixed_alphabets(run):
+        return None
+    return len(run) * 3 // 4 - (len(run) - len(run.rstrip("=")))
 
 
 def replacement(mime: str | None, byte_size: int | None) -> str:
@@ -669,7 +687,7 @@ def _strip_text(text: str, depth: int, tokens: list[MediaToken]) -> list[_Edit]:
     edits = []
     for match in DATA_URL_PATTERN.finditer(text):
         mime = match.group(1) if is_mime(match.group(1)) else None
-        size = base64_size(match.group(3))
+        size = data_url_size(match.group(3))
         tokens.append(MediaToken("b", mime, size))
         edits.append((match.start(), match.end(), replacement(mime, size)))
     return edits
@@ -777,7 +795,7 @@ def _may_hold_media(text: str) -> bool:
     characters. Most attributes, and most strings inside them, hold none and
     skip the parse; the test holds for a JSON string's unescaped value too.
     """
-    if "\\u" in text or DATA_URL_TEXT in text:
+    if DATA_URL_TEXT in text or "\\u" in text:
         return True
     if BUFFER_TYPE in text and BUFFER_ARRAY_KEY in text:
         return True
@@ -925,7 +943,7 @@ def data_url_blob(url: str, kind: str, mime_hint: Any = None) -> Part:
     match = DATA_URL_PATTERN.fullmatch(url)
     if match is not None:
         mime = match.group(1) if is_mime(match.group(1)) else mime_hint
-        return blob_part(kind, mime, base64_size(match.group(3)), NOT_CAPTURED)
+        return blob_part(kind, mime, data_url_size(match.group(3)), NOT_CAPTURED)
     header = re.split("[;,]", url[5:], maxsplit=1)[0]
     _, comma, payload = url.partition(",")
     mime = header if is_mime(header) else mime_hint

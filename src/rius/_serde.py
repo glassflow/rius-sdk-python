@@ -231,12 +231,21 @@ def _bounded_dumps(value: Any) -> str:
     # first. A small payload costs a few extra microseconds this way; a large
     # one stops being walked at the strip budget instead of being rendered
     # whole.
+    #
+    # A chunk is escaped only when it fits the budget, so the escaping reads
+    # at most the budget. One that does not fit is past it escaped or not (an
+    # escape only lengthens it): the walk stops at the same chunk, and only
+    # the prefix that is kept is escaped. Escaping is per character and
+    # leaves no surrogate, so escaping the kept prefix of the mixed text is
+    # the same prefix of the text escaped whole.
     chunks: list[str] = []
     size = 0
     for chunk in _encoder.iterencode(value, _one_shot=False):
-        chunk = _SURROGATE.sub(_escape_surrogate, chunk)
+        if size + len(chunk) <= MAX_STRIP_CHARS:
+            chunk = _SURROGATE.sub(_escape_surrogate, chunk)
         chunks.append(chunk)
         size += len(chunk)
         if size > MAX_STRIP_CHARS:
-            return _cut_past_budget("".join(chunks))
+            kept = "".join(chunks)[:MAX_ATTR_CHARS]
+            return _cut_past_budget(_SURROGATE.sub(_escape_surrogate, kept))
     return truncate("".join(chunks))
