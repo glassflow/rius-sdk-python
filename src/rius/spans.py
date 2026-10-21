@@ -28,7 +28,7 @@ from ._agent import (
     resolve_agent_name,
 )
 from ._errors import error_type, record_error
-from ._serde import serialize, text_value
+from ._serde import attribute_value, serialize, text_value
 from ._tracer import sdk_tracer
 from .semconv import (
     ERROR_TYPE,
@@ -100,9 +100,11 @@ class Observation:
 
         Args:
             key: Attribute name.
-            value: An OpenTelemetry-compatible attribute value.
+            value: An OpenTelemetry-compatible attribute value. A bytes,
+                bytearray or memoryview in it, at any depth, is recorded as
+                ``[stripped unknown <N> bytes]``, never its content.
         """
-        self._span.set_attribute(key, value)
+        self._span.set_attribute(key, attribute_value(value))
 
     def update(self, *, input: Any = None, output: Any = None) -> None:
         """Record input and/or output in one call.

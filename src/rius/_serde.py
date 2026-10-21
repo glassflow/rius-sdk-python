@@ -16,12 +16,18 @@ the cut text no longer parses, so only its data URLs are found, and a keyed
 image's base64 would survive. A conservative fallback replaces every run of
 the base64 alphabet long enough to be media. That guard is this SDK's own: past
 the budget the text is not byte-identical with the TypeScript SDK's.
+
+A byte object (bytes, bytearray, memoryview) never leaves with its content:
+the contract (``raw_payloads.byte_objects``) writes it as the replacement with
+the unknown mime, sized in bytes, wherever it sits in the value.
 """
 
 from __future__ import annotations
 
+import ast
 import json
 import re
+from collections.abc import Callable, Mapping
 from typing import Any
 
 from ._media import replacement, strip_raw_payload
@@ -44,12 +50,61 @@ _BASE64_RUN = re.compile(
 #: The shortest run the fallback takes for media rather than a word.
 _MIN_MEDIA_RUN = 64
 
+#: The byte objects: written as the replacement, never as their content.
+BYTE_OBJECTS = (bytes, bytearray, memoryview)
+
+
+def byte_object_size(value: bytes | bytearray | memoryview) -> int | None:
+    """A byte object's size in bytes, not items; None for a released
+    memoryview, whose size is unknown."""
+    if isinstance(value, memoryview):
+        try:
+            return value.nbytes
+        except ValueError:
+            return None
+    return len(value)
+
+
+def byte_object_marker(value: bytes | bytearray | memoryview) -> str:
+    """What a byte object is written as: the replacement, its mime unknown."""
+    return replacement(None, byte_object_size(value))
+
+
+#: A bytes literal in a repr, ``bytearray(...)`` around it or not, that does
+#: not end a word. A repr is the encoder's fallback for any other object, and
+#: writes a bytes field in it as its content.
+_BYTES_REPR = re.compile(
+    r"(?<![A-Za-z0-9_])(bytearray\()?b('(?:[^'\\\n]|\\.)*'|\"(?:[^\"\\\n]|\\.)*\")(?(1)\))"
+)
+
+
+def _byte_literal_marker(match: re.Match[str]) -> str:
+    try:
+        size: int | None = len(ast.literal_eval("b" + match.group(2)))
+    except (ValueError, SyntaxError):
+        size = None
+    return replacement(None, size)
+
+
+def safe_repr(value: Any) -> str:
+    """``repr(value)`` with every bytes literal in it written as the marker."""
+    return _BYTES_REPR.sub(_byte_literal_marker, repr(value))
+
+
+def _default(value: Any) -> str:
+    """The encoder's fallback: a byte object is the marker, any other value
+    its repr, with no byte object's content in it."""
+    if isinstance(value, BYTE_OBJECTS):
+        return byte_object_marker(value)
+    return safe_repr(value)
+
+
 # One JSON encoding for every producer of a JSON-valued attribute (this SDK,
 # the TypeScript SDK and the sink): compact separators, raw UTF-8 rather than
 # \uXXXX escapes, and no HTML escaping of < > & (Python never does that).
 # It is what TypeScript's JSON.stringify writes, so the same value produces the
 # same bytes whichever SDK recorded it.
-_encoder = json.JSONEncoder(default=repr, separators=(",", ":"), ensure_ascii=False)
+_encoder = json.JSONEncoder(default=_default, separators=(",", ":"), ensure_ascii=False)
 
 # ensure_ascii=False writes a lone surrogate raw, and a string holding one
 # cannot be encoded as UTF-8: the OTLP exporter drops such an attribute. The
@@ -122,15 +177,50 @@ def text_value(value: Any) -> str:
     return serialize(value)
 
 
+def attribute_value(value: Any, text: Callable[[str], str] | None = None) -> Any:
+    """A value set directly as an attribute, every byte object in it, at any
+    depth of arrays and mappings, the bare marker (the contract's
+    byte_objects.attribute_values); each string through ``text`` when given.
+    The same object when nothing changes.
+
+    An array holding a byte object beside an element that is then no string
+    could not stay homogeneous: it is the array's JSON instead, one string,
+    as any value this SDK serializes. Run before OpenTelemetry sees the
+    value, which would hold a bytearray or memoryview as a tuple of ints.
+    """
+    if isinstance(value, str):
+        return value if text is None else text(value)
+    if isinstance(value, BYTE_OBJECTS):
+        return byte_object_marker(value)
+    if isinstance(value, (list, tuple)):
+        items = [attribute_value(v, text) for v in value]
+        if any(isinstance(v, BYTE_OBJECTS) for v in value) and not all(
+            isinstance(v, str) for v in items
+        ):
+            return serialize(list(value))
+        if all(new is old for new, old in zip(items, value, strict=True)):
+            return value
+        # A plain tuple or list, whatever the subclass: its constructor may
+        # take other arguments, and OpenTelemetry holds either the same.
+        return tuple(items) if isinstance(value, tuple) else items
+    if isinstance(value, Mapping):
+        members = {k: attribute_value(v, text) for k, v in value.items()}
+        if all(members[k] is v for k, v in value.items()):
+            return value
+        return members
+    return value
+
+
 def serialize(value: Any) -> str:
     """Serialize a value to a bounded string suitable for a span attribute."""
     try:
         return _bounded_dumps(value)
     except Exception:
-        # default=repr can itself raise (broken __repr__, detached ORM proxies);
-        # tracing must never crash the host over an unserializable value.
+        # The default's repr can itself raise (broken __repr__, detached ORM
+        # proxies); tracing must never crash the host over an unserializable
+        # value. A key the encoder refuses (bytes, a tuple) lands here too.
         try:
-            return truncate(repr(value))
+            return truncate(safe_repr(value))
         except Exception:
             return f"<unserializable {type(value).__name__}>"
 

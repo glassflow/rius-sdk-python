@@ -114,7 +114,7 @@ from ._media import (
     rebuild_native_parts,
     url_part,
 )
-from ._serde import serialize, strip_within_budget
+from ._serde import attribute_value, serialize, strip_within_budget
 from .aggregated_usage import WrappedCallTracker, move_aggregated_usage
 from .semconv import (
     ERROR_TYPE,
@@ -1126,14 +1126,15 @@ def native_media_messages(attributes: Mapping[str, Any] | None) -> dict[str, Any
 
 
 def _stripped_value(value: Any) -> Any:
-    # Bounded by the strip budget, as a value this SDK records is: a
-    # third-party payload of several MB is cut and stripped conservatively
-    # instead of parsed whole on the export thread.
-    if isinstance(value, str):
-        return strip_within_budget(value)
-    if isinstance(value, (list, tuple)) and any(isinstance(v, str) for v in value):
-        return type(value)(strip_within_budget(v) if isinstance(v, str) else v for v in value)
-    return value
+    """A value with its media stripped, the same object when nothing changes.
+
+    A string is bounded by the strip budget, as a value this SDK records is: a
+    third-party payload of several MB is cut and stripped conservatively
+    instead of parsed whole on the export thread. A byte object in it, at any
+    depth, is the bare marker (see ``_serde.attribute_value``): the SDK's own
+    setters already wrote it so, and this catches another instrumentation's.
+    """
+    return attribute_value(value, strip_within_budget)
 
 
 def strip_media(attributes: Mapping[str, Any] | None) -> dict[str, Any] | None:

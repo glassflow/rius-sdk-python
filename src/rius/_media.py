@@ -62,12 +62,51 @@ KEYED_SOURCE_KEY = "source"
 KEYED_SOURCE_TYPE = "base64"
 KEYED_BLOB_TYPE = "blob"
 KEYED_BLOB_KEY = "content"
-#: (key, types): a key holding base64 whenever its object has one of the types.
-KEYED_TYPED_KEYS: tuple[tuple[str, tuple[str, ...]], ...] = (
-    ("base64", ("image", "audio", "video", "file", "text-plain")),
-    ("input_audio", ("input_audio",)),
-    ("inputAudio", ("input_audio",)),
+#: (key, value, keys): a member that makes its own keys, in the same object,
+#: hold base64 (the LangChain v0 ``{"source_type":"base64","data":...}``).
+KEYED_BASE64_MARKERS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
+    ("source_type", "base64", ("data",)),
 )
+
+
+@dataclass(frozen=True)
+class TypedKey:
+    """A key holding base64 whenever its object has one of the types, and,
+    when it names parent keys, sits under one of them, and, when it names
+    holder types, the nearest object holding it has one of them.
+    ``keeps_urls`` leaves a URL to rule (b) (see ``_kept_url``);
+    ``holder_mime`` reads the holder's mime keys when the object names no
+    mime itself."""
+
+    key: str
+    types: tuple[str, ...]
+    parent_keys: tuple[str, ...] | None = None
+    holder_types: tuple[str, ...] | None = None
+    keeps_urls: bool = False
+    holder_mime: bool = False
+
+
+KEYED_TYPED_KEYS = (
+    TypedKey("base64", ("image", "audio", "video", "file", "text-plain")),
+    TypedKey("input_audio", ("input_audio",)),
+    TypedKey("inputAudio", ("input_audio",)),
+    # A Vercel image part's image: base64, or a URL that rule (b) reads.
+    TypedKey("image", ("image",), keeps_urls=True),
+    # v7 tagged data in a Vercel file part's data or image part's image: the
+    # tag names no mime, so the part's mediaType does.
+    TypedKey(
+        "data",
+        ("data",),
+        parent_keys=("data", "image"),
+        holder_types=("file", "image"),
+        keeps_urls=True,
+        holder_mime=True,
+    ),
+)
+#: Rule (e)'s URL scheme, matched at the start of a value: an ASCII letter,
+#: then letters, digits, ``+``, ``-`` or ``.``, then a colon. Base64 holds no
+#: colon, so a base64 string never starts with one.
+URL_SCHEME = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*:")
 #: Keys holding base64 in an object under the source key, whatever its type.
 KEYED_SOURCE_BYTES_KEYS = ("bytes",)
 KEYED_MIME_KEYS = ("media_type", "mediaType", "mime_type", "mimeType")
@@ -218,7 +257,50 @@ def _buffer_data(members: Members) -> list[Any] | None:
     return data if isinstance(data, list) else None
 
 
-def _keyed_positions(members: Members, parent_key: str | None) -> set[int]:
+def _typed_keys(members: Members, parent_key: str | None, holder: Members | None) -> list[TypedKey]:
+    """The typed keys that hold in an object: it has one of their types, its
+    parent key is one of their parent keys, if they name any, and its holder
+    (the nearest enclosing object) has one of their holder types, if they
+    name any."""
+    return [
+        typed
+        for typed in KEYED_TYPED_KEYS
+        if (typed.parent_keys is None or parent_key in typed.parent_keys)
+        and (
+            typed.holder_types is None
+            or (holder is not None and any(v in typed.holder_types for v in holder.values("type")))
+        )
+        and any(v in typed.types for v in members.values("type"))
+    ]
+
+
+def _url_keys(members: Members, parent_key: str | None, holder: Members | None) -> frozenset[str]:
+    """The keys whose URL strings rule (e) leaves to rule (b): those of a
+    typed key that keeps URLs and holds in the object."""
+    return frozenset(t.key for t in _typed_keys(members, parent_key, holder) if t.keeps_urls)
+
+
+def _kept_url(value: str) -> bool:
+    """A string a key that keeps URLs leaves to rule (b): it starts with a URL
+    scheme, and the scheme is not data (in any ASCII case) or rule (b)
+    replaces the whole string. Any other data: string (wrapped,
+    percent-encoded, or with a run rule (b) stops short in) stays a rule (e)
+    token, replaced whole, so no byte of its payload survives."""
+    scheme = URL_SCHEME.match(value)
+    if scheme is None:
+        return False
+    if scheme.group()[:-1].lower() != "data":
+        return True
+    return DATA_URL_PATTERN.fullmatch(value) is not None
+
+
+def _keyed_token(key: str, value: Any, urls: frozenset[str]) -> bool:
+    """A string rule (e) replaces under ``key``: a keyed string, unless the key
+    keeps URLs and the string is one it leaves to rule (b)."""
+    return _keyed_string(value) and not (key in urls and _kept_url(value))
+
+
+def _keyed_positions(members: Members, parent_key: str | None, holder: Members | None) -> set[int]:
     """Rule (e): the positions of the members holding base64 media."""
     context = (
         any(k in KEYED_SIBLING_KEYS and _sibling_string(v) for k, v in members)
@@ -229,23 +311,31 @@ def _keyed_positions(members: Members, parent_key: str | None) -> set[int]:
         )
     )
     keys = set(KEYED_KEYS) if context else set()
+    for marker, marked, marker_keys in KEYED_BASE64_MARKERS:
+        if any(v == marked for v in members.values(marker)):
+            keys.update(marker_keys)
     if _first(members, "type", lambda v: v == KEYED_BLOB_TYPE) is not None:
         keys.add(KEYED_BLOB_KEY)
-    for key, types in KEYED_TYPED_KEYS:
-        if any(k == "type" and v in types for k, v in members):
-            keys.add(key)
+    keys.update(t.key for t in _typed_keys(members, parent_key, holder))
     if parent_key == KEYED_SOURCE_KEY:
         keys.update(KEYED_SOURCE_BYTES_KEYS)
+    urls = _url_keys(members, parent_key, holder)
     return {
         i
         for i, (k, v) in enumerate(members)
         if k in keys
-        and (_keyed_string(v) or (isinstance(v, list) and any(_keyed_string(x) for x in v)))
+        and (
+            _keyed_token(k, v, urls)
+            or (isinstance(v, list) and any(_keyed_token(k, x, urls) for x in v))
+        )
     }
 
 
-def _keyed_mime(members: Members, parent_key: str | None) -> str | None:
-    """Rule (e)'s mime type: a mime key, else a mime format, else unknown."""
+def _keyed_mime(
+    members: Members, parent_key: str | None, holder: Members | None = None
+) -> str | None:
+    """Rule (e)'s mime type: a mime key, else a mime format, else, for a typed
+    key that reads the holder's mime, the holder's mime key, else unknown."""
     mime = _mime_key(KEYED_MIME_KEYS, members)
     if mime:
         return mime
@@ -258,6 +348,8 @@ def _keyed_mime(members: Members, parent_key: str | None) -> str | None:
         mime = template.replace("<value>", sibling)
         if is_mime(mime):
             return mime
+    if holder is not None and any(t.holder_mime for t in _typed_keys(members, parent_key, holder)):
+        return _mime_key(KEYED_MIME_KEYS, holder)
     return None
 
 
@@ -611,8 +703,10 @@ def _walk(
             tokens.append(MediaToken("d", mime, len(data)))
             edits.append((node.start, node.end, _literal(mime, len(data))))
             return
-        keyed = _keyed_positions(members, parent_key)
-        mime = _keyed_mime(members, parent_key) if keyed else None
+        holder_members = _members(holder) if holder else None
+        keyed = _keyed_positions(members, parent_key, holder_members)
+        mime = _keyed_mime(members, parent_key, holder_members) if keyed else None
+        urls = _url_keys(members, parent_key, holder_members) if keyed else frozenset()
         for i, (key, child) in enumerate(node.members):
             if i not in keyed:
                 _walk(child, key, node, depth + 1, tokens, edits)
@@ -621,7 +715,7 @@ def _walk(
             else:
                 # A string array under the key: each string element is a token.
                 for item in child.items:
-                    if _keyed_string(item.value):
+                    if _keyed_token(key, item.value, urls):
                         _keyed_edit(item, mime, tokens, edits)
                     else:
                         _walk(item, key, node, depth + 2, tokens, edits)
@@ -646,7 +740,7 @@ _RULE_KEYS = frozenset(
         BUFFER_ARRAY_KEY,
         KEYED_BLOB_KEY,
         *KEYED_KEYS,
-        *(key for key, _ in KEYED_TYPED_KEYS),
+        *(typed.key for typed in KEYED_TYPED_KEYS),
         *KEYED_SOURCE_BYTES_KEYS,
     )
 )
@@ -661,9 +755,15 @@ def _keyed_edit(
     edits.append((node.start, node.end, _literal(mime, size)))
 
 
-#: Rule (e) replaces a keyed member only beside a sibling mime key, under a
-#: parent key, or in a base64 source, so one of these words is written out too.
-_KEYED_CONTEXT_TEXT = (*KEYED_SIBLING_KEYS, *KEYED_PARENT_KEYS, KEYED_SOURCE_KEY)
+#: Rule (e) replaces a keyed member only beside a sibling mime key or a base64
+#: marker, under a parent key, or in a base64 source, so one of these words is
+#: written out too.
+_KEYED_CONTEXT_TEXT = (
+    *KEYED_SIBLING_KEYS,
+    *(key for key, _, _ in KEYED_BASE64_MARKERS),
+    *KEYED_PARENT_KEYS,
+    KEYED_SOURCE_KEY,
+)
 
 
 def _may_hold_media(text: str) -> bool:
@@ -683,8 +783,8 @@ def _may_hold_media(text: str) -> bool:
         return True
     if KEYED_BLOB_TYPE in text and KEYED_BLOB_KEY in text:
         return True
-    for key, types in KEYED_TYPED_KEYS:
-        if key in text and any(t in text for t in types):
+    for typed in KEYED_TYPED_KEYS:
+        if typed.key in text and any(t in text for t in typed.types):
             return True
     if KEYED_SOURCE_KEY in text and any(key in text for key in KEYED_SOURCE_BYTES_KEYS):
         return True
@@ -805,6 +905,17 @@ def is_data_url(value: Any) -> bool:
     return isinstance(value, str) and value[:5].lower() == "data:"
 
 
+#: ``data:`` anywhere in a value, in any ASCII case: searched, never trimmed.
+_DATA_ANYWHERE = re.compile("[dD][aA][tT][aA]:")
+
+
+def holds_data_url(value: str) -> bool:
+    """A URL that is no data URL but holds ``data:`` past its start (led by
+    whitespace, or a link followed by a data URL): it may carry a payload, so
+    it is never kept as a link."""
+    return not is_data_url(value) and _DATA_ANYWHERE.search(value) is not None
+
+
 def data_url_blob(url: str, kind: str, mime_hint: Any = None) -> Part:
     """A data URL as a blob, never a uri: its own media type (else the hint),
     and the size of its base64 run. A data URL that is not base64 is a blob
@@ -905,9 +1016,9 @@ def media_parts(item: Any) -> list[Part] | None:
         return None
     block_type = item.get("type")
     if isinstance(block_type, str) and block_type in _LANGCHAIN_KINDS:
-        data = item.get("base64")
-        if isinstance(data, str):
-            return [base64_blob(data, _LANGCHAIN_KINDS[block_type], item.get("mime_type"))]
+        parts = _langchain_part(block_type, item)
+        if parts is not None:
+            return parts
     if block_type in ("blob", "uri", "file"):
         if block_type == "file" and isinstance(item.get("file"), dict):
             return _openai_file(item["file"])
@@ -960,6 +1071,73 @@ _LANGCHAIN_KINDS = {
     "file": "document",
     "text-plain": "document",
 }
+#: The LangChain v1 block types that reference media by url or file_id.
+_LANGCHAIN_REFERENCE_TYPES = ("image", "audio", "video", "file")
+
+
+def _langchain_part(block_type: str, item: Part) -> list[Part] | None:
+    """A LangChain v1 block as one part, the first case that applies winning:
+
+    1. a file block with a usable file_id is the native file part it has the
+       shape of, whatever else it holds;
+    2. a string base64 is a blob;
+    3. a usable file_id is a file;
+    4. a usable url is a uri, or a blob when it is a data URL;
+    5. a file block whose file_id is a string, with no other usable
+       reference, is the native file part, its file_id kept as written;
+    6. a url or file_id that is a string, none usable, is a blob redacted
+       upstream.
+
+    None when none applies, to be read as any other block. A usable reference
+    so wins over an empty or redacted file_id; beside a file block's string
+    file_id, an empty or redacted base64 is none. Elsewhere a base64 is a
+    bare payload, empty or not. A url that holds ``data:`` past its start is
+    a blob, never a uri; any other url is a uri as it came, relative or not.
+    Only type, base64, url, file_id and mime_type are read, but for a native
+    file part (1 and 5), which keeps a valid modality member first; so a v0
+    url block is read the same way. A text-plain block is read by its base64
+    alone. A file block names no modality: by url, the URL path's extension
+    does.
+    """
+    kind = _LANGCHAIN_KINDS[block_type]
+    mime = item.get("mime_type")
+    data, file_id, url = item.get("base64"), item.get("file_id"), item.get("url")
+    usable_id, usable_url = _usable(file_id), _usable(url)
+    if block_type == "file" and usable_id is not None:
+        return _native_file(item)
+    dropped = block_type == "file" and isinstance(file_id, str) and is_dropped(data)
+    if isinstance(data, str) and not dropped:
+        return [base64_blob(data, kind, mime)]
+    if block_type not in _LANGCHAIN_REFERENCE_TYPES:
+        return None
+    if usable_id is not None:
+        return [file_part(kind, mime, usable_id)]
+    if usable_url is not None:
+        if holds_data_url(usable_url):
+            return [blob_part(kind, mime, None, NOT_CAPTURED)]
+        if block_type == "file" and not is_data_url(usable_url):
+            kind = _uri_modality(usable_url)
+        return [url_part(usable_url, kind, mime)]
+    if block_type == "file" and isinstance(file_id, str):
+        return _native_file(item)
+    if isinstance(url, str) or isinstance(file_id, str):
+        return [dropped_blob(kind, mime)]
+    return None
+
+
+def _native_file(item: Part) -> list[Part] | None:
+    native = native_part(item)
+    return None if native is None else [native]
+
+
+def is_langchain_file_block(part: Any) -> bool:
+    """An object of type file holding a string base64 or url: a LangChain v1
+    file block, read by its rule, never a native file part."""
+    return (
+        isinstance(part, dict)
+        and part.get("type") == "file"
+        and (isinstance(part.get("base64"), str) or isinstance(part.get("url"), str))
+    )
 
 
 def _bedrock_part(item: Part) -> list[Part] | None:
@@ -1076,7 +1254,8 @@ def native_part(part: Part) -> Part | None:
     * Any other part keeps a modality it has, else takes one from its MIME
       type, else (a uri) from its filename extension, else document. A blob
       without content keeps a valid size and stripped_reason.
-    * A uri holding a data URL is a blob: a data URL is never a uri.
+    * A uri holding a data URL is a blob: a data URL is never a uri. So is
+      one holding ``data:`` past its start, with no size.
     """
     written = part.get("modality")
     own = written if isinstance(written, str) and written in MODALITIES else None
@@ -1086,6 +1265,8 @@ def native_part(part: Part) -> Part | None:
         return base64_blob(part["content"], own or "document", mime)
     if part_type == "uri" and is_data_url(part.get("uri")):
         return data_url_blob(part["uri"], own or "document", mime)
+    if part_type == "uri" and isinstance(part.get("uri"), str) and holds_data_url(part["uri"]):
+        return blob_part(own or "document", mime, None, NOT_CAPTURED)
     if part_type == "blob":
         size = part.get("byte_size")
         reason = part.get("stripped_reason")
@@ -1232,7 +1413,11 @@ def _part_edit(raw: str) -> str | None:
         part = json.loads(raw)
     except (ValueError, RecursionError):
         return None
-    rebuilt = native_part(part) if isinstance(part, dict) else None
+    if is_langchain_file_block(part):
+        parts = _langchain_part("file", part)
+        rebuilt = parts[0] if parts else None
+    else:
+        rebuilt = native_part(part) if isinstance(part, dict) else None
     if rebuilt is None:
         return None
     encoded = _compact(rebuilt)

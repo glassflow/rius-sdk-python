@@ -11,6 +11,7 @@ file, so a contract change that this SDK has not followed fails here.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -81,9 +82,21 @@ def test_the_inlined_rule_data_is_the_contracts() -> None:
     assert e["source_type"] == _media.KEYED_SOURCE_TYPE
     assert e["blob_type"] == _media.KEYED_BLOB_TYPE
     assert e["blob_key"] == _media.KEYED_BLOB_KEY
-    assert [(key, list(types)) for key, types in _media.KEYED_TYPED_KEYS] == [
-        (t["key"], t["types"]) for t in e["typed_keys"]
-    ]
+    assert [
+        {
+            "key": t.key,
+            "types": list(t.types),
+            **({"parent_keys": list(t.parent_keys)} if t.parent_keys is not None else {}),
+            **({"holder_types": list(t.holder_types)} if t.holder_types is not None else {}),
+            **({"keeps_urls": True} if t.keeps_urls else {}),
+            **({"holder_mime": True} if t.holder_mime else {}),
+        }
+        for t in _media.KEYED_TYPED_KEYS
+    ] == e["typed_keys"]
+    assert _media.URL_SCHEME.pattern == e["url_scheme"]
+    assert [
+        {"key": k, "value": v, "keys": list(keys)} for k, v, keys in _media.KEYED_BASE64_MARKERS
+    ] == e["base64_markers"]
     assert list(_media.KEYED_SOURCE_BYTES_KEYS) == e["source_bytes_keys"]
     assert list(_media.KEYED_MIME_KEYS) == e["mime_keys"]
     assert [
@@ -96,6 +109,44 @@ def test_the_inlined_rule_data_is_the_contracts() -> None:
 def test_the_replacement_examples_are_complete_replacements(example: str) -> None:
     assert is_replacement(example)
     assert strip_raw_payload(example) == example
+
+
+#: data: strings rule (b) cannot replace whole, each holding the payload
+#: "SECRETPAYLOAD": a wrapped run, percent-encoding, a broken run, an
+#: uppercase scheme, parameters and no base64 marker at all.
+_BROKEN_DATA_URLS = (
+    "data:image/png;base64,U0VDUkVU\nUEFZTE9BRA==SECRETPAYLOAD",
+    "data:image/png,SECRETPAYLOAD%00%01",
+    "DATA:image/png;base64,U0VD*SECRETPAYLOAD",
+    "data:;base64,SECRETPAYLOAD!",
+    "data:image/png;name=a b;base64,SECRETPAYLOAD",
+    "data:text/plain,SECRETPAYLOAD",
+    "data:SECRETPAYLOAD",
+)
+
+
+@pytest.mark.parametrize("url", _BROKEN_DATA_URLS)
+@pytest.mark.parametrize(
+    "shape",
+    [
+        '{{"type":"image","image":{value}}}',
+        '{{"type":"image","image":{value},"mediaType":"image/png"}}',
+        '{{"type":"image","image":{{"type":"data","data":{value}}}}}',
+        '{{"type":"file","data":{{"type":"data","data":{value}}},"mediaType":"image/png"}}',
+    ],
+)
+def test_no_payload_survives_a_url_key(url: str, shape: str) -> None:
+    text = shape.format(value=json.dumps(url))
+    stripped = strip_raw_payload(text)
+    assert "SECRETPAYLOAD" not in stripped
+    assert strip_raw_payload(stripped) == stripped
+
+
+def test_a_whole_base64_data_url_under_a_url_key_keeps_its_own_mime() -> None:
+    text = '{"type":"image","image":"data:image/jpeg;base64,QUFB","mediaType":"image/png"}'
+    assert strip_raw_payload(text) == (
+        '{"type":"image","image":"[stripped image/jpeg 3 bytes]","mediaType":"image/png"}'
+    )
 
 
 def test_no_depth_makes_the_strip_raise() -> None:
