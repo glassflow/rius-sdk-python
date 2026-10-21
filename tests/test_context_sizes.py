@@ -14,7 +14,6 @@ from rius._context_sizes import (
     SIZES_VERSION,
     context_sizes,
 )
-from rius._serde import MAX_STRIP_CHARS
 from rius.generation import normalize_messages
 
 
@@ -309,39 +308,6 @@ def test_keyed_base64_in_a_text_part_is_media_too() -> None:
             "user",
             _text(len(stripped.encode())),
             {"type": "blob", "modality": "audio", "byte_size": 4},
-        )
-    ]
-
-
-def test_a_text_part_past_the_strip_budget_still_splits_its_data_urls() -> None:
-    # Past the budget the text is not parsed as JSON, but rule (b) reads it
-    # whole: every data URL is still a blob, sized exactly, the rest prose.
-    filler = "x" * MAX_STRIP_CHARS
-    content = f"see data:image/png;base64,{'QUFB' * 1000} {filler} data:;base64,QkJD end"
-    prose = len(f"see  {filler}  end".encode())
-    assert _sizes(input_messages=[{"role": "user", "content": content}])["input_messages"] == [
-        _message(
-            "user",
-            _text(prose),
-            {"type": "blob", "modality": "image", "byte_size": 3000},
-            {"type": "blob", "modality": "document", "byte_size": 3},
-        )
-    ]
-
-
-def test_a_json_text_part_past_the_strip_budget_is_not_parsed() -> None:
-    # Under the budget the keyed base64 is media; past it the text is not
-    # parsed, so it is prose, and only a data URL is still a blob. Parsing a
-    # document of any size would be unbounded work on the caller's thread.
-    keyed = '"source":{"type":"base64","media_type":"audio/wav","data":"UklGRg=="}'
-    filler = "x" * MAX_STRIP_CHARS
-    content = "{" + keyed + ',"pad":"' + filler + '","url":"data:;base64,QkJD"}'
-    stripped = content.replace("data:;base64,QkJD", "")
-    assert _sizes(input_messages=[{"role": "user", "content": content}])["input_messages"] == [
-        _message(
-            "user",
-            _text(len(stripped.encode())),
-            {"type": "blob", "modality": "document", "byte_size": 3},
         )
     ]
 

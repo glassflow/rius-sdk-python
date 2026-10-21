@@ -183,6 +183,26 @@ def test_the_pre_check_lets_through_every_media_the_rules_find(text: str, stripp
 
 
 @pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("plain prose", False),
+        # Only the data URL word, only the \u escape, and both together.
+        ("see data:image/png;base64,QUFB", True),
+        ('{"d\\u0061ta":"QUJD"}', True),
+        ("data:image/png;base64,QUFB and \\u0041", True),
+        # A rule's words with no \u and no data URL still pass the check.
+        ('{"type":"Buffer","data":[1,2]}', True),
+        ('{"source":{"data":"QUJD"}}', True),
+        ('{"hello":"world"}', False),
+    ],
+)
+def test_the_pre_check_answers_the_same_whichever_test_runs_first(
+    text: str, expected: bool
+) -> None:
+    assert _media._may_hold_media(text) is expected
+
+
+@pytest.mark.parametrize(
     ("value", "size"),
     [
         ("QUFB", 3),

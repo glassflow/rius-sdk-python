@@ -684,12 +684,7 @@ def _strip_text(text: str, depth: int, tokens: list[MediaToken]) -> list[_Edit]:
             edits: list[_Edit] = []
             _walk(document, None, None, depth, tokens, edits)
             return edits
-    return _data_url_edits(text, tokens)
-
-
-def _data_url_edits(text: str, tokens: list[MediaToken]) -> list[_Edit]:
-    """Rule (b) on one string: every data URL in it."""
-    edits: list[_Edit] = []
+    edits = []
     for match in DATA_URL_PATTERN.finditer(text):
         mime = match.group(1) if is_mime(match.group(1)) else None
         size = data_url_size(match.group(3))
@@ -800,7 +795,7 @@ def _may_hold_media(text: str) -> bool:
     characters. Most attributes, and most strings inside them, hold none and
     skip the parse; the test holds for a JSON string's unescaped value too.
     """
-    if "\\u" in text or DATA_URL_TEXT in text:
+    if DATA_URL_TEXT in text or "\\u" in text:
         return True
     if BUFFER_TYPE in text and BUFFER_ARRAY_KEY in text:
         return True
@@ -840,25 +835,17 @@ def strip_raw_payload(text: str) -> str:
     return _strip(text, [])[0]
 
 
-def split_media(text: str, *, parse: bool = True) -> tuple[int, list[MediaToken]]:
+def split_media(text: str) -> tuple[int, list[MediaToken]]:
     """A text's prose bytes and the media tokens in it, in document order.
 
     The prose is the stripped text less what the strip wrote in place of each
     token, in UTF-8 bytes: a data URL or base64 in a text part is media, not
     something the model read as text.
-
-    ``parse=False`` reads rule (b) alone and never parses the text as JSON,
-    for a text too large to parse: the same result for any text that is no
-    JSON document, and for a document only its data URLs are media.
     """
     tokens: list[MediaToken] = []
-    if parse:
-        stripped, edits = _strip(text, tokens)
-        written = sum(len(new.encode()) for _, _, new in edits)
-        return len(stripped.encode()) - written, tokens
-    edits = _data_url_edits(text, tokens) if DATA_URL_TEXT in text else []
-    media = sum(len(text[start:end].encode()) for start, end, _ in edits)
-    return len(text.encode()) - media, tokens
+    stripped, edits = _strip(text, tokens)
+    written = sum(len(new.encode()) for _, _, new in edits)
+    return len(stripped.encode()) - written, tokens
 
 
 # --- parts -------------------------------------------------------------------

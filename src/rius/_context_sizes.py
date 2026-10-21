@@ -46,14 +46,9 @@ no content to size) or, for any other part type, ``{"type": <type>}`` with no
 size. A text part's ``bytes`` are its prose only: a media token in it (a data
 URL, keyed base64, a Buffer, whatever the raw-payload strip replaces) follows
 it as a blob entry of its own, its modality from the token's mime type
-(document when it names none). A text past the strip budget
-(``_serde.MAX_STRIP_CHARS``) is not parsed as JSON, so the split's cost stays
-linear: only its data URLs are split out, and a keyed base64 string in it
-counts as prose. That bound is this SDK's own, as the strip's guard past the
-budget is: the TypeScript SDK parses such a text whole. Every media entry
-carries a modality. Roles are the literal role strings of the normalized
-messages; ``tool`` is the tool NAME (resolved through the call id for
-responses), ``null`` when unknown.
+(document when it names none). Every media entry carries a modality. Roles are the literal
+role strings of the normalized messages; ``tool`` is the tool NAME (resolved
+through the call id for responses), ``null`` when unknown.
 
 This function runs on the user's request path, so it never raises: any
 unexpected shape yields a best-effort entry instead.
@@ -65,7 +60,6 @@ import json
 from typing import Any
 
 from ._media import modality_of, safe_size, split_media
-from ._serde import MAX_STRIP_CHARS
 
 DETAIL_WINDOW = 50
 MAX_SIZES_BYTES = 8192
@@ -162,10 +156,8 @@ def _part_entries(part: Any, call_names: dict[str, str | None]) -> list[dict[str
         if not isinstance(content, str):
             return [{"type": "text", "bytes": _text_bytes(content)}]
         # A media token in the text (a data URL, keyed base64, a Buffer) is
-        # not prose: it follows the text as a blob entry of its own. Past the
-        # strip budget the text is not parsed as JSON, as the content
-        # attribute's strip does not parse it: only its data URLs are media.
-        prose, tokens = split_media(content, parse=len(content) <= MAX_STRIP_CHARS)
+        # not prose: it follows the text as a blob entry of its own.
+        prose, tokens = split_media(content)
         return [{"type": "text", "bytes": prose}] + [
             _media_entry("blob", modality_of(token.mime) or "document", token.byte_size)
             for token in tokens
