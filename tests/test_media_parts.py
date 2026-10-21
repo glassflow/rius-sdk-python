@@ -212,6 +212,31 @@ def test_a_contract_part_example_is_made_byte_for_byte(example: dict[str, Any]) 
     assert json.dumps(part, separators=(",", ":")) == example["part"]
 
 
+@pytest.mark.parametrize(
+    "example",
+    [e for e in PART_EXAMPLES if "native" in e],
+    ids=lambda e: str(e["name"]),
+)
+def test_a_contract_native_example_is_rebuilt_byte_for_byte_on_the_native_path(
+    example: dict[str, Any],
+) -> None:
+    raw = '[{"role":"user","parts":[' + example["native"] + "]}]"
+    rebuilt = native_media_messages({GEN_AI_INPUT_MESSAGES: raw})
+    expected = '[{"role":"user","parts":[' + example["part"] + "]}]"
+    assert (rebuilt or {}).get(GEN_AI_INPUT_MESSAGES, raw) == expected
+
+
+@pytest.mark.parametrize(
+    "example",
+    contract()["part_shapes"]["in_place_examples"],
+    ids=lambda e: str(e["name"]),
+)
+def test_a_contract_in_place_example_is_rebuilt_byte_for_byte(example: dict[str, Any]) -> None:
+    rebuilt = native_media_messages({GEN_AI_INPUT_MESSAGES: example["input"]})
+    assert rebuilt is not None
+    assert rebuilt[GEN_AI_INPUT_MESSAGES] == example["output"]
+
+
 #: Message example sources this SDK never normalizes: the Vercel AI SDK
 #: dialect (ai.prompt.messages), and the content blocks OpenLLMetry and Laminar
 #: flatten into gen_ai.prompt.N.content. Only the TypeScript SDK and the sink
