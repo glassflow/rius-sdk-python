@@ -8,7 +8,8 @@
 #         Inline bytes, with no `content`. byte_size is the decoded length,
 #         omitted when it is unknown.
 #   uri   {"type":"uri","modality","mime_type"?,"uri"}
-#         Referenced by URL. A data: URL is never a uri: it becomes a blob.
+#         Referenced by URL, of any scheme (http, https, gs, s3, file and
+#         others). A data: URL is never a uri: it becomes a blob.
 #   file  {"type":"file","modality","mime_type"?,"file_id"}
 #         A provider file id.
 #
@@ -34,7 +35,9 @@
 #                     field: exactly not_captured and redacted_upstream.
 #   part_shapes       The serialized member order and omission rules of a
 #                     normalized part, the filename extension to modality
-#                     map, and an example of each.
+#                     map, and examples: of a part (examples), of a part
+#                     rebuilt in place (in_place_examples), and of a source
+#                     message that makes a part or none (message_examples).
 #   raw_payloads      Where parts come from (message keys only), and how a
 #                     raw request or response payload is stripped of media in
 #                     place. Its detection rules are the ones
@@ -50,7 +53,9 @@
 #              is only in a raw payload, or the instrumentor dropped it, and
 #              any raw payload holding it is stripped per raw_payloads.
 #   modality   image, video, audio or document, or from_mime: the modality
-#              rule above. Not needed when normalized is text or none.
+#              rule in part_shapes.rules (the MIME type, then the item kind,
+#              the filename or the URI path's extension, then document).
+#              Not needed when normalized is text or none.
 #   paths      Which paths deliver the shape today: passthrough (the SDK
 #              helpers, set_input / setInput with raw provider dicts),
 #              openinference (flattened message contents), openllmetry,
@@ -657,8 +662,12 @@ part_shapes:
     blob: [type, modality, mime_type, byte_size, stripped_reason]
     uri: [type, modality, mime_type, uri]
     file: [type, modality, mime_type, file_id]
-  # A filename extension (of a URI, a file name or a path), lower case, gives
-  # the modality when the MIME type does not. Any other extension is document.
+  # A filename extension gives the modality where the rules below read one.
+  # The extension is the text after the last '.' of the file name, matched
+  # with ASCII case folding only (A.WAV is audio; no other letter is folded).
+  # A filename member is the file name. For a URI, the query and fragment are
+  # cut first, nothing is percent-decoded, and the file name is the text
+  # after the last '/'. Any other extension, or none, is document.
   extensions:
     image: [png, jpg, jpeg, gif, webp]
     audio: [wav, mp3, m4a, ogg, flac]
@@ -670,12 +679,16 @@ part_shapes:
     - The modality is taken from the prefix of the MIME type, matched case-insensitively. image/* is image, audio/* audio, video/* video, anything else document.
     - 'Every native media part in a message key (blob, uri or file) is always rebuilt into its canonical shape: members in the pinned order, extra members dropped, and every member that is unknown omitted. The only exception is a uri part whose uri is not a string, or a file part whose file_id is not a string: it is left as it came. Any string is a usable uri or file_id, the empty string included. Every other normalized media part carries a modality.'
     - 'Parts are rebuilt only in a message-key value that parses as JSON and nests at most 1000 levels deep. Arrays and objects count together from the value''s root, which is level 1: the message array, a message, its parts array and a tool call part are 4 levels. A value nested deeper (a tool call whose arguments add 997 more arrays makes 1001 levels) is left as it came, every part in it included; at 1000 levels its parts are rebuilt. The implementation counts the depth itself and never relies on its parser''s or its language''s recursion limit. The strip still runs on a value left this way.'
-    - 'The modality that the part already has is kept, when it is one of modalities (any other value is ignored), except for a blob whose content is a string and a uri holding a data URL (below). Otherwise it is taken from the MIME type, then from the filename extension (see extensions), then from the part kind the provider gives it (an image, audio, video, file or document item is a hint), and otherwise it is document. A file part with no valid modality and no MIME type gets document; no member of a file part is read for an extension. Any other part with no MIME type and no other hint also gets document.'
+    - 'The modality that the part already has is kept, when it is one of modalities (any other value is ignored), except for a blob whose content is a string and a uri holding a data URL (below). Otherwise it is taken from the MIME type. Failing that, a provider item whose kind names a modality takes it from the kind: an image, image_url, input_image or image_generation_call item is image, an input_audio item audio, a document item document. An OpenAI file or input_file item names none; its modality comes from the extension of its filename member alone (never from a file_url), and with no filename, or an empty one, it is document. A Gemini file_data, a native uri and a Vercel file part by URL take it from the extension of their URI''s path (see extensions), the Vercel part whether its URL is a plain string or v7''s {"type":"url"} data; a Vercel image part is an image. Otherwise it is document. So an Anthropic document by URL ending in .png is a document, an OpenAI input_file named a.png is an image, and an input_file by a file_url ending in .png with no filename is a document. A native file part with no valid modality and no MIME type gets document; no member of it is read for an extension. Any other part with no MIME type and no other hint also gets document.'
     - 'A blob whose `content` is a string is rebuilt with stripped_reason not_captured and a byte_size taken from the content under the size rule of the strip (omitted when the size is unknown). Its modality comes from its MIME type first, then from the modality it has, then document: a PDF blob labelled image is a document. A content string that is itself a data URL follows the data URL rules below, with the part''s mime_type as the hint and the same modality order. A blob in a message key never carries content.'
     - 'A blob with no string `content` keeps a stripped_reason that is one of stripped_reasons. Otherwise its stripped_reason is redacted_upstream when it has no content member or a null one, and not_captured when its content is any other value. It keeps a byte_size that is a whole, non-negative number no larger than 2^53 - 1 (8, 8.0 and 8e0 alike, written 8); any other byte_size is omitted.'
     - 'A uri part, or a provider uri such as a Gemini file_data, whose URI is a data URL is never a uri: it becomes a blob under the data URL rules below. A native uri part takes that blob''s modality as a blob whose content is a string does: from the MIME type first, then the modality it has, then document.'
+    - 'A URL of any scheme other than data: is a uri, its link kept as written: http, https, gs, s3, file and any other scheme alike. Only a data: URL, or inline data, becomes a blob. Where one value may hold either a URL or bare base64 (a Vercel file or image part''s data, as a plain string or as v7''s {"type":"data"} data), it is a URL when it starts with a scheme: an ASCII letter, then any ASCII letters, digits, `+`, `-` or `.`, then a colon. Base64 holds no colon, so the two never meet; anything else is base64. A value v7 tags {"type":"url"} is a URL whatever it holds.'
+    - 'In a provider media item, a URL or a file id that is empty, or that is the __REDACTED__ marker an instrumentor writes in its place, was dropped upstream. When the item has no other usable reference (one that is neither empty nor __REDACTED__), it becomes a blob with the stripped_reason redacted_upstream and no byte_size. It keeps the MIME type the item gives (an Anthropic source''s media_type, a Gemini file_data''s mime_type, a Vercel part''s mediaType) and takes its modality by the rule above, so an image_url or input_image is image. This covers an image_url''s url, an input_image''s image_url and file_id, an Anthropic url or file source, a Gemini file_data''s file_uri, a Vercel part''s v7 {"type":"url"} data, and an OpenAI file or input_file''s file_id, file_data and file_url (an empty file_data counts as dropped too, since its item has nothing else to point to). A usable reference wins: an input_image whose image_url is __REDACTED__ and whose file_id is usable is a file, and an OpenAI file with an empty file_id and non-empty file_data is a blob of that data. It matches OpenInference''s __REDACTED__ on the flattened path. So no provider item is left as a part of type file without a file_id. A native uri or file part is no provider item: its empty uri or file_id is kept.'
+    - 'A Vercel file or image part whose data is neither a string nor v7 tagged data holding one makes no part: it is dropped from its message''s parts, never written as a bare {"type":"file"} or {"type":"image"}, and any raw payload holding its bytes is stripped per raw_payloads. So is a v7 {"type":"text"} whose text is not a string. A v7 tag no rule here names becomes a blob with the stripped_reason not_captured and no byte_size: its size was never measured.'
     - 'When a part has duplicate `type` members, the last one wins, as in a standard JSON decoder. The strip is different: there, a condition on `type` holds when any member qualifies.'
     - 'A base64 data URL (rule (b)''s pattern matching the whole string) becomes a blob with the stripped_reason not_captured. Its mime type is the URL''s when that is a valid token/token MIME type, else the hint (a native part''s mime_type). Its byte_size is that of the base64 run under the size rule of the strip: an empty run is 0 bytes, and an invalid run has no byte_size.'
+    - 'A provider item''s bare base64 payload (an input_audio data, an Anthropic base64 source''s data, an image_generation_call result, a Gemini inline_data data, a Vercel file or image part''s data, a non-empty OpenAI file_data) becomes a blob with the stripped_reason not_captured, its byte_size under the size rule of the strip: an empty string is 0 bytes, never redacted_upstream. A payload that is itself a data URL follows the data URL rules. An OpenAI file or input_file whose file_id, file_data and file_url are all empty or __REDACTED__ was dropped upstream (above).'
     - A data URL that is not base64 (`data:<mime>,<payload>`) becomes a blob with the stripped_reason not_captured and no byte_size. Its mime type is the text after `data:` up to the first `;` or `,`, when that is a valid token/token MIME type, else the hint; its payload is everything after the first comma. This rule also covers a URL that names base64 but whose run does not match rule (b), such as `data:image/png;base64,@@`. When its payload is empty or `None`, it becomes a blob with the stripped_reason redacted_upstream.
     - 'When a normalizer rebuilds a native part inside an existing message-key value, it edits in place: only that part object token is replaced by its canonical compact serialization (no spaces, the minimal escaping of the strip), and every other byte of the value stays as it came. A value with nothing to rebuild stays byte for byte. Messages a normalizer builds itself are serialized compactly.'
   in_place_examples:
@@ -732,6 +745,50 @@ part_shapes:
     - name: file_with_no_hint
       from: 'A provider file id and nothing else.'
       part: '{"type":"file","modality":"document","file_id":"file-abc123"}'
+    - name: uri_with_a_cloud_storage_scheme
+      from: 'A part by the URL gs://bucket/a.png with the MIME type image/png: a Vercel file part with that mediaType, a native uri or a Gemini file_data. The link is kept; it is no blob.'
+      part: '{"type":"uri","modality":"image","mime_type":"image/png","uri":"gs://bucket/a.png"}'
+    - name: uri_tagged_url_with_an_s3_scheme
+      from: 'A Vercel file part whose data is v7''s {"type":"url","url":"s3://bucket/report.pdf"}, with no mediaType, or a native uri for that URL: pdf names no modality, so it is a document.'
+      part: '{"type":"uri","modality":"document","uri":"s3://bucket/report.pdf"}'
+    - name: uri_with_the_file_scheme_and_only_an_extension
+      from: 'A Vercel file part, plain or v7 {"type":"url"}, or a native uri, by file:///tmp/clip.mov with no MIME type.'
+      part: '{"type":"uri","modality":"video","uri":"file:///tmp/clip.mov"}'
+    - name: vercel_file_by_url_with_no_media_type
+      from: 'A Vercel file part whose data is https://example.com/a.png, with no mediaType: the URL path''s extension names the modality, as for a native uri.'
+      part: '{"type":"uri","modality":"image","uri":"https://example.com/a.png"}'
+    - name: blob_from_an_unknown_v7_data_tag
+      from: 'A Vercel file part with the mediaType image/png whose data is v7 tagged data of a type no rule names: its size was never measured, so it has no byte_size.'
+      part: '{"type":"blob","modality":"image","mime_type":"image/png","stripped_reason":"not_captured"}'
+    - name: image_url_that_is_empty
+      from: 'An OpenAI image_url item whose url is the empty string.'
+      part: '{"type":"blob","modality":"image","stripped_reason":"redacted_upstream"}'
+    - name: image_url_that_is_redacted
+      from: 'An OpenAI image_url item whose url is __REDACTED__, the marker an instrumentor writes in place of the image.'
+      part: '{"type":"blob","modality":"image","stripped_reason":"redacted_upstream"}'
+    - name: anthropic_url_source_that_is_empty
+      from: 'An Anthropic document whose url source has an empty url.'
+      part: '{"type":"blob","modality":"document","stripped_reason":"redacted_upstream"}'
+    - name: anthropic_file_source_that_is_empty
+      from: 'An Anthropic image whose file source has an empty file_id and the media_type image/png: the MIME type the item gives is kept.'
+      part: '{"type":"blob","modality":"image","mime_type":"image/png","stripped_reason":"redacted_upstream"}'
+    - name: input_image_with_an_empty_file_id
+      from: 'An OpenAI input_image whose file_id is empty, with no image_url.'
+      part: '{"type":"blob","modality":"image","stripped_reason":"redacted_upstream"}'
+    - name: openai_file_with_an_empty_file_id
+      from: 'An OpenAI chat file item whose file is {"file_id":"","filename":"a.png"}: it is no file part without a file_id, but a blob whose modality the filename names.'
+      part: '{"type":"blob","modality":"image","stripped_reason":"redacted_upstream"}'
+    - name: input_image_with_a_redacted_url_and_a_file_id
+      from: 'An OpenAI input_image whose image_url is __REDACTED__ and whose file_id is file-abc123: the usable reference wins.'
+      part: '{"type":"file","modality":"image","file_id":"file-abc123"}'
+  # A source message, as the source attribute holds it, and the
+  # gen_ai.input.messages it becomes.
+  message_examples:
+    - name: vercel_file_part_with_unreadable_data_makes_no_part
+      from: 'Vercel file and image parts whose data is no string (an object with no tag, a number, a v7 text tag whose text is a number) make no part: the message keeps its other parts.'
+      source: ai.prompt.messages
+      input: '[{"role":"user","content":[{"type":"text","text":"Look:"},{"type":"file","mediaType":"image/png","data":{"0":1}},{"type":"image","image":7},{"type":"file","mediaType":"text/plain","data":{"type":"text","text":7}}]}]'
+      output: '[{"role":"user","parts":[{"type":"text","content":"Look:"}]}]'
 
 rows:
   - source: openai.chat
@@ -750,7 +807,17 @@ rows:
     modality: image
     paths: [passthrough, openinference, openllmetry, laminar]
     fixtures: [openinference-openai/image_https_url, openinference-js-openai/image_https_url, openllmetry/image_https_url]
-    note: OpenLLMetry before 0.62 writes the content array as a JSON string in gen_ai.prompt.N.content. From 0.62 it writes a native uri part.
+    note: OpenLLMetry before 0.62 writes the content array as a JSON string in gen_ai.prompt.N.content. From 0.62 it writes a native uri part. A URL of any other scheme but data (gs://, s3://, file://) is a uri the same way.
+
+  - source: openai.chat
+    shape: image_url.url = "" | __REDACTED__
+    direction: input
+    normalized: blob
+    modality: image
+    paths: [passthrough, openllmetry, laminar]
+    fixtures: []
+    reason: No recorded family writes it in a provider item (OpenInference writes __REDACTED__ in its flattened messages; see the OpenInference image row); covered by the SDK pass-through and sink unit tests.
+    note: The URL was dropped upstream, so the blob has no byte_size and its stripped_reason is redacted_upstream.
 
   - source: openai.chat
     shape: input_audio {data, format}
@@ -765,11 +832,12 @@ rows:
   - source: openai.chat
     shape: file {file_id}
     direction: input
-    normalized: file
-    modality: document
+    normalized: [file, blob]
+    modality: from_mime
     paths: [passthrough, openllmetry, laminar]
     fixtures: []
     reason: No recorded family; covered by the SDK pass-through unit tests.
+    note: The modality comes from the filename extension alone; with no filename it is document. A file whose file_id, file_data and file_url are all empty or __REDACTED__ becomes a blob with stripped_reason redacted_upstream, never a file part without a file_id.
 
   - source: openai.chat
     shape: file {file_data, filename}
@@ -799,7 +867,7 @@ rows:
     paths: [passthrough, openllmetry, laminar]
     fixtures: []
     reason: No recorded family; covered by the SDK pass-through unit tests.
-    note: A data URL becomes a blob, an http(s) URL a uri, a file id a file.
+    note: A data URL becomes a blob, any other URL a uri, a file id a file. An empty or __REDACTED__ image_url or file_id, with no usable other, becomes a blob with stripped_reason redacted_upstream.
 
   - source: openai.responses
     shape: input_file {file_id | file_data | file_url}
@@ -809,7 +877,7 @@ rows:
     paths: [passthrough, openllmetry, laminar]
     fixtures: []
     reason: No recorded family; covered by the SDK pass-through unit tests.
-    note: A file id becomes a file, file data a blob, a file URL a uri.
+    note: A file id becomes a file, file data a blob, a file URL a uri. A file id, file data or file URL that is empty or __REDACTED__, with no usable other, becomes a blob with stripped_reason redacted_upstream. The modality comes from a data URL's mime type, else from the filename extension alone (never the file URL's); with no filename it is document.
 
   - source: openai.responses
     shape: image_generation_call.result (base64)
@@ -832,20 +900,22 @@ rows:
   - source: anthropic.messages
     shape: image / document with source.type = url
     direction: input
-    normalized: uri
+    normalized: [uri, blob]
     modality: from_mime
     paths: [passthrough, openllmetry, laminar]
     fixtures: []
     reason: No recorded family; covered by the SDK pass-through unit tests.
+    note: An empty or __REDACTED__ url becomes a blob with stripped_reason redacted_upstream, keeping source.media_type.
 
   - source: anthropic.messages
     shape: image / document with source.type = file
     direction: input
-    normalized: file
+    normalized: [file, blob]
     modality: from_mime
     paths: [passthrough, openllmetry, laminar]
     fixtures: []
     reason: No recorded family; covered by the SDK pass-through unit tests.
+    note: An empty or __REDACTED__ file_id becomes a blob with stripped_reason redacted_upstream, keeping source.media_type.
 
   - source: anthropic.messages
     shape: document with source.type = text | content
@@ -868,11 +938,12 @@ rows:
   - source: gemini.generate_content
     shape: file_data {mime_type, file_uri}
     direction: input
-    normalized: uri
+    normalized: [uri, blob]
     modality: from_mime
     paths: [passthrough]
     fixtures: []
     reason: No recorded family; covered by the SDK pass-through unit tests.
+    note: The modality comes from the mime type, else from the URI path's extension. A data URL becomes a blob, and an empty or __REDACTED__ file_uri a blob with stripped_reason redacted_upstream.
 
   - source: openinference.llm
     shape: message_content.type = image, image.image.url = data URL | http(s) | __REDACTED__
@@ -890,7 +961,16 @@ rows:
     modality: from_mime
     paths: [vercel]
     fixtures: [vercel-ai-v5/image_file, vercel-ai-v5/pdf_file, vercel-ai-v5/text_plain_file, vercel-ai-v5/audio_file, vercel-ai-v6/image_file, vercel-ai-v6/pdf_file, vercel-ai-v6/text_plain_file, vercel-ai-v6/audio_file]
-    note: The existing blob and uri mapping, with the modality rule. A blob is stripped. TypeScript SDK and sink. The AI SDK writes a file part as a part of type file with mediaType and base64 data in ai.prompt.messages (the model call), whatever the media type. A PDF and a text/plain file are not images.
+    note: The existing blob and uri mapping, with the modality rule. A blob is stripped. TypeScript SDK and sink. The AI SDK writes a file part as a part of type file with mediaType and base64 data in ai.prompt.messages (the model call), whatever the media type. A PDF and a text/plain file are not images. Data that starts with a URL scheme other than data (http, https, gs, s3, file), or v7 data tagged url, is a uri, the link kept; a file part by URL with no mediaType takes its modality from the URL path's extension. A v7 tag no rule names is a blob with no byte_size.
+
+  - source: vercel.ai
+    shape: image / file part whose data is neither a string nor v7 tagged data holding one
+    direction: input
+    normalized: none
+    paths: [vercel]
+    fixtures: []
+    reason: No recorded family writes it; covered by the TypeScript SDK and sink Vercel cases.
+    note: It makes no part, never a bare {"type":"file"}; the message keeps its other parts, and any raw payload holding the bytes is stripped per raw_payloads.
 
   - source: semconv.native
     shape: blob part with content

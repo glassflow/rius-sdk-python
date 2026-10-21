@@ -800,9 +800,32 @@ def data_url_blob(url: str, kind: str, mime_hint: Any = None) -> Part:
 OPENINFERENCE_REDACTED = "__REDACTED__"
 
 
+def is_dropped(reference: Any) -> bool:
+    """A URL or file id the instrumentor dropped: empty, or its __REDACTED__."""
+    return reference in ("", OPENINFERENCE_REDACTED)
+
+
+def _usable(reference: Any) -> str | None:
+    """A URL or file id that points somewhere: a string, not dropped."""
+    return reference if isinstance(reference, str) and not is_dropped(reference) else None
+
+
+def dropped_blob(kind: str, mime: Any = None) -> Part:
+    """The media a dropped URL or file id pointed to: never seen, so no size."""
+    return blob_part(kind, mime, None, REDACTED_UPSTREAM)
+
+
 def url_part(url: str, kind: str, mime: Any = None) -> Part:
-    """A URL as a part: a data URL is a blob, anything else a uri."""
+    """A URL as a part: a data URL is a blob, a dropped one a blob redacted
+    upstream, and any other, whatever its scheme, a uri."""
+    if is_dropped(url):
+        return dropped_blob(kind, mime)
     return data_url_blob(url, kind, mime) if is_data_url(url) else uri_part(kind, mime, url)
+
+
+def reference_part(file_id: str, kind: str, mime: Any = None) -> Part:
+    """A provider file id as a part: a dropped one is a blob redacted upstream."""
+    return dropped_blob(kind, mime) if is_dropped(file_id) else file_part(kind, mime, file_id)
 
 
 def base64_blob(data: str, kind: str, mime: Any) -> Part:
@@ -869,11 +892,15 @@ def media_parts(item: Any) -> list[Part] | None:
         fmt = _string(audio.get("format"))
         return [base64_blob(audio["data"], "audio", fmt and f"audio/{fmt}")]
     if block_type == "input_image":
-        url = _string(item.get("image_url"))
+        url = _usable(item.get("image_url"))
         if url is not None:
             return [url_part(url, "image")]
-        file_id = _string(item.get("file_id"))
-        return None if file_id is None else [file_part("image", None, file_id)]
+        file_id = _usable(item.get("file_id"))
+        if file_id is not None:
+            return [file_part("image", None, file_id)]
+        if isinstance(item.get("image_url"), str) or isinstance(item.get("file_id"), str):
+            return [dropped_blob("image")]
+        return None
     if block_type == "input_file":
         return _openai_file(item)
     if block_type == "image_generation_call":
@@ -890,16 +917,21 @@ def _openai_file(file: Part) -> list[Part] | None:
     """Chat's ``file {file_id | file_data, filename}`` or the Responses
     ``input_file {file_id | file_data | file_url, filename}``. File data is a
     data URL (its MIME type names the modality) or bare base64, whose
-    modality comes from the filename."""
+    modality comes from the filename. With nothing usable but a reference
+    that is empty or redacted, it was dropped upstream: never a part of type
+    file without a file_id."""
     kind = _filename_modality(file.get("filename"))
-    file_id = _string(file.get("file_id"))
+    file_id = _usable(file.get("file_id"))
     if file_id is not None:
         return [file_part(kind, None, file_id)]
-    data = _string(file.get("file_data"))
+    data = _usable(file.get("file_data"))
     if data is not None:
         return [base64_blob(data, kind, None)]
-    url = _string(file.get("file_url"))
-    return None if url is None else [url_part(url, kind)]
+    url = _usable(file.get("file_url"))
+    if url is not None:
+        return [url_part(url, kind)]
+    references = (file.get(k) for k in ("file_id", "file_data", "file_url"))
+    return [dropped_blob(kind)] if any(isinstance(r, str) for r in references) else None
 
 
 def _anthropic_source(block_type: str, source: Any) -> list[Part] | None:
@@ -918,7 +950,7 @@ def _anthropic_source(block_type: str, source: Any) -> list[Part] | None:
         return [url_part(url, kind, mime)] if isinstance(url, str) else None
     if source_type == "file":
         file_id = source.get("file_id")
-        return [file_part(kind, mime, file_id)] if isinstance(file_id, str) else None
+        return [reference_part(file_id, kind, mime)] if isinstance(file_id, str) else None
     if block_type != "document":
         return None
     if source_type == "text":

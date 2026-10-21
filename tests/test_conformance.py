@@ -28,6 +28,7 @@ from typing import Any
 import pytest
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
+from media_contract import MESSAGE_KEYS, canonical_errors, media_parts_in
 from rius.aggregated_usage import WrappedCallTracker
 from rius.normalization import NormalizingSpanExporter
 
@@ -144,6 +145,26 @@ def test_every_recording_normalizes_to_its_expected_result() -> None:
     stale = [f"{k['family']} {k['key']}" for k in known if (k["family"], k["key"]) not in used]
     assert not unexpected, "unreviewed differences:\n" + "\n".join(unexpected)
     assert not stale, "known differences that no longer occur:\n" + "\n".join(stale)
+
+
+def test_every_normalized_media_part_is_canonical() -> None:
+    """Whatever a recording holds, no media part this SDK writes is malformed:
+    a file without its modality and file_id, say, fails here."""
+    seen = 0
+    failures: list[str] = []
+    for family, _source, raw, _expected in _recordings():
+        for scenario in raw:
+            for entry in _normalized(scenario)["spans"]:
+                attributes = _attributes(entry["span"])
+                for key in MESSAGE_KEYS:
+                    if "stringValue" not in attributes.get(key, {}):
+                        continue
+                    for part in media_parts_in(json.loads(attributes[key]["stringValue"])):
+                        seen += 1
+                        if errors := canonical_errors(part):
+                            failures.append(f"{family}/{scenario['scenario']} {part}: {errors}")
+    assert seen > 0, "no media part normalized: is tests/fixtures/semconv synced?"
+    assert not failures, "\n".join(failures)
 
 
 @pytest.mark.parametrize("family", sorted(p.parent.name for p in FIXTURES.glob("*/manifest.json")))
