@@ -20,13 +20,18 @@
         "tool_call": "A tool definition with tool_choice=auto; the response is a tool call.",
         "tool_response": "The follow-up: the assistant's tool call and the tool's result in the input, a text answer out.",
         "error": "The provider answers 400 (model_not_found): an exception event and an ERROR status.",
-        "embeddings": "One embeddings call; the response vector is three floats."
+        "embeddings": "One embeddings call; the response vector is three floats.",
+        "image_data_url": "A user message with text and an image_url part: a 67-byte PNG as a data URL.",
+        "image_https_url": "A user message with text and an image_url part: an https URL.",
+        "image_redacted": "A user message with text and an image_url part: a data URL over 32,000 characters, which OpenInference replaces with __REDACTED__.",
+        "input_audio": "A user message with text and an input_audio part: a 0.1 s silent WAV, base64.",
+        "audio_output": "modalities text and audio: the assistant message carries audio {data, transcript}, a 0.1 s silent WAV, and no text content."
       },
       "expected": {
         "file": "openinference-openai-0.1.65.expected.json",
         "source": "python-sdk"
       },
-      "verified": "Re-recorded 2026-10-12 twice in a row in the pinned virtualenv: byte-identical."
+      "verified": "Re-recorded 2026-10-19 twice in a row in the pinned virtualenv: byte-identical."
     }
   }
 }

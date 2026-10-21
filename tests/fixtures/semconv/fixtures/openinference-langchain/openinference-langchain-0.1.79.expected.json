@@ -1,8 +1,8 @@
 {
   "normalizer": {
     "package": "glassflow-rius",
-    "version": "1.0.1",
-    "commit": "9d01097273cf0d2073f5b0d49246b739e5e15f4a"
+    "version": "1.3.1",
+    "commit": "37031ebe5580a65805e097fb065f23fa9241102c"
   },
   "recordings": [
     {
@@ -110,6 +110,18 @@
                 }
               },
               {
+                "key": "gen_ai.usage.audio.input_tokens",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "gen_ai.usage.audio.output_tokens",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
                 "key": "gen_ai.usage.cache_read.input_tokens",
                 "value": {
                   "intValue": "16"
@@ -161,18 +173,6 @@
                 "key": "llm.system",
                 "value": {
                   "stringValue": "openai"
-                }
-              },
-              {
-                "key": "llm.token_count.completion_details.audio",
-                "value": {
-                  "intValue": "0"
-                }
-              },
-              {
-                "key": "llm.token_count.prompt_details.audio",
-                "value": {
-                  "intValue": "0"
                 }
               },
               {
@@ -496,6 +496,18 @@
                 }
               },
               {
+                "key": "gen_ai.usage.audio.input_tokens",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "gen_ai.usage.audio.output_tokens",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
                 "key": "gen_ai.usage.cache_read.input_tokens",
                 "value": {
                   "intValue": "16"
@@ -547,18 +559,6 @@
                 "key": "llm.system",
                 "value": {
                   "stringValue": "openai"
-                }
-              },
-              {
-                "key": "llm.token_count.completion_details.audio",
-                "value": {
-                  "intValue": "0"
-                }
-              },
-              {
-                "key": "llm.token_count.prompt_details.audio",
-                "value": {
-                  "intValue": "0"
                 }
               },
               {
@@ -704,6 +704,18 @@
                 }
               },
               {
+                "key": "gen_ai.usage.audio.input_tokens",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "gen_ai.usage.audio.output_tokens",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
                 "key": "gen_ai.usage.cache_read.input_tokens",
                 "value": {
                   "intValue": "16"
@@ -755,18 +767,6 @@
                 "key": "llm.system",
                 "value": {
                   "stringValue": "openai"
-                }
-              },
-              {
-                "key": "llm.token_count.completion_details.audio",
-                "value": {
-                  "intValue": "0"
-                }
-              },
-              {
-                "key": "llm.token_count.prompt_details.audio",
-                "value": {
-                  "intValue": "0"
                 }
               },
               {
@@ -994,6 +994,18 @@
                 }
               },
               {
+                "key": "gen_ai.usage.audio.input_tokens",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "gen_ai.usage.audio.output_tokens",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
                 "key": "gen_ai.usage.cache_read.input_tokens",
                 "value": {
                   "intValue": "16"
@@ -1045,18 +1057,6 @@
                 "key": "llm.system",
                 "value": {
                   "stringValue": "openai"
-                }
-              },
-              {
-                "key": "llm.token_count.completion_details.audio",
-                "value": {
-                  "intValue": "0"
-                }
-              },
-              {
-                "key": "llm.token_count.prompt_details.audio",
-                "value": {
-                  "intValue": "0"
                 }
               },
               {

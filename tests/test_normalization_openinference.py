@@ -15,7 +15,12 @@ import pytest
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from rius import init
-from rius.normalization import DEFAULT_TABLE, openinference_invocation_parameters
+from rius.normalization import (
+    DEFAULT_TABLE,
+    GEN_AI_USAGE_AUDIO_INPUT_TOKENS,
+    GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS,
+    openinference_invocation_parameters,
+)
 from rius.semconv import (
     GEN_AI_OPERATION_NAME,
     GEN_AI_PROVIDER_NAME,
@@ -198,6 +203,8 @@ def test_anthropic_input_tokens_are_not_summed_again() -> None:
             1,
             99,
         ),
+        ("llm.token_count.prompt_details.audio", GEN_AI_USAGE_AUDIO_INPUT_TOKENS, 1, 99),
+        ("llm.token_count.completion_details.audio", GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS, 1, 99),
     ],
 )
 def test_native_wins_and_the_source_goes(
@@ -222,6 +229,9 @@ def test_native_wins_and_the_source_goes(
             GEN_AI_USAGE_REASONING_OUTPUT_TOKENS,
             7,
         ),
+        ("llm.token_count.prompt_details.audio", GEN_AI_USAGE_AUDIO_INPUT_TOKENS, 7),
+        ("llm.token_count.completion_details.audio", GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS, 7),
+        ("gen_ai.usage.input_token_details.audio_tokens", GEN_AI_USAGE_AUDIO_INPUT_TOKENS, 7),
     ],
 )
 def test_source_is_mapped_and_deleted(source: str, target: str, value: Any) -> None:
@@ -233,9 +243,8 @@ def test_source_is_mapped_and_deleted(source: str, target: str, value: Any) -> N
     [
         "llm.model_name",
         "llm.token_count.total",
-        "llm.token_count.prompt_details.audio",
         "llm.token_count.prompt_details.cache_input",
-        "llm.token_count.completion_details.audio",
+        "gen_ai.usage.details.audio_tokens",
         "llm.cost.total",
         "llm.tools.0.tool.json_schema",
         "llm.input_messages.0.message.content",
@@ -757,3 +766,20 @@ def test_a_native_finish_reason_wins_and_the_source_still_goes() -> None:
     out = _normalize({"llm.finish_reason": "stop", GEN_AI_RESPONSE_FINISH_REASONS: ["length"]})
     assert out[GEN_AI_RESPONSE_FINISH_REASONS] == ["length"]
     assert "llm.finish_reason" not in out
+
+
+def test_an_audio_subset_never_changes_the_totals() -> None:
+    out = _normalize(
+        {
+            "llm.token_count.prompt": 100,
+            "llm.token_count.prompt_details.audio": 40,
+            "llm.token_count.completion": 20,
+            "llm.token_count.completion_details.audio": 5,
+        }
+    )
+    assert out == {
+        GEN_AI_USAGE_INPUT_TOKENS: 100,
+        GEN_AI_USAGE_AUDIO_INPUT_TOKENS: 40,
+        GEN_AI_USAGE_OUTPUT_TOKENS: 20,
+        GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS: 5,
+    }

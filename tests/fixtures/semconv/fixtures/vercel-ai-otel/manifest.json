@@ -22,13 +22,17 @@
         "decide": "experimental_decide with OpenAI's decision model (gpt-6-luna) and one boolean question: an operation span and its model-call span, both named decide; only the model call carries usage (30/2 tokens). @ai-sdk/otel writes the operation as decide, which the conventions do not define; normalization classifies both spans as LLM.",
         "generate_speech": "generateSpeech with gpt-4o-mini-tts. One span, whose operation @ai-sdk/otel writes as the AI SDK's operation id (ai.generateSpeech): no convention names a speech operation. OpenAI's speech endpoint returns only the audio, so there is no usage. Normalization classifies it as LLM.",
         "transcribe": "transcribe with gpt-4o-transcribe. One span, operation ai.transcribe. With the usage option the provider's usage is written whole as JSON (ai.response.usage), and its numbers are also written flattened under gen_ai.usage.* (input 14, output 8, total 22, and the audio/text input split). Normalization classifies it as LLM.",
-        "stream_transcribe": "experimental_streamTranscribe with gpt-realtime-whisper over OpenAI's realtime WebSocket (scripted): two audio chunks in, one delta and the completed transcript out. One span, operation ai.streamTranscribe, gen_ai.request.stream true, no usage. Normalization classifies it as LLM."
+        "stream_transcribe": "experimental_streamTranscribe with gpt-realtime-whisper over OpenAI's realtime WebSocket (scripted): two audio chunks in, one delta and the completed transcript out. One span, operation ai.streamTranscribe, gen_ai.request.stream true, no usage. Normalization classifies it as LLM.",
+        "image_file": "generateText with a user message holding a file part: a 1x1 PNG as a Buffer, media type image/png.",
+        "pdf_file": "The same with a one-page PDF, application/pdf.",
+        "text_plain_file": "The same with a text/plain file. The chat-completions provider cannot send it and rejects the call; the spans, with the prompt, are still recorded.",
+        "audio_file": "The same with a WAV file, audio/wav."
       },
       "expected": {
         "file": "vercel-ai-otel-7.0.137.expected.json",
         "source": "typescript-sdk"
       },
-      "verified": "Re-recorded 2026-10-15 twice in a row from the lockfile's node_modules: byte-identical, and the earlier scenarios unchanged.",
+      "verified": "Re-recorded 2026-10-19 twice in a row from the lockfile's node_modules (Node 24.2.0): byte-identical, and the earlier scenarios unchanged.",
       "replay": {
         "aggregating_producer": true
       }

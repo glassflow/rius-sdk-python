@@ -2080,6 +2080,1037 @@
           }
         }
       ]
+    },
+    {
+      "scenario": "image_file",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "gen_ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "invoke_agent gpt-4o-mini",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000005000000",
+            "attributes": [
+              {
+                "key": "ai.usage.inputTokenDetails.noCacheTokens",
+                "value": {
+                  "intValue": "26"
+                }
+              },
+              {
+                "key": "ai.usage.outputTokenDetails.reasoningTokens",
+                "value": {
+                  "intValue": "3"
+                }
+              },
+              {
+                "key": "ai.usage.outputTokenDetails.textTokens",
+                "value": {
+                  "intValue": "6"
+                }
+              },
+              {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"What is in this image?\"},{\"type\":\"blob\",\"modality\":\"image\",\"mime_type\":\"image/png\",\"content\":\"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAACklEQVR42mNgAAAAAgAB5Sfe/AAAAABJRU5ErkJggg==\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "invoke_agent"
+                }
+              },
+              {
+                "key": "gen_ai.output.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"A tiny file.\"}],\"finish_reason\":\"stop\"}]"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "gen_ai.response.finish_reasons",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "stop"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "gen_ai.usage.cache_read.input_tokens",
+                "value": {
+                  "intValue": "16"
+                }
+              },
+              {
+                "key": "gen_ai.usage.input_tokens",
+                "value": {
+                  "intValue": "42"
+                }
+              },
+              {
+                "key": "gen_ai.usage.output_tokens",
+                "value": {
+                  "intValue": "9"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "gen_ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000002",
+            "parentSpanId": "0000000000000001",
+            "name": "step 1",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000001000000",
+            "endTimeUnixNano": "1700000000004000000",
+            "attributes": [
+              {
+                "key": "ai.usage.inputTokenDetails.noCacheTokens",
+                "value": {
+                  "intValue": "26"
+                }
+              },
+              {
+                "key": "ai.usage.outputTokenDetails.reasoningTokens",
+                "value": {
+                  "intValue": "3"
+                }
+              },
+              {
+                "key": "ai.usage.outputTokenDetails.textTokens",
+                "value": {
+                  "intValue": "6"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "agent_step"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "gen_ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000003",
+            "parentSpanId": "0000000000000002",
+            "name": "chat gpt-4o-mini",
+            "kind": "SPAN_KIND_CLIENT",
+            "startTimeUnixNano": "1700000000002000000",
+            "endTimeUnixNano": "1700000000003000000",
+            "attributes": [
+              {
+                "key": "ai.usage.inputTokenDetails.noCacheTokens",
+                "value": {
+                  "intValue": "26"
+                }
+              },
+              {
+                "key": "ai.usage.outputTokenDetails.reasoningTokens",
+                "value": {
+                  "intValue": "3"
+                }
+              },
+              {
+                "key": "ai.usage.outputTokenDetails.textTokens",
+                "value": {
+                  "intValue": "6"
+                }
+              },
+              {
+                "key": "gen_ai.client.operation.duration",
+                "value": {
+                  "doubleValue": 0.004
+                }
+              },
+              {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"What is in this image?\"},{\"type\":\"blob\",\"modality\":\"image\",\"mime_type\":\"image/png\",\"content\":\"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAACklEQVR42mNgAAAAAgAB5Sfe/AAAAABJRU5ErkJggg==\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "chat"
+                }
+              },
+              {
+                "key": "gen_ai.output.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"A tiny file.\"}],\"finish_reason\":\"stop\"}]"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "gen_ai.response.finish_reasons",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "stop"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "gen_ai.response.id",
+                "value": {
+                  "stringValue": "chatcmpl-rec1"
+                }
+              },
+              {
+                "key": "gen_ai.response.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini-2024-07-18"
+                }
+              },
+              {
+                "key": "gen_ai.usage.cache_read.input_tokens",
+                "value": {
+                  "intValue": "16"
+                }
+              },
+              {
+                "key": "gen_ai.usage.input_tokens",
+                "value": {
+                  "intValue": "42"
+                }
+              },
+              {
+                "key": "gen_ai.usage.output_tokens",
+                "value": {
+                  "intValue": "9"
+                }
+              }
+            ],
+            "status": {}
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "pdf_file",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "gen_ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "invoke_agent gpt-4o-mini",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000005000000",
+            "attributes": [
+              {
+                "key": "ai.usage.inputTokenDetails.noCacheTokens",
+                "value": {
+                  "intValue": "26"
+                }
+              },
+              {
+                "key": "ai.usage.outputTokenDetails.reasoningTokens",
+                "value": {
+                  "intValue": "3"
+                }
+              },
+              {
+                "key": "ai.usage.outputTokenDetails.textTokens",
+                "value": {
+                  "intValue": "6"
+                }
+              },
+              {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Summarize this document.\"},{\"type\":\"blob\",\"modality\":\"image\",\"mime_type\":\"application/pdf\",\"content\":\"JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2JqCjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4KZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA3MiA3Ml0gPj4KZW5kb2JqCnhyZWYKMCA0CjAwMDAwMDAwMDAgNjU1MzUgZiAKMDAwMDAwMDAwOSAwMDAwMCBuIAowMDAwMDAwMDU4IDAwMDAwIG4gCjAwMDAwMDAxMTUgMDAwMDAgbiAKdHJhaWxlcgo8PCAvU2l6ZSA0IC9Sb290IDEgMCBSID4+CnN0YXJ0eHJlZgoxODQKJSVFT0YK\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "invoke_agent"
+                }
+              },
+              {
+                "key": "gen_ai.output.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"A tiny file.\"}],\"finish_reason\":\"stop\"}]"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "gen_ai.response.finish_reasons",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "stop"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "gen_ai.usage.cache_read.input_tokens",
+                "value": {
+                  "intValue": "16"
+                }
+              },
+              {
+                "key": "gen_ai.usage.input_tokens",
+                "value": {
+                  "intValue": "42"
+                }
+              },
+              {
+                "key": "gen_ai.usage.output_tokens",
+                "value": {
+                  "intValue": "9"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "gen_ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000002",
+            "parentSpanId": "0000000000000001",
+            "name": "step 1",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000001000000",
+            "endTimeUnixNano": "1700000000004000000",
+            "attributes": [
+              {
+                "key": "ai.usage.inputTokenDetails.noCacheTokens",
+                "value": {
+                  "intValue": "26"
+                }
+              },
+              {
+                "key": "ai.usage.outputTokenDetails.reasoningTokens",
+                "value": {
+                  "intValue": "3"
+                }
+              },
+              {
+                "key": "ai.usage.outputTokenDetails.textTokens",
+                "value": {
+                  "intValue": "6"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "agent_step"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "gen_ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000003",
+            "parentSpanId": "0000000000000002",
+            "name": "chat gpt-4o-mini",
+            "kind": "SPAN_KIND_CLIENT",
+            "startTimeUnixNano": "1700000000002000000",
+            "endTimeUnixNano": "1700000000003000000",
+            "attributes": [
+              {
+                "key": "ai.usage.inputTokenDetails.noCacheTokens",
+                "value": {
+                  "intValue": "26"
+                }
+              },
+              {
+                "key": "ai.usage.outputTokenDetails.reasoningTokens",
+                "value": {
+                  "intValue": "3"
+                }
+              },
+              {
+                "key": "ai.usage.outputTokenDetails.textTokens",
+                "value": {
+                  "intValue": "6"
+                }
+              },
+              {
+                "key": "gen_ai.client.operation.duration",
+                "value": {
+                  "doubleValue": 0.004
+                }
+              },
+              {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Summarize this document.\"},{\"type\":\"blob\",\"modality\":\"image\",\"mime_type\":\"application/pdf\",\"content\":\"JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2JqCjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4KZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA3MiA3Ml0gPj4KZW5kb2JqCnhyZWYKMCA0CjAwMDAwMDAwMDAgNjU1MzUgZiAKMDAwMDAwMDAwOSAwMDAwMCBuIAowMDAwMDAwMDU4IDAwMDAwIG4gCjAwMDAwMDAxMTUgMDAwMDAgbiAKdHJhaWxlcgo8PCAvU2l6ZSA0IC9Sb290IDEgMCBSID4+CnN0YXJ0eHJlZgoxODQKJSVFT0YK\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "chat"
+                }
+              },
+              {
+                "key": "gen_ai.output.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"A tiny file.\"}],\"finish_reason\":\"stop\"}]"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "gen_ai.response.finish_reasons",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "stop"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "gen_ai.response.id",
+                "value": {
+                  "stringValue": "chatcmpl-rec1"
+                }
+              },
+              {
+                "key": "gen_ai.response.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini-2024-07-18"
+                }
+              },
+              {
+                "key": "gen_ai.usage.cache_read.input_tokens",
+                "value": {
+                  "intValue": "16"
+                }
+              },
+              {
+                "key": "gen_ai.usage.input_tokens",
+                "value": {
+                  "intValue": "42"
+                }
+              },
+              {
+                "key": "gen_ai.usage.output_tokens",
+                "value": {
+                  "intValue": "9"
+                }
+              }
+            ],
+            "status": {}
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "text_plain_file",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "gen_ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "invoke_agent gpt-4o-mini",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000008000000",
+            "attributes": [
+              {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Summarize this file.\"},{\"type\":\"blob\",\"modality\":\"image\",\"mime_type\":\"text/plain\",\"content\":\"UGFyaXMgaXMgdGhlIGNhcGl0YWwgb2YgRnJhbmNlLgo=\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "invoke_agent"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              }
+            ],
+            "events": [
+              {
+                "timeUnixNano": "1700000000007000000",
+                "name": "exception",
+                "attributes": [
+                  {
+                    "key": "exception.message",
+                    "value": {
+                      "stringValue": "'file part media type text/plain' functionality not supported."
+                    }
+                  },
+                  {
+                    "key": "exception.stacktrace",
+                    "value": {
+                      "stringValue": "<stacktrace elided>"
+                    }
+                  },
+                  {
+                    "key": "exception.type",
+                    "value": {
+                      "stringValue": "AI_UnsupportedFunctionalityError"
+                    }
+                  }
+                ]
+              }
+            ],
+            "status": {
+              "code": "STATUS_CODE_ERROR",
+              "message": "'file part media type text/plain' functionality not supported."
+            }
+          }
+        },
+        {
+          "scope": {
+            "name": "gen_ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000002",
+            "parentSpanId": "0000000000000001",
+            "name": "step 1",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000001000000",
+            "endTimeUnixNano": "1700000000006000000",
+            "attributes": [
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "agent_step"
+                }
+              }
+            ],
+            "events": [
+              {
+                "timeUnixNano": "1700000000005000000",
+                "name": "exception",
+                "attributes": [
+                  {
+                    "key": "exception.message",
+                    "value": {
+                      "stringValue": "'file part media type text/plain' functionality not supported."
+                    }
+                  },
+                  {
+                    "key": "exception.stacktrace",
+                    "value": {
+                      "stringValue": "<stacktrace elided>"
+                    }
+                  },
+                  {
+                    "key": "exception.type",
+                    "value": {
+                      "stringValue": "AI_UnsupportedFunctionalityError"
+                    }
+                  }
+                ]
+              }
+            ],
+            "status": {
+              "code": "STATUS_CODE_ERROR",
+              "message": "'file part media type text/plain' functionality not supported."
+            }
+          }
+        },
+        {
+          "scope": {
+            "name": "gen_ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000003",
+            "parentSpanId": "0000000000000002",
+            "name": "chat gpt-4o-mini",
+            "kind": "SPAN_KIND_CLIENT",
+            "startTimeUnixNano": "1700000000002000000",
+            "endTimeUnixNano": "1700000000004000000",
+            "attributes": [
+              {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Summarize this file.\"},{\"type\":\"blob\",\"modality\":\"image\",\"mime_type\":\"text/plain\",\"content\":\"UGFyaXMgaXMgdGhlIGNhcGl0YWwgb2YgRnJhbmNlLgo=\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "chat"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              }
+            ],
+            "events": [
+              {
+                "timeUnixNano": "1700000000003000000",
+                "name": "exception",
+                "attributes": [
+                  {
+                    "key": "exception.message",
+                    "value": {
+                      "stringValue": "'file part media type text/plain' functionality not supported."
+                    }
+                  },
+                  {
+                    "key": "exception.stacktrace",
+                    "value": {
+                      "stringValue": "<stacktrace elided>"
+                    }
+                  },
+                  {
+                    "key": "exception.type",
+                    "value": {
+                      "stringValue": "AI_UnsupportedFunctionalityError"
+                    }
+                  }
+                ]
+              }
+            ],
+            "status": {
+              "code": "STATUS_CODE_ERROR",
+              "message": "'file part media type text/plain' functionality not supported."
+            }
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "audio_file",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "gen_ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "invoke_agent gpt-4o-mini",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000005000000",
+            "attributes": [
+              {
+                "key": "ai.usage.inputTokenDetails.noCacheTokens",
+                "value": {
+                  "intValue": "26"
+                }
+              },
+              {
+                "key": "ai.usage.outputTokenDetails.reasoningTokens",
+                "value": {
+                  "intValue": "3"
+                }
+              },
+              {
+                "key": "ai.usage.outputTokenDetails.textTokens",
+                "value": {
+                  "intValue": "6"
+                }
+              },
+              {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"What do you hear?\"},{\"type\":\"blob\",\"modality\":\"audio\",\"mime_type\":\"audio/wav\",\"content\":\"UklGRmQGAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YUAGAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "invoke_agent"
+                }
+              },
+              {
+                "key": "gen_ai.output.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"A tiny file.\"}],\"finish_reason\":\"stop\"}]"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "gen_ai.response.finish_reasons",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "stop"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "gen_ai.usage.cache_read.input_tokens",
+                "value": {
+                  "intValue": "16"
+                }
+              },
+              {
+                "key": "gen_ai.usage.input_tokens",
+                "value": {
+                  "intValue": "42"
+                }
+              },
+              {
+                "key": "gen_ai.usage.output_tokens",
+                "value": {
+                  "intValue": "9"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "gen_ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000002",
+            "parentSpanId": "0000000000000001",
+            "name": "step 1",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000001000000",
+            "endTimeUnixNano": "1700000000004000000",
+            "attributes": [
+              {
+                "key": "ai.usage.inputTokenDetails.noCacheTokens",
+                "value": {
+                  "intValue": "26"
+                }
+              },
+              {
+                "key": "ai.usage.outputTokenDetails.reasoningTokens",
+                "value": {
+                  "intValue": "3"
+                }
+              },
+              {
+                "key": "ai.usage.outputTokenDetails.textTokens",
+                "value": {
+                  "intValue": "6"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "agent_step"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "gen_ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000003",
+            "parentSpanId": "0000000000000002",
+            "name": "chat gpt-4o-mini",
+            "kind": "SPAN_KIND_CLIENT",
+            "startTimeUnixNano": "1700000000002000000",
+            "endTimeUnixNano": "1700000000003000000",
+            "attributes": [
+              {
+                "key": "ai.usage.inputTokenDetails.noCacheTokens",
+                "value": {
+                  "intValue": "26"
+                }
+              },
+              {
+                "key": "ai.usage.outputTokenDetails.reasoningTokens",
+                "value": {
+                  "intValue": "3"
+                }
+              },
+              {
+                "key": "ai.usage.outputTokenDetails.textTokens",
+                "value": {
+                  "intValue": "6"
+                }
+              },
+              {
+                "key": "gen_ai.client.operation.duration",
+                "value": {
+                  "doubleValue": 0.004
+                }
+              },
+              {
+                "key": "gen_ai.input.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"What do you hear?\"},{\"type\":\"blob\",\"modality\":\"audio\",\"mime_type\":\"audio/wav\",\"content\":\"UklGRmQGAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YUAGAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"}]}]"
+                }
+              },
+              {
+                "key": "gen_ai.operation.name",
+                "value": {
+                  "stringValue": "chat"
+                }
+              },
+              {
+                "key": "gen_ai.output.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"A tiny file.\"}],\"finish_reason\":\"stop\"}]"
+                }
+              },
+              {
+                "key": "gen_ai.provider.name",
+                "value": {
+                  "stringValue": "openai"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "gen_ai.response.finish_reasons",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "stop"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "gen_ai.response.id",
+                "value": {
+                  "stringValue": "chatcmpl-rec1"
+                }
+              },
+              {
+                "key": "gen_ai.response.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini-2024-07-18"
+                }
+              },
+              {
+                "key": "gen_ai.usage.cache_read.input_tokens",
+                "value": {
+                  "intValue": "16"
+                }
+              },
+              {
+                "key": "gen_ai.usage.input_tokens",
+                "value": {
+                  "intValue": "42"
+                }
+              },
+              {
+                "key": "gen_ai.usage.output_tokens",
+                "value": {
+                  "intValue": "9"
+                }
+              }
+            ],
+            "status": {}
+          }
+        }
+      ]
     }
   ]
 }

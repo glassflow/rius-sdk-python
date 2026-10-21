@@ -1,7 +1,7 @@
 {
   "normalizer": {
     "package": "rius sink",
-    "commit": "a18a6dbb9cf00f93e1ff802f2584debdcb5b4430"
+    "commit": "1ce2851d0f38c56ff17c0103c5dde032953db00d"
   },
   "recordings": [
     {
@@ -957,6 +957,147 @@
           },
           "InputMessages": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"weather?\"}]}]",
           "OutputMessages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"22C\"}]}]",
+          "InputValue": "",
+          "OutputValue": "",
+          "ToolArgumentsFingerprint": "",
+          "EventTimestamps": null,
+          "EventNames": null,
+          "EventAttributes": null,
+          "Finished": 1
+        }
+      ]
+    },
+    {
+      "scenario": "image_base64",
+      "rows": [
+        {
+          "WorkspaceID": "",
+          "Timestamp": "2023-11-14T22:13:20Z",
+          "TraceID": "00000000000000000000000000000001",
+          "SpanID": "0000000000000001",
+          "ParentSpanID": "0000000000000000",
+          "SessionID": "00000000000000000000000000000001",
+          "UserID": "",
+          "IngestKeyID": "",
+          "AgentName": "openllmetry-recorder",
+          "InstanceID": "recorder",
+          "ServiceVersion": "",
+          "MainAgentVersion": "",
+          "TraceState": "",
+          "SpanName": "openai.chat",
+          "SpanKind": "CLIENT",
+          "ScopeName": "opentelemetry.instrumentation.openai.v1",
+          "ScopeVersion": "0.53.4",
+          "Duration": 1000000,
+          "StatusCode": "UNSET",
+          "StatusMessage": "",
+          "ResourceAttributes": {
+            "service.instance.id": "recorder",
+            "service.name": "openllmetry-recorder",
+            "telemetry.sdk.language": "python",
+            "telemetry.sdk.name": "opentelemetry",
+            "telemetry.sdk.version": "1.44.0"
+          },
+          "SpanAttributes": {
+            "gen_ai.completion.0.finish_reason": "stop",
+            "gen_ai.openai.api_base": "https://api.openai.com/v1/",
+            "gen_ai.openai.system_fingerprint": "fp_rec",
+            "gen_ai.operation.name": "chat",
+            "gen_ai.provider.name": "openai",
+            "gen_ai.request.model": "gpt-4o",
+            "gen_ai.request.stream": "false",
+            "gen_ai.response.id": "chatcmpl-rec1",
+            "gen_ai.response.model": "gpt-4o-2024-08-06",
+            "gen_ai.usage.cache_read.input_tokens": "10",
+            "gen_ai.usage.input_tokens": "42",
+            "gen_ai.usage.output_tokens": "7",
+            "gen_ai.usage.reasoning.output_tokens": "0",
+            "llm.headers": "None",
+            "llm.request.reasoning_effort": "[]",
+            "llm.request.type": "chat",
+            "llm.usage.total_tokens": "49",
+            "openinference.span.kind": "LLM",
+            "traceloop.workflow.name": "weather_workflow"
+          },
+          "Cost": 0.00016250000000000002,
+          "ContextWindowTokens": 128000,
+          "ContextShares": {
+            "cached_prefix": 10,
+            "fresh_input": 32
+          },
+          "InputMessages": "[{\"role\":\"user\",\"parts\":[]}]",
+          "OutputMessages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"A tiny image.\"}]}]",
+          "InputValue": "",
+          "OutputValue": "",
+          "ToolArgumentsFingerprint": "",
+          "EventTimestamps": null,
+          "EventNames": null,
+          "EventAttributes": null,
+          "Finished": 1
+        }
+      ]
+    },
+    {
+      "scenario": "image_https_url",
+      "rows": [
+        {
+          "WorkspaceID": "",
+          "Timestamp": "2023-11-14T22:13:20Z",
+          "TraceID": "00000000000000000000000000000001",
+          "SpanID": "0000000000000001",
+          "ParentSpanID": "0000000000000000",
+          "SessionID": "00000000000000000000000000000001",
+          "UserID": "",
+          "IngestKeyID": "",
+          "AgentName": "openllmetry-recorder",
+          "InstanceID": "recorder",
+          "ServiceVersion": "",
+          "MainAgentVersion": "",
+          "TraceState": "",
+          "SpanName": "openai.chat",
+          "SpanKind": "CLIENT",
+          "ScopeName": "opentelemetry.instrumentation.openai.v1",
+          "ScopeVersion": "0.53.4",
+          "Duration": 1000000,
+          "StatusCode": "UNSET",
+          "StatusMessage": "",
+          "ResourceAttributes": {
+            "service.instance.id": "recorder",
+            "service.name": "openllmetry-recorder",
+            "telemetry.sdk.language": "python",
+            "telemetry.sdk.name": "opentelemetry",
+            "telemetry.sdk.version": "1.44.0"
+          },
+          "SpanAttributes": {
+            "gen_ai.completion.0.finish_reason": "stop",
+            "gen_ai.openai.api_base": "https://api.openai.com/v1/",
+            "gen_ai.openai.system_fingerprint": "fp_rec",
+            "gen_ai.operation.name": "chat",
+            "gen_ai.provider.name": "openai",
+            "gen_ai.request.model": "gpt-4o",
+            "gen_ai.request.stream": "false",
+            "gen_ai.response.id": "chatcmpl-rec1",
+            "gen_ai.response.model": "gpt-4o-2024-08-06",
+            "gen_ai.usage.cache_read.input_tokens": "10",
+            "gen_ai.usage.input_tokens": "42",
+            "gen_ai.usage.output_tokens": "7",
+            "gen_ai.usage.reasoning.output_tokens": "0",
+            "llm.headers": "None",
+            "llm.request.reasoning_effort": "[]",
+            "llm.request.type": "chat",
+            "llm.usage.total_tokens": "49",
+            "openinference.span.kind": "LLM",
+            "traceloop.workflow.name": "weather_workflow"
+          },
+          "Cost": 0.00016250000000000002,
+          "ContextWindowTokens": 128000,
+          "ContextShares": {
+            "current_turn": 6,
+            "multimodal": 0,
+            "unattributed": 36
+          },
+          "InputMessages": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"What is in this image?\"},{\"type\":\"uri\",\"modality\":\"image\",\"uri\":\"https://example.com/cat.png\"}]}]",
+          "OutputMessages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"A tiny image.\"}]}]",
           "InputValue": "",
           "OutputValue": "",
           "ToolArgumentsFingerprint": "",

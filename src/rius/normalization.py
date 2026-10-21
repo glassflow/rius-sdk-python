@@ -105,12 +105,19 @@ from collections.abc import Callable, Iterable, Mapping, Sequence
 from typing import Any
 
 from opentelemetry import context as otel_context
-from opentelemetry.sdk.trace import ReadableSpan, Span, SpanProcessor
+from opentelemetry.sdk.trace import Event, ReadableSpan, Span, SpanProcessor
 from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
-from opentelemetry.trace import StatusCode
+from opentelemetry.trace import Link, StatusCode
 
 from ._attributes import replacement_attributes
-from ._serde import serialize
+from ._media import (
+    OPENINFERENCE_REDACTED,
+    REDACTED_UPSTREAM,
+    blob_part,
+    rebuild_native_parts,
+    url_part,
+)
+from ._serde import serialize, strip_within_budget
 from .aggregated_usage import WrappedCallTracker, move_aggregated_usage
 from .semconv import (
     ERROR_TYPE,
@@ -723,8 +730,11 @@ def _content_part(
       is already a ``tool_call`` part and a second copy would only be noise.
       It must hold nothing but the call's fields, and each of them must equal
       one tool call's; otherwise it is not provably a copy, and is serialized.
-    * Anything else (an image, a reasoning block, a text item carrying an id
-      or a signature, an item without a type) becomes a text part holding the
+    * An image item is a media part (see :func:`_image_part`), never a text
+      part holding the item. One whose url is not a string has no target to
+      point at, so it is left as it came, serialized like any other item.
+    * Anything else (a reasoning block, a text item carrying an id or a
+      signature, an item without a type) becomes a text part holding the
       item serialized, as the generation helper does with content it has no
       part type for. The item is its fields by name (``message_content.`` cut,
       ``tool_call.`` kept), sorted, so no field is lost and every producer
@@ -734,7 +744,32 @@ def _content_part(
         return {"type": "text", "content": item["text"]}
     if item.get("type") == "tool_use" and _repeats_a_tool_call(item, tool_calls):
         return None
+    if item.get("type") == "image" and isinstance(item.get(_IMAGE_URL, ""), str):
+        return _image_part(item)
     return {"type": "text", "content": serialize({k: item[k] for k in sorted(item)})}
+
+
+#: An image contents item's fields, ``message_content.`` cut: its URL, and
+#: the media type OpenInference's JS Anthropic instrumentor leaves instead.
+_IMAGE_URL = "image.image.url"
+_IMAGE_MEDIA_TYPE = "image.media_type"
+
+
+def _image_part(item: dict[str, str]) -> dict[str, Any]:
+    """An image item as a semconv media part.
+
+    A data URL is a blob (its bytes never kept), an http(s) URL a uri. What
+    the instrumentor emptied is a blob with ``stripped_reason``
+    ``redacted_upstream``: OpenInference's ``__REDACTED__`` for a data URL
+    over its size limit, the Anthropic instrumentor's ``data:None;url,None``
+    for a url source, and an item with no URL at all (the JS Anthropic
+    instrumentor's, carrying ``image.media_type`` when the source had one).
+    """
+    url = item.get(_IMAGE_URL, "")
+    mime = item.get(_IMAGE_MEDIA_TYPE)
+    if url in ("", OPENINFERENCE_REDACTED):
+        return blob_part("image", mime, None, REDACTED_UPSTREAM)
+    return url_part(url, "image", mime)
 
 
 #: The fields a tool_use contents item may carry to count as a copy of a tool
@@ -1062,6 +1097,102 @@ def response_id_from_output_value(attributes: Mapping[str, Any] | None) -> dict[
     return {GEN_AI_RESPONSE_ID: response_id}
 
 
+#: The message keys whose parts a normalizer builds (the contract's
+#: ``raw_payloads.message_keys`` that hold semconv JSON). The system
+#: instructions are a source spelling here: read and rewritten, never emitted.
+_GEN_AI_SYSTEM_INSTRUCTIONS = "gen_ai.system_instructions"
+_NATIVE_MESSAGE_KEYS = (GEN_AI_INPUT_MESSAGES, GEN_AI_OUTPUT_MESSAGES, _GEN_AI_SYSTEM_INSTRUCTIONS)
+
+
+def native_media_messages(attributes: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    """The native message keys with every media part made conformant.
+
+    Returns the rebuilt attribute dict, or None when nothing changes. An
+    instrumentation that already speaks the conventions can still write a
+    blob WITH its bytes (pydantic-ai does), label a PDF an image
+    (``@ai-sdk/otel`` does), or put a data URL in a uri part. Each such part
+    is rewritten in place as the contract shapes it (see
+    ``_media.native_part``); every other byte of the key stays as it came.
+    The raw payloads (``pydantic_ai.all_messages`` and the like) are not
+    touched here: they are never mined for parts, and the strip replaces
+    their media in place.
+    """
+    if not attributes:
+        return None
+    rebuilt: dict[str, Any] | None = None
+    for key in _NATIVE_MESSAGE_KEYS:
+        raw = attributes.get(key)
+        if not isinstance(raw, str):
+            continue
+        fixed = rebuild_native_parts(raw, parts_only=key == _GEN_AI_SYSTEM_INSTRUCTIONS)
+        if fixed != raw:
+            if rebuilt is None:
+                rebuilt = dict(attributes)
+            rebuilt[key] = fixed
+    return rebuilt
+
+
+def _stripped_value(value: Any) -> Any:
+    # Bounded by the strip budget, as a value this SDK records is: a
+    # third-party payload of several MB is cut and stripped conservatively
+    # instead of parsed whole on the export thread.
+    if isinstance(value, str):
+        return strip_within_budget(value)
+    if isinstance(value, (list, tuple)) and any(isinstance(v, str) for v in value):
+        return type(value)(strip_within_budget(v) if isinstance(v, str) else v for v in value)
+    return value
+
+
+def strip_media(attributes: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    """Every string value (and string array element) with its media stripped.
+
+    Returns the rebuilt attribute dict, or None when nothing changes. The
+    contract's raw-payload strip, run LAST, over every attribute: a raw
+    request or response (``input.value``, ``output.value`` and the other raw
+    keys), the message keys this exporter built or kept, and anything else a
+    string can hide a data URL in. Each media token is replaced in place and
+    every other byte stays (see ``_media.strip_raw_payload``), so a span the
+    sink strips again comes out the same. A value past the strip budget is cut
+    and stripped conservatively instead (see ``_serde.strip_within_budget``).
+    """
+    if not attributes:
+        return None
+    rebuilt: dict[str, Any] | None = None
+    for key, value in attributes.items():
+        stripped = _stripped_value(value)
+        if stripped is not value and stripped != value:
+            if rebuilt is None:
+                rebuilt = dict(attributes)
+            rebuilt[key] = stripped
+    return rebuilt
+
+
+def _stripped_events(span: ReadableSpan) -> tuple[Event, ...] | None:
+    """The span's events with their attributes stripped, or None if unchanged."""
+    events = tuple(span.events)
+    rebuilt = [(event, strip_media(event.attributes)) for event in events]
+    if all(attributes is None for _, attributes in rebuilt):
+        return None
+    return tuple(
+        event
+        if attributes is None
+        else Event(event.name, replacement_attributes(event, attributes), event.timestamp)
+        for event, attributes in rebuilt
+    )
+
+
+def _stripped_links(span: ReadableSpan) -> tuple[Link, ...] | None:
+    """The span's links with their attributes stripped, or None if unchanged."""
+    links = tuple(span.links)
+    rebuilt = [(link, strip_media(link.attributes)) for link in links]
+    if all(attributes is None for _, attributes in rebuilt):
+        return None
+    return tuple(
+        link if attributes is None else Link(link.context, replacement_attributes(link, attributes))
+        for link, attributes in rebuilt
+    )
+
+
 class NormalizingSpanExporter(SpanExporter):
     """Map third-party keys onto canonical ones before delegating to ``inner``.
 
@@ -1137,12 +1268,30 @@ class NormalizingSpanExporter(SpanExporter):
             )
             if moved is not None:
                 new_attributes = moved
-        if new_attributes is None:
+        # Media parts in the native message keys, after every pass that
+        # builds or extends them, so each part is shaped once.
+        native = native_media_messages(
+            span.attributes if new_attributes is None else new_attributes
+        )
+        if native is not None:
+            new_attributes = native
+        # The strip runs last, over everything the passes above produced.
+        stripped = strip_media(span.attributes if new_attributes is None else new_attributes)
+        if stripped is not None:
+            new_attributes = stripped
+        events = _stripped_events(span)
+        links = _stripped_links(span)
+        if new_attributes is None and events is None and links is None:
             return span
         normalized = copy.copy(span)
-        # Carrying the dropped count: a plain dict would report 0 and hide a
-        # span that hit the attribute-count limit.
-        normalized._attributes = replacement_attributes(span, new_attributes)
+        if new_attributes is not None:
+            # Carrying the dropped count: a plain dict would report 0 and hide
+            # a span that hit the attribute-count limit.
+            normalized._attributes = replacement_attributes(span, new_attributes)
+        if events is not None:
+            normalized._events = events
+        if links is not None:
+            normalized._links = links
         return normalized
 
     def force_flush(self, timeout_millis: int = 30_000) -> bool:
@@ -1530,6 +1679,13 @@ def openinference_invocation_parameters(
     return produced
 
 
+#: The per-modality audio usage keys. Canonical in the rius-semconv registry;
+#: the vendored module is pinned at v1.6.0, before they were generated, so it
+#: lacks the constants. They move to the semconv import when it is re-pinned.
+GEN_AI_USAGE_AUDIO_INPUT_TOKENS = "gen_ai.usage.audio.input_tokens"
+GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS = "gen_ai.usage.audio.output_tokens"
+
+
 #: The shipped rules. Order matters where two sources share a target: the
 #: first to produce it wins.
 #:
@@ -1555,7 +1711,6 @@ def openinference_invocation_parameters(
 #: * ``llm.token_count.prompt_details.cache_input`` ("input tokens in the
 #:   prompt that were cached"). It overlaps cache_read and cache_write without
 #:   saying how, so neither canonical cache key can hold it.
-#: * ``llm.token_count.*_details.audio``. No canonical key.
 #: * ``llm.cost.*``. We deliberately do not put cost on the wire; the backend
 #:   prices from the token counts.
 #: * A SUM rule for the input tokens. Every bundled instrumentor already
@@ -1665,6 +1820,19 @@ OPENINFERENCE_RULES: tuple[AnyRule, ...] = (
     Rule(
         "llm.token_count.completion_details.reasoning",
         GEN_AI_USAGE_REASONING_OUTPUT_TOKENS,
+        to_int,
+    ),
+    # The audio split of each count: a subset of it, never added to it, as
+    # the per-modality usage keys are defined.
+    Rule("llm.token_count.prompt_details.audio", GEN_AI_USAGE_AUDIO_INPUT_TOKENS, to_int),
+    Rule("llm.token_count.completion_details.audio", GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS, to_int),
+    # @ai-sdk/otel's flattening of a provider's input_token_details on a
+    # transcription span: the audio subset of the input, after the
+    # OpenInference spelling. pydantic-ai's gen_ai.usage.details.audio_tokens
+    # stays unmapped: it names no direction, so it fits neither audio key.
+    Rule(
+        "gen_ai.usage.input_token_details.audio_tokens",
+        GEN_AI_USAGE_AUDIO_INPUT_TOKENS,
         to_int,
     ),
     # Two GenAI-shaped spellings of the same counts, each its own rule AFTER

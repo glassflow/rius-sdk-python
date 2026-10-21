@@ -16,13 +16,17 @@
         "stream_text": "streamText, drained.",
         "tool_loop": "generateText with one tool and stopWhen: stepCountIs(2): two model calls (24/51 then 91/15 tokens) with the tool executed between them.",
         "error": "The provider answers 400 (model_not_found).",
-        "embed": "embed with text-embedding-3-small; the response vector is three floats. Normalization drops the vectors (ai.embedding, ai.embeddings), as it does OpenInference's."
+        "embed": "embed with text-embedding-3-small; the response vector is three floats. Normalization drops the vectors (ai.embedding, ai.embeddings), as it does OpenInference's.",
+        "image_file": "generateText with a user message holding a file part: a 1x1 PNG as a Buffer, media type image/png.",
+        "pdf_file": "The same with a one-page PDF, application/pdf.",
+        "text_plain_file": "The same with a text/plain file. The chat-completions provider cannot send it and rejects the call; the spans, with the prompt, are still recorded.",
+        "audio_file": "The same with a WAV file, audio/wav."
       },
       "expected": {
         "file": "vercel-ai-v5-5.0.273.expected.json",
         "source": "typescript-sdk"
       },
-      "verified": "Re-recorded 2026-10-12 several times in a row from the lockfile's node_modules: byte-identical."
+      "verified": "Re-recorded 2026-10-19 twice in a row from the lockfile's node_modules (Node 24.2.0): byte-identical, and the earlier scenarios unchanged."
     }
   }
 }

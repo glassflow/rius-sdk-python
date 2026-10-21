@@ -30,13 +30,15 @@
         "anthropic_tool_call": "Anthropic message offering a tool; the response is a tool_use block.",
         "anthropic_tool_response": "The follow-up: tool_use and tool_result in the input, a text answer out.",
         "anthropic_error": "Anthropic answers 400. Before 0.54.0 the instrumentor re-raises without ending its span, so the scenario exports no span.",
-        "traceloop_decorators": "traceloop's @workflow/@agent/@task/@tool decorators around one OpenAI call: the span-kind taxonomy."
+        "traceloop_decorators": "traceloop's @workflow/@agent/@task/@tool decorators around one OpenAI call: the span-kind taxonomy.",
+        "image_base64": "OpenAI chat with text and an image_url part holding a PNG data URL. The instrumentor drops the prompt content: the span keeps gen_ai.prompt.0.role and no gen_ai.prompt.0.content, so no image reaches the span.",
+        "image_https_url": "OpenAI chat with text and an image_url part holding an https URL."
       },
       "expected": {
         "file": "openllmetry-0.47.5.expected-row.json",
         "source": "sink"
       },
-      "verified": "Re-recorded 2026-10-12 twice in a row in the pinned virtualenv: byte-identical. Content (names, attributes, events, status) matches the recordings first made in the Rius backend's sink testdata; only the ids and times, now kept, and the order of event attributes, now sorted, differ.",
+      "verified": "Re-recorded 2026-10-19 twice in a row in the pinned virtualenv: byte-identical. Content (names, attributes, events, status) matches the recordings first made in the Rius backend's sink testdata; only the ids and times, now kept, and the order of event attributes, now sorted, differ.",
       "empty_scenarios": [
         "anthropic_error"
       ]
@@ -67,13 +69,15 @@
         "anthropic_tool_call": "Anthropic message offering a tool; the response is a tool_use block.",
         "anthropic_tool_response": "The follow-up: tool_use and tool_result in the input, a text answer out.",
         "anthropic_error": "Anthropic answers 400. Before 0.54.0 the instrumentor re-raises without ending its span, so the scenario exports no span.",
-        "traceloop_decorators": "traceloop's @workflow/@agent/@task/@tool decorators around one OpenAI call: the span-kind taxonomy."
+        "traceloop_decorators": "traceloop's @workflow/@agent/@task/@tool decorators around one OpenAI call: the span-kind taxonomy.",
+        "image_base64": "OpenAI chat with text and an image_url part holding a PNG data URL. The instrumentor drops the prompt content: the span keeps gen_ai.prompt.0.role and no gen_ai.prompt.0.content, so no image reaches the span.",
+        "image_https_url": "OpenAI chat with text and an image_url part holding an https URL."
       },
       "expected": {
         "file": "openllmetry-0.53.4.expected-row.json",
         "source": "sink"
       },
-      "verified": "Re-recorded 2026-10-12 twice in a row in the pinned virtualenv: byte-identical. Content (names, attributes, events, status) matches the recordings first made in the Rius backend's sink testdata; only the ids and times, now kept, and the order of event attributes, now sorted, differ.",
+      "verified": "Re-recorded 2026-10-19 twice in a row in the pinned virtualenv: byte-identical. Content (names, attributes, events, status) matches the recordings first made in the Rius backend's sink testdata; only the ids and times, now kept, and the order of event attributes, now sorted, differ.",
       "empty_scenarios": [
         "anthropic_error"
       ]
@@ -104,13 +108,15 @@
         "anthropic_tool_call": "Anthropic message offering a tool; the response is a tool_use block.",
         "anthropic_tool_response": "The follow-up: tool_use and tool_result in the input, a text answer out.",
         "anthropic_error": "Anthropic answers 400. Before 0.54.0 the instrumentor re-raises without ending its span, so the scenario exports no span.",
-        "traceloop_decorators": "traceloop's @workflow/@agent/@task/@tool decorators around one OpenAI call: the span-kind taxonomy."
+        "traceloop_decorators": "traceloop's @workflow/@agent/@task/@tool decorators around one OpenAI call: the span-kind taxonomy.",
+        "image_base64": "OpenAI chat with text and an image_url part holding a PNG data URL. The instrumentor drops the prompt content: the span has no gen_ai.input.messages, so no image reaches the span.",
+        "image_https_url": "OpenAI chat with text and an image_url part holding an https URL."
       },
       "expected": {
         "file": "openllmetry-0.62.3.expected-row.json",
         "source": "sink"
       },
-      "verified": "Re-recorded 2026-10-12 twice in a row in the pinned virtualenv: byte-identical. Content (names, attributes, events, status) matches the recordings first made in the Rius backend's sink testdata; only the ids and times, now kept, and the order of event attributes, now sorted, differ."
+      "verified": "Re-recorded 2026-10-19 twice in a row in the pinned virtualenv: byte-identical. Content (names, attributes, events, status) matches the recordings first made in the Rius backend's sink testdata; only the ids and times, now kept, and the order of event attributes, now sorted, differ."
     }
   }
 }

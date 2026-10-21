@@ -2,7 +2,15 @@
 
 from __future__ import annotations
 
-from rius._serde import MAX_ATTR_CHARS, serialize
+import re
+
+from rius._serde import (
+    MAX_ATTR_CHARS,
+    MAX_STRIP_CHARS,
+    TRUNCATION_MARKER,
+    serialize,
+    text_value,
+)
 
 
 class _BrokenRepr:
@@ -135,3 +143,77 @@ def test_escaped_surrogates_count_toward_the_cap_as_written() -> None:
     body = text[: -len("…(truncated)")]
     assert len(body) == MAX_ATTR_CHARS
     body.encode("utf-8")
+
+
+# --- past the strip budget: an SDK-local guard, no base64 run survives ---
+
+_BASE64_RUN = re.compile(r"[A-Za-z0-9+/\-_=]{64,}")
+
+
+def test_the_strip_budget_is_one_mib() -> None:
+    assert MAX_STRIP_CHARS == 1024 * 1024
+
+
+def test_keyed_base64_past_the_budget_leaves_no_base64_run() -> None:
+    # Cut past the budget, the request no longer parses, so the keyed rule
+    # cannot see the image; the fallback still removes its bytes.
+    data = "iVBORw0KGgo" * (9 * 1024 * 1024 // 11)
+    source = {"type": "base64", "media_type": "image/png", "data": data}
+    request = {"messages": [{"role": "user", "content": [{"type": "image", "source": source}]}]}
+    text = serialize(request)
+    assert text.endswith(TRUNCATION_MARKER)
+    assert len(text) <= MAX_ATTR_CHARS + len(TRUNCATION_MARKER)
+    assert _BASE64_RUN.search(text) is None
+    assert "[stripped unknown unknown bytes]" in text
+
+
+def test_a_string_past_the_budget_leaves_no_base64_run() -> None:
+    text = text_value('{"data":"' + "QUFB" * (MAX_STRIP_CHARS // 2) + '","mime_type":"x/y"}')
+    assert text.endswith(TRUNCATION_MARKER)
+    assert _BASE64_RUN.search(text) is None
+
+
+def test_under_the_budget_the_strip_alone_decides() -> None:
+    # A long identifier is not media: only past the budget is it replaced.
+    name = "a" * 100
+    assert serialize({"name": name}) == '{"name":"' + name + '"}'
+
+
+# A run as a JSON text can write it: the alphabet, or an escape of one of its
+# characters (PHP's json_encode writes "/" as "\/", others write "+" as "\u002b").
+_ESCAPED_BASE64_RUN = re.compile(r"(?:[A-Za-z0-9+/\-_=]|\\/|\\u00[0-7][0-9A-Fa-f]){64,}")
+
+
+def _png_base64() -> str:
+    # Every "/" and "+" of the alphabet, often enough that no 64 characters
+    # between two of them are left unescaped.
+    return "iVBO+Rw0/KGgo" * (MAX_STRIP_CHARS // 12)
+
+
+def test_slash_escaped_base64_past_the_budget_leaves_no_base64_run() -> None:
+    data = _png_base64().replace("/", "\\/")
+    text = text_value('{"inline_data":{"mime_type":"image\\/png","data":"' + data + '"}}')
+    assert text.endswith(TRUNCATION_MARKER)
+    assert _ESCAPED_BASE64_RUN.search(text) is None
+
+
+def test_unicode_escaped_base64_past_the_budget_leaves_no_base64_run() -> None:
+    data = _png_base64().replace("+", "\\u002b").replace("/", "\\u002F")
+    text = text_value('{"audio":{"data":"' + data + '"}}')
+    assert text.endswith(TRUNCATION_MARKER)
+    assert _ESCAPED_BASE64_RUN.search(text) is None
+
+
+def test_escaped_prose_past_the_budget_is_kept() -> None:
+    # Only an escape of the alphabet joins a run: escaped prose is not media.
+    prose = "caf\\u00e9\\u4f60\\u597d" * 16
+    text = text_value(prose + " " + "x" * MAX_STRIP_CHARS)
+    assert text.startswith(prose)
+
+
+def test_an_escape_is_one_character_of_a_run_past_the_budget() -> None:
+    # 63 characters, each written as an escape, are a word; 64 are media.
+    for escape in ("\\/", "\\u002b"):
+        word, media = escape * 63, escape * 64
+        text = text_value(word + " " + media + " " + "x" * MAX_STRIP_CHARS)
+        assert text.startswith(word + " [stripped unknown unknown bytes] ")

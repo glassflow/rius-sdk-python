@@ -11,7 +11,9 @@ the TypeScript SDK and the sink then compare against the new one.
 Families whose reference is another normalizer (the Vercel AI SDK, which only
 the TypeScript SDK covers) are replayed too, so their drift stays visible. Every
 difference must be reviewed in tests/conformance/known_differences.json; one that
-is not listed fails, and so does a listed one that no longer occurs.
+is not listed fails, and so does a listed one that no longer occurs. A recorded
+scenario with no expected result yet is a difference too (key ``scenario``): the
+other normalizer has not produced it.
 """
 
 from __future__ import annotations
@@ -123,9 +125,13 @@ def test_every_recording_normalizes_to_its_expected_result() -> None:
     for family, _source, raw, expected in _recordings():
         by_name = {s["scenario"]: s for s in expected}
         for scenario in raw:
-            want = by_name[scenario["scenario"]]
-            spans += len(want["spans"])
-            for diff in _differences(family, _normalized(scenario), want):
+            want = by_name.get(scenario["scenario"])
+            if want is None:
+                diffs = [Difference(family, scenario["scenario"], "-", "scenario", "not expected")]
+            else:
+                spans += len(want["spans"])
+                diffs = _differences(family, _normalized(scenario), want)
+            for diff in diffs:
                 matches = [
                     k for k in known if k["family"] == diff.family and k["key"] in ("*", diff.key)
                 ]
@@ -149,6 +155,8 @@ def test_replay_keeps_identity(family: str) -> None:
             continue
         by_name = {s["scenario"]: s for s in expected}
         for scenario in raw:
+            if scenario["scenario"] not in by_name:
+                continue  # no expected result yet: reviewed as a known difference
             got = {e["span"]["spanId"]: e["span"] for e in _normalized(scenario)["spans"]}
             for entry in by_name[scenario["scenario"]]["spans"]:
                 want = entry["span"]

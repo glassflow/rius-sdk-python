@@ -282,7 +282,7 @@
       }
     },
     {
-      "name": "multimodal contents: text items become text parts, others a serialized text part",
+      "name": "multimodal contents: text items become text parts, an image a media part, others a serialized text part",
       "sink_identical": true,
       "attributes": {
         "llm.input_messages.0.message.role": "user",
@@ -298,7 +298,7 @@
         "llm.input_messages.0.message.contents.3.message_content.text": "no type"
       },
       "expected": {
-        "gen_ai.input.messages": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"What is in this image?\"},{\"type\":\"text\",\"content\":\"{\\\"image.image.url\\\":\\\"https://example.com/cat.png\\\",\\\"type\\\":\\\"image\\\"}\"},{\"type\":\"text\",\"content\":\"{\\\"id\\\":\\\"item_2\\\",\\\"text\\\":\\\"with an id\\\",\\\"type\\\":\\\"text\\\"}\"},{\"type\":\"text\",\"content\":\"{\\\"text\\\":\\\"no type\\\"}\"},{\"type\":\"text\",\"content\":\"eleventh\"}]}]"
+        "gen_ai.input.messages": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"What is in this image?\"},{\"type\":\"uri\",\"modality\":\"image\",\"uri\":\"https://example.com/cat.png\"},{\"type\":\"text\",\"content\":\"{\\\"id\\\":\\\"item_2\\\",\\\"text\\\":\\\"with an id\\\",\\\"type\\\":\\\"text\\\"}\"},{\"type\":\"text\",\"content\":\"{\\\"text\\\":\\\"no type\\\"}\"},{\"type\":\"text\",\"content\":\"eleventh\"}]}]"
       }
     },
     {
@@ -466,7 +466,7 @@
       }
     },
     {
-      "name": "anthropic base64 image item (JS instrumentor) is serialized",
+      "name": "anthropic base64 image item (JS instrumentor) is a blob redacted upstream",
       "sink_identical": true,
       "attributes": {
         "llm.input_messages.0.message.role": "user",
@@ -477,7 +477,7 @@
         "llm.input_messages.0.message.contents.1.message_content.text": "Describe it."
       },
       "expected": {
-        "gen_ai.input.messages": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"{\\\"image.media_type\\\":\\\"image/png\\\",\\\"image.type\\\":\\\"base64\\\",\\\"type\\\":\\\"image\\\"}\"},{\"type\":\"text\",\"content\":\"Describe it.\"}]}]"
+        "gen_ai.input.messages": "[{\"role\":\"user\",\"parts\":[{\"type\":\"blob\",\"modality\":\"image\",\"mime_type\":\"image/png\",\"stripped_reason\":\"redacted_upstream\"},{\"type\":\"text\",\"content\":\"Describe it.\"}]}]"
       }
     }
   ]

@@ -236,6 +236,10 @@ Each Node family has its own `package.json` with exact pins and a committed
   nests spans through the active context (the AI SDK v5 does), as every Node
   app's provider does.
 
+`_media.mjs` holds the media payloads (image, audio, PDF), byte-identical to
+`_media.py`'s (`tests/test_media_payloads.py` compares them).
+It needs Node >= 22.2 (`zlib.crc32`).
+
 `_vercel.mjs` holds the Vercel AI SDK scenarios both Vercel families share;
 each family passes in its own `ai` and `@ai-sdk/openai` modules. The rerank
 scenario is v6's alone (v5 has no rerank), against Cohere's reranking model.
@@ -251,6 +255,10 @@ precedes its own end.
 
 1. Make a virtualenv holding exactly the manifest's pins (Python version
    included).
+   `_recording.py` also imports `opentelemetry-exporter-otlp-proto-common`
+   (and protobuf, which it pulls in); no manifest lists it, so install it at the
+   same version as the pinned `opentelemetry-sdk`. A family's manifest `note`
+   names anything else it needs beyond the pins (extra packages, the PATH).
 2. `python record.py <family>-<version>.json <environment.json>`. The second
    file gets the Python version and package pins for the manifest.
 3. Run it twice and compare: the two outputs must be byte-identical.

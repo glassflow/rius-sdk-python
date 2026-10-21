@@ -1526,6 +1526,1014 @@
           }
         }
       ]
+    },
+    {
+      "scenario": "image_file",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "ai.generateText",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000003000000",
+            "attributes": [
+              {
+                "key": "ai.model.id",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "ai.model.provider",
+                "value": {
+                  "stringValue": "openai.chat"
+                }
+              },
+              {
+                "key": "ai.operationId",
+                "value": {
+                  "stringValue": "ai.generateText"
+                }
+              },
+              {
+                "key": "ai.prompt",
+                "value": {
+                  "stringValue": "{\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"What is in this image?\"},{\"type\":\"file\",\"data\":{\"type\":\"Buffer\",\"data\":[137,80,78,71,13,10,26,10,0,0,0,13,73,72,68,82,0,0,0,1,0,0,0,1,8,0,0,0,0,58,126,155,85,0,0,0,10,73,68,65,84,120,218,99,96,0,0,0,2,0,1,229,39,222,252,0,0,0,0,73,69,78,68,174,66,96,130]},\"mediaType\":\"image/png\"}]}]}"
+                }
+              },
+              {
+                "key": "ai.request.headers.user-agent",
+                "value": {
+                  "stringValue": "ai/5.0.273"
+                }
+              },
+              {
+                "key": "ai.response.finishReason",
+                "value": {
+                  "stringValue": "stop"
+                }
+              },
+              {
+                "key": "ai.response.providerMetadata",
+                "value": {
+                  "stringValue": "{\"openai\":{}}"
+                }
+              },
+              {
+                "key": "ai.response.text",
+                "value": {
+                  "stringValue": "A tiny file."
+                }
+              },
+              {
+                "key": "ai.settings.maxRetries",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "ai.usage.completionTokens",
+                "value": {
+                  "intValue": "9"
+                }
+              },
+              {
+                "key": "ai.usage.promptTokens",
+                "value": {
+                  "intValue": "42"
+                }
+              },
+              {
+                "key": "operation.name",
+                "value": {
+                  "stringValue": "ai.generateText"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000002",
+            "parentSpanId": "0000000000000001",
+            "name": "ai.generateText.doGenerate",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000001000000",
+            "endTimeUnixNano": "1700000000002000000",
+            "attributes": [
+              {
+                "key": "ai.model.id",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "ai.model.provider",
+                "value": {
+                  "stringValue": "openai.chat"
+                }
+              },
+              {
+                "key": "ai.operationId",
+                "value": {
+                  "stringValue": "ai.generateText.doGenerate"
+                }
+              },
+              {
+                "key": "ai.prompt.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"What is in this image?\"},{\"type\":\"file\",\"mediaType\":\"image/png\",\"data\":\"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAACklEQVR42mNgAAAAAgAB5Sfe/AAAAABJRU5ErkJggg==\"}]}]"
+                }
+              },
+              {
+                "key": "ai.request.headers.user-agent",
+                "value": {
+                  "stringValue": "ai/5.0.273"
+                }
+              },
+              {
+                "key": "ai.response.finishReason",
+                "value": {
+                  "stringValue": "stop"
+                }
+              },
+              {
+                "key": "ai.response.id",
+                "value": {
+                  "stringValue": "chatcmpl-rec1"
+                }
+              },
+              {
+                "key": "ai.response.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini-2024-07-18"
+                }
+              },
+              {
+                "key": "ai.response.providerMetadata",
+                "value": {
+                  "stringValue": "{\"openai\":{}}"
+                }
+              },
+              {
+                "key": "ai.response.text",
+                "value": {
+                  "stringValue": "A tiny file."
+                }
+              },
+              {
+                "key": "ai.response.timestamp",
+                "value": {
+                  "stringValue": "2023-11-14T22:13:20.000Z"
+                }
+              },
+              {
+                "key": "ai.settings.maxRetries",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "ai.usage.completionTokens",
+                "value": {
+                  "intValue": "9"
+                }
+              },
+              {
+                "key": "ai.usage.promptTokens",
+                "value": {
+                  "intValue": "42"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "gen_ai.response.finish_reasons",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "stop"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "gen_ai.response.id",
+                "value": {
+                  "stringValue": "chatcmpl-rec1"
+                }
+              },
+              {
+                "key": "gen_ai.response.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini-2024-07-18"
+                }
+              },
+              {
+                "key": "gen_ai.system",
+                "value": {
+                  "stringValue": "openai.chat"
+                }
+              },
+              {
+                "key": "gen_ai.usage.input_tokens",
+                "value": {
+                  "intValue": "42"
+                }
+              },
+              {
+                "key": "gen_ai.usage.output_tokens",
+                "value": {
+                  "intValue": "9"
+                }
+              },
+              {
+                "key": "operation.name",
+                "value": {
+                  "stringValue": "ai.generateText.doGenerate"
+                }
+              }
+            ],
+            "status": {}
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "pdf_file",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "ai.generateText",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000003000000",
+            "attributes": [
+              {
+                "key": "ai.model.id",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "ai.model.provider",
+                "value": {
+                  "stringValue": "openai.chat"
+                }
+              },
+              {
+                "key": "ai.operationId",
+                "value": {
+                  "stringValue": "ai.generateText"
+                }
+              },
+              {
+                "key": "ai.prompt",
+                "value": {
+                  "stringValue": "{\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Summarize this document.\"},{\"type\":\"file\",\"data\":{\"type\":\"Buffer\",\"data\":[37,80,68,70,45,49,46,52,10,49,32,48,32,111,98,106,10,60,60,32,47,84,121,112,101,32,47,67,97,116,97,108,111,103,32,47,80,97,103,101,115,32,50,32,48,32,82,32,62,62,10,101,110,100,111,98,106,10,50,32,48,32,111,98,106,10,60,60,32,47,84,121,112,101,32,47,80,97,103,101,115,32,47,75,105,100,115,32,91,51,32,48,32,82,93,32,47,67,111,117,110,116,32,49,32,62,62,10,101,110,100,111,98,106,10,51,32,48,32,111,98,106,10,60,60,32,47,84,121,112,101,32,47,80,97,103,101,32,47,80,97,114,101,110,116,32,50,32,48,32,82,32,47,77,101,100,105,97,66,111,120,32,91,48,32,48,32,55,50,32,55,50,93,32,62,62,10,101,110,100,111,98,106,10,120,114,101,102,10,48,32,52,10,48,48,48,48,48,48,48,48,48,48,32,54,53,53,51,53,32,102,32,10,48,48,48,48,48,48,48,48,48,57,32,48,48,48,48,48,32,110,32,10,48,48,48,48,48,48,48,48,53,56,32,48,48,48,48,48,32,110,32,10,48,48,48,48,48,48,48,49,49,53,32,48,48,48,48,48,32,110,32,10,116,114,97,105,108,101,114,10,60,60,32,47,83,105,122,101,32,52,32,47,82,111,111,116,32,49,32,48,32,82,32,62,62,10,115,116,97,114,116,120,114,101,102,10,49,56,52,10,37,37,69,79,70,10]},\"mediaType\":\"application/pdf\"}]}]}"
+                }
+              },
+              {
+                "key": "ai.request.headers.user-agent",
+                "value": {
+                  "stringValue": "ai/5.0.273"
+                }
+              },
+              {
+                "key": "ai.response.finishReason",
+                "value": {
+                  "stringValue": "stop"
+                }
+              },
+              {
+                "key": "ai.response.providerMetadata",
+                "value": {
+                  "stringValue": "{\"openai\":{}}"
+                }
+              },
+              {
+                "key": "ai.response.text",
+                "value": {
+                  "stringValue": "A tiny file."
+                }
+              },
+              {
+                "key": "ai.settings.maxRetries",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "ai.usage.completionTokens",
+                "value": {
+                  "intValue": "9"
+                }
+              },
+              {
+                "key": "ai.usage.promptTokens",
+                "value": {
+                  "intValue": "42"
+                }
+              },
+              {
+                "key": "operation.name",
+                "value": {
+                  "stringValue": "ai.generateText"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000002",
+            "parentSpanId": "0000000000000001",
+            "name": "ai.generateText.doGenerate",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000001000000",
+            "endTimeUnixNano": "1700000000002000000",
+            "attributes": [
+              {
+                "key": "ai.model.id",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "ai.model.provider",
+                "value": {
+                  "stringValue": "openai.chat"
+                }
+              },
+              {
+                "key": "ai.operationId",
+                "value": {
+                  "stringValue": "ai.generateText.doGenerate"
+                }
+              },
+              {
+                "key": "ai.prompt.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Summarize this document.\"},{\"type\":\"file\",\"mediaType\":\"application/pdf\",\"data\":\"JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2JqCjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4KZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA3MiA3Ml0gPj4KZW5kb2JqCnhyZWYKMCA0CjAwMDAwMDAwMDAgNjU1MzUgZiAKMDAwMDAwMDAwOSAwMDAwMCBuIAowMDAwMDAwMDU4IDAwMDAwIG4gCjAwMDAwMDAxMTUgMDAwMDAgbiAKdHJhaWxlcgo8PCAvU2l6ZSA0IC9Sb290IDEgMCBSID4+CnN0YXJ0eHJlZgoxODQKJSVFT0YK\"}]}]"
+                }
+              },
+              {
+                "key": "ai.request.headers.user-agent",
+                "value": {
+                  "stringValue": "ai/5.0.273"
+                }
+              },
+              {
+                "key": "ai.response.finishReason",
+                "value": {
+                  "stringValue": "stop"
+                }
+              },
+              {
+                "key": "ai.response.id",
+                "value": {
+                  "stringValue": "chatcmpl-rec1"
+                }
+              },
+              {
+                "key": "ai.response.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini-2024-07-18"
+                }
+              },
+              {
+                "key": "ai.response.providerMetadata",
+                "value": {
+                  "stringValue": "{\"openai\":{}}"
+                }
+              },
+              {
+                "key": "ai.response.text",
+                "value": {
+                  "stringValue": "A tiny file."
+                }
+              },
+              {
+                "key": "ai.response.timestamp",
+                "value": {
+                  "stringValue": "2023-11-14T22:13:20.000Z"
+                }
+              },
+              {
+                "key": "ai.settings.maxRetries",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "ai.usage.completionTokens",
+                "value": {
+                  "intValue": "9"
+                }
+              },
+              {
+                "key": "ai.usage.promptTokens",
+                "value": {
+                  "intValue": "42"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "gen_ai.response.finish_reasons",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "stop"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "gen_ai.response.id",
+                "value": {
+                  "stringValue": "chatcmpl-rec1"
+                }
+              },
+              {
+                "key": "gen_ai.response.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini-2024-07-18"
+                }
+              },
+              {
+                "key": "gen_ai.system",
+                "value": {
+                  "stringValue": "openai.chat"
+                }
+              },
+              {
+                "key": "gen_ai.usage.input_tokens",
+                "value": {
+                  "intValue": "42"
+                }
+              },
+              {
+                "key": "gen_ai.usage.output_tokens",
+                "value": {
+                  "intValue": "9"
+                }
+              },
+              {
+                "key": "operation.name",
+                "value": {
+                  "stringValue": "ai.generateText.doGenerate"
+                }
+              }
+            ],
+            "status": {}
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "text_plain_file",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "ai.generateText",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000005000000",
+            "attributes": [
+              {
+                "key": "ai.model.id",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "ai.model.provider",
+                "value": {
+                  "stringValue": "openai.chat"
+                }
+              },
+              {
+                "key": "ai.operationId",
+                "value": {
+                  "stringValue": "ai.generateText"
+                }
+              },
+              {
+                "key": "ai.prompt",
+                "value": {
+                  "stringValue": "{\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Summarize this file.\"},{\"type\":\"file\",\"data\":{\"type\":\"Buffer\",\"data\":[80,97,114,105,115,32,105,115,32,116,104,101,32,99,97,112,105,116,97,108,32,111,102,32,70,114,97,110,99,101,46,10]},\"mediaType\":\"text/plain\"}]}]}"
+                }
+              },
+              {
+                "key": "ai.request.headers.user-agent",
+                "value": {
+                  "stringValue": "ai/5.0.273"
+                }
+              },
+              {
+                "key": "ai.settings.maxRetries",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "operation.name",
+                "value": {
+                  "stringValue": "ai.generateText"
+                }
+              }
+            ],
+            "events": [
+              {
+                "timeUnixNano": "1700000000004000000",
+                "name": "exception",
+                "attributes": [
+                  {
+                    "key": "exception.message",
+                    "value": {
+                      "stringValue": "'file part media type text/plain' functionality not supported."
+                    }
+                  },
+                  {
+                    "key": "exception.stacktrace",
+                    "value": {
+                      "stringValue": "<stacktrace elided>"
+                    }
+                  },
+                  {
+                    "key": "exception.type",
+                    "value": {
+                      "stringValue": "AI_UnsupportedFunctionalityError"
+                    }
+                  }
+                ]
+              }
+            ],
+            "status": {
+              "code": "STATUS_CODE_ERROR",
+              "message": "'file part media type text/plain' functionality not supported."
+            }
+          }
+        },
+        {
+          "scope": {
+            "name": "ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000002",
+            "parentSpanId": "0000000000000001",
+            "name": "ai.generateText.doGenerate",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000001000000",
+            "endTimeUnixNano": "1700000000003000000",
+            "attributes": [
+              {
+                "key": "ai.model.id",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "ai.model.provider",
+                "value": {
+                  "stringValue": "openai.chat"
+                }
+              },
+              {
+                "key": "ai.operationId",
+                "value": {
+                  "stringValue": "ai.generateText.doGenerate"
+                }
+              },
+              {
+                "key": "ai.prompt.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"Summarize this file.\"},{\"type\":\"file\",\"mediaType\":\"text/plain\",\"data\":\"UGFyaXMgaXMgdGhlIGNhcGl0YWwgb2YgRnJhbmNlLgo=\"}]}]"
+                }
+              },
+              {
+                "key": "ai.request.headers.user-agent",
+                "value": {
+                  "stringValue": "ai/5.0.273"
+                }
+              },
+              {
+                "key": "ai.settings.maxRetries",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "gen_ai.system",
+                "value": {
+                  "stringValue": "openai.chat"
+                }
+              },
+              {
+                "key": "operation.name",
+                "value": {
+                  "stringValue": "ai.generateText.doGenerate"
+                }
+              }
+            ],
+            "events": [
+              {
+                "timeUnixNano": "1700000000002000000",
+                "name": "exception",
+                "attributes": [
+                  {
+                    "key": "exception.message",
+                    "value": {
+                      "stringValue": "'file part media type text/plain' functionality not supported."
+                    }
+                  },
+                  {
+                    "key": "exception.stacktrace",
+                    "value": {
+                      "stringValue": "<stacktrace elided>"
+                    }
+                  },
+                  {
+                    "key": "exception.type",
+                    "value": {
+                      "stringValue": "AI_UnsupportedFunctionalityError"
+                    }
+                  }
+                ]
+              }
+            ],
+            "status": {
+              "code": "STATUS_CODE_ERROR",
+              "message": "'file part media type text/plain' functionality not supported."
+            }
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "audio_file",
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "recorder"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rius-recorder"
+            }
+          }
+        ]
+      },
+      "spans": [
+        {
+          "scope": {
+            "name": "ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000001",
+            "name": "ai.generateText",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000000003000000",
+            "attributes": [
+              {
+                "key": "ai.model.id",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "ai.model.provider",
+                "value": {
+                  "stringValue": "openai.chat"
+                }
+              },
+              {
+                "key": "ai.operationId",
+                "value": {
+                  "stringValue": "ai.generateText"
+                }
+              },
+              {
+                "key": "ai.prompt",
+                "value": {
+                  "stringValue": "{\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"What do you hear?\"},{\"type\":\"file\",\"data\":{\"type\":\"Buffer\",\"data\":[82,73,70,70,100,6,0,0,87,65,86,69,102,109,116,32,16,0,0,0,1,0,1,0,64,31,0,0,128,62,0,0,2,0,16,0,100,97,116,97,64,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]},\"mediaType\":\"audio/wav\"}]}]}"
+                }
+              },
+              {
+                "key": "ai.request.headers.user-agent",
+                "value": {
+                  "stringValue": "ai/5.0.273"
+                }
+              },
+              {
+                "key": "ai.response.finishReason",
+                "value": {
+                  "stringValue": "stop"
+                }
+              },
+              {
+                "key": "ai.response.providerMetadata",
+                "value": {
+                  "stringValue": "{\"openai\":{}}"
+                }
+              },
+              {
+                "key": "ai.response.text",
+                "value": {
+                  "stringValue": "A tiny file."
+                }
+              },
+              {
+                "key": "ai.settings.maxRetries",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "ai.usage.completionTokens",
+                "value": {
+                  "intValue": "9"
+                }
+              },
+              {
+                "key": "ai.usage.promptTokens",
+                "value": {
+                  "intValue": "42"
+                }
+              },
+              {
+                "key": "operation.name",
+                "value": {
+                  "stringValue": "ai.generateText"
+                }
+              }
+            ],
+            "status": {}
+          }
+        },
+        {
+          "scope": {
+            "name": "ai",
+            "version": ""
+          },
+          "span": {
+            "traceId": "00000000000000000000000000000001",
+            "spanId": "0000000000000002",
+            "parentSpanId": "0000000000000001",
+            "name": "ai.generateText.doGenerate",
+            "kind": "SPAN_KIND_INTERNAL",
+            "startTimeUnixNano": "1700000000001000000",
+            "endTimeUnixNano": "1700000000002000000",
+            "attributes": [
+              {
+                "key": "ai.model.id",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "ai.model.provider",
+                "value": {
+                  "stringValue": "openai.chat"
+                }
+              },
+              {
+                "key": "ai.operationId",
+                "value": {
+                  "stringValue": "ai.generateText.doGenerate"
+                }
+              },
+              {
+                "key": "ai.prompt.messages",
+                "value": {
+                  "stringValue": "[{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"What do you hear?\"},{\"type\":\"file\",\"mediaType\":\"audio/wav\",\"data\":\"UklGRmQGAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YUAGAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"}]}]"
+                }
+              },
+              {
+                "key": "ai.request.headers.user-agent",
+                "value": {
+                  "stringValue": "ai/5.0.273"
+                }
+              },
+              {
+                "key": "ai.response.finishReason",
+                "value": {
+                  "stringValue": "stop"
+                }
+              },
+              {
+                "key": "ai.response.id",
+                "value": {
+                  "stringValue": "chatcmpl-rec1"
+                }
+              },
+              {
+                "key": "ai.response.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini-2024-07-18"
+                }
+              },
+              {
+                "key": "ai.response.providerMetadata",
+                "value": {
+                  "stringValue": "{\"openai\":{}}"
+                }
+              },
+              {
+                "key": "ai.response.text",
+                "value": {
+                  "stringValue": "A tiny file."
+                }
+              },
+              {
+                "key": "ai.response.timestamp",
+                "value": {
+                  "stringValue": "2023-11-14T22:13:20.000Z"
+                }
+              },
+              {
+                "key": "ai.settings.maxRetries",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "ai.usage.completionTokens",
+                "value": {
+                  "intValue": "9"
+                }
+              },
+              {
+                "key": "ai.usage.promptTokens",
+                "value": {
+                  "intValue": "42"
+                }
+              },
+              {
+                "key": "gen_ai.request.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini"
+                }
+              },
+              {
+                "key": "gen_ai.response.finish_reasons",
+                "value": {
+                  "arrayValue": {
+                    "values": [
+                      {
+                        "stringValue": "stop"
+                      }
+                    ]
+                  }
+                }
+              },
+              {
+                "key": "gen_ai.response.id",
+                "value": {
+                  "stringValue": "chatcmpl-rec1"
+                }
+              },
+              {
+                "key": "gen_ai.response.model",
+                "value": {
+                  "stringValue": "gpt-4o-mini-2024-07-18"
+                }
+              },
+              {
+                "key": "gen_ai.system",
+                "value": {
+                  "stringValue": "openai.chat"
+                }
+              },
+              {
+                "key": "gen_ai.usage.input_tokens",
+                "value": {
+                  "intValue": "42"
+                }
+              },
+              {
+                "key": "gen_ai.usage.output_tokens",
+                "value": {
+                  "intValue": "9"
+                }
+              },
+              {
+                "key": "operation.name",
+                "value": {
+                  "stringValue": "ai.generateText.doGenerate"
+                }
+              }
+            ],
+            "status": {}
+          }
+        }
+      ]
     }
   ]
 }

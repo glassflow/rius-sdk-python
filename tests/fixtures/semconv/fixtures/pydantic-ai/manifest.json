@@ -16,13 +16,14 @@
         "chat": "Agent.run_sync with a system prompt, temperature and max_tokens: an invoke_agent span and a chat span.",
         "chat_stream": "Agent.run_stream: the chat span carries gen_ai.client.operation.time_to_first_chunk.",
         "agent_tools": "An agent with one tool: chat (tool call), execute_tool, chat (answer) under one invoke_agent span; usage on each chat span and summed on the agent span.",
-        "error": "The provider answers 400 (model_not_found): both the agent and the chat span end ERROR with an exception event."
+        "error": "The provider answers 400 (model_not_found): both the agent and the chat span end ERROR with an exception event.",
+        "image_binary": "Agent.run_sync with a prompt of text and a BinaryContent PNG (67 bytes)."
       },
       "expected": {
         "file": "pydantic-ai-2.55.0.expected.json",
         "source": "python-sdk"
       },
-      "verified": "Re-recorded 2026-10-12 twice in a row in the pinned virtualenv: byte-identical."
+      "verified": "Re-recorded 2026-10-19 twice in a row in the pinned virtualenv: byte-identical."
     }
   }
 }

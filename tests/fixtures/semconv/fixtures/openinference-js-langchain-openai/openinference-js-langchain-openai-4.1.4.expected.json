@@ -1,8 +1,8 @@
 {
   "normalizer": {
     "package": "glassflow-rius",
-    "version": "1.0.2",
-    "commit": "bef7444bc151db30d277ff5adb8ce8b1f3c1a3e1"
+    "version": "1.3.1",
+    "commit": "37031ebe5580a65805e097fb065f23fa9241102c"
   },
   "recordings": [
     {
@@ -255,6 +255,18 @@
                 }
               },
               {
+                "key": "gen_ai.usage.audio.input_tokens",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "gen_ai.usage.audio.output_tokens",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
                 "key": "gen_ai.usage.cache_read.input_tokens",
                 "value": {
                   "intValue": "16"
@@ -300,18 +312,6 @@
                 "key": "llm.system",
                 "value": {
                   "stringValue": "openai"
-                }
-              },
-              {
-                "key": "llm.token_count.completion_details.audio",
-                "value": {
-                  "intValue": "0"
-                }
-              },
-              {
-                "key": "llm.token_count.prompt_details.audio",
-                "value": {
-                  "intValue": "0"
                 }
               },
               {
@@ -566,6 +566,18 @@
                 }
               },
               {
+                "key": "gen_ai.usage.audio.input_tokens",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "gen_ai.usage.audio.output_tokens",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
                 "key": "gen_ai.usage.cache_read.input_tokens",
                 "value": {
                   "intValue": "16"
@@ -617,18 +629,6 @@
                 "key": "llm.system",
                 "value": {
                   "stringValue": "openai"
-                }
-              },
-              {
-                "key": "llm.token_count.completion_details.audio",
-                "value": {
-                  "intValue": "0"
-                }
-              },
-              {
-                "key": "llm.token_count.prompt_details.audio",
-                "value": {
-                  "intValue": "0"
                 }
               },
               {
@@ -905,6 +905,18 @@
                 }
               },
               {
+                "key": "gen_ai.usage.audio.input_tokens",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "gen_ai.usage.audio.output_tokens",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
                 "key": "gen_ai.usage.cache_read.input_tokens",
                 "value": {
                   "intValue": "16"
@@ -950,18 +962,6 @@
                 "key": "llm.system",
                 "value": {
                   "stringValue": "openai"
-                }
-              },
-              {
-                "key": "llm.token_count.completion_details.audio",
-                "value": {
-                  "intValue": "0"
-                }
-              },
-              {
-                "key": "llm.token_count.prompt_details.audio",
-                "value": {
-                  "intValue": "0"
                 }
               },
               {
@@ -1352,6 +1352,18 @@
                 }
               },
               {
+                "key": "gen_ai.usage.audio.input_tokens",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "gen_ai.usage.audio.output_tokens",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
                 "key": "gen_ai.usage.cache_read.input_tokens",
                 "value": {
                   "intValue": "16"
@@ -1397,18 +1409,6 @@
                 "key": "llm.system",
                 "value": {
                   "stringValue": "openai"
-                }
-              },
-              {
-                "key": "llm.token_count.completion_details.audio",
-                "value": {
-                  "intValue": "0"
-                }
-              },
-              {
-                "key": "llm.token_count.prompt_details.audio",
-                "value": {
-                  "intValue": "0"
                 }
               },
               {
@@ -1773,6 +1773,18 @@
                 }
               },
               {
+                "key": "gen_ai.usage.audio.input_tokens",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
+                "key": "gen_ai.usage.audio.output_tokens",
+                "value": {
+                  "intValue": "0"
+                }
+              },
+              {
                 "key": "gen_ai.usage.cache_read.input_tokens",
                 "value": {
                   "intValue": "16"
@@ -1818,18 +1830,6 @@
                 "key": "llm.system",
                 "value": {
                   "stringValue": "openai"
-                }
-              },
-              {
-                "key": "llm.token_count.completion_details.audio",
-                "value": {
-                  "intValue": "0"
-                }
-              },
-              {
-                "key": "llm.token_count.prompt_details.audio",
-                "value": {
-                  "intValue": "0"
                 }
               },
               {
