@@ -200,7 +200,9 @@ def attribute_value(value: Any, text: Callable[[str], str] | None = None) -> Any
             return serialize(list(value))
         if all(new is old for new, old in zip(items, value, strict=True)):
             return value
-        return type(value)(items)
+        # A plain tuple or list, whatever the subclass: its constructor may
+        # take other arguments, and OpenTelemetry holds either the same.
+        return tuple(items) if isinstance(value, tuple) else items
     if isinstance(value, Mapping):
         members = {k: attribute_value(v, text) for k, v in value.items()}
         if all(members[k] is v for k, v in value.items()):

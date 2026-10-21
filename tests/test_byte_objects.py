@@ -13,7 +13,7 @@ from __future__ import annotations
 import asyncio
 import json
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, NamedTuple
 
 import pytest
 from opentelemetry.sdk.trace import Event, ReadableSpan
@@ -22,7 +22,7 @@ from opentelemetry.trace import Link, SpanContext
 
 from media_contract import contract
 from rius import init, observe, start_as_current_generation, start_as_current_span, start_span
-from rius._serde import serialize, text_value
+from rius._serde import attribute_value, serialize, text_value
 from rius.masking import MaskingSpanExporter
 from rius.normalization import NormalizingSpanExporter
 
@@ -375,6 +375,61 @@ def test_the_sdks_set_attribute_leaves_other_values_as_they_are(
     assert attributes is not None
     # Strings are stripped by the exporter, not here.
     assert {k: _as_written(attributes[k]) for k in values} == values
+
+
+class _Pair(NamedTuple):
+    first: Any
+    second: Any
+
+
+class _Pair3(tuple):  # type: ignore[type-arg]
+    """A tuple subclass whose constructor takes other arguments."""
+
+    def __new__(cls, a: Any, b: Any, c: Any) -> _Pair3:
+        return super().__new__(cls, (a, b, c))
+
+
+class _Named(list):  # type: ignore[type-arg]
+    """A list subclass whose constructor takes other arguments."""
+
+    def __init__(self, name: str, items: Any) -> None:
+        super().__init__(items)
+        self.name = name
+
+
+_SEQUENCE_SUBCLASSES = {
+    "namedtuple": _Pair(PNG, "x"),
+    "tuple subclass": _Pair3(PNG, "x", "y"),
+    "list subclass": _Named("n", [PNG, "x"]),
+}
+
+
+@pytest.mark.parametrize("kind", _SEQUENCE_SUBCLASSES)
+def test_a_sequence_subclass_holding_a_byte_object_never_raises_from_set_attribute(
+    kind: str, exported_spans: InMemorySpanExporter
+) -> None:
+    observation = start_span("s")
+    observation.set_attribute("payload", _SEQUENCE_SUBCLASSES[kind])
+    observation.end()
+    attributes = exported_spans.get_finished_spans()[0].attributes
+    assert attributes is not None
+    written = attributes["payload"]
+    assert PNG.decode("latin-1") not in json.dumps(written, default=str)
+    assert MARKER in json.dumps(written, default=str)
+
+
+@pytest.mark.parametrize("kind", ["namedtuple", "tuple subclass", "list subclass"])
+def test_a_homogeneous_sequence_subclass_with_a_nested_byte_object_is_rebuilt_plain(
+    kind: str,
+) -> None:
+    holders = {
+        "namedtuple": _Pair([PNG], [PNG]),
+        "tuple subclass": _Pair3([PNG], [PNG], [PNG]),
+        "list subclass": _Named("n", [[PNG], [PNG]]),
+    }
+    result = attribute_value(holders[kind])
+    assert type(result) in (tuple, list)
+    assert list(result) == [[MARKER]] * len(holders[kind])
 
 
 def test_model_parameters_holding_byte_objects(exported_spans: InMemorySpanExporter) -> None:
