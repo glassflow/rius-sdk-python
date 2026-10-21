@@ -910,7 +910,8 @@ raw_payloads:
       object in it is written as the replacement with the unknown mime,
       `[stripped unknown <N> bytes]`, where N is its size in bytes (see size),
       as a JSON string literal in the place the value had. The byte objects are
-      the types listed below for each SDK, subclasses included. The mime is
+      the types listed below for each SDK, subclasses included, and in
+      TypeScript those of another realm too (a vm context, an iframe). The mime is
       always unknown, never read from a sibling such as mediaType: a serializer
       writes each value on its own. A byte object at the root is serialized like
       any other value that is not a string, so the attribute holds the JSON
@@ -934,6 +935,40 @@ raw_payloads:
       SharedArrayBuffer and every ArrayBuffer view (ArrayBuffer.isView: each
       typed array, a Node Buffer and a DataView), the view's own length, not
       its buffer's.
+    # A byte object set as an attribute value itself: no serializer is around
+    # it, so it is the bare marker, never a JSON string literal.
+    attribute_values:
+      rule: >-
+        A byte object used directly as an OpenTelemetry attribute value (of a
+        span, an event or a link), or as an element of an array attribute
+        value, has no serializer around it: it becomes the marker as a bare
+        string attribute value, `[stripped unknown <N> bytes]`, with no JSON
+        quotes, and N its size by the size rule above. Every other element of
+        an array keeps its value. The sink does the same with an OTLP AnyValue
+        whose bytes_value is set, alone or as an element of an array_value: N
+        is the number of bytes it holds (the decoded length of the base64 that
+        OTLP JSON writes). This differs from the root of a serialized value
+        (above), which is JSON and so quoted. generators/media_parts.py
+        attribute_value and otlp_attribute_value are the reference; each
+        example's output is the attribute value, a string or a list of them.
+      examples:
+        - name: python_bytes_attribute
+          language: python
+          value: 'b"\x89PNG"'
+          output: '[stripped unknown 4 bytes]'
+        - name: python_byte_objects_in_an_array_attribute
+          language: python
+          value: '[b"ab", bytearray(3), memoryview(bytes(8)).cast("I")]'
+          output: ['[stripped unknown 2 bytes]', '[stripped unknown 3 bytes]', '[stripped unknown 8 bytes]']
+        - name: otlp_bytes_value
+          language: otlp
+          note: An OTLP JSON AnyValue; the protobuf bytes_value is the same 8 bytes.
+          value: '{"bytesValue":"iVBORw0KGgo="}'
+          output: '[stripped unknown 8 bytes]'
+        - name: otlp_bytes_values_in_an_array_value
+          language: otlp
+          value: '{"arrayValue":{"values":[{"bytesValue":"QUJD"},{"bytesValue":""},{"stringValue":"plain"}]}}'
+          output: ['[stripped unknown 3 bytes]', '[stripped unknown 0 bytes]', 'plain']
     python: [bytes, bytearray, memoryview]
     typescript: [ArrayBuffer, SharedArrayBuffer, 'every ArrayBuffer view (ArrayBuffer.isView): each typed array, Buffer and DataView']
     examples:

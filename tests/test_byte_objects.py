@@ -218,36 +218,62 @@ def _export(span: ReadableSpan) -> ReadableSpan:
     return out
 
 
-# OpenTelemetry keeps a bytes attribute value as it is, at the top level, in a
-# sequence and in a mapping; the exporter writes each as the marker. Nothing
-# is serialized here, so the marker is the attribute's text, without quotes.
+# A byte object used directly as an attribute value, or as an element of an
+# array attribute, is the bare marker: nothing serializes it, so no JSON
+# quotes (byte_objects.attribute_values). The Python examples of that section
+# come first. OpenTelemetry also keeps one nested in a mapping or a nested
+# array, which the contract leaves as it came; the exporter writes those as
+# the marker too, so no content leaves (the last two).
+ATTRIBUTE_VALUES = BYTE_OBJECTS["attribute_values"]["examples"]
 RAW_ATTRIBUTES: list[tuple[Any, Any]] = [
+    *((_value(e["value"]), e["output"]) for e in ATTRIBUTE_VALUES if e["language"] == "python"),
     (PNG, MARKER),
-    ((PNG, "x"), (MARKER, "x")),
+    ((PNG, "x", 5), [MARKER, "x", 5]),
     ({"image": PNG, "n": 1}, {"image": MARKER, "n": 1}),
-    ({"nested": [{"image": PNG}]}, {"nested": [{"image": MARKER}]}),
+    (
+        {"nested": [{"image": PNG}], "deeper": [[PNG]]},
+        {"nested": [{"image": MARKER}], "deeper": [[MARKER]]},
+    ),
 ]
+
+
+def test_attribute_value_examples_are_python_here_or_the_sinks() -> None:
+    languages = {e["language"] for e in ATTRIBUTE_VALUES}
+    assert languages == {"python", "otlp"}
+    assert any(e["language"] == "python" for e in ATTRIBUTE_VALUES)
+
+
+def _as_written(value: Any) -> Any:
+    """An attribute value as compared: a sequence as a list, a mapping's
+    values alike."""
+    if isinstance(value, (list, tuple)):
+        return [_as_written(v) for v in value]
+    if isinstance(value, dict):
+        return {k: _as_written(v) for k, v in value.items()}
+    return value
 
 
 @pytest.mark.parametrize(("value", "written"), RAW_ATTRIBUTES)
 def test_a_raw_payload_byte_object(value: Any, written: Any) -> None:
     out = _export(_span({"input.value": value, "k": "v"}))
     assert out.attributes is not None
-    assert out.attributes["input.value"] == written
+    assert _as_written(out.attributes["input.value"]) == written
     assert out.attributes["k"] == "v"
 
 
 @pytest.mark.parametrize(("value", "written"), RAW_ATTRIBUTES)
 def test_an_event_attribute_byte_object(value: Any, written: Any) -> None:
     out = _export(_span({"k": "v"}, events=(Event("e", {"payload": value}, 5),)))
-    assert out.events[0].attributes == {"payload": written}
+    assert out.events[0].attributes is not None
+    assert _as_written(out.events[0].attributes["payload"]) == written
 
 
 @pytest.mark.parametrize(("value", "written"), RAW_ATTRIBUTES)
 def test_a_link_attribute_byte_object(value: Any, written: Any) -> None:
     link = Link(SpanContext(trace_id=1, span_id=3, is_remote=False), {"payload": value})
     out = _export(_span({"k": "v"}, links=(link,)))
-    assert out.links[0].attributes == {"payload": written}
+    assert out.links[0].attributes is not None
+    assert _as_written(out.links[0].attributes["payload"]) == written
 
 
 def test_a_span_set_attribute_byte_object_from_the_sdk_pipeline() -> None:
@@ -256,10 +282,12 @@ def test_a_span_set_attribute_byte_object_from_the_sdk_pipeline() -> None:
     client = init(span_exporter=inner, set_global=False)
     span = client.get_tracer().start_span("raw")
     span.set_attribute("input.value", PNG)
+    span.set_attribute("output.value", [b"ab", PNG])
     span.add_event("e", {"payload": PNG})
     span.end()
     client.flush()
     [finished] = inner.get_finished_spans()
     assert finished.attributes is not None
     assert finished.attributes["input.value"] == MARKER
+    assert list(finished.attributes["output.value"]) == ["[stripped unknown 2 bytes]", MARKER]
     assert finished.events[0].attributes == {"payload": MARKER}

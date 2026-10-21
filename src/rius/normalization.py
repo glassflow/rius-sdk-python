@@ -1130,10 +1130,12 @@ def _stripped_value(value: Any) -> Any:
 
     A string is bounded by the strip budget, as a value this SDK records is: a
     third-party payload of several MB is cut and stripped conservatively
-    instead of parsed whole on the export thread. A byte object, which
-    OpenTelemetry keeps as it is at the top level, in a sequence or in a
-    mapping, is written as the marker: nothing serializes it here, so the
-    attribute holds the marker's text, without JSON quotes.
+    instead of parsed whole on the export thread. A byte object used as an
+    attribute value, or as an element of an array value, is the bare marker,
+    with no JSON quotes, since nothing serializes it here (the contract's
+    byte_objects.attribute_values). OpenTelemetry also keeps one nested in a
+    mapping or a nested array, which the contract leaves as it came; it is
+    the marker there too, so no content leaves.
     """
     if isinstance(value, str):
         return strip_within_budget(value)
