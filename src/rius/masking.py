@@ -40,7 +40,9 @@ logger = logging.getLogger(__name__)
 
 Mask = Callable[..., Any]
 
-_PRIMITIVES = (str, bool, int, float, bytes)
+#: What a mask may return as it is. Bytes are not among them: serialized,
+#: they are the byte-object marker, never their content.
+_PRIMITIVES = (str, bool, int, float)
 
 
 def _accepts_key(mask: Mask) -> bool:

@@ -114,7 +114,7 @@ from ._media import (
     rebuild_native_parts,
     url_part,
 )
-from ._serde import serialize, strip_within_budget
+from ._serde import BYTE_OBJECTS, byte_object_marker, serialize, strip_within_budget
 from .aggregated_usage import WrappedCallTracker, move_aggregated_usage
 from .semconv import (
     ERROR_TYPE,
@@ -1126,13 +1126,29 @@ def native_media_messages(attributes: Mapping[str, Any] | None) -> dict[str, Any
 
 
 def _stripped_value(value: Any) -> Any:
-    # Bounded by the strip budget, as a value this SDK records is: a
-    # third-party payload of several MB is cut and stripped conservatively
-    # instead of parsed whole on the export thread.
+    """A value with its media stripped, the same object when nothing changes.
+
+    A string is bounded by the strip budget, as a value this SDK records is: a
+    third-party payload of several MB is cut and stripped conservatively
+    instead of parsed whole on the export thread. A byte object, which
+    OpenTelemetry keeps as it is at the top level, in a sequence or in a
+    mapping, is written as the marker: nothing serializes it here, so the
+    attribute holds the marker's text, without JSON quotes.
+    """
     if isinstance(value, str):
         return strip_within_budget(value)
-    if isinstance(value, (list, tuple)) and any(isinstance(v, str) for v in value):
-        return type(value)(strip_within_budget(v) if isinstance(v, str) else v for v in value)
+    if isinstance(value, BYTE_OBJECTS):
+        return byte_object_marker(value)
+    if isinstance(value, (list, tuple)):
+        items = [_stripped_value(v) for v in value]
+        if all(new is old for new, old in zip(items, value, strict=True)):
+            return value
+        return type(value)(items)
+    if isinstance(value, Mapping):
+        members = {k: _stripped_value(v) for k, v in value.items()}
+        if all(members[k] is v for k, v in value.items()):
+            return value
+        return members
     return value
 
 

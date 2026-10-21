@@ -41,7 +41,9 @@
 #   raw_payloads      Where parts come from (message keys only), and how a
 #                     raw request or response payload is stripped of media in
 #                     place. Its detection rules are the ones
-#                     tools/check_fixtures.py applies to expected results.
+#                     tools/check_fixtures.py applies to expected results. Its
+#                     byte_objects say how an SDK writes a byte object into a
+#                     value it serializes.
 #   source     producer.api: who writes the shape, and through which API.
 #   shape      The source shape, as the producer writes it.
 #   direction  input | output. Whether the shape is in a request message or
@@ -849,6 +851,83 @@ raw_payloads:
       input: '[{"type":"image","image":"[stripped image/png 8 bytes]","mediaType":"image/png"},{"type":"file","data":{"type":"data","data":"[stripped application/pdf 5 bytes]"},"mediaType":"application/pdf"},{"type":"image","source_type":"base64","data":"[stripped unknown 8 bytes]"}]'
       output: '[{"type":"image","image":"[stripped image/png 8 bytes]","mediaType":"image/png"},{"type":"file","data":{"type":"data","data":"[stripped application/pdf 5 bytes]"},"mediaType":"application/pdf"},{"type":"image","source_type":"base64","data":"[stripped unknown 8 bytes]"}]'
       tokens: []
+  # How an SDK writes a byte object into a value it serializes. Each example's
+  # attribute value holds the marker and is final: a strip changes nothing.
+  byte_objects:
+    rule: >-
+      When an SDK serializes a value that is not a string into an attribute (an
+      input or output it records, a tool's arguments or result), every byte
+      object in it is written as the replacement with the unknown mime,
+      `[stripped unknown <N> bytes]`, where N is its size in bytes (see size),
+      as a JSON string literal in the place the value had. The byte objects are
+      the types listed below for each SDK, subclasses included. The mime is
+      always unknown, never read from a sibling such as mediaType: a serializer
+      writes each value on its own. A byte object at the root is serialized like
+      any other value that is not a string, so the attribute holds the JSON
+      string literal, quotes included. An object key is never a byte object.
+      The strip then runs as on any value, and since the marker is a complete
+      replacement it is never stripped again and is never context for rule (e)
+      (see idempotence). Rule (d) and this rule meet at the Node Buffer. A
+      Buffer is a Uint8Array, so the TypeScript SDK writes it as this marker; it
+      must read each value from its holder, as JSON.stringify calls a Buffer's
+      toJSON, which writes {"type":"Buffer","data":[...]}, before a replacer
+      sees the value. Rule (d) is for a Buffer that became that object before
+      an SDK saw it, in a string another library serialized (the AI SDK's
+      ai.prompt), and for the sink. Both count the same bytes; rule (d) may
+      also read a mime type from the enclosing object, which this rule never
+      does.
+    size: >-
+      The size in bytes, never a count of items. Python: len of bytes and
+      bytearray, nbytes of memoryview (so a memoryview cast to 4-byte items
+      counts 4 per item); a released memoryview has no size, and its marker's
+      size is unknown. TypeScript: byteLength of an ArrayBuffer, a
+      SharedArrayBuffer and every ArrayBuffer view (ArrayBuffer.isView: each
+      typed array, a Node Buffer and a DataView), the view's own length, not
+      its buffer's.
+    python: [bytes, bytearray, memoryview]
+    typescript: [ArrayBuffer, SharedArrayBuffer, 'every ArrayBuffer view (ArrayBuffer.isView): each typed array, Buffer and DataView']
+    examples:
+      - name: python_bytes_in_a_dict
+        language: python
+        value: '{"image": b"\x89PNG"}'
+        output: '{"image":"[stripped unknown 4 bytes]"}'
+      - name: python_bytearray_and_memoryview
+        language: python
+        value: '[bytearray(b"abc"), memoryview(b"abcdef")[2:]]'
+        output: '["[stripped unknown 3 bytes]","[stripped unknown 4 bytes]"]'
+      - name: python_memoryview_counts_bytes_not_items
+        language: python
+        note: The view has 2 items of 4 bytes, so its size is 8. At the root, the attribute is the JSON string literal.
+        value: 'memoryview(bytes(8)).cast("I")'
+        output: '"[stripped unknown 8 bytes]"'
+      - name: python_bytes_beside_a_media_type
+        language: python
+        note: 'The mime is unknown though mediaType names one, and the strip that follows leaves the marker: it is a complete replacement.'
+        value: '{"type": "file", "data": b"\x89PNG", "mediaType": "image/png"}'
+        output: '{"type":"file","data":"[stripped unknown 4 bytes]","mediaType":"image/png"}'
+      - name: python_empty_bytes
+        language: python
+        value: '{"data": b""}'
+        output: '{"data":"[stripped unknown 0 bytes]"}'
+      - name: typescript_uint8array
+        language: typescript
+        value: '{ u: new Uint8Array(3) }'
+        output: '{"u":"[stripped unknown 3 bytes]"}'
+      - name: typescript_node_buffer_is_a_byte_object
+        language: typescript
+        note: 'A Buffer is written as the marker, never as {"type":"Buffer","data":[...]}, so its mime is unknown: compare vercel_buffer_in_ai_prompt, where rule (d) strips a Buffer the AI SDK serialized.'
+        value: '{ type: "file", data: Buffer.from([137, 80, 78, 71]), mediaType: "image/png" }'
+        output: '{"type":"file","data":"[stripped unknown 4 bytes]","mediaType":"image/png"}'
+      - name: typescript_typed_array_counts_bytes_not_items
+        language: typescript
+        note: Two 2-byte items are 4 bytes. At the root, the attribute is the JSON string literal.
+        value: 'new Uint16Array(2)'
+        output: '"[stripped unknown 4 bytes]"'
+      - name: typescript_array_buffer_and_data_view
+        language: typescript
+        note: A view counts its own length, not its buffer's.
+        value: '[new ArrayBuffer(5), new DataView(new ArrayBuffer(8), 2, 3)]'
+        output: '["[stripped unknown 5 bytes]","[stripped unknown 3 bytes]"]'
 
 part_shapes:
   # The exact serialized form of a normalized part in a message key. The
@@ -1332,3 +1411,13 @@ rows:
     paths: [openllmetry]
     fixtures: [openllmetry/image_base64]
     note: Before 0.62 the span keeps only gen_ai.prompt.0.role, with no content; 0.62 writes no gen_ai.input.messages at all. This holds for every recorded version.
+
+  - source: rius.sdk
+    shape: byte object in a serialized value (Python bytes, bytearray, memoryview; TypeScript ArrayBuffer and its views, Buffer included)
+    direction: input
+    normalized: none
+    raw_payload: [input.value, output.value]
+    paths: [passthrough]
+    fixtures: []
+    reason: No recorded family records one; covered by the SDK serialization unit tests.
+    note: 'The SDK writes it as [stripped unknown <N> bytes] while serializing, per raw_payloads byte_objects, so no bytes reach the attribute. It makes no part. The same holds for a value recorded as output, and for a tool''s arguments and result.'
