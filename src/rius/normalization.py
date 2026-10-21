@@ -1673,11 +1673,16 @@ def openinference_invocation_parameters(
     return produced
 
 
-#: The per-modality audio usage keys. Canonical in the rius-semconv registry;
-#: the vendored module is pinned at v1.6.0, before they were generated, so it
-#: lacks the constants. They move to the semconv import when it is re-pinned.
+#: The per-modality audio and image usage keys. Canonical in the rius-semconv
+#: registry; the vendored module is pinned at v1.6.0, before they were
+#: generated, so it lacks the constants. They move to the semconv import when it
+#: is re-pinned.
 GEN_AI_USAGE_AUDIO_INPUT_TOKENS = "gen_ai.usage.audio.input_tokens"
 GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS = "gen_ai.usage.audio.output_tokens"
+GEN_AI_USAGE_AUDIO_CACHE_READ_INPUT_TOKENS = "gen_ai.usage.audio.cache_read.input_tokens"
+GEN_AI_USAGE_IMAGE_INPUT_TOKENS = "gen_ai.usage.image.input_tokens"
+GEN_AI_USAGE_IMAGE_OUTPUT_TOKENS = "gen_ai.usage.image.output_tokens"
+GEN_AI_USAGE_IMAGE_CACHE_READ_INPUT_TOKENS = "gen_ai.usage.image.cache_read.input_tokens"
 
 
 #: The shipped rules. Order matters where two sources share a target: the
@@ -1822,8 +1827,7 @@ OPENINFERENCE_RULES: tuple[AnyRule, ...] = (
     Rule("llm.token_count.completion_details.audio", GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS, to_int),
     # @ai-sdk/otel's flattening of a provider's input_token_details on a
     # transcription span: the audio subset of the input, after the
-    # OpenInference spelling. pydantic-ai's gen_ai.usage.details.audio_tokens
-    # stays unmapped: it names no direction, so it fits neither audio key.
+    # OpenInference spelling and before pydantic-ai's, below.
     Rule(
         "gen_ai.usage.input_token_details.audio_tokens",
         GEN_AI_USAGE_AUDIO_INPUT_TOKENS,
@@ -1853,7 +1857,7 @@ OPENINFERENCE_RULES: tuple[AnyRule, ...] = (
     # and Google's thoughts_tokens. One per provider, so a span should carry
     # at most one; if it carries several, this order decides and all of them
     # go, as in the sink. Separate rules so one that won't parse does not
-    # block the next. The rest of the namespace has no canonical key.
+    # block the next.
     Rule(
         "gen_ai.usage.details.reasoning_tokens",
         GEN_AI_USAGE_REASONING_OUTPUT_TOKENS,
@@ -1867,6 +1871,69 @@ OPENINFERENCE_RULES: tuple[AnyRule, ...] = (
     Rule(
         "gen_ai.usage.details.thoughts_tokens",
         GEN_AI_USAGE_REASONING_OUTPUT_TOKENS,
+        to_int,
+    ),
+    # pydantic-ai also writes Google's per-modality counts there, as
+    # <modality>_<prompt|cache|candidates|response>_tokens (response on the
+    # Gemini Live path), and its own typed audio counts, as
+    # <input|cache|output>_audio_tokens, which genai-prices fills for Google,
+    # OpenAI and the OpenAI realtime API. All of them are subsets of the input,
+    # cache-read and output totals, never added to them. The audio ones sit
+    # after OpenInference's and @ai-sdk/otel's, which keep their targets where
+    # a span carries both. The typed counts come before the Gemini splits: on
+    # Gemini both arrive with the same value, except that the typed input count
+    # also holds the tool-use prompt's audio, so it is the whole audio input.
+    # Either way the first wins and both go, so nothing is counted twice. The
+    # rest of the namespace has no canonical key; its old audio_tokens is the
+    # output audio count again, under no direction.
+    Rule(
+        "gen_ai.usage.details.image_prompt_tokens",
+        GEN_AI_USAGE_IMAGE_INPUT_TOKENS,
+        to_int,
+    ),
+    Rule(
+        "gen_ai.usage.details.image_cache_tokens",
+        GEN_AI_USAGE_IMAGE_CACHE_READ_INPUT_TOKENS,
+        to_int,
+    ),
+    Rule(
+        "gen_ai.usage.details.image_candidates_tokens",
+        GEN_AI_USAGE_IMAGE_OUTPUT_TOKENS,
+        to_int,
+    ),
+    Rule(
+        "gen_ai.usage.details.input_audio_tokens",
+        GEN_AI_USAGE_AUDIO_INPUT_TOKENS,
+        to_int,
+    ),
+    Rule(
+        "gen_ai.usage.details.cache_audio_read_tokens",
+        GEN_AI_USAGE_AUDIO_CACHE_READ_INPUT_TOKENS,
+        to_int,
+    ),
+    Rule(
+        "gen_ai.usage.details.output_audio_tokens",
+        GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS,
+        to_int,
+    ),
+    Rule(
+        "gen_ai.usage.details.audio_prompt_tokens",
+        GEN_AI_USAGE_AUDIO_INPUT_TOKENS,
+        to_int,
+    ),
+    Rule(
+        "gen_ai.usage.details.audio_cache_tokens",
+        GEN_AI_USAGE_AUDIO_CACHE_READ_INPUT_TOKENS,
+        to_int,
+    ),
+    Rule(
+        "gen_ai.usage.details.audio_candidates_tokens",
+        GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS,
+        to_int,
+    ),
+    Rule(
+        "gen_ai.usage.details.audio_response_tokens",
+        GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS,
         to_int,
     ),
     # Time to first chunk under the conventions' metric name, which
