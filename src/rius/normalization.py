@@ -114,7 +114,7 @@ from ._media import (
     rebuild_native_parts,
     url_part,
 )
-from ._serde import BYTE_OBJECTS, byte_object_marker, serialize, strip_within_budget
+from ._serde import attribute_value, serialize, strip_within_budget
 from .aggregated_usage import WrappedCallTracker, move_aggregated_usage
 from .semconv import (
     ERROR_TYPE,
@@ -1130,32 +1130,11 @@ def _stripped_value(value: Any) -> Any:
 
     A string is bounded by the strip budget, as a value this SDK records is: a
     third-party payload of several MB is cut and stripped conservatively
-    instead of parsed whole on the export thread. A byte object in an
-    attribute value, at any depth of arrays and mappings, is the bare marker,
-    with no JSON quotes, since nothing serializes it here (the contract's
-    byte_objects.attribute_values). An array holding one beside an element
-    that is then no string could not stay homogeneous: it is the array's
-    JSON instead, one string, as any value this SDK serializes.
+    instead of parsed whole on the export thread. A byte object in it, at any
+    depth, is the bare marker (see ``_serde.attribute_value``): the SDK's own
+    setters already wrote it so, and this catches another instrumentation's.
     """
-    if isinstance(value, str):
-        return strip_within_budget(value)
-    if isinstance(value, BYTE_OBJECTS):
-        return byte_object_marker(value)
-    if isinstance(value, (list, tuple)):
-        items = [_stripped_value(v) for v in value]
-        if any(isinstance(v, BYTE_OBJECTS) for v in value) and not all(
-            isinstance(v, str) for v in items
-        ):
-            return serialize(list(value))
-        if all(new is old for new, old in zip(items, value, strict=True)):
-            return value
-        return type(value)(items)
-    if isinstance(value, Mapping):
-        members = {k: _stripped_value(v) for k, v in value.items()}
-        if all(members[k] is v for k, v in value.items()):
-            return value
-        return members
-    return value
+    return attribute_value(value, strip_within_budget)
 
 
 def strip_media(attributes: Mapping[str, Any] | None) -> dict[str, Any] | None:

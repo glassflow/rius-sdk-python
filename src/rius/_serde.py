@@ -27,6 +27,7 @@ from __future__ import annotations
 import ast
 import json
 import re
+from collections.abc import Callable, Mapping
 from typing import Any
 
 from ._media import replacement, strip_raw_payload
@@ -174,6 +175,38 @@ def text_value(value: Any) -> str:
     if isinstance(value, str):
         return truncate(_SURROGATE.sub("\ufffd", value))
     return serialize(value)
+
+
+def attribute_value(value: Any, text: Callable[[str], str] | None = None) -> Any:
+    """A value set directly as an attribute, every byte object in it, at any
+    depth of arrays and mappings, the bare marker (the contract's
+    byte_objects.attribute_values); each string through ``text`` when given.
+    The same object when nothing changes.
+
+    An array holding a byte object beside an element that is then no string
+    could not stay homogeneous: it is the array's JSON instead, one string,
+    as any value this SDK serializes. Run before OpenTelemetry sees the
+    value, which would hold a bytearray or memoryview as a tuple of ints.
+    """
+    if isinstance(value, str):
+        return value if text is None else text(value)
+    if isinstance(value, BYTE_OBJECTS):
+        return byte_object_marker(value)
+    if isinstance(value, (list, tuple)):
+        items = [attribute_value(v, text) for v in value]
+        if any(isinstance(v, BYTE_OBJECTS) for v in value) and not all(
+            isinstance(v, str) for v in items
+        ):
+            return serialize(list(value))
+        if all(new is old for new, old in zip(items, value, strict=True)):
+            return value
+        return type(value)(items)
+    if isinstance(value, Mapping):
+        members = {k: attribute_value(v, text) for k, v in value.items()}
+        if all(members[k] is v for k, v in value.items()):
+            return value
+        return members
+    return value
 
 
 def serialize(value: Any) -> str:

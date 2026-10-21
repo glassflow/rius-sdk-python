@@ -21,7 +21,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from opentelemetry.trace import Link, SpanContext
 
 from media_contract import contract
-from rius import init, observe, start_as_current_generation, start_as_current_span
+from rius import init, observe, start_as_current_generation, start_as_current_span, start_span
 from rius._serde import serialize, text_value
 from rius.masking import MaskingSpanExporter
 from rius.normalization import NormalizingSpanExporter
@@ -303,12 +303,26 @@ def test_a_span_set_attribute_byte_object_from_the_sdk_pipeline() -> None:
     assert finished.events[0].attributes == {"payload": MARKER}
 
 
-#: OpenTelemetry Python's set_attribute turns a bytearray or memoryview into a
-#: tuple of its items (both are Sequences), before any exporter sees it: only
-#: bytes reaches the exporter as a byte object on this path.
-_HELD_AS_ITEMS = pytest.mark.xfail(
-    strict=True, reason="OpenTelemetry holds a bytearray or memoryview as a tuple of ints"
+#: A raw OpenTelemetry span's set_attribute (a foreign instrumentation's, or
+#: one opened on the tracer directly) turns a bytearray or memoryview into a
+#: tuple of its items (both are Sequences) before any exporter sees it: only
+#: bytes reaches the exporter as a byte object on that path. The SDK's own
+#: setters write the marker before OpenTelemetry sees the value.
+_FOREIGN_HELD_AS_ITEMS = pytest.mark.xfail(
+    strict=True,
+    reason="a raw OpenTelemetry span holds a bytearray or memoryview as a tuple of ints",
 )
+PYTHON_ATTRIBUTE_VALUES = [e for e in ATTRIBUTE_VALUES if e["language"] == "python"]
+
+
+def _exported(set_value: Any) -> Any:
+    inner = InMemorySpanExporter()
+    client = init(span_exporter=inner, set_global=False)
+    set_value(client)
+    client.flush()
+    [finished] = inner.get_finished_spans()
+    assert finished.attributes is not None
+    return _as_written(finished.attributes["payload"])
 
 
 @pytest.mark.parametrize(
@@ -317,25 +331,59 @@ _HELD_AS_ITEMS = pytest.mark.xfail(
         pytest.param(
             e,
             id=str(e["name"]),
-            marks=[_HELD_AS_ITEMS]
+            marks=[_FOREIGN_HELD_AS_ITEMS]
             if "bytearray" in e["value"] or "memoryview" in e["value"]
             else [],
         )
-        for e in ATTRIBUTE_VALUES
-        if e["language"] == "python"
+        for e in PYTHON_ATTRIBUTE_VALUES
     ],
 )
-def test_an_attribute_values_example_through_set_attribute(
+def test_an_attribute_values_example_on_a_raw_opentelemetry_span(
     example: dict[str, Any],
 ) -> None:
-    # OpenTelemetry holds a list as a tuple and copies a mapping; the walked
-    # value is set back in the form it holds.
-    inner = InMemorySpanExporter()
-    client = init(span_exporter=inner, set_global=False)
-    span = client.get_tracer().start_span("raw")
-    span.set_attribute("payload", _value(example["value"]))
-    span.end()
-    client.flush()
-    [finished] = inner.get_finished_spans()
+    def set_value(client: Any) -> None:
+        span = client.get_tracer().start_span("raw")
+        span.set_attribute("payload", _value(example["value"]))
+        span.end()
+
+    assert _exported(set_value) == example["output"]
+
+
+@pytest.mark.parametrize("example", PYTHON_ATTRIBUTE_VALUES, ids=lambda e: str(e["name"]))
+def test_an_attribute_values_example_through_the_sdks_set_attribute(
+    example: dict[str, Any], exported_spans: InMemorySpanExporter
+) -> None:
+    # The global test provider has no exporter chain: what it holds is what
+    # the SDK handed OpenTelemetry, already the marker.
+    observation = start_span("s")
+    observation.set_attribute("payload", _value(example["value"]))
+    observation.end()
+    [finished] = exported_spans.get_finished_spans()
     assert finished.attributes is not None
     assert _as_written(finished.attributes["payload"]) == example["output"]
+
+
+def test_the_sdks_set_attribute_leaves_other_values_as_they_are(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    observation = start_span("s")
+    values = {"s": "data:image/png;base64,iVBORw0KGgo=", "n": 3, "l": ["a", "b"], "f": 1.5}
+    for key, value in values.items():
+        observation.set_attribute(key, value)
+    observation.end()
+    attributes = exported_spans.get_finished_spans()[0].attributes
+    assert attributes is not None
+    # Strings are stripped by the exporter, not here.
+    assert {k: _as_written(attributes[k]) for k in values} == values
+
+
+def test_model_parameters_holding_byte_objects(exported_spans: InMemorySpanExporter) -> None:
+    parameters = {"stop": [PNG], "seed": bytearray(PNG), "extra": {"blob": memoryview(PNG)}}
+    with start_as_current_generation("g", model_parameters=parameters):
+        pass
+    attributes = exported_spans.get_finished_spans()[0].attributes
+    assert attributes is not None
+    written = {k: v for k, v in attributes.items() if "stop" in k or "seed" in k or "extra" in k}
+    assert written
+    assert not any(_leaks(str(v)) for v in written.values())
+    assert all(MARKER in str(v) for v in written.values()), written
