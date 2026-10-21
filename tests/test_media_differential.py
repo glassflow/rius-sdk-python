@@ -1,12 +1,12 @@
-"""The fast base64 sizing, against a frozen copy of the straightforward
-version it replaced.
+"""The fast base64 sizing and the bounded encoding, against frozen copies of
+the straightforward versions they replaced.
 
-It is rewritten for speed on multi-MB media, and must give exactly what the
-plain version gave, for every input: the strip's output is byte-identical
-across SDKs, so a size that moved by one byte would break it. Each test runs
-the frozen copy and the live code over thousands of generated inputs (wrapped,
-URL-safe, mixed-alphabet, padded and invalid base64, lone surrogates) and
-compares the results.
+Both are rewritten for speed on multi-MB media, and both must give exactly what
+the plain versions gave, for every input: the strip's output is byte-identical
+across SDKs, so a size or a cut that moved by one character would break it.
+Each test runs the frozen copy and the live code over thousands of generated
+inputs (wrapped, URL-safe, mixed-alphabet, padded and invalid base64, lone
+surrogates, values on both sides of the budgets) and compares the results.
 """
 
 from __future__ import annotations
@@ -18,8 +18,9 @@ from typing import Any
 
 import pytest
 
-from rius import _media
+from rius import _media, _serde
 from rius._media import DATA_URL_PATTERN, base64_size, data_url_size, split_media
+from rius._serde import _bounded_dumps
 
 # --- frozen copies -----------------------------------------------------------
 
@@ -40,6 +41,18 @@ def plain_base64_size(value: str) -> int | None:
     if chars & _STANDARD_EXTRA and chars & _URL_SAFE_EXTRA:
         return None
     return len(text) * 3 // 4 - padding
+
+
+def plain_bounded_dumps(value: Any) -> str:
+    chunks: list[str] = []
+    size = 0
+    for chunk in _serde._encoder.iterencode(value, _one_shot=False):
+        chunk = _serde._SURROGATE.sub(_serde._escape_surrogate, chunk)
+        chunks.append(chunk)
+        size += len(chunk)
+        if size > _serde.MAX_STRIP_CHARS:
+            return _serde._cut_past_budget("".join(chunks))
+    return _serde.truncate("".join(chunks))
 
 
 # --- generated inputs ----------------------------------------------------------
@@ -113,6 +126,36 @@ def _payload(rng: random.Random) -> str:
     return "".join(pieces)
 
 
+def _surrogate_text(rng: random.Random, n: int) -> str:
+    chars = list("x" * n)
+    cuts = [_serde.MAX_ATTR_CHARS + d for d in range(-6, 7)]
+    spots = [rng.randrange(n) for _ in range(max(1, n // 50))] if n else []
+    for i in spots + [c for c in cuts if 0 <= c < n and rng.random() < 0.3]:
+        chars[i] = rng.choice(("\ud800", "\udbff", "\udc00", "\udfff", "é", "😀"))
+    return "".join(chars)
+
+
+def _value(rng: random.Random) -> Any:
+    budget = _serde.MAX_STRIP_CHARS
+    near = budget + rng.randint(-40, 40)
+    return rng.choice(
+        (
+            _surrogate_text(rng, rng.randint(0, 64)),
+            _surrogate_text(rng, near),
+            [_surrogate_text(rng, rng.randint(0, budget // 3)) for _ in range(rng.randint(1, 6))],
+            {"a": _surrogate_text(rng, near), "b": [1, 2.5, None, True]},
+            {_surrogate_text(rng, 8): _surrogate_text(rng, rng.randint(0, budget))},
+            [_payload(rng) for _ in range(rng.randint(1, 4))],
+            [b"\x00\x01", bytearray(b"ab"), memoryview(b"xyz")],
+            # A key the encoder refuses, past the budget or before it.
+            ["x" * (near - 10), {(1, 2): "past the budget"}],
+            [_surrogate_text(rng, near - 5), {(1, 2): "near the budget"}],
+            [{(1, 2): "early"}],
+            ["\ud800" * rng.randint(budget // 6 - 5, budget // 6 + 5), "tail"],
+        )
+    )
+
+
 def _outcome(fn: Any, value: Any) -> Any:
     """What ``fn`` returns, or the type of what it raises (a lone surrogate
     cannot be encoded as UTF-8, so a split of a text holding one raises)."""
@@ -120,6 +163,13 @@ def _outcome(fn: Any, value: Any) -> Any:
         return fn(value)
     except Exception as exc:
         return type(exc)
+
+
+@pytest.fixture
+def small_budgets(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Budgets small enough that generated values cross them often."""
+    monkeypatch.setattr(_serde, "MAX_STRIP_CHARS", 600)
+    monkeypatch.setattr(_serde, "MAX_ATTR_CHARS", 64)
 
 
 # --- base64 sizing -------------------------------------------------------------
@@ -149,3 +199,21 @@ def test_the_strip_and_the_split_match_the_plain_sizing(monkeypatch: pytest.Monk
     monkeypatch.setattr(_media, "base64_size", plain_base64_size)
     monkeypatch.setattr(_media, "data_url_size", plain_base64_size)
     assert live == [(_media.strip_raw_payload(p), _outcome(split_media, p)) for p in payloads]
+
+
+# --- the bounded encoding ------------------------------------------------------
+
+
+@pytest.mark.usefixtures("small_budgets")
+def test_bounded_dumps_matches_the_plain_version_across_the_budget() -> None:
+    rng = random.Random(5)
+    for _ in range(3000):
+        value = _value(rng)
+        assert _outcome(_bounded_dumps, value) == _outcome(plain_bounded_dumps, value)
+
+
+def test_bounded_dumps_matches_the_plain_version_at_the_real_budget() -> None:
+    rng = random.Random(6)
+    for _ in range(15):
+        value = _value(rng)
+        assert _outcome(_bounded_dumps, value) == _outcome(plain_bounded_dumps, value)
