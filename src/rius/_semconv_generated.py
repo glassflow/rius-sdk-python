@@ -1,4 +1,4 @@
-# Vendored from rius-semconv v1.6.0 out/python/_semconv_generated.py by
+# Vendored from rius-semconv v1.7.0 out/python/_semconv_generated.py by
 # scripts/sync-semconv.sh. Do not edit: change the registry in rius-semconv.
 """Rius semantic conventions: the constants and tables, generated.
 
@@ -53,8 +53,9 @@ PROCESS_WORKING_DIRECTORY = "process.working_directory"
 # the old per-agent spellings for traces stored before.
 VCS_REF_HEAD_NAME = "vcs.ref.head.name"
 
-# Names the distribution that exported the span. Both SDKs set it as an
-# inline literal, "glassflow-rius". The coding-agent plugin sets
+# Names the distribution that exported the span. Both SDKs set it to
+# "glassflow-rius", a literal with no value row since the backend never
+# matches on it. The coding-agent plugin sets
 # TELEMETRY_DISTRO_NAME_CODING_AGENTS, and the backend reads
 # process.working_directory and vcs.ref.head.name as a coding session's
 # repo and branch only on spans carrying that value: both keys are general
@@ -63,8 +64,7 @@ TELEMETRY_DISTRO_NAME = "telemetry.distro.name"
 TELEMETRY_DISTRO_NAME_CODING_AGENTS = "rius-coding-agents"
 
 # The version of the distribution that exported the span: the SDK's, or the
-# coding-agent plugin's. Inline literal in both SDKs, like
-# telemetry.distro.name.
+# coding-agent plugin's.
 TELEMETRY_DISTRO_VERSION = "telemetry.distro.version"
 
 # The agent this process IS, stamped once on the resource so every span it
@@ -260,6 +260,42 @@ GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS = "gen_ai.usage.cache_read.input_tokens"
 # cache fields first shipped; no released SDK version carries the old name.
 GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS = "gen_ai.usage.cache_write.input_tokens"
 GEN_AI_USAGE_REASONING_OUTPUT_TOKENS = "gen_ai.usage.reasoning.output_tokens"
+
+# A per-modality subset of gen_ai.usage.input_tokens: never summed
+# into it.
+GEN_AI_USAGE_TEXT_INPUT_TOKENS = "gen_ai.usage.text.input_tokens"
+
+# A per-modality subset of gen_ai.usage.output_tokens: never summed
+# into it.
+GEN_AI_USAGE_TEXT_OUTPUT_TOKENS = "gen_ai.usage.text.output_tokens"
+
+# A per-modality subset of gen_ai.usage.cache_read.input_tokens: never summed
+# into it.
+GEN_AI_USAGE_TEXT_CACHE_READ_INPUT_TOKENS = "gen_ai.usage.text.cache_read.input_tokens"
+
+# A per-modality subset of gen_ai.usage.input_tokens: never summed
+# into it.
+GEN_AI_USAGE_IMAGE_INPUT_TOKENS = "gen_ai.usage.image.input_tokens"
+
+# A per-modality subset of gen_ai.usage.output_tokens: never summed
+# into it.
+GEN_AI_USAGE_IMAGE_OUTPUT_TOKENS = "gen_ai.usage.image.output_tokens"
+
+# A per-modality subset of gen_ai.usage.cache_read.input_tokens: never summed
+# into it.
+GEN_AI_USAGE_IMAGE_CACHE_READ_INPUT_TOKENS = "gen_ai.usage.image.cache_read.input_tokens"
+
+# A per-modality subset of gen_ai.usage.input_tokens: never summed
+# into it.
+GEN_AI_USAGE_AUDIO_INPUT_TOKENS = "gen_ai.usage.audio.input_tokens"
+
+# A per-modality subset of gen_ai.usage.output_tokens: never summed
+# into it.
+GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS = "gen_ai.usage.audio.output_tokens"
+
+# A per-modality subset of gen_ai.usage.cache_read.input_tokens: never summed
+# into it.
+GEN_AI_USAGE_AUDIO_CACHE_READ_INPUT_TOKENS = "gen_ai.usage.audio.cache_read.input_tokens"
 GEN_AI_INPUT_MESSAGES = "gen_ai.input.messages"
 GEN_AI_OUTPUT_MESSAGES = "gen_ai.output.messages"
 GEN_AI_RESPONSE_FINISH_REASONS = "gen_ai.response.finish_reasons"
@@ -387,6 +423,9 @@ RIUS_AGGREGATED_USAGE_PREFIX = "rius.aggregated_usage."
 # output_messages (literal role, parts typed text / tool_call /
 # tool_call_response with bytes and tool name), cache_marker, and a folded
 # summary of older input.
+# A media part (blob / uri / file) carries its modality (image, video,
+# audio or document) and, when known, byte_size, never bytes: the size of
+# the media itself, not of any content, which a blob does not carry.
 # A Rius vendor attribute, NOT a convention:
 # the backend reads it to attribute gen_ai.usage.input_tokens across the
 # context, and no convention describes context composition. Deliberately
@@ -1178,12 +1217,21 @@ __all__ = [
     "GEN_AI_TOOL_DEFINITIONS",
     "GEN_AI_TOOL_NAME",
     "GEN_AI_TOOL_TYPE",
+    "GEN_AI_USAGE_AUDIO_CACHE_READ_INPUT_TOKENS",
+    "GEN_AI_USAGE_AUDIO_INPUT_TOKENS",
+    "GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS",
     "GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS",
     "GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS",
+    "GEN_AI_USAGE_IMAGE_CACHE_READ_INPUT_TOKENS",
+    "GEN_AI_USAGE_IMAGE_INPUT_TOKENS",
+    "GEN_AI_USAGE_IMAGE_OUTPUT_TOKENS",
     "GEN_AI_USAGE_INPUT_TOKENS",
     "GEN_AI_USAGE_OUTPUT_TOKENS",
     "GEN_AI_USAGE_PREFIX",
     "GEN_AI_USAGE_REASONING_OUTPUT_TOKENS",
+    "GEN_AI_USAGE_TEXT_CACHE_READ_INPUT_TOKENS",
+    "GEN_AI_USAGE_TEXT_INPUT_TOKENS",
+    "GEN_AI_USAGE_TEXT_OUTPUT_TOKENS",
     "INPUT_VALUE",
     "INVOCATION_PARAMETERS_CONTENT_MEMBERS",
     "LLM_INVOCATION_PARAMETERS",

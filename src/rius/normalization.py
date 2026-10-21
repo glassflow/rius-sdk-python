@@ -145,8 +145,14 @@ from .semconv import (
     GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK,
     GEN_AI_TOOL_DEFINITIONS,
     GEN_AI_TOOL_NAME,
+    GEN_AI_USAGE_AUDIO_CACHE_READ_INPUT_TOKENS,
+    GEN_AI_USAGE_AUDIO_INPUT_TOKENS,
+    GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS,
     GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS,
     GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS,
+    GEN_AI_USAGE_IMAGE_CACHE_READ_INPUT_TOKENS,
+    GEN_AI_USAGE_IMAGE_INPUT_TOKENS,
+    GEN_AI_USAGE_IMAGE_OUTPUT_TOKENS,
     GEN_AI_USAGE_INPUT_TOKENS,
     GEN_AI_USAGE_OUTPUT_TOKENS,
     GEN_AI_USAGE_REASONING_OUTPUT_TOKENS,
@@ -1671,18 +1677,6 @@ def openinference_invocation_parameters(
     if provider is not SKIP:
         produced[GEN_AI_PROVIDER_NAME] = provider
     return produced
-
-
-#: The per-modality audio and image usage keys. Canonical in the rius-semconv
-#: registry; the vendored module is pinned at v1.6.0, before they were
-#: generated, so it lacks the constants. They move to the semconv import when it
-#: is re-pinned.
-GEN_AI_USAGE_AUDIO_INPUT_TOKENS = "gen_ai.usage.audio.input_tokens"
-GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS = "gen_ai.usage.audio.output_tokens"
-GEN_AI_USAGE_AUDIO_CACHE_READ_INPUT_TOKENS = "gen_ai.usage.audio.cache_read.input_tokens"
-GEN_AI_USAGE_IMAGE_INPUT_TOKENS = "gen_ai.usage.image.input_tokens"
-GEN_AI_USAGE_IMAGE_OUTPUT_TOKENS = "gen_ai.usage.image.output_tokens"
-GEN_AI_USAGE_IMAGE_CACHE_READ_INPUT_TOKENS = "gen_ai.usage.image.cache_read.input_tokens"
 
 
 #: The shipped rules. Order matters where two sources share a target: the
