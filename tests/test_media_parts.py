@@ -173,6 +173,11 @@ CONTRACT_EXAMPLE_INPUTS: dict[str, dict[str, Any]] = {
         "file": {"file_id": 5, "filename": "a.wav"},
     },
     "input_file_with_no_reference_and_no_filename": {"type": "input_file"},
+    "uri_led_by_whitespace_holding_a_data_url": {
+        "type": "uri",
+        "modality": "image",
+        "uri": " data:image/png;base64,iVBO\nRw0KGgo=",
+    },
 }
 
 #: Part examples only the Vercel AI SDK dialect makes, which this SDK does not
@@ -698,9 +703,37 @@ def test_langchain_v1_block_with_a_non_media_type_is_not_a_media_part() -> None:
             {"type": "file", "file_id": "", "url": "https://e.com/a.mp4"},
             {"type": "uri", "modality": "video", "uri": "https://e.com/a.mp4"},
         ),
+        # An empty or redacted base64 is no usable reference beside a file
+        # block's string file_id: the native file part.
         (
             {"type": "file", "file_id": "__REDACTED__", "base64": "", "mime_type": "image/png"},
-            _blob("image", "image/png", 0, "not_captured"),
+            {
+                "type": "file",
+                "modality": "image",
+                "mime_type": "image/png",
+                "file_id": "__REDACTED__",
+            },
+        ),
+        # Anywhere else a base64 is a bare payload, empty or redacted alike.
+        ({"type": "video", "base64": ""}, _blob("video", None, 0, "not_captured")),
+        (
+            {"type": "file", "base64": "__REDACTED__"},
+            _blob("document", None, 9, "not_captured"),
+        ),
+        # A url that holds data: past its start is a blob with no size, and a
+        # file block's then names no modality from the extension.
+        (
+            {"type": "file", "url": "https://e.com/a.png\nDaTa:image/png,x"},
+            _blob("document", None, None, "not_captured"),
+        ),
+        (
+            {"type": "audio", "url": "https://e.com/metadata:a.wav", "mime_type": "audio/wav"},
+            _blob("audio", "audio/wav", None, "not_captured"),
+        ),
+        # Any other url is a uri as it came, relative or led by a space.
+        (
+            {"type": "file", "url": "clips/a.mov"},
+            {"type": "uri", "modality": "video", "uri": "clips/a.mov"},
         ),
         # With nothing else usable it is the native file part, its modality
         # member kept first.
@@ -830,9 +863,22 @@ def test_langchain_block_with_no_reference_it_reads_stays_as_it_came(
             {"type": "file", "file_id": "__REDACTED__", "url": ""},
             {"type": "file", "modality": "document", "file_id": "__REDACTED__"},
         ),
+        (
+            {"type": "file", "file_id": "", "base64": "__REDACTED__"},
+            {"type": "file", "modality": "document", "file_id": ""},
+        ),
+        # A native uri holding data: past its start: a blob with no size.
+        (
+            {"type": "uri", "mime_type": "image/png", "uri": "https://e.com/a\ndata:x"},
+            _blob("image", "image/png", None, "not_captured"),
+        ),
+        (
+            {"type": "uri", "modality": "audio", "uri": "\tDATA:audio/wav,%00"},
+            _blob("audio", None, None, "not_captured"),
+        ),
     ],
 )
-def test_a_langchain_file_block_in_a_native_message_key_is_read_by_its_rule(
+def test_a_part_in_a_native_message_key_is_rebuilt_by_its_rule(
     part: dict[str, Any], rebuilt: dict[str, Any]
 ) -> None:
     messages = json.dumps([{"role": "user", "parts": [part]}], separators=(",", ":"))

@@ -905,6 +905,17 @@ def is_data_url(value: Any) -> bool:
     return isinstance(value, str) and value[:5].lower() == "data:"
 
 
+#: ``data:`` anywhere in a value, in any ASCII case: searched, never trimmed.
+_DATA_ANYWHERE = re.compile("[dD][aA][tT][aA]:")
+
+
+def holds_data_url(value: str) -> bool:
+    """A URL that is no data URL but holds ``data:`` past its start (led by
+    whitespace, or a link followed by a data URL): it may carry a payload, so
+    it is never kept as a link."""
+    return not is_data_url(value) and _DATA_ANYWHERE.search(value) is not None
+
+
 def data_url_blob(url: str, kind: str, mime_hint: Any = None) -> Part:
     """A data URL as a blob, never a uri: its own media type (else the hint),
     and the size of its base64 run. A data URL that is not base64 is a blob
@@ -1078,11 +1089,15 @@ def _langchain_part(block_type: str, item: Part) -> list[Part] | None:
        upstream.
 
     None when none applies, to be read as any other block. A usable reference
-    so wins over an empty or redacted file_id. Only type, base64, url,
-    file_id and mime_type are read, but for a native file part (1 and 5),
-    which keeps a valid modality member first; so a v0 url block is read the
-    same way. A file block names no modality: by url, the URL path's
-    extension does.
+    so wins over an empty or redacted file_id; beside a file block's string
+    file_id, an empty or redacted base64 is none. Elsewhere a base64 is a
+    bare payload, empty or not. A url that holds ``data:`` past its start is
+    a blob, never a uri; any other url is a uri as it came, relative or not.
+    Only type, base64, url, file_id and mime_type are read, but for a native
+    file part (1 and 5), which keeps a valid modality member first; so a v0
+    url block is read the same way. A text-plain block is read by its base64
+    alone. A file block names no modality: by url, the URL path's extension
+    does.
     """
     kind = _LANGCHAIN_KINDS[block_type]
     mime = item.get("mime_type")
@@ -1090,13 +1105,16 @@ def _langchain_part(block_type: str, item: Part) -> list[Part] | None:
     usable_id, usable_url = _usable(file_id), _usable(url)
     if block_type == "file" and usable_id is not None:
         return _native_file(item)
-    if isinstance(data, str):
+    dropped = block_type == "file" and isinstance(file_id, str) and is_dropped(data)
+    if isinstance(data, str) and not dropped:
         return [base64_blob(data, kind, mime)]
     if block_type not in _LANGCHAIN_REFERENCE_TYPES:
         return None
     if usable_id is not None:
         return [file_part(kind, mime, usable_id)]
     if usable_url is not None:
+        if holds_data_url(usable_url):
+            return [blob_part(kind, mime, None, NOT_CAPTURED)]
         if block_type == "file" and not is_data_url(usable_url):
             kind = _uri_modality(usable_url)
         return [url_part(usable_url, kind, mime)]
@@ -1236,7 +1254,8 @@ def native_part(part: Part) -> Part | None:
     * Any other part keeps a modality it has, else takes one from its MIME
       type, else (a uri) from its filename extension, else document. A blob
       without content keeps a valid size and stripped_reason.
-    * A uri holding a data URL is a blob: a data URL is never a uri.
+    * A uri holding a data URL is a blob: a data URL is never a uri. So is
+      one holding ``data:`` past its start, with no size.
     """
     written = part.get("modality")
     own = written if isinstance(written, str) and written in MODALITIES else None
@@ -1246,6 +1265,8 @@ def native_part(part: Part) -> Part | None:
         return base64_blob(part["content"], own or "document", mime)
     if part_type == "uri" and is_data_url(part.get("uri")):
         return data_url_blob(part["uri"], own or "document", mime)
+    if part_type == "uri" and isinstance(part.get("uri"), str) and holds_data_url(part["uri"]):
+        return blob_part(own or "document", mime, None, NOT_CAPTURED)
     if part_type == "blob":
         size = part.get("byte_size")
         reason = part.get("stripped_reason")

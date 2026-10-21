@@ -249,7 +249,7 @@ RAW_ATTRIBUTES: list[tuple[Any, Any]] = [
 
 def test_attribute_value_examples_are_python_here_or_the_sinks() -> None:
     languages = {e["language"] for e in ATTRIBUTE_VALUES}
-    assert languages == {"python", "otlp"}
+    assert languages == {"python", "typescript", "otlp"}
     assert any(e["language"] == "python" for e in ATTRIBUTE_VALUES)
 
 
