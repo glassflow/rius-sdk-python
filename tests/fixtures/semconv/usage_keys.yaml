@@ -322,9 +322,9 @@ keys:
     decision: ignored
     reason: |
       The audio part of Google's tool-use prompt, a second audio input split
-      beside audio_prompt_tokens. pydantic-ai already adds it into
-      details.input_audio_tokens, which is mapped, and a normalizer renames
-      a count, never adds two, so it stays.
+      beside audio_prompt_tokens. genai-prices already adds it into the
+      details.input_audio_tokens count that pydantic-ai writes, which is
+      mapped, and a normalizer renames a count, never adds two, so it stays.
   - key: gen_ai.usage.input_token_details.audio_tokens
     decision: mapped
     target: gen_ai.usage.audio.input_tokens
