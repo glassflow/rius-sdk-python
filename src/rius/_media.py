@@ -971,9 +971,9 @@ def media_parts(item: Any) -> list[Part] | None:
         return None
     block_type = item.get("type")
     if isinstance(block_type, str) and block_type in _LANGCHAIN_KINDS:
-        data = item.get("base64")
-        if isinstance(data, str):
-            return [base64_blob(data, _LANGCHAIN_KINDS[block_type], item.get("mime_type"))]
+        parts = _langchain_part(block_type, item)
+        if parts is not None:
+            return parts
     if block_type in ("blob", "uri", "file"):
         if block_type == "file" and isinstance(item.get("file"), dict):
             return _openai_file(item["file"])
@@ -1026,6 +1026,41 @@ _LANGCHAIN_KINDS = {
     "file": "document",
     "text-plain": "document",
 }
+#: The LangChain v1 block types that reference media by url or file_id.
+_LANGCHAIN_REFERENCE_TYPES = ("image", "audio", "video", "file")
+
+
+def _langchain_part(block_type: str, item: Part) -> list[Part] | None:
+    """A LangChain v1 block as one part, the first case that applies winning:
+    a file block with a string file_id is the native file part it has the
+    shape of; base64 is a blob; a usable file_id a file; a usable url a uri
+    (a blob when it is a data URL); a url or file_id that is a string but not
+    usable a blob redacted upstream. None when it has none of these, to be
+    read as any other block. Only type, base64, url, file_id and mime_type
+    are read, so a v0 url block is read the same way.
+
+    A file block names no modality: by url, the URL path's extension does.
+    """
+    kind = _LANGCHAIN_KINDS[block_type]
+    mime = item.get("mime_type")
+    file_id, url = item.get("file_id"), item.get("url")
+    if block_type == "file" and isinstance(file_id, str):
+        native = native_part(item)
+        return None if native is None else [native]
+    if isinstance(item.get("base64"), str):
+        return [base64_blob(item["base64"], kind, mime)]
+    if block_type not in _LANGCHAIN_REFERENCE_TYPES:
+        return None
+    usable_id, usable_url = _usable(file_id), _usable(url)
+    if usable_id is not None:
+        return [file_part(kind, mime, usable_id)]
+    if usable_url is not None:
+        if block_type == "file" and not is_data_url(usable_url):
+            kind = _uri_modality(usable_url)
+        return [url_part(usable_url, kind, mime)]
+    if isinstance(url, str) or isinstance(file_id, str):
+        return [dropped_blob(kind, mime)]
+    return None
 
 
 def _bedrock_part(item: Part) -> list[Part] | None:

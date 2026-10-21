@@ -173,6 +173,48 @@ CONTRACT_EXAMPLE_INPUTS: dict[str, dict[str, Any]] = {
         "file": {"file_id": 5, "filename": "a.wav"},
     },
     "input_file_with_no_reference_and_no_filename": {"type": "input_file"},
+    "langchain_v1_image_by_url": {
+        "type": "image",
+        "url": "https://example.com/a.png",
+        "mime_type": "image/png",
+    },
+    "langchain_v1_image_by_url_kind_before_extension": {
+        "type": "image",
+        "url": "https://example.com/download.bin",
+    },
+    "langchain_v1_file_by_url_with_only_an_extension": {
+        "type": "file",
+        "url": "https://example.com/a.wav",
+    },
+    "langchain_v1_file_by_url_with_no_extension": {"type": "file", "url": "s3://bucket/report"},
+    "langchain_v1_audio_by_data_url": {
+        "type": "audio",
+        "url": "data:;base64,UklGRg==",
+        "mime_type": "audio/wav",
+    },
+    "langchain_v1_image_by_redacted_url": {
+        "type": "image",
+        "url": "__REDACTED__",
+        "mime_type": "image/png",
+    },
+    "langchain_v1_file_by_empty_url": {"type": "file", "url": ""},
+    "langchain_v1_image_by_file_id": {"type": "image", "file_id": "file-abc123"},
+    "langchain_v1_video_by_empty_file_id": {
+        "type": "video",
+        "file_id": "",
+        "mime_type": "video/mp4",
+    },
+    "langchain_v1_image_by_redacted_url_and_a_file_id": {
+        "type": "image",
+        "url": "__REDACTED__",
+        "file_id": "file-abc123",
+    },
+    "langchain_v1_file_by_file_id": {
+        "type": "file",
+        "file_id": "file-abc123",
+        "mime_type": "application/pdf",
+    },
+    "langchain_v1_file_by_empty_file_id_is_a_native_file_part": {"type": "file", "file_id": ""},
 }
 
 #: Part examples only the Vercel AI SDK dialect makes, which this SDK does not
@@ -201,11 +243,17 @@ def test_a_contract_part_example_is_made_byte_for_byte(example: dict[str, Any]) 
     assert json.dumps(part, separators=(",", ":")) == example["part"]
 
 
+#: Message example sources this SDK never normalizes: the Vercel AI SDK
+#: dialect (ai.prompt.messages), and the content blocks OpenLLMetry and Laminar
+#: flatten into gen_ai.prompt.N.content. Only the TypeScript SDK and the sink
+#: read them; the LangChain v1 blocks in the latter are pinned here as part
+#: examples instead.
+FOREIGN_MESSAGE_SOURCES = {"ai.prompt.messages", "gen_ai.prompt.0.content"}
+
+
 def test_every_contract_message_example_is_a_dialect_this_sdk_does_not_read() -> None:
-    """The message examples pin the Vercel AI SDK dialect (ai.prompt.messages),
-    which only the TypeScript SDK and the sink normalize."""
     sources = {e["source"] for e in contract()["part_shapes"].get("message_examples") or []}
-    assert sources <= {"ai.prompt.messages"}
+    assert sources <= FOREIGN_MESSAGE_SOURCES
 
 
 def _blob(modality: str, mime: str | None, size: int | None, reason: str) -> dict[str, Any]:
@@ -665,6 +713,113 @@ def test_langchain_v1_base64_block_is_a_blob(block: dict[str, Any], part: dict[s
 def test_langchain_v1_block_with_a_non_media_type_is_not_a_media_part() -> None:
     block = {"type": "custom", "base64": PNG}
     assert _parts([block]) == [block]
+
+
+@pytest.mark.parametrize(
+    ("block", "part"),
+    [
+        # A file block with a string file_id is a native file part, whatever
+        # else it holds: before base64 and url.
+        (
+            {"type": "file", "file_id": "file-1", "base64": PDF, "url": "https://e.com/a.pdf"},
+            {"type": "file", "modality": "document", "file_id": "file-1"},
+        ),
+        (
+            {"type": "file", "file_id": "file-1", "file": {"file_data": PDF}},
+            {"type": "file", "modality": "document", "file_id": "file-1"},
+        ),
+        (
+            {"type": "file", "file_id": "__REDACTED__", "mime_type": "image/png"},
+            {
+                "type": "file",
+                "modality": "image",
+                "mime_type": "image/png",
+                "file_id": "__REDACTED__",
+            },
+        ),
+        # base64 before a file id or a URL.
+        (
+            {"type": "image", "base64": PNG, "file_id": "file-1", "url": "https://e.com/a.png"},
+            _blob("image", None, 8, "not_captured"),
+        ),
+        # A usable file id before a usable URL.
+        (
+            {"type": "audio", "file_id": "file-1", "url": "https://e.com/a.wav"},
+            {"type": "file", "modality": "audio", "file_id": "file-1"},
+        ),
+        # A dropped file id and a usable URL: the URL.
+        (
+            {"type": "video", "file_id": "", "url": "https://e.com/a.mp4"},
+            {"type": "uri", "modality": "video", "uri": "https://e.com/a.mp4"},
+        ),
+        # The MIME type names the modality before the block type.
+        (
+            {"type": "image", "url": "https://e.com/a", "mime_type": "application/pdf"},
+            {
+                "type": "uri",
+                "modality": "document",
+                "mime_type": "application/pdf",
+                "uri": "https://e.com/a",
+            },
+        ),
+        # A file block by URL: the extension of the path, not the query.
+        (
+            {"type": "file", "url": "https://e.com/clip.mov?x=a.png#b.wav"},
+            {"type": "uri", "modality": "video", "uri": "https://e.com/clip.mov?x=a.png#b.wav"},
+        ),
+        # A file block by data URL: no path, so a document unless the MIME says.
+        (
+            {"type": "file", "url": f"data:;base64,{PDF}"},
+            _blob("document", None, 5, "not_captured"),
+        ),
+        (
+            {"type": "file", "url": f"data:image/png;base64,{PNG}"},
+            _blob("image", "image/png", 8, "not_captured"),
+        ),
+        # Both references dropped: a blob redacted upstream, no size.
+        (
+            {"type": "audio", "url": "", "file_id": "__REDACTED__"},
+            _blob("audio", None, None, "redacted_upstream"),
+        ),
+        # A v0 url block has the v1 shape, and is read the same way.
+        (
+            {"type": "image", "source_type": "url", "url": "https://e.com/a.png"},
+            {"type": "uri", "modality": "image", "uri": "https://e.com/a.png"},
+        ),
+    ],
+)
+def test_langchain_v1_reference_block_is_one_part(
+    block: dict[str, Any], part: dict[str, Any]
+) -> None:
+    assert _parts([block]) == [part]
+
+
+@pytest.mark.parametrize(
+    "block",
+    [
+        # Neither reference is a string.
+        {"type": "image", "url": 5, "file_id": None},
+        {"type": "file", "url": {"href": "https://e.com/a.pdf"}},
+        # text-plain names no media by reference.
+        {"type": "text-plain", "url": "https://e.com/a.txt"},
+        {"type": "text-plain", "file_id": "file-1"},
+        # The LangChain v0 base64 and id blocks are not mapped.
+        {"type": "image", "source_type": "base64", "data": PNG, "mime_type": "image/png"},
+        {"type": "image", "source_type": "id", "id": "file-1"},
+    ],
+)
+def test_langchain_block_with_no_reference_it_reads_stays_as_it_came(
+    block: dict[str, Any],
+) -> None:
+    # Kept as it came, so not checked for a canonical part: a file block with
+    # no reference is no semconv file part.
+    [message] = normalize_messages([{"role": "user", "content": [block]}], "user")
+    assert message["parts"] == [block]
+
+
+def test_an_anthropic_image_block_is_not_read_as_a_langchain_block() -> None:
+    block = {"type": "image", "source": {"type": "url", "url": "https://e.com/a.png"}}
+    assert _parts([block]) == [{"type": "uri", "modality": "image", "uri": "https://e.com/a.png"}]
 
 
 # --- bedrock.converse ---
