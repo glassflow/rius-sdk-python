@@ -20,6 +20,7 @@ from opentelemetry.sdk.trace import Event, ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import Link, SpanContext
 
+from media_contract import canonical_errors, contract, media_parts_in
 from rius._serde import MAX_ATTR_CHARS, MAX_STRIP_CHARS, TRUNCATION_MARKER, serialize, text_value
 from rius.generation import Generation, normalize_messages
 from rius.normalization import (
@@ -36,9 +37,175 @@ PDF = "JVBERi0="  # 5 bytes
 
 
 def _parts(content: Any, role: str = "user") -> list[dict[str, Any]]:
+    """The parts a message's content becomes; every media part among them must
+    be canonical, whatever the test then asserts."""
     [message] = normalize_messages([{"role": role, "content": content}], role)
     parts: list[dict[str, Any]] = message["parts"]
+    for part in media_parts_in([message]):
+        assert canonical_errors(part) == [], part
     return parts
+
+
+def _blob_of(**members: Any) -> dict[str, Any]:
+    return {"type": "blob", "modality": "image", **members, "stripped_reason": "not_captured"}
+
+
+@pytest.mark.parametrize(
+    ("part", "error"),
+    [
+        (_blob_of(byte_size=-1), "byte_size -1"),
+        (_blob_of(byte_size="8"), "byte_size '8'"),
+        (_blob_of(byte_size=2.5), "byte_size 2.5"),
+        (_blob_of(byte_size=8.0), "byte_size 8.0"),
+        (_blob_of(byte_size=True), "byte_size True"),
+        (_blob_of(byte_size=2**53), "byte_size 9007199254740992"),
+        ({"type": "uri", "modality": "image", "uri": {"href": "h"}}, "uri {'href': 'h'}"),
+        ({"type": "file", "modality": "image", "file_id": 5}, "file_id 5"),
+        ({"type": "file", "modality": "picture", "file_id": "f"}, "modality 'picture'"),
+        (
+            {"type": "blob", "modality": "image", "stripped_reason": "gone"},
+            "stripped_reason 'gone'",
+        ),
+        (
+            {"type": "uri", "modality": "image", "mime_type": "image", "uri": "u"},
+            "mime_type 'image'",
+        ),
+        ({"type": "uri", "modality": "image", "mime_type": 5, "uri": "u"}, "mime_type 5"),
+    ],
+)
+def test_a_part_with_a_wrong_value_is_not_canonical(part: dict[str, Any], error: str) -> None:
+    assert any(e.startswith(error) for e in canonical_errors(part)), canonical_errors(part)
+
+
+@pytest.mark.parametrize(
+    "part",
+    [
+        _blob_of(mime_type="image/png", byte_size=0),
+        _blob_of(byte_size=2**53 - 1),
+        {"type": "uri", "modality": "video", "uri": ""},
+        {"type": "file", "modality": "document", "file_id": ""},
+    ],
+)
+def test_a_part_with_canonical_values_is_canonical(part: dict[str, Any]) -> None:
+    assert canonical_errors(part) == []
+
+
+# --- the contract's part examples ---
+
+#: Each part example of the contract, made from an input its `from` describes,
+#: through this SDK's message normalization.
+CONTRACT_EXAMPLE_INPUTS: dict[str, dict[str, Any]] = {
+    "blob_with_a_known_size": {
+        "type": "image_url",
+        "image_url": {"url": "data:image/png;base64,iVBORw0KGgo="},
+    },
+    "blob_whose_bytes_never_arrived": {"type": "image_url", "image_url": "__REDACTED__"},
+    "data_url_that_is_not_base64": {"type": "uri", "uri": "data:text/plain,hello"},
+    "data_url_that_is_not_base64_and_empty": {"type": "uri", "uri": "data:image/png,"},
+    "blob_with_content_and_no_hint": {"type": "blob", "content": "iVBORw0KGgo="},
+    "blob_with_content_labelled_image_for_a_pdf": {
+        "type": "blob",
+        "content": "JVBERi0=",
+        "mime_type": "application/pdf",
+        "modality": "image",
+    },
+    "blob_with_content_that_is_an_empty_base64_data_url": {
+        "type": "blob",
+        "mime_type": "image/png",
+        "content": "data:;base64,",
+    },
+    "blob_with_no_content_and_no_stripped_reason": {"type": "blob", "modality": "audio"},
+    "blob_with_content_that_is_not_a_string": {"type": "blob", "content": 5, "byte_size": 8.0},
+    "uri_with_no_mime_type_and_no_modality": {
+        "type": "uri",
+        "uri": "https://example.com/download",
+    },
+    "uri_with_members_out_of_order_keeps_its_modality": {
+        "uri": "https://example.com/talk",
+        "modality": "image",
+        "type": "uri",
+        "note": "x",
+    },
+    "uri_with_an_invalid_mime_type": {
+        "type": "uri",
+        "mime_type": "text/plain;charset=x",
+        "uri": "https://example.com/notes",
+    },
+    "uri_that_is_a_data_url": {"type": "uri", "uri": "data:image/png;base64,iVBORw0KGgo="},
+    "uri_with_a_mime_type": {
+        "type": "uri",
+        "mime_type": "audio/mpeg",
+        "uri": "https://example.com/a.mp3",
+    },
+    "uri_with_only_an_extension": {"type": "uri", "uri": "https://example.com/clip.mov"},
+    "file_with_no_hint": {"type": "file", "file_id": "file-abc123"},
+    "uri_with_a_cloud_storage_scheme": {
+        "file_data": {"mime_type": "image/png", "file_uri": "gs://bucket/a.png"}
+    },
+    "uri_tagged_url_with_an_s3_scheme": {"type": "uri", "uri": "s3://bucket/report.pdf"},
+    "uri_with_the_file_scheme_and_only_an_extension": {
+        "type": "uri",
+        "uri": "file:///tmp/clip.mov",
+    },
+    "image_url_that_is_empty": {"type": "image_url", "image_url": {"url": ""}},
+    "image_url_that_is_redacted": {"type": "image_url", "image_url": {"url": "__REDACTED__"}},
+    "anthropic_url_source_that_is_empty": {
+        "type": "document",
+        "source": {"type": "url", "url": ""},
+    },
+    "anthropic_file_source_that_is_empty": {
+        "type": "image",
+        "source": {"type": "file", "file_id": "", "media_type": "image/png"},
+    },
+    "input_image_with_an_empty_file_id": {"type": "input_image", "file_id": ""},
+    "openai_file_with_an_empty_file_id": {
+        "type": "file",
+        "file": {"file_id": "", "filename": "a.png"},
+    },
+    "input_image_with_a_redacted_url_and_a_file_id": {
+        "type": "input_image",
+        "image_url": "__REDACTED__",
+        "file_id": "file-abc123",
+    },
+    "openai_file_with_no_reference": {"type": "file", "file": {"filename": "a.png"}},
+    "openai_file_with_a_file_id_that_is_not_a_string": {
+        "type": "file",
+        "file": {"file_id": 5, "filename": "a.wav"},
+    },
+    "input_file_with_no_reference_and_no_filename": {"type": "input_file"},
+}
+
+#: Part examples only the Vercel AI SDK dialect makes, which this SDK does not
+#: normalize (the TypeScript SDK and the sink do).
+VERCEL_ONLY = {"vercel_file_by_url_with_no_media_type", "blob_from_an_unknown_v7_data_tag"}
+
+PART_EXAMPLES = contract()["part_shapes"]["examples"]
+
+
+def test_every_contract_part_example_is_made_here_or_is_vercel_only() -> None:
+    names = {e["name"] for e in PART_EXAMPLES}
+    assert names - VERCEL_ONLY == set(CONTRACT_EXAMPLE_INPUTS)
+    assert names >= VERCEL_ONLY
+    for example in PART_EXAMPLES:
+        if example["name"] in VERCEL_ONLY:
+            assert "Vercel" in example["from"], example["name"]
+
+
+@pytest.mark.parametrize(
+    "example",
+    [e for e in PART_EXAMPLES if e["name"] in CONTRACT_EXAMPLE_INPUTS],
+    ids=lambda e: str(e["name"]),
+)
+def test_a_contract_part_example_is_made_byte_for_byte(example: dict[str, Any]) -> None:
+    [part] = _parts([CONTRACT_EXAMPLE_INPUTS[example["name"]]])
+    assert json.dumps(part, separators=(",", ":")) == example["part"]
+
+
+def test_every_contract_message_example_is_a_dialect_this_sdk_does_not_read() -> None:
+    """The message examples pin the Vercel AI SDK dialect (ai.prompt.messages),
+    which only the TypeScript SDK and the sink normalize."""
+    sources = {e["source"] for e in contract()["part_shapes"].get("message_examples") or []}
+    assert sources <= {"ai.prompt.messages"}
 
 
 def _blob(modality: str, mime: str | None, size: int | None, reason: str) -> dict[str, Any]:
@@ -260,6 +427,185 @@ def test_gemini_parts_in_a_parts_message_are_media_parts_too() -> None:
     ]
 
 
+# --- a reference dropped upstream ---
+
+
+@pytest.mark.parametrize(
+    ("item", "part"),
+    [
+        (
+            {"type": "image_url", "image_url": {"url": ""}},
+            _blob("image", None, None, "redacted_upstream"),
+        ),
+        ({"type": "image_url", "image_url": ""}, _blob("image", None, None, "redacted_upstream")),
+        (
+            {"type": "image_url", "image_url": {"url": "__REDACTED__"}},
+            _blob("image", None, None, "redacted_upstream"),
+        ),
+        ({"type": "input_image", "image_url": ""}, _blob("image", None, None, "redacted_upstream")),
+        ({"type": "input_image", "file_id": ""}, _blob("image", None, None, "redacted_upstream")),
+        (
+            {"type": "input_image", "image_url": "", "file_id": "__REDACTED__"},
+            _blob("image", None, None, "redacted_upstream"),
+        ),
+        (
+            {"type": "image", "source": {"type": "url", "url": ""}},
+            _blob("image", None, None, "redacted_upstream"),
+        ),
+        (
+            {
+                "type": "document",
+                "source": {"type": "url", "url": "__REDACTED__", "media_type": "application/pdf"},
+            },
+            _blob("document", "application/pdf", None, "redacted_upstream"),
+        ),
+        (
+            {"type": "image", "source": {"type": "file", "file_id": ""}},
+            _blob("image", None, None, "redacted_upstream"),
+        ),
+        (
+            {"type": "document", "source": {"type": "file", "file_id": "__REDACTED__"}},
+            _blob("document", None, None, "redacted_upstream"),
+        ),
+        (
+            {"file_data": {"mime_type": "image/png", "file_uri": ""}},
+            _blob("image", "image/png", None, "redacted_upstream"),
+        ),
+        (
+            {"fileData": {"fileUri": "__REDACTED__"}},
+            _blob("document", None, None, "redacted_upstream"),
+        ),
+        (
+            {"type": "file", "file": {"file_url": "__REDACTED__", "filename": "a.png"}},
+            _blob("image", None, None, "redacted_upstream"),
+        ),
+        (
+            {"type": "input_file", "file_id": "__REDACTED__"},
+            _blob("document", None, None, "redacted_upstream"),
+        ),
+    ],
+)
+def test_an_empty_or_redacted_reference_is_a_blob_redacted_upstream(
+    item: dict[str, Any], part: dict[str, Any]
+) -> None:
+    assert _parts([item]) == [part]
+
+
+@pytest.mark.parametrize(
+    ("item", "part"),
+    [
+        (
+            {"type": "input_image", "image_url": "__REDACTED__", "file_id": "file-1"},
+            {"type": "file", "modality": "image", "file_id": "file-1"},
+        ),
+        (
+            {"type": "input_image", "image_url": "", "file_id": "file-1"},
+            {"type": "file", "modality": "image", "file_id": "file-1"},
+        ),
+        (
+            {
+                "type": "file",
+                "file": {"file_id": "__REDACTED__", "file_data": PNG, "filename": "a.png"},
+            },
+            _blob("image", None, 8, "not_captured"),
+        ),
+        (
+            {"type": "input_file", "file_id": "__REDACTED__", "file_url": "https://x/a.pdf"},
+            {"type": "uri", "modality": "document", "uri": "https://x/a.pdf"},
+        ),
+    ],
+)
+def test_a_usable_reference_wins_over_a_dropped_one(
+    item: dict[str, Any], part: dict[str, Any]
+) -> None:
+    assert _parts([item]) == [part]
+
+
+@pytest.mark.parametrize(
+    "file",
+    [
+        {"file_id": ""},
+        {"file_url": ""},
+        {"file_data": ""},
+        {"file_id": "", "file_url": "", "filename": "a.wav"},
+        {"file_data": "", "file_id": "__REDACTED__", "filename": "a.wav"},
+        {"file_data": "__REDACTED__", "filename": "a.wav"},
+    ],
+)
+def test_an_openai_file_whose_references_are_all_dropped_is_a_redacted_blob(
+    file: dict[str, Any],
+) -> None:
+    """Never a part of type file without a file_id, as the chat item, whose own
+    type is file, would be if it stayed as it came."""
+    modality = "audio" if "filename" in file else "document"
+    redacted = _blob(modality, None, None, "redacted_upstream")
+    assert _parts([{"type": "file", "file": file}]) == [redacted]
+    assert _parts([{"type": "input_file", **file}]) == [redacted]
+
+
+@pytest.mark.parametrize(
+    "file",
+    [
+        {"filename": "a.wav"},
+        {"file_id": 5, "filename": "a.wav"},
+        {"file_id": None, "filename": "a.wav"},
+        {"file_data": ["x"], "file_url": {"u": 1}, "filename": "a.wav"},
+        {"file_id": 5, "file_url": "__REDACTED__", "filename": "a.wav"},
+        {},
+    ],
+)
+def test_an_openai_file_with_no_string_reference_is_a_redacted_blob(
+    file: dict[str, Any],
+) -> None:
+    """A reference member that is missing or not a string is no reference."""
+    modality = "audio" if "filename" in file else "document"
+    redacted = _blob(modality, None, None, "redacted_upstream")
+    assert _parts([{"type": "file", "file": file}]) == [redacted]
+    assert _parts([{"type": "input_file", **file}]) == [redacted]
+
+
+def test_a_native_uri_or_file_keeps_an_empty_reference() -> None:
+    """A native part is no provider item: its empty uri or file_id is kept."""
+    assert _parts([{"type": "uri", "uri": ""}, {"type": "file", "file_id": ""}]) == [
+        {"type": "uri", "modality": "document", "uri": ""},
+        {"type": "file", "modality": "document", "file_id": ""},
+    ]
+
+
+# --- a URL of any scheme ---
+
+
+@pytest.mark.parametrize(
+    ("item", "part"),
+    [
+        (
+            {"type": "image_url", "image_url": {"url": "gs://bucket/a.png"}},
+            {"type": "uri", "modality": "image", "uri": "gs://bucket/a.png"},
+        ),
+        (
+            {"type": "input_image", "image_url": "s3://bucket/a.jpg"},
+            {"type": "uri", "modality": "image", "uri": "s3://bucket/a.jpg"},
+        ),
+        (
+            {"type": "document", "source": {"type": "url", "url": "file:///tmp/a.pdf"}},
+            {"type": "uri", "modality": "document", "uri": "file:///tmp/a.pdf"},
+        ),
+        (
+            {"file_data": {"file_uri": "s3://bucket/clip.webm"}},
+            {"type": "uri", "modality": "video", "uri": "s3://bucket/clip.webm"},
+        ),
+        (
+            {"type": "uri", "uri": "gs://bucket/a.wav"},
+            {"type": "uri", "modality": "audio", "uri": "gs://bucket/a.wav"},
+        ),
+    ],
+)
+def test_a_url_of_any_scheme_but_data_keeps_its_link(
+    item: dict[str, Any], part: dict[str, Any]
+) -> None:
+    assert _parts([item]) == [part]
+
+
 # --- mistral.chat ---
 
 
@@ -367,6 +713,19 @@ def test_bedrock_converse_audio_bytes_object_is_a_blob_sized_by_its_length() -> 
 
 def test_a_typed_block_with_a_bedrock_key_is_not_a_media_part() -> None:
     block = {"type": "custom", "image": {"format": "png", "source": {"bytes": PNG}}}
+    assert _parts([block]) == [block]
+
+
+@pytest.mark.parametrize(
+    "block",
+    [
+        {"type": "input_image"},
+        {"type": "input_image", "file_id": 5},
+        {"type": "input_image", "image_url": None},
+    ],
+    ids=["no_reference", "file_id_that_is_not_a_string", "image_url_that_is_null"],
+)
+def test_an_input_image_with_no_string_reference_stays_as_it_came(block: dict[str, Any]) -> None:
     assert _parts([block]) == [block]
 
 

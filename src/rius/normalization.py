@@ -111,9 +111,6 @@ from opentelemetry.trace import Link, StatusCode
 
 from ._attributes import replacement_attributes
 from ._media import (
-    OPENINFERENCE_REDACTED,
-    REDACTED_UPSTREAM,
-    blob_part,
     rebuild_native_parts,
     url_part,
 )
@@ -765,11 +762,7 @@ def _image_part(item: dict[str, str]) -> dict[str, Any]:
     for a url source, and an item with no URL at all (the JS Anthropic
     instrumentor's, carrying ``image.media_type`` when the source had one).
     """
-    url = item.get(_IMAGE_URL, "")
-    mime = item.get(_IMAGE_MEDIA_TYPE)
-    if url in ("", OPENINFERENCE_REDACTED):
-        return blob_part("image", mime, None, REDACTED_UPSTREAM)
-    return url_part(url, "image", mime)
+    return url_part(item.get(_IMAGE_URL, ""), "image", item.get(_IMAGE_MEDIA_TYPE))
 
 
 #: The fields a tool_use contents item may carry to count as a copy of a tool
