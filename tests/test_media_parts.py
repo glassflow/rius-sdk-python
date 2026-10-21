@@ -46,6 +46,50 @@ def _parts(content: Any, role: str = "user") -> list[dict[str, Any]]:
     return parts
 
 
+def _blob_of(**members: Any) -> dict[str, Any]:
+    return {"type": "blob", "modality": "image", **members, "stripped_reason": "not_captured"}
+
+
+@pytest.mark.parametrize(
+    ("part", "error"),
+    [
+        (_blob_of(byte_size=-1), "byte_size -1"),
+        (_blob_of(byte_size="8"), "byte_size '8'"),
+        (_blob_of(byte_size=2.5), "byte_size 2.5"),
+        (_blob_of(byte_size=8.0), "byte_size 8.0"),
+        (_blob_of(byte_size=True), "byte_size True"),
+        (_blob_of(byte_size=2**53), "byte_size 9007199254740992"),
+        ({"type": "uri", "modality": "image", "uri": {"href": "h"}}, "uri {'href': 'h'}"),
+        ({"type": "file", "modality": "image", "file_id": 5}, "file_id 5"),
+        ({"type": "file", "modality": "picture", "file_id": "f"}, "modality 'picture'"),
+        (
+            {"type": "blob", "modality": "image", "stripped_reason": "gone"},
+            "stripped_reason 'gone'",
+        ),
+        (
+            {"type": "uri", "modality": "image", "mime_type": "image", "uri": "u"},
+            "mime_type 'image'",
+        ),
+        ({"type": "uri", "modality": "image", "mime_type": 5, "uri": "u"}, "mime_type 5"),
+    ],
+)
+def test_a_part_with_a_wrong_value_is_not_canonical(part: dict[str, Any], error: str) -> None:
+    assert any(e.startswith(error) for e in canonical_errors(part)), canonical_errors(part)
+
+
+@pytest.mark.parametrize(
+    "part",
+    [
+        _blob_of(mime_type="image/png", byte_size=0),
+        _blob_of(byte_size=2**53 - 1),
+        {"type": "uri", "modality": "video", "uri": ""},
+        {"type": "file", "modality": "document", "file_id": ""},
+    ],
+)
+def test_a_part_with_canonical_values_is_canonical(part: dict[str, Any]) -> None:
+    assert canonical_errors(part) == []
+
+
 # --- the contract's part examples ---
 
 #: Each part example of the contract, made from an input its `from` describes,
@@ -123,6 +167,12 @@ CONTRACT_EXAMPLE_INPUTS: dict[str, dict[str, Any]] = {
         "image_url": "__REDACTED__",
         "file_id": "file-abc123",
     },
+    "openai_file_with_no_reference": {"type": "file", "file": {"filename": "a.png"}},
+    "openai_file_with_a_file_id_that_is_not_a_string": {
+        "type": "file",
+        "file": {"file_id": 5, "filename": "a.wav"},
+    },
+    "input_file_with_no_reference_and_no_filename": {"type": "input_file"},
 }
 
 #: Part examples only the Vercel AI SDK dialect makes, which this SDK does not
@@ -493,10 +543,25 @@ def test_an_openai_file_whose_references_are_all_dropped_is_a_redacted_blob(
     assert _parts([{"type": "input_file", **file}]) == [redacted]
 
 
-def test_an_openai_file_with_no_reference_at_all_stays_as_it_came() -> None:
-    assert _parts([{"type": "input_file", "filename": "a.png"}]) == [
-        {"type": "input_file", "filename": "a.png"}
-    ]
+@pytest.mark.parametrize(
+    "file",
+    [
+        {"filename": "a.wav"},
+        {"file_id": 5, "filename": "a.wav"},
+        {"file_id": None, "filename": "a.wav"},
+        {"file_data": ["x"], "file_url": {"u": 1}, "filename": "a.wav"},
+        {"file_id": 5, "file_url": "__REDACTED__", "filename": "a.wav"},
+        {},
+    ],
+)
+def test_an_openai_file_with_no_string_reference_is_a_redacted_blob(
+    file: dict[str, Any],
+) -> None:
+    """A reference member that is missing or not a string is no reference."""
+    modality = "audio" if "filename" in file else "document"
+    redacted = _blob(modality, None, None, "redacted_upstream")
+    assert _parts([{"type": "file", "file": file}]) == [redacted]
+    assert _parts([{"type": "input_file", **file}]) == [redacted]
 
 
 def test_a_native_uri_or_file_keeps_an_empty_reference() -> None:

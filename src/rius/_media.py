@@ -913,13 +913,13 @@ def media_parts(item: Any) -> list[Part] | None:
     return _gemini_part(item)
 
 
-def _openai_file(file: Part) -> list[Part] | None:
+def _openai_file(file: Part) -> list[Part]:
     """Chat's ``file {file_id | file_data, filename}`` or the Responses
     ``input_file {file_id | file_data | file_url, filename}``. File data is a
     data URL (its MIME type names the modality) or bare base64, whose
-    modality comes from the filename. With nothing usable but a reference
-    that is empty or redacted, it was dropped upstream: never a part of type
-    file without a file_id."""
+    modality comes from the filename. With no usable reference (each one
+    missing, not a string, empty or redacted), it was dropped upstream: never
+    a part of type file without a file_id."""
     kind = _filename_modality(file.get("filename"))
     file_id = _usable(file.get("file_id"))
     if file_id is not None:
@@ -930,8 +930,7 @@ def _openai_file(file: Part) -> list[Part] | None:
     url = _usable(file.get("file_url"))
     if url is not None:
         return [url_part(url, kind)]
-    references = (file.get(k) for k in ("file_id", "file_data", "file_url"))
-    return [dropped_blob(kind)] if any(isinstance(r, str) for r in references) else None
+    return [dropped_blob(kind)]
 
 
 def _anthropic_source(block_type: str, source: Any) -> list[Part] | None:
