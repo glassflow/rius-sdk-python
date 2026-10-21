@@ -7,6 +7,8 @@ across SDKs, so a size or a cut that moved by one character would break it.
 Each test runs the frozen copy and the live code over thousands of generated
 inputs (wrapped, URL-safe, mixed-alphabet, padded and invalid base64, lone
 surrogates, values on both sides of the budgets) and compares the results.
+The context-size split past the strip budget, which reads rule (b) alone, is
+checked against the full split for every text that is no JSON document.
 """
 
 from __future__ import annotations
@@ -18,7 +20,7 @@ from typing import Any
 
 import pytest
 
-from rius import _media, _serde
+from rius import _context_sizes, _media, _serde
 from rius._media import DATA_URL_PATTERN, base64_size, data_url_size, split_media
 from rius._serde import _bounded_dumps
 
@@ -170,6 +172,7 @@ def small_budgets(monkeypatch: pytest.MonkeyPatch) -> None:
     """Budgets small enough that generated values cross them often."""
     monkeypatch.setattr(_serde, "MAX_STRIP_CHARS", 600)
     monkeypatch.setattr(_serde, "MAX_ATTR_CHARS", 64)
+    monkeypatch.setattr(_context_sizes, "MAX_STRIP_CHARS", 600)
 
 
 # --- base64 sizing -------------------------------------------------------------
@@ -199,6 +202,21 @@ def test_the_strip_and_the_split_match_the_plain_sizing(monkeypatch: pytest.Monk
     monkeypatch.setattr(_media, "base64_size", plain_base64_size)
     monkeypatch.setattr(_media, "data_url_size", plain_base64_size)
     assert live == [(_media.strip_raw_payload(p), _outcome(split_media, p)) for p in payloads]
+
+
+# --- the split past the strip budget -----------------------------------------------
+
+
+@pytest.mark.usefixtures("small_budgets")
+def test_the_split_past_the_budget_matches_for_a_text_that_is_no_json_document() -> None:
+    rng = random.Random(4)
+    for _ in range(1000):
+        text = _payload(rng)
+        if _media._is_json_candidate(text) and _media._parse(text, 0) is not None:
+            continue
+        text = "x" * _serde.MAX_STRIP_CHARS + text
+        unparsed = _outcome(lambda t: split_media(t, parse=False), text)
+        assert unparsed == _outcome(split_media, text), repr(text)
 
 
 # --- the bounded encoding ------------------------------------------------------
