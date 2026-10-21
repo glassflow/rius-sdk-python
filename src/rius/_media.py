@@ -44,10 +44,17 @@ UNKNOWN = "unknown"
 MIME_PATTERN = re.compile(r"[A-Za-z0-9!#$&^_.+-]+/[A-Za-z0-9!#$&^_.+-]+")
 
 #: Rule (b): a data URL, anywhere in a string. Group 1 the mime type, group 3
-#: the base64 run.
+#: the base64 run. After a first line of at most 76 base64 characters, the
+#: run goes on over each LF or CRLF whose next line, past spaces, tabs and
+#: ``>`` quote marks, starts with base64. Tried only at each ``data:``, never
+#: past the next one (see ``_data_url_matches``).
 DATA_URL_PATTERN = re.compile(
-    r'[dD][aA][tT][aA]:([^;,:\t\n\f\r "]*)(;[^;,:\t\n\f\r "]*)*;base64,([A-Za-z0-9+/_-]*={0,2})'
+    r'[dD][aA][tT][aA]:([^;,:\t\n\f\r "]*)(;[^;,:\t\n\f\r "]*)*;base64,'
+    r"([A-Za-z0-9+/_-]{0,76}(\r{0,1}\n[ \t>]*[A-Za-z0-9+/_-]+)*[A-Za-z0-9+/_-]*={0,2})"
 )
+#: ``data:`` anywhere in a value, in any ASCII case: where a rule (b) token
+#: can start. Searched, never trimmed.
+_DATA_ANYWHERE = re.compile("[dD][aA][tT][aA]:")
 #: Text every rule (b) token holds: the pattern's own literal.
 DATA_URL_TEXT = ";base64,"
 #: Rule (d): a Buffer object.
@@ -165,13 +172,22 @@ def base64_size(value: str) -> int | None:
     return len(text) * 3 // 4 - padding
 
 
-def data_url_size(run: str) -> int | None:
-    """``base64_size`` of a data URL's base64 run (``DATA_URL_PATTERN``'s group 3).
+#: What a run that goes on over line breaks holds besides base64: the breaks,
+#: the indent after each, and the ``>`` of a quoted line.
+_RUN_BREAKS = b" \t\r\n>"
 
-    The pattern has already held the run to the two alphabets, with no
-    whitespace and at most two ``=`` at the end, so only the length and the
-    mixed-alphabet rule are left to check.
+
+def data_url_size(run: str) -> int | None:
+    """``base64_size`` of a data URL's base64 run (``DATA_URL_PATTERN``'s group 3),
+    with the ``>`` of each quoted line it goes on over removed too.
+
+    The pattern has already held the run to the two alphabets, with at most
+    two ``=`` at the end, and only a line break brings in anything else; so
+    once the breaks are gone, only the length and the mixed-alphabet rule are
+    left to check.
     """
+    if "\n" in run:
+        run = run.encode("ascii").translate(None, _RUN_BREAKS).decode("ascii")
     if len(run) % 4 or _mixed_alphabets(run):
         return None
     return len(run) * 3 // 4 - (len(run) - len(run.rstrip("=")))
@@ -298,18 +314,36 @@ def _url_keys(members: Members, parent_key: str | None, holder: Members | None) 
     return frozenset(t.key for t in _typed_keys(members, parent_key, holder) if t.keeps_urls)
 
 
+def _data_url_matches(text: str) -> Iterator[re.Match[str]]:
+    """Rule (b)'s matches in ``text``: the text is cut before each ``data:``
+    (in any ASCII case), and the pattern is tried at the start of each piece,
+    never past its end, so a run that goes on over a line break never takes
+    the start of the next data URL."""
+    starts = [match.start() for match in _DATA_ANYWHERE.finditer(text)]
+    for start, end in zip(starts, [*starts[1:], len(text)], strict=False):
+        match = DATA_URL_PATTERN.match(text, start, end)
+        if match is not None:
+            yield match
+
+
+def whole_data_url(value: str) -> re.Match[str] | None:
+    """Rule (b)'s match when it is the whole string: anchored at the start,
+    ending at the end. What ``fullmatch`` says, as the run's greedy match
+    reaches furthest, but fast when a long value fails."""
+    match = DATA_URL_PATTERN.match(value)
+    return match if match is not None and match.end() == len(value) else None
+
+
 def _kept_url(value: str) -> bool:
     """A string a key that keeps URLs leaves to rule (b): it starts with a URL
-    scheme, and the scheme is not data (in any ASCII case) or rule (b)
-    replaces the whole string. Any other data: string (wrapped,
-    percent-encoded, or with a run rule (b) stops short in) stays a rule (e)
-    token, replaced whole, so no byte of its payload survives."""
-    scheme = URL_SCHEME.match(value)
-    if scheme is None:
+    scheme, and either it holds no ``data:`` (in any ASCII case) or rule (b)
+    replaces the whole string. Any other string holding ``data:`` (a
+    percent-encoded data URL, a run rule (b) stops short in, a link with a
+    data URL after it) stays a rule (e) token, replaced whole, so no byte of
+    its payload survives."""
+    if URL_SCHEME.match(value) is None:
         return False
-    if scheme.group()[:-1].lower() != "data":
-        return True
-    return DATA_URL_PATTERN.fullmatch(value) is not None
+    return _DATA_ANYWHERE.search(value) is None or whole_data_url(value) is not None
 
 
 def _keyed_token(key: str, value: Any, urls: frozenset[str]) -> bool:
@@ -685,7 +719,7 @@ def _strip_text(text: str, depth: int, tokens: list[MediaToken]) -> list[_Edit]:
             _walk(document, None, None, depth, tokens, edits)
             return edits
     edits = []
-    for match in DATA_URL_PATTERN.finditer(text):
+    for match in _data_url_matches(text):
         mime = match.group(1) if is_mime(match.group(1)) else None
         size = data_url_size(match.group(3))
         tokens.append(MediaToken("b", mime, size))
@@ -923,10 +957,6 @@ def is_data_url(value: Any) -> bool:
     return isinstance(value, str) and value[:5].lower() == "data:"
 
 
-#: ``data:`` anywhere in a value, in any ASCII case: searched, never trimmed.
-_DATA_ANYWHERE = re.compile("[dD][aA][tT][aA]:")
-
-
 def holds_data_url(value: str) -> bool:
     """A URL that is no data URL but holds ``data:`` past its start (led by
     whitespace, or a link followed by a data URL): it may carry a payload, so
@@ -940,7 +970,7 @@ def data_url_blob(url: str, kind: str, mime_hint: Any = None) -> Part:
     with no size; one with no payload at all (``data:None;url,None``, what
     OpenInference's Anthropic instrumentor writes for a url image) was
     emptied before we saw it, so it is redacted upstream."""
-    match = DATA_URL_PATTERN.fullmatch(url)
+    match = whole_data_url(url)
     if match is not None:
         mime = match.group(1) if is_mime(match.group(1)) else mime_hint
         return blob_part(kind, mime, data_url_size(match.group(3)), NOT_CAPTURED)
@@ -973,10 +1003,15 @@ def dropped_blob(kind: str, mime: Any = None) -> Part:
 
 def url_part(url: str, kind: str, mime: Any = None) -> Part:
     """A URL as a part: a data URL is a blob, a dropped one a blob redacted
-    upstream, and any other, whatever its scheme, a uri."""
+    upstream, one holding ``data:`` past its start a blob with no size (no
+    byte of it kept), and any other, whatever its scheme, a uri."""
     if is_dropped(url):
         return dropped_blob(kind, mime)
-    return data_url_blob(url, kind, mime) if is_data_url(url) else uri_part(kind, mime, url)
+    if is_data_url(url):
+        return data_url_blob(url, kind, mime)
+    if holds_data_url(url):
+        return blob_part(kind, mime, None, NOT_CAPTURED)
+    return uri_part(kind, mime, url)
 
 
 def reference_part(file_id: str, kind: str, mime: Any = None) -> Part:
@@ -1247,7 +1282,10 @@ def _gemini_part(item: Part) -> list[Part] | None:
         uri = file.get("file_uri", file.get("fileUri"))
         if isinstance(uri, str):
             mime = file.get("mime_type", file.get("mimeType"))
-            return [url_part(uri, _uri_modality(uri), mime)]
+            # A blob's modality never comes from the URI's extension: one
+            # holding data: is no link to read a path from.
+            kind = "document" if _DATA_ANYWHERE.search(uri) else _uri_modality(uri)
+            return [url_part(uri, kind, mime)]
     return None
 
 

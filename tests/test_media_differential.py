@@ -19,7 +19,14 @@ from typing import Any
 import pytest
 
 from rius import _media, _serde
-from rius._media import DATA_URL_PATTERN, base64_size, data_url_size, split_media
+from rius._media import (
+    DATA_URL_PATTERN,
+    _data_url_matches,
+    base64_size,
+    data_url_size,
+    split_media,
+    whole_data_url,
+)
 from rius._serde import _bounded_dumps
 
 # --- frozen copies -----------------------------------------------------------
@@ -41,6 +48,10 @@ def plain_base64_size(value: str) -> int | None:
     if chars & _STANDARD_EXTRA and chars & _URL_SAFE_EXTRA:
         return None
     return len(text) * 3 // 4 - padding
+
+
+def plain_run_size(run: str) -> int | None:
+    return plain_base64_size(run.replace(">", ""))
 
 
 def plain_bounded_dumps(value: Any) -> str:
@@ -72,7 +83,7 @@ def _base64(rng: random.Random) -> str:
     elif r < 0.22:
         text += "=" * rng.randint(1, 3)
     if rng.random() < 0.2 and text:
-        step, sep = rng.choice((3, 4, 64, 76)), rng.choice(_WS)
+        step, sep = rng.choice((3, 4, 64, 76, 77)), rng.choice((*_WS, "\n> ", "\r\n\t"))
         text = sep.join(text[i : i + step] for i in range(0, len(text), step))
         if rng.random() < 0.3:
             text = rng.choice(_WS) + text + rng.choice(_WS)
@@ -185,9 +196,19 @@ def test_base64_size_matches_the_plain_version() -> None:
 def test_a_data_url_size_matches_the_plain_version_of_its_run() -> None:
     rng = random.Random(2)
     for _ in range(5000):
-        for match in DATA_URL_PATTERN.finditer("data:x/y;base64," + _base64(rng)):
+        for match in _data_url_matches("data:x/y;base64," + _base64(rng)):
             run = match.group(3)
-            assert data_url_size(run) == plain_base64_size(run), repr(run)
+            assert data_url_size(run) == plain_run_size(run), repr(run)
+
+
+def test_the_whole_value_test_is_what_fullmatch_says() -> None:
+    # Anchored at the start and ending at the end: the run's greedy match
+    # reaches furthest, so no other way to match reaches the end either.
+    rng = random.Random(4)
+    for _ in range(20000):
+        value = rng.choice((_data_url(rng), _data_url(rng) + rng.choice(_WS + _ODD)))
+        whole = whole_data_url(value) is not None
+        assert whole == (DATA_URL_PATTERN.fullmatch(value) is not None), repr(value)
 
 
 def test_the_strip_and_the_split_match_the_plain_sizing(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -197,7 +218,7 @@ def test_the_strip_and_the_split_match_the_plain_sizing(monkeypatch: pytest.Monk
     payloads = [_payload(rng) for _ in range(2000)]
     live = [(_media.strip_raw_payload(p), _outcome(split_media, p)) for p in payloads]
     monkeypatch.setattr(_media, "base64_size", plain_base64_size)
-    monkeypatch.setattr(_media, "data_url_size", plain_base64_size)
+    monkeypatch.setattr(_media, "data_url_size", plain_run_size)
     assert live == [(_media.strip_raw_payload(p), _outcome(split_media, p)) for p in payloads]
 
 
