@@ -218,17 +218,27 @@ def _export(span: ReadableSpan) -> ReadableSpan:
     return out
 
 
-# A byte object used directly as an attribute value, or as an element of an
-# array attribute, is the bare marker: nothing serializes it, so no JSON
-# quotes (byte_objects.attribute_values). The Python examples of that section
-# come first. OpenTelemetry also keeps one nested in a mapping or a nested
-# array, which the contract leaves as it came; the exporter writes those as
-# the marker too, so no content leaves (the last two).
+# A byte object in an attribute value, at any depth of arrays and mappings,
+# is the bare marker: nothing serializes it, so no JSON quotes. An array that
+# holds one beside an element that is then no string is the array's JSON
+# (byte_objects.attribute_values). The Python examples of that section come
+# first.
 ATTRIBUTE_VALUES = BYTE_OBJECTS["attribute_values"]["examples"]
 RAW_ATTRIBUTES: list[tuple[Any, Any]] = [
     *((_value(e["value"]), e["output"]) for e in ATTRIBUTE_VALUES if e["language"] == "python"),
     (PNG, MARKER),
-    ((PNG, "x", 5), [MARKER, "x", 5]),
+    ((PNG, "x"), [MARKER, "x"]),
+    # Beside a number, a bool, None, an array or a mapping: the array's JSON,
+    # its strings stripped too.
+    ((5, PNG), f"[5,{QUOTED}]"),
+    ([PNG, True, None], f"[{QUOTED},true,null]"),
+    ([b"a", [b"b"]], '["[stripped unknown 1 bytes]",["[stripped unknown 1 bytes]"]]'),
+    (
+        [{"k": PNG}, PNG, "data:image/png;base64,iVBORw0KGgo="],
+        f'[{{"k":{QUOTED}}},{QUOTED},"[stripped image/png 8 bytes]"]',
+    ),
+    # No byte object of its own: kept as an array, its elements walked.
+    ([1, [PNG]], [1, [MARKER]]),
     ({"image": PNG, "n": 1}, {"image": MARKER, "n": 1}),
     (
         {"nested": [{"image": PNG}], "deeper": [[PNG]]},
