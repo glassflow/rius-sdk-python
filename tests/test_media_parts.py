@@ -260,6 +260,103 @@ def test_gemini_parts_in_a_parts_message_are_media_parts_too() -> None:
     ]
 
 
+# --- mistral.chat ---
+
+
+def test_mistral_input_audio_string_is_an_audio_blob_with_no_mime() -> None:
+    assert _parts([{"type": "input_audio", "input_audio": WAV}]) == [
+        _blob("audio", None, 12, "not_captured")
+    ]
+
+
+def test_mistral_input_audio_data_url_takes_the_urls_mime() -> None:
+    url = f"data:audio/wav;base64,{WAV}"
+    assert _parts([{"type": "input_audio", "input_audio": url}]) == [
+        _blob("audio", "audio/wav", 12, "not_captured")
+    ]
+
+
+# --- langchain.messages ---
+
+
+@pytest.mark.parametrize(
+    ("block", "part"),
+    [
+        (
+            {"type": "image", "base64": PNG, "mime_type": "image/png"},
+            _blob("image", "image/png", 8, "not_captured"),
+        ),
+        ({"type": "audio", "base64": WAV}, _blob("audio", None, 12, "not_captured")),
+        (
+            {"type": "video", "base64": "AAAA", "mime_type": "video/mp4"},
+            _blob("video", "video/mp4", 3, "not_captured"),
+        ),
+        (
+            {"type": "file", "base64": PDF, "mime_type": "application/pdf"},
+            _blob("document", "application/pdf", 5, "not_captured"),
+        ),
+        ({"type": "file", "base64": PDF}, _blob("document", None, 5, "not_captured")),
+        (
+            {"type": "file", "base64": PNG, "mime_type": "image/png"},
+            _blob("image", "image/png", 8, "not_captured"),
+        ),
+        (
+            {"type": "text-plain", "base64": "aGVsbG8=", "mime_type": "text/plain"},
+            _blob("document", "text/plain", 5, "not_captured"),
+        ),
+    ],
+)
+def test_langchain_v1_base64_block_is_a_blob(block: dict[str, Any], part: dict[str, Any]) -> None:
+    assert _parts([block]) == [part]
+
+
+def test_langchain_v1_block_with_a_non_media_type_is_not_a_media_part() -> None:
+    block = {"type": "custom", "base64": PNG}
+    assert _parts([block]) == [block]
+
+
+# --- bedrock.converse ---
+
+
+@pytest.mark.parametrize(
+    ("block", "part"),
+    [
+        (
+            {"image": {"format": "png", "source": {"bytes": PNG}}},
+            _blob("image", "image/png", 8, "not_captured"),
+        ),
+        (
+            {"video": {"format": "mp4", "source": {"bytes": "AAAA"}}},
+            _blob("video", None, 3, "not_captured"),
+        ),
+        (
+            {"document": {"format": "pdf", "name": "report", "source": {"bytes": PDF}}},
+            _blob("document", None, 5, "not_captured"),
+        ),
+        (
+            {"image": {"source": {"bytes": PNG}}},
+            _blob("image", None, 8, "not_captured"),
+        ),
+    ],
+)
+def test_bedrock_converse_source_bytes_is_a_blob(
+    block: dict[str, Any], part: dict[str, Any]
+) -> None:
+    assert _parts([block]) == [part]
+
+
+def test_bedrock_converse_bytes_object_is_a_blob_sized_by_its_length() -> None:
+    block = {"image": {"format": "jpeg", "source": {"bytes": b"\xff\xd8\xff\xe0"}}}
+    assert _parts([block]) == [_blob("image", "image/jpeg", 4, "not_captured")]
+
+
+def test_bedrock_converse_s3_location_is_not_a_media_part() -> None:
+    block = {"image": {"format": "png", "source": {"s3Location": {"uri": "s3://b/a.png"}}}}
+    assert _parts([block]) == [
+        {"type": "text", "content": json.dumps(block, separators=(",", ":"))}
+    ]
+
+
 # --- semconv.native ---
 
 

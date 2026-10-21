@@ -55,13 +55,20 @@ BUFFER_TYPE = "Buffer"
 BUFFER_ARRAY_KEY = "data"
 BUFFER_MIME_KEYS = ("media_type", "mediaType", "mime_type", "mimeType")
 #: Rule (e): a keyed base64 string.
-KEYED_KEYS = ("data", "b64_json", "result")
+KEYED_KEYS = ("data", "b64_json", "result", "base64")
 KEYED_SIBLING_KEYS = ("media_type", "mediaType", "mime_type", "mimeType", "output_format")
 KEYED_PARENT_KEYS = ("input_audio", "audio", "inline_data", "inlineData")
 KEYED_SOURCE_KEY = "source"
 KEYED_SOURCE_TYPE = "base64"
 KEYED_BLOB_TYPE = "blob"
 KEYED_BLOB_KEY = "content"
+#: (key, types): a key holding base64 whenever its object has one of the types.
+KEYED_TYPED_KEYS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("base64", ("image", "audio", "video", "file", "text-plain")),
+    ("input_audio", ("input_audio",)),
+)
+#: Keys holding base64 in an object under the source key, whatever its type.
+KEYED_SOURCE_BYTES_KEYS = ("bytes",)
 KEYED_MIME_KEYS = ("media_type", "mediaType", "mime_type", "mimeType")
 #: (sibling key, mime template, parent keys it counts under or None for any).
 KEYED_MIME_FORMATS: tuple[tuple[str, str, tuple[str, ...] | None], ...] = (
@@ -223,6 +230,11 @@ def _keyed_positions(members: Members, parent_key: str | None) -> set[int]:
     keys = set(KEYED_KEYS) if context else set()
     if _first(members, "type", lambda v: v == KEYED_BLOB_TYPE) is not None:
         keys.add(KEYED_BLOB_KEY)
+    for key, types in KEYED_TYPED_KEYS:
+        if any(k == "type" and v in types for k, v in members):
+            keys.add(key)
+    if parent_key == KEYED_SOURCE_KEY:
+        keys.update(KEYED_SOURCE_BYTES_KEYS)
     return {
         i
         for i, (k, v) in enumerate(members)
@@ -628,7 +640,15 @@ def _walk(
 
 #: The member keys rules (d) and (e) replace: an object with none of them is
 #: only walked into.
-_RULE_KEYS = frozenset((BUFFER_ARRAY_KEY, KEYED_BLOB_KEY, *KEYED_KEYS))
+_RULE_KEYS = frozenset(
+    (
+        BUFFER_ARRAY_KEY,
+        KEYED_BLOB_KEY,
+        *KEYED_KEYS,
+        *(key for key, _ in KEYED_TYPED_KEYS),
+        *KEYED_SOURCE_BYTES_KEYS,
+    )
+)
 
 
 def _keyed_edit(
@@ -651,7 +671,8 @@ def _may_hold_media(text: str) -> bool:
     Every token needs its rule's words written out, unless a ``\\u`` escape
     hides them: rule (b)'s literal ``;base64,``, rule (d)'s ``Buffer`` and
     ``data``, and rule (e)'s keyed key with its context word, or ``blob`` and
-    ``content`` for a blob part. The other JSON escapes write none of these
+    ``content`` for a blob part, a typed key with one of its types, or a source
+    bytes key with ``source``. The other JSON escapes write none of these
     characters. Most attributes, and most strings inside them, hold none and
     skip the parse; the test holds for a JSON string's unescaped value too.
     """
@@ -660,6 +681,11 @@ def _may_hold_media(text: str) -> bool:
     if BUFFER_TYPE in text and BUFFER_ARRAY_KEY in text:
         return True
     if KEYED_BLOB_TYPE in text and KEYED_BLOB_KEY in text:
+        return True
+    for key, types in KEYED_TYPED_KEYS:
+        if key in text and any(t in text for t in types):
+            return True
+    if KEYED_SOURCE_KEY in text and any(key in text for key in KEYED_SOURCE_BYTES_KEYS):
         return True
     return any(key in text for key in KEYED_KEYS) and any(
         word in text for word in _KEYED_CONTEXT_TEXT
@@ -848,11 +874,16 @@ def media_parts(item: Any) -> list[Part] | None:
     not a media item this module knows (it then passes through unchanged).
 
     Covers the pass-through rows of the mapping table: OpenAI chat and
-    Responses, Anthropic, Gemini, and native semconv media parts.
+    Responses, Anthropic, Gemini, Mistral, LangChain v1, Bedrock Converse,
+    and native semconv media parts.
     """
     if not isinstance(item, dict):
         return None
     block_type = item.get("type")
+    if isinstance(block_type, str) and block_type in _LANGCHAIN_KINDS:
+        data = item.get("base64")
+        if isinstance(data, str):
+            return [base64_blob(data, _LANGCHAIN_KINDS[block_type], item.get("mime_type"))]
     if block_type in ("blob", "uri", "file"):
         if block_type == "file" and isinstance(item.get("file"), dict):
             return _openai_file(item["file"])
@@ -864,6 +895,9 @@ def media_parts(item: Any) -> list[Part] | None:
         return [url_part(url, "image")] if isinstance(url, str) else None
     if block_type == "input_audio":
         audio = item.get("input_audio")
+        if isinstance(audio, str):
+            # Mistral's audio chunk: the bare base64, with no format.
+            return [base64_blob(audio, "audio", None)]
         if not isinstance(audio, dict) or not isinstance(audio.get("data"), str):
             return None
         fmt = _string(audio.get("format"))
@@ -883,7 +917,38 @@ def media_parts(item: Any) -> list[Part] | None:
         return [base64_blob(item["result"], "image", fmt and f"image/{fmt}")]
     if block_type in ("image", "document"):
         return _anthropic_source(block_type, item.get("source"))
-    return _gemini_part(item)
+    return _bedrock_part(item) or _gemini_part(item)
+
+
+#: A LangChain v1 standard content block's type, when it carries base64, and
+#: the modality it names.
+_LANGCHAIN_KINDS = {
+    "image": "image",
+    "audio": "audio",
+    "video": "video",
+    "file": "document",
+    "text-plain": "document",
+}
+
+
+def _bedrock_part(item: Part) -> list[Part] | None:
+    """A Bedrock Converse image, video or document block, which has no type,
+    by its source's bytes: base64 (or, from boto3, a bytes object) a blob. An
+    image's format names its mime type; a video or document format is not
+    always a MIME subtype, so it names none."""
+    for kind in ("image", "video", "document"):
+        block = item.get(kind)
+        if not isinstance(block, dict):
+            continue
+        source = block.get("source")
+        data = source.get("bytes") if isinstance(source, dict) else None
+        fmt = _string(block.get("format")) if kind == "image" else None
+        mime = fmt and f"image/{fmt}"
+        if isinstance(data, str):
+            return [base64_blob(data, kind, mime)]
+        if isinstance(data, (bytes, bytearray)):
+            return [blob_part(kind, mime, len(data), NOT_CAPTURED)]
+    return None
 
 
 def _openai_file(file: Part) -> list[Part] | None:
