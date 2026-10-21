@@ -20,6 +20,7 @@ from opentelemetry.sdk.trace.sampling import ParentBased, Sampler, TraceIdRatioB
 
 from . import __version__, _agent, _tracer
 from .aggregated_usage import WrappedCallTracker
+from .compaction import CompactedContextProcessor
 from .config import DEFAULT_ENDPOINT, GlassflowConfig, resolve_config
 from .export_health import (
     ExportOutcomeExporter,
@@ -747,6 +748,7 @@ def _do_init(
         # normalization is what lets a pending snapshot (built at on_start,
         # from the identity allowlist) carry canonical keys.
         pipeline.add_span_processor(NormalizingSpanProcessor())
+        pipeline.add_span_processor(CompactedContextProcessor())
         pipeline.add_span_processor(wrapped_calls)
         pipeline.add_span_processor(SessionSpanProcessor(config.session_id))
         pipeline.add_span_processor(UserSpanProcessor())
