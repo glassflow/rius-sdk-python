@@ -47,7 +47,8 @@
 #   direction  input | output. Whether the shape is in a request message or
 #              in a response message.
 #   normalized What the part becomes: blob, uri, file, text (it is text to
-#              the model, so it becomes text parts) or generic. A list when
+#              the model, so it becomes text parts) or generic (no rule maps
+#              it, so it stays as it came). A list when
 #              the shape normalizes to more than one of these, depending on
 #              its value. none (on its own) when no part is made: the media
 #              is only in a raw payload, or the instrumentor dropped it, and
@@ -55,7 +56,7 @@
 #   modality   image, video, audio or document, or from_mime: the modality
 #              rule in part_shapes.rules (the MIME type, then the item kind,
 #              the filename or the URI path's extension, then document).
-#              Not needed when normalized is text or none.
+#              Not needed when normalized is text, generic or none.
 #   paths      Which paths deliver the shape today: passthrough (the SDK
 #              helpers, set_input / setInput with raw provider dicts),
 #              openinference (flattened message contents), openllmetry,
@@ -176,7 +177,11 @@ raw_payloads:
     inherits the parent key of its array, so `{"audio":[{"data":"..."}]}` matches
     (e) through the parent key audio; in the same way, the enclosing object rule
     (d) takes its mime type from is the nearest object holding the Buffer,
-    directly or through arrays.
+    directly or through arrays, and so is the holder whose mime type a typed key
+    with holder_mime reads. A string that a typed key with keeps_urls leaves
+    alone, because it starts with a URL scheme, is no (e) token, so (b) is tried
+    on it: a data URL there is replaced with its own mime type, and any other
+    URL stays.
   idempotence: >-
     Every implementation follows this rule: a string that is already a complete
     replacement, `[stripped <mime> <byte_size> bytes]` whose mime is unknown or
@@ -259,8 +264,8 @@ raw_payloads:
     mime type; any other element is visited as usual, with that key as its
     parent key.
   regex_dialect: >-
-    The pattern of rule (b) and the replacement's mime_pattern use only
-    constructs Python re, JavaScript RegExp and Go RE2 read the same way:
+    The pattern of rule (b), rule (e)'s url_scheme and the replacement's
+    mime_pattern use only constructs Python re, JavaScript RegExp and Go RE2 read the same way:
     literal characters, character classes with explicit ASCII members and
     ranges, the escapes `\t` `\n` `\f` `\r`, capturing groups, and the
     quantifiers `*`, `+` and `{m,n}`. No `\s`, `\d`, `\w`, `\b`, lookaround,
@@ -278,6 +283,8 @@ raw_payloads:
     must match the whole value: Python re.fullmatch, or `^` and `$` around it in
     JavaScript and Go (where, without the m flag, `$` is the end of the text; in
     Python `$` also matches before a final newline, so use fullmatch).
+    url_scheme must match at the start of the unescaped value and need not reach
+    its end: Python re.match, or `^` before it in JavaScript and Go.
   implementers: >-
     Do not write the replacement, or any escape, with a
     standard library JSON encoder: Go's json.Marshal, for example, writes `<`,
@@ -303,8 +310,9 @@ raw_payloads:
     unknown: unknown
     # The mime type, by token: a data URL's own media type (unknown when
     # empty); for rule (e), a sibling mime key, else image/<output_format>, else
-    # audio/<format> when the parent key is input_audio or audio; for rule (d),
-    # a mime key of the enclosing object. Mime keys are tried in the order of
+    # audio/<format> when the parent key is input_audio or audio, else, for a
+    # typed key with holder_mime, a mime key of the enclosing object; for rule
+    # (d), a mime key of the enclosing object. Mime keys are tried in the order of
     # the rule's mime_keys list, and a mime key counts only when its value is a
     # valid mime; a format counts only when its value is a non-empty string and
     # the mime it gives is valid (see members). Valid means the whole mime
@@ -326,7 +334,7 @@ raw_payloads:
         byte_size: The base64 run's size, per byte_size; unknown when the run is not valid base64.
       - token: A base64 string value (rule e)
         replaced: The string literal, quotes included, by the replacement as a JSON string literal; for an array under the key, each string element the same way.
-        mime: The first of media_type, mediaType, mime_type, mimeType, in that order, that holds a token/token mime; else image/<output_format>; else audio/<format> under input_audio or audio; else unknown.
+        mime: The first of media_type, mediaType, mime_type, mimeType, in that order, that holds a token/token mime; else image/<output_format>; else audio/<format> under input_audio or audio; else, under a typed key with holder_mime (a Vercel v7 tagged data), the enclosing object's first such mime key; else unknown.
         byte_size: The unescaped value's size, per byte_size; unknown when it is not valid base64.
       - token: A Buffer object (rule d)
         replaced: The whole object token, from { to its matching }, by the replacement as a JSON string literal.
@@ -345,7 +353,7 @@ raw_payloads:
       mime_keys: [media_type, mediaType, mime_type, mimeType]
     - id: e
       name: keyed base64 string
-      description: 'A non-empty string (or each string of an array) under one of the keys, when its object has one of the sibling keys with a non-empty string value that is not a complete replacement, or its object''s parent key is one of the parent keys, or its object is the value of a source key and has type base64 (the Anthropic {"source":{"type":"base64","media_type":...,"data":...}}: the object holding data is the source itself, not the content block around it); a non-empty string under content when its object has type blob (the semconv blob part, as in a raw payload like pydantic_ai.all_messages: the raw-payload twin of the fixture check''s rule that a normalized blob part carries no content); a non-empty string under a typed key when its object has one of that key''s types (a LangChain v1 standard content block {"type":"image","base64":...,"mime_type":...}, or Mistral''s audio chunk {"type":"input_audio","input_audio":...}, which its TypeScript SDK spells inputAudio); and a non-empty string under one of the source bytes keys when its object is the value of a source key, whatever its type (the Bedrock Converse {"image":{"format":"png","source":{"bytes":...}}}: as for Anthropic, the object holding bytes is the source). Never a string that is already a complete replacement (see idempotence). See members for duplicate keys, siblings and arrays.'
+      description: 'A non-empty string (or each string of an array) under one of the keys, when its object has one of the sibling keys with a non-empty string value that is not a complete replacement, or one of the base64 markers (a member with exactly that key and that string value, as in the LangChain v0 block {"type":"image","source_type":"base64","data":...}), or its object''s parent key is one of the parent keys, or its object is the value of a source key and has type base64 (the Anthropic {"source":{"type":"base64","media_type":...,"data":...}}: the object holding data is the source itself, not the content block around it); a non-empty string under content when its object has type blob (the semconv blob part, as in a raw payload like pydantic_ai.all_messages: the raw-payload twin of the fixture check''s rule that a normalized blob part carries no content); a non-empty string under a typed key when its object has one of that key''s types and, for a typed key that names parent keys, its object''s parent key is one of them (a LangChain v1 standard content block {"type":"image","base64":...,"mime_type":...}, Mistral''s audio chunk {"type":"input_audio","input_audio":...}, which its TypeScript SDK spells inputAudio, a Vercel image part {"type":"image","image":...}, or the v7 tagged data {"type":"data","data":...} a Vercel file part''s data or image part''s image holds); and a non-empty string under one of the source bytes keys when its object is the value of a source key, whatever its type (the Bedrock Converse {"image":{"format":"png","source":{"bytes":...}}}: as for Anthropic, the object holding bytes is the source). A typed key with keeps_urls leaves a string that starts with a URL scheme (url_scheme) to rule (b), whatever other way its key qualifies: an http URL under a Vercel image stays, and a data URL there is replaced by rule (b) with its own mime type. A typed key with holder_mime takes its mime type, when its own object names none, from the mime keys of the nearest object holding it, as rule (d) does, so a tagged data reads its Vercel part''s mediaType. Never a string that is already a complete replacement (see idempotence). See members for duplicate keys, siblings and arrays.'
       keys: [data, b64_json, result, base64]
       # format is not one: it counts only under input_audio or audio (see members).
       sibling_keys: [media_type, mediaType, mime_type, mimeType, output_format]
@@ -354,8 +362,16 @@ raw_payloads:
       source_type: base64
       blob_type: blob
       blob_key: content
+      # A member that names its object's payload base64: context for the keys,
+      # as a sibling is. The member's value must be exactly the string.
+      base64_markers:
+        - key: source_type
+          value: base64
       # A typed key holds base64 when its object has one of its types, with no
-      # other context needed.
+      # other context needed. With parent_keys, only when its object's parent
+      # key is one of them. With keeps_urls, a string that starts with
+      # url_scheme is left to rule (b). With holder_mime, the mime type falls
+      # back to the enclosing object's mime keys.
       typed_keys:
         - key: base64
           types: [image, audio, video, file, text-plain]
@@ -363,6 +379,19 @@ raw_payloads:
           types: [input_audio]
         - key: inputAudio
           types: [input_audio]
+        - key: image
+          types: [image]
+          keeps_urls: true
+        - key: data
+          types: [data]
+          parent_keys: [data, image]
+          keeps_urls: true
+          holder_mime: true
+      # A URL scheme at the start of a value: an ASCII letter, then letters,
+      # digits, +, - or ., then a colon. The same test part_shapes uses to
+      # tell a URL from bare base64 in one value.
+      url_scheme: '[A-Za-z][A-Za-z0-9+.-]*:'
+
       # Keys that hold base64 in an object under source_key, whatever its type.
       source_bytes_keys: [bytes]
       mime_keys: [media_type, mediaType, mime_type, mimeType]
@@ -743,6 +772,83 @@ raw_payloads:
       input: '[{"type":"image","base64":"[stripped image/png 8 bytes]","mime_type":"image/png"},{"image":{"format":"png","source":{"bytes":"[stripped unknown 8 bytes]"}}},{"type":"input_audio","input_audio":"[stripped unknown 12 bytes]"}]'
       output: '[{"type":"image","base64":"[stripped image/png 8 bytes]","mime_type":"image/png"},{"image":{"format":"png","source":{"bytes":"[stripped unknown 8 bytes]"}}},{"type":"input_audio","input_audio":"[stripped unknown 12 bytes]"}]'
       tokens: []
+    - name: vercel_image_part_base64_in_ai_prompt
+      note: 'Rule (e) through a typed key. A Vercel image part holds bare base64 under image, beside the type image; the mime type comes from mediaType.'
+      input: '{"messages":[{"role":"user","content":[{"type":"text","text":"Describe this."},{"type":"image","image":"iVBORw0KGgo=","mediaType":"image/png"}]}]}'
+      output: '{"messages":[{"role":"user","content":[{"type":"text","text":"Describe this."},{"type":"image","image":"[stripped image/png 8 bytes]","mediaType":"image/png"}]}]}'
+      tokens:
+        - {rule: e, mime: image/png, byte_size: 8}
+    - name: vercel_image_part_base64_without_a_media_type
+      note: The type image is the context on its own; with no mediaType the mime type is unknown.
+      input: '[{"type":"image","image":"iVBORw0KGgo="}]'
+      output: '[{"type":"image","image":"[stripped unknown 8 bytes]"}]'
+      tokens:
+        - {rule: e, mime: unknown, byte_size: 8}
+    - name: vercel_image_string_that_is_not_base64
+      note: 'An image string with no URL scheme is base64 to the part rules, so it is a token here too, whatever it holds; it is not valid base64, so byte_size is unknown.'
+      input: '[{"type":"image","image":"a cat on a mat"}]'
+      output: '[{"type":"image","image":"[stripped unknown unknown bytes]"}]'
+      tokens:
+        - {rule: e, mime: unknown, byte_size: unknown}
+    - name: vercel_image_url_is_left_alone
+      note: 'image keeps URLs: a string that starts with a URL scheme is no rule (e) token, and rule (b) finds no data URL in it, so http, https and gs links stay as they came.'
+      input: '[{"type":"image","image":"https://example.com/a.png","mediaType":"image/png"},{"type":"image","image":"gs://bucket/a.png"}]'
+      output: '[{"type":"image","image":"https://example.com/a.png","mediaType":"image/png"},{"type":"image","image":"gs://bucket/a.png"}]'
+      tokens: []
+    - name: vercel_image_data_url_keeps_its_own_mime
+      note: 'A data URL under image is left to rule (b), so it is replaced with the URL''s own mime type, not the part''s mediaType, and with its size.'
+      input: '[{"type":"image","image":"data:image/jpeg;base64,/9j/4AAQSkZJRg==","mediaType":"image/png"}]'
+      output: '[{"type":"image","image":"[stripped image/jpeg 10 bytes]","mediaType":"image/png"}]'
+      tokens:
+        - {rule: b, mime: image/jpeg, byte_size: 10}
+    - name: vercel_tagged_file_data_in_ai_prompt
+      note: 'Rule (e) through the typed key data under the type data and the parent key data. The tag object names no mime type, so it reads the file part''s mediaType, as rule (d) does.'
+      input: '{"messages":[{"role":"user","content":[{"type":"file","data":{"type":"data","data":"JVBERi0="},"mediaType":"application/pdf"}]}]}'
+      output: '{"messages":[{"role":"user","content":[{"type":"file","data":{"type":"data","data":"[stripped application/pdf 5 bytes]"},"mediaType":"application/pdf"}]}]}'
+      tokens:
+        - {rule: e, mime: application/pdf, byte_size: 5}
+    - name: vercel_tagged_image_data
+      note: An image part's image holds tagged data the same way, under the parent key image; with no mediaType on the part the mime type is unknown.
+      input: '[{"type":"image","image":{"type":"data","data":"iVBORw0KGgo="}},{"type":"image","image":{"type":"data","data":"iVBORw0KGgo="},"mediaType":"image/png"}]'
+      output: '[{"type":"image","image":{"type":"data","data":"[stripped unknown 8 bytes]"}},{"type":"image","image":{"type":"data","data":"[stripped image/png 8 bytes]"},"mediaType":"image/png"}]'
+      tokens:
+        - {rule: e, mime: unknown, byte_size: 8}
+        - {rule: e, mime: image/png, byte_size: 8}
+    - name: vercel_tagged_data_url_and_link
+      note: 'Tagged data keeps URLs too: a data URL in it gets rule (b) with its own mime type, and an https link stays.'
+      input: '[{"type":"file","data":{"type":"data","data":"data:application/pdf;base64,JVBERi0="},"mediaType":"application/pdf"},{"type":"file","data":{"type":"data","data":"https://example.com/a.pdf"},"mediaType":"application/pdf"}]'
+      output: '[{"type":"file","data":{"type":"data","data":"[stripped application/pdf 5 bytes]"},"mediaType":"application/pdf"},{"type":"file","data":{"type":"data","data":"https://example.com/a.pdf"},"mediaType":"application/pdf"}]'
+      tokens:
+        - {rule: b, mime: application/pdf, byte_size: 5}
+    - name: image_and_tagged_data_outside_their_parts_are_left_alone
+      note: 'image counts only beside the type image, and tagged data only under the parent key data or image: an image string with no type, beside the type text or image_url, and a type data object at the top or under another key are left alone.'
+      input: '[{"image":"iVBORw0KGgo="},{"type":"text","image":"iVBORw0KGgo="},{"type":"image_url","image":"iVBORw0KGgo="},{"type":"data","data":"iVBORw0KGgo="},{"x":{"type":"data","data":"iVBORw0KGgo="}}]'
+      output: '[{"image":"iVBORw0KGgo="},{"type":"text","image":"iVBORw0KGgo="},{"type":"image_url","image":"iVBORw0KGgo="},{"type":"data","data":"iVBORw0KGgo="},{"x":{"type":"data","data":"iVBORw0KGgo="}}]'
+      tokens: []
+    - name: langchain_v0_base64_block_without_a_mime_type
+      note: 'Rule (e) through a base64 marker. A LangChain v0 block {"type":"image","source_type":"base64","data":...} with no mime_type: source_type base64 is the context for data, and the mime type is unknown.'
+      input: '{"messages":[{"role":"user","content":[{"type":"text","text":"Describe this."},{"type":"image","source_type":"base64","data":"iVBORw0KGgo="}]}]}'
+      output: '{"messages":[{"role":"user","content":[{"type":"text","text":"Describe this."},{"type":"image","source_type":"base64","data":"[stripped unknown 8 bytes]"}]}]}'
+      tokens:
+        - {rule: e, mime: unknown, byte_size: 8}
+    - name: langchain_v0_base64_blocks_with_a_mime_type
+      note: With a mime_type the mime type comes from it, for every block type.
+      input: '[{"type":"image","source_type":"base64","data":"iVBORw0KGgo=","mime_type":"image/png"},{"type":"audio","source_type":"base64","data":"UklGRg==","mime_type":"audio/wav"},{"type":"file","source_type":"base64","data":"JVBERi0=","mime_type":"application/pdf"}]'
+      output: '[{"type":"image","source_type":"base64","data":"[stripped image/png 8 bytes]","mime_type":"image/png"},{"type":"audio","source_type":"base64","data":"[stripped audio/wav 4 bytes]","mime_type":"audio/wav"},{"type":"file","source_type":"base64","data":"[stripped application/pdf 5 bytes]","mime_type":"application/pdf"}]'
+      tokens:
+        - {rule: e, mime: image/png, byte_size: 8}
+        - {rule: e, mime: audio/wav, byte_size: 4}
+        - {rule: e, mime: application/pdf, byte_size: 5}
+    - name: langchain_v0_blocks_with_no_base64_marker_are_left_alone
+      note: 'Only source_type base64 is a marker. A url block keeps its link, data beside source_type url is not a token, and neither is data beside the type image alone; a block by id holds nothing to strip.'
+      input: '[{"type":"image","source_type":"url","url":"https://example.com/a.png"},{"type":"image","source_type":"url","data":"iVBORw0KGgo="},{"type":"image","data":"iVBORw0KGgo="},{"type":"file","source_type":"id","id":"file-abc123"}]'
+      output: '[{"type":"image","source_type":"url","url":"https://example.com/a.png"},{"type":"image","source_type":"url","data":"iVBORw0KGgo="},{"type":"image","data":"iVBORw0KGgo="},{"type":"file","source_type":"id","id":"file-abc123"}]'
+      tokens: []
+    - name: the_vercel_and_langchain_v0_shapes_stripped_twice_change_nothing
+      note: Complete replacements under image, tagged data and a v0 block's data are not tokens, so a second pass over these shapes changes nothing.
+      input: '[{"type":"image","image":"[stripped image/png 8 bytes]","mediaType":"image/png"},{"type":"file","data":{"type":"data","data":"[stripped application/pdf 5 bytes]"},"mediaType":"application/pdf"},{"type":"image","source_type":"base64","data":"[stripped unknown 8 bytes]"}]'
+      output: '[{"type":"image","image":"[stripped image/png 8 bytes]","mediaType":"image/png"},{"type":"file","data":{"type":"data","data":"[stripped application/pdf 5 bytes]"},"mediaType":"application/pdf"},{"type":"image","source_type":"base64","data":"[stripped unknown 8 bytes]"}]'
+      tokens: []
 
 part_shapes:
   # The exact serialized form of a normalized part in a message key. The
@@ -772,8 +878,8 @@ part_shapes:
     - 'A blob whose `content` is a string is rebuilt with stripped_reason not_captured and a byte_size taken from the content under the size rule of the strip (omitted when the size is unknown). Its modality comes from its MIME type first, then from the modality it has, then document: a PDF blob labelled image is a document. A content string that is itself a data URL follows the data URL rules below, with the part''s mime_type as the hint and the same modality order. A blob in a message key never carries content.'
     - 'A blob with no string `content` keeps a stripped_reason that is one of stripped_reasons. Otherwise its stripped_reason is redacted_upstream when it has no content member or a null one, and not_captured when its content is any other value. It keeps a byte_size that is a whole, non-negative number no larger than 2^53 - 1 (8, 8.0 and 8e0 alike, written 8); any other byte_size is omitted.'
     - 'A uri part, or a provider uri such as a Gemini file_data, whose URI is a data URL is never a uri: it becomes a blob under the data URL rules below. A native uri part takes that blob''s modality as a blob whose content is a string does: from the MIME type first, then the modality it has, then document.'
-    - 'A URL of any scheme other than data: is a uri, its link kept as written: http, https, gs, s3, file and any other scheme alike. Only a data: URL, or inline data, becomes a blob. Where one value may hold either a URL or bare base64 (a Vercel file part''s data or image part''s image, as a plain string or as v7''s {"type":"data"} data), it is a URL when it starts with a scheme: an ASCII letter, then any ASCII letters, digits, `+`, `-` or `.`, then a colon. Base64 holds no colon, so the two never meet; anything else is base64. A value v7 tags {"type":"url"} is a URL whatever it holds.'
     - 'In a provider media item, a URL or a file id that is empty, or that is the __REDACTED__ marker an instrumentor writes in its place, was dropped upstream. When the item has no other usable reference (one that is neither empty nor __REDACTED__), it becomes a blob with the stripped_reason redacted_upstream and no byte_size. It keeps the MIME type the item gives (an Anthropic source''s media_type, a Gemini file_data''s mime_type, a Vercel part''s mediaType) and takes its modality by the rule above, so an image_url or input_image is image. This covers an image_url''s url, an input_image''s image_url and file_id, an Anthropic url or file source, a Gemini file_data''s file_uri, a Vercel part''s v7 {"type":"url"} data, and an OpenAI file or input_file''s file_id, file_data and file_url (an empty file_data counts as dropped too, since its item has nothing else to point to). An OpenAI file or input_file with no usable reference becomes this blob too when it has no reference member at all, or only ones that are not strings (a file_id of 5 or null): its type file would otherwise collide with a native file part. A usable reference wins: an input_image whose image_url is __REDACTED__ and whose file_id is usable is a file, and an OpenAI file with an empty file_id and non-empty file_data is a blob of that data. It matches OpenInference''s __REDACTED__ on the flattened path. So no provider item this rule covers is left as a part of type file without a file_id. A native uri or file part is no provider item: its empty uri or file_id is kept. Nor is a reference not yet mapped to a part (a LangChain v1 image, audio or video block by url or file_id, a Bedrock Converse source by s3Location): it stays as it came, empty or not. A LangChain v1 file block by file_id has a native file part''s shape and is read as one. A LangChain v1 file block by url is not mapped yet either and stays as it came.'
+    - 'A URL of any scheme other than data: is a uri, its link kept as written: http, https, gs, s3, file and any other scheme alike. Only a data: URL, or inline data, becomes a blob. Where one value may hold either a URL or bare base64 (a Vercel file part''s data or image part''s image, as a plain string or as v7''s {"type":"data"} data), it is a URL when it starts with a scheme: an ASCII letter, then any ASCII letters, digits, `+`, `-` or `.`, then a colon. Base64 holds no colon, so the two never meet; anything else is base64. A value v7 tags {"type":"url"} is a URL whatever it holds. The strip reads these values the same way: rule (e) leaves a value that starts with a scheme to rule (b) (raw_payloads, rule (e)''s url_scheme and keeps_urls).'
     - 'A Vercel file part whose data, or image part whose image, is neither a string nor v7 tagged data holding one makes no part: it is dropped from its message''s parts, never written as a bare {"type":"file"} or {"type":"image"}, and any raw payload holding its bytes is stripped per raw_payloads. So is a v7 {"type":"text"} whose text is not a string. A v7 tag no rule here names becomes a blob with the stripped_reason not_captured and no byte_size, keeping the part''s mediaType: its size was never measured.'
     - 'When a part has duplicate `type` members, the last one wins, as in a standard JSON decoder. The strip is different: there, a condition on `type` holds when any member qualifies.'
     - 'A base64 data URL (rule (b)''s pattern matching the whole string) becomes a blob with the stripped_reason not_captured. Its mime type is the URL''s when that is a valid token/token MIME type, else the hint (a native part''s mime_type). Its byte_size is that of the base64 run under the size rule of the strip: an empty run is 0 bytes, and an invalid run has no byte_size.'
@@ -1043,6 +1149,14 @@ rows:
     fixtures: []
     reason: No recorded family; covered by the SDK pass-through unit tests.
     note: 'The block {"type":"image","base64":...,"mime_type":...}. The mime type comes from mime_type; with none, the modality comes from the block type (file and text-plain are document). An image, audio or video block by url or file_id is not mapped yet and stays as it came. A file block by file_id has a native file part''s shape and is read as one; a file block by url is not mapped yet.'
+  - source: langchain.messages
+    shape: v0 content block with source_type = base64
+    direction: input
+    normalized: generic
+    paths: [passthrough, openllmetry, laminar]
+    fixtures: []
+    reason: No recorded family; covered by the SDK pass-through and sink unit tests.
+    note: 'The block {"type":"image","source_type":"base64","data":...,"mime_type"?}. No rule maps it to a media part, so it stays as it came, and its data is stripped in place per raw_payloads: source_type base64 is the context for data, and the mime type comes from mime_type, else it is unknown. A v0 block by url or by id is not mapped either, and holds nothing to strip.'
 
   - source: bedrock.converse
     shape: image / document / video / audio with source.bytes
@@ -1154,6 +1268,26 @@ rows:
     paths: [vercel]
     fixtures: [vercel-ai-v5/image_file, vercel-ai-v5/pdf_file, vercel-ai-v5/text_plain_file, vercel-ai-v5/audio_file, vercel-ai-v6/image_file, vercel-ai-v6/pdf_file, vercel-ai-v6/text_plain_file, vercel-ai-v6/audio_file]
     note: On the operation span (ai.generateText) the prompt is JSON, and a file given as a Buffer is written as an object of type Buffer whose data is a JSON array of byte values, not base64. ai.prompt is a raw payload, so it makes no part; the Buffer object is replaced per raw_payloads, with byte_size the array length. The part comes from ai.prompt.messages on the model-call span (the image / file parts row).
+
+  - source: vercel.ai
+    shape: image part with base64 image in ai.prompt
+    direction: input
+    normalized: none
+    raw_payload: ai.prompt
+    paths: [vercel]
+    fixtures: []
+    reason: No recorded family writes it; the recorded image parts are Buffers (the Buffer row). Covered by the golden examples and the TypeScript SDK and sink unit tests.
+    note: 'An image given as a base64 string is written {"type":"image","image":"<base64>","mediaType"?}. ai.prompt is a raw payload, so it makes no part; image is stripped per raw_payloads, mime type from mediaType, else unknown. An image that starts with a URL scheme stays a link, and a data URL in it is replaced with its own mime type.'
+
+  - source: vercel.ai
+    shape: file / image part with v7 tagged data in ai.prompt
+    direction: input
+    normalized: none
+    raw_payload: ai.prompt
+    paths: [vercel]
+    fixtures: []
+    reason: No recorded family writes it; covered by the golden examples and the TypeScript SDK and sink unit tests.
+    note: 'v7 writes the payload as {"type":"data","data":"<base64>"} under a file part''s data or an image part''s image. ai.prompt is a raw payload, so it makes no part; the inner data is stripped per raw_payloads, mime type from the part''s mediaType, else unknown. A URL in it stays, and a data URL is replaced with its own mime type.'
 
   - source: vercel.ai_otel
     shape: blob part with modality image for a non-image file, in gen_ai.input.messages

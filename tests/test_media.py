@@ -81,9 +81,18 @@ def test_the_inlined_rule_data_is_the_contracts() -> None:
     assert e["source_type"] == _media.KEYED_SOURCE_TYPE
     assert e["blob_type"] == _media.KEYED_BLOB_TYPE
     assert e["blob_key"] == _media.KEYED_BLOB_KEY
-    assert [(key, list(types)) for key, types in _media.KEYED_TYPED_KEYS] == [
-        (t["key"], t["types"]) for t in e["typed_keys"]
-    ]
+    assert [
+        {
+            "key": t.key,
+            "types": list(t.types),
+            **({"parent_keys": list(t.parent_keys)} if t.parent_keys is not None else {}),
+            **({"keeps_urls": True} if t.keeps_urls else {}),
+            **({"holder_mime": True} if t.holder_mime else {}),
+        }
+        for t in _media.KEYED_TYPED_KEYS
+    ] == e["typed_keys"]
+    assert _media.URL_SCHEME.pattern == e["url_scheme"]
+    assert [{"key": k, "value": v} for k, v in _media.KEYED_BASE64_MARKERS] == e["base64_markers"]
     assert list(_media.KEYED_SOURCE_BYTES_KEYS) == e["source_bytes_keys"]
     assert list(_media.KEYED_MIME_KEYS) == e["mime_keys"]
     assert [

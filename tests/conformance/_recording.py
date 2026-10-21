@@ -1,4 +1,4 @@
-# Vendored from rius-semconv c41e782da010d95a1ca7ef241580b0bfdc58cbe6 fixtures/_recording.py by
+# Vendored from rius-semconv 91345065e7beaab1138239430712ad41cce54016 fixtures/_recording.py by
 # scripts/sync-semconv-fixtures.sh. Do not edit: change it in rius-semconv.
 """Shared helpers for the recorders under fixtures/<family>/record.py.
 

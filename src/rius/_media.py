@@ -62,12 +62,39 @@ KEYED_SOURCE_KEY = "source"
 KEYED_SOURCE_TYPE = "base64"
 KEYED_BLOB_TYPE = "blob"
 KEYED_BLOB_KEY = "content"
-#: (key, types): a key holding base64 whenever its object has one of the types.
-KEYED_TYPED_KEYS: tuple[tuple[str, tuple[str, ...]], ...] = (
-    ("base64", ("image", "audio", "video", "file", "text-plain")),
-    ("input_audio", ("input_audio",)),
-    ("inputAudio", ("input_audio",)),
+#: (key, value): a member that is context for the keys, as a sibling mime key
+#: is (the LangChain v0 ``{"source_type":"base64","data":...}``).
+KEYED_BASE64_MARKERS = (("source_type", "base64"),)
+
+
+@dataclass(frozen=True)
+class TypedKey:
+    """A key holding base64 whenever its object has one of the types, and,
+    when it names parent keys, sits under one of them. ``keeps_urls`` leaves
+    a string that starts with a URL scheme to rule (b); ``holder_mime`` reads
+    the holder's mime keys when the object names no mime itself."""
+
+    key: str
+    types: tuple[str, ...]
+    parent_keys: tuple[str, ...] | None = None
+    keeps_urls: bool = False
+    holder_mime: bool = False
+
+
+KEYED_TYPED_KEYS = (
+    TypedKey("base64", ("image", "audio", "video", "file", "text-plain")),
+    TypedKey("input_audio", ("input_audio",)),
+    TypedKey("inputAudio", ("input_audio",)),
+    # A Vercel image part's image: base64, or a URL that rule (b) reads.
+    TypedKey("image", ("image",), keeps_urls=True),
+    # v7 tagged data in a Vercel file part's data or image part's image: the
+    # tag names no mime, so the part's mediaType does.
+    TypedKey("data", ("data",), ("data", "image"), keeps_urls=True, holder_mime=True),
 )
+#: Rule (e)'s URL scheme, matched at the start of a value: an ASCII letter,
+#: then letters, digits, ``+``, ``-`` or ``.``, then a colon. Base64 holds no
+#: colon, so a base64 string never starts with one.
+URL_SCHEME = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*:")
 #: Keys holding base64 in an object under the source key, whatever its type.
 KEYED_SOURCE_BYTES_KEYS = ("bytes",)
 KEYED_MIME_KEYS = ("media_type", "mediaType", "mime_type", "mimeType")
@@ -218,10 +245,34 @@ def _buffer_data(members: Members) -> list[Any] | None:
     return data if isinstance(data, list) else None
 
 
+def _typed_keys(members: Members, parent_key: str | None) -> list[TypedKey]:
+    """The typed keys that hold in an object: it has one of their types, and
+    its parent key is one of their parent keys, if they name any."""
+    return [
+        typed
+        for typed in KEYED_TYPED_KEYS
+        if (typed.parent_keys is None or parent_key in typed.parent_keys)
+        and any(v in typed.types for v in members.values("type"))
+    ]
+
+
+def _url_keys(members: Members, parent_key: str | None) -> frozenset[str]:
+    """The keys whose URL strings rule (e) leaves to rule (b): those of a
+    typed key that keeps URLs and holds in the object."""
+    return frozenset(t.key for t in _typed_keys(members, parent_key) if t.keeps_urls)
+
+
+def _keyed_token(key: str, value: Any, urls: frozenset[str]) -> bool:
+    """A string rule (e) replaces under ``key``: a keyed string, unless the key
+    keeps URLs and the string starts with a URL scheme."""
+    return _keyed_string(value) and not (key in urls and URL_SCHEME.match(value) is not None)
+
+
 def _keyed_positions(members: Members, parent_key: str | None) -> set[int]:
     """Rule (e): the positions of the members holding base64 media."""
     context = (
         any(k in KEYED_SIBLING_KEYS and _sibling_string(v) for k, v in members)
+        or any(k == key and v == value for key, value in KEYED_BASE64_MARKERS for k, v in members)
         or parent_key in KEYED_PARENT_KEYS
         or (
             parent_key == KEYED_SOURCE_KEY
@@ -231,21 +282,26 @@ def _keyed_positions(members: Members, parent_key: str | None) -> set[int]:
     keys = set(KEYED_KEYS) if context else set()
     if _first(members, "type", lambda v: v == KEYED_BLOB_TYPE) is not None:
         keys.add(KEYED_BLOB_KEY)
-    for key, types in KEYED_TYPED_KEYS:
-        if any(k == "type" and v in types for k, v in members):
-            keys.add(key)
+    keys.update(t.key for t in _typed_keys(members, parent_key))
     if parent_key == KEYED_SOURCE_KEY:
         keys.update(KEYED_SOURCE_BYTES_KEYS)
+    urls = _url_keys(members, parent_key)
     return {
         i
         for i, (k, v) in enumerate(members)
         if k in keys
-        and (_keyed_string(v) or (isinstance(v, list) and any(_keyed_string(x) for x in v)))
+        and (
+            _keyed_token(k, v, urls)
+            or (isinstance(v, list) and any(_keyed_token(k, x, urls) for x in v))
+        )
     }
 
 
-def _keyed_mime(members: Members, parent_key: str | None) -> str | None:
-    """Rule (e)'s mime type: a mime key, else a mime format, else unknown."""
+def _keyed_mime(
+    members: Members, parent_key: str | None, holder: Members | None = None
+) -> str | None:
+    """Rule (e)'s mime type: a mime key, else a mime format, else, for a typed
+    key that reads the holder's mime, the holder's mime key, else unknown."""
     mime = _mime_key(KEYED_MIME_KEYS, members)
     if mime:
         return mime
@@ -258,6 +314,8 @@ def _keyed_mime(members: Members, parent_key: str | None) -> str | None:
         mime = template.replace("<value>", sibling)
         if is_mime(mime):
             return mime
+    if holder is not None and any(t.holder_mime for t in _typed_keys(members, parent_key)):
+        return _mime_key(KEYED_MIME_KEYS, holder)
     return None
 
 
@@ -612,7 +670,9 @@ def _walk(
             edits.append((node.start, node.end, _literal(mime, len(data))))
             return
         keyed = _keyed_positions(members, parent_key)
-        mime = _keyed_mime(members, parent_key) if keyed else None
+        holder_members = _members(holder) if keyed and holder else None
+        mime = _keyed_mime(members, parent_key, holder_members) if keyed else None
+        urls = _url_keys(members, parent_key) if keyed else frozenset()
         for i, (key, child) in enumerate(node.members):
             if i not in keyed:
                 _walk(child, key, node, depth + 1, tokens, edits)
@@ -621,7 +681,7 @@ def _walk(
             else:
                 # A string array under the key: each string element is a token.
                 for item in child.items:
-                    if _keyed_string(item.value):
+                    if _keyed_token(key, item.value, urls):
                         _keyed_edit(item, mime, tokens, edits)
                     else:
                         _walk(item, key, node, depth + 2, tokens, edits)
@@ -646,7 +706,7 @@ _RULE_KEYS = frozenset(
         BUFFER_ARRAY_KEY,
         KEYED_BLOB_KEY,
         *KEYED_KEYS,
-        *(key for key, _ in KEYED_TYPED_KEYS),
+        *(typed.key for typed in KEYED_TYPED_KEYS),
         *KEYED_SOURCE_BYTES_KEYS,
     )
 )
@@ -661,9 +721,15 @@ def _keyed_edit(
     edits.append((node.start, node.end, _literal(mime, size)))
 
 
-#: Rule (e) replaces a keyed member only beside a sibling mime key, under a
-#: parent key, or in a base64 source, so one of these words is written out too.
-_KEYED_CONTEXT_TEXT = (*KEYED_SIBLING_KEYS, *KEYED_PARENT_KEYS, KEYED_SOURCE_KEY)
+#: Rule (e) replaces a keyed member only beside a sibling mime key or a base64
+#: marker, under a parent key, or in a base64 source, so one of these words is
+#: written out too.
+_KEYED_CONTEXT_TEXT = (
+    *KEYED_SIBLING_KEYS,
+    *(key for key, _ in KEYED_BASE64_MARKERS),
+    *KEYED_PARENT_KEYS,
+    KEYED_SOURCE_KEY,
+)
 
 
 def _may_hold_media(text: str) -> bool:
@@ -683,8 +749,8 @@ def _may_hold_media(text: str) -> bool:
         return True
     if KEYED_BLOB_TYPE in text and KEYED_BLOB_KEY in text:
         return True
-    for key, types in KEYED_TYPED_KEYS:
-        if key in text and any(t in text for t in types):
+    for typed in KEYED_TYPED_KEYS:
+        if typed.key in text and any(t in text for t in typed.types):
             return True
     if KEYED_SOURCE_KEY in text and any(key in text for key in KEYED_SOURCE_BYTES_KEYS):
         return True
