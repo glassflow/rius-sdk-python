@@ -1066,35 +1066,60 @@ _LANGCHAIN_REFERENCE_TYPES = ("image", "audio", "video", "file")
 
 def _langchain_part(block_type: str, item: Part) -> list[Part] | None:
     """A LangChain v1 block as one part, the first case that applies winning:
-    a file block with a string file_id is the native file part it has the
-    shape of; base64 is a blob; a usable file_id a file; a usable url a uri
-    (a blob when it is a data URL); a url or file_id that is a string but not
-    usable a blob redacted upstream. None when it has none of these, to be
-    read as any other block. Only type, base64, url, file_id and mime_type
-    are read, so a v0 url block is read the same way.
 
-    A file block names no modality: by url, the URL path's extension does.
+    1. a file block with a usable file_id is the native file part it has the
+       shape of, whatever else it holds;
+    2. a string base64 is a blob;
+    3. a usable file_id is a file;
+    4. a usable url is a uri, or a blob when it is a data URL;
+    5. a file block whose file_id is a string, with no other usable
+       reference, is the native file part, its file_id kept as written;
+    6. a url or file_id that is a string, none usable, is a blob redacted
+       upstream.
+
+    None when none applies, to be read as any other block. A usable reference
+    so wins over an empty or redacted file_id. Only type, base64, url,
+    file_id and mime_type are read, but for a native file part (1 and 5),
+    which keeps a valid modality member first; so a v0 url block is read the
+    same way. A file block names no modality: by url, the URL path's
+    extension does.
     """
     kind = _LANGCHAIN_KINDS[block_type]
     mime = item.get("mime_type")
-    file_id, url = item.get("file_id"), item.get("url")
-    if block_type == "file" and isinstance(file_id, str):
-        native = native_part(item)
-        return None if native is None else [native]
-    if isinstance(item.get("base64"), str):
-        return [base64_blob(item["base64"], kind, mime)]
+    data, file_id, url = item.get("base64"), item.get("file_id"), item.get("url")
+    usable_id, usable_url = _usable(file_id), _usable(url)
+    if block_type == "file" and usable_id is not None:
+        return _native_file(item)
+    if isinstance(data, str):
+        return [base64_blob(data, kind, mime)]
     if block_type not in _LANGCHAIN_REFERENCE_TYPES:
         return None
-    usable_id, usable_url = _usable(file_id), _usable(url)
     if usable_id is not None:
         return [file_part(kind, mime, usable_id)]
     if usable_url is not None:
         if block_type == "file" and not is_data_url(usable_url):
             kind = _uri_modality(usable_url)
         return [url_part(usable_url, kind, mime)]
+    if block_type == "file" and isinstance(file_id, str):
+        return _native_file(item)
     if isinstance(url, str) or isinstance(file_id, str):
         return [dropped_blob(kind, mime)]
     return None
+
+
+def _native_file(item: Part) -> list[Part] | None:
+    native = native_part(item)
+    return None if native is None else [native]
+
+
+def is_langchain_file_block(part: Any) -> bool:
+    """An object of type file holding a string base64 or url: a LangChain v1
+    file block, read by its rule, never a native file part."""
+    return (
+        isinstance(part, dict)
+        and part.get("type") == "file"
+        and (isinstance(part.get("base64"), str) or isinstance(part.get("url"), str))
+    )
 
 
 def _bedrock_part(item: Part) -> list[Part] | None:
@@ -1367,7 +1392,11 @@ def _part_edit(raw: str) -> str | None:
         part = json.loads(raw)
     except (ValueError, RecursionError):
         return None
-    rebuilt = native_part(part) if isinstance(part, dict) else None
+    if is_langchain_file_block(part):
+        parts = _langchain_part("file", part)
+        rebuilt = parts[0] if parts else None
+    else:
+        rebuilt = native_part(part) if isinstance(part, dict) else None
     if rebuilt is None:
         return None
     encoded = _compact(rebuilt)

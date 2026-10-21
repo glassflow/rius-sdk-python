@@ -173,48 +173,6 @@ CONTRACT_EXAMPLE_INPUTS: dict[str, dict[str, Any]] = {
         "file": {"file_id": 5, "filename": "a.wav"},
     },
     "input_file_with_no_reference_and_no_filename": {"type": "input_file"},
-    "langchain_v1_image_by_url": {
-        "type": "image",
-        "url": "https://example.com/a.png",
-        "mime_type": "image/png",
-    },
-    "langchain_v1_image_by_url_kind_before_extension": {
-        "type": "image",
-        "url": "https://example.com/download.bin",
-    },
-    "langchain_v1_file_by_url_with_only_an_extension": {
-        "type": "file",
-        "url": "https://example.com/a.wav",
-    },
-    "langchain_v1_file_by_url_with_no_extension": {"type": "file", "url": "s3://bucket/report"},
-    "langchain_v1_audio_by_data_url": {
-        "type": "audio",
-        "url": "data:;base64,UklGRg==",
-        "mime_type": "audio/wav",
-    },
-    "langchain_v1_image_by_redacted_url": {
-        "type": "image",
-        "url": "__REDACTED__",
-        "mime_type": "image/png",
-    },
-    "langchain_v1_file_by_empty_url": {"type": "file", "url": ""},
-    "langchain_v1_image_by_file_id": {"type": "image", "file_id": "file-abc123"},
-    "langchain_v1_video_by_empty_file_id": {
-        "type": "video",
-        "file_id": "",
-        "mime_type": "video/mp4",
-    },
-    "langchain_v1_image_by_redacted_url_and_a_file_id": {
-        "type": "image",
-        "url": "__REDACTED__",
-        "file_id": "file-abc123",
-    },
-    "langchain_v1_file_by_file_id": {
-        "type": "file",
-        "file_id": "file-abc123",
-        "mime_type": "application/pdf",
-    },
-    "langchain_v1_file_by_empty_file_id_is_a_native_file_part": {"type": "file", "file_id": ""},
 }
 
 #: Part examples only the Vercel AI SDK dialect makes, which this SDK does not
@@ -222,6 +180,12 @@ CONTRACT_EXAMPLE_INPUTS: dict[str, dict[str, Any]] = {
 VERCEL_ONLY = {"vercel_file_by_url_with_no_media_type", "blob_from_an_unknown_v7_data_tag"}
 
 PART_EXAMPLES = contract()["part_shapes"]["examples"]
+
+# An example that carries its input block (every LangChain v1 one) is made
+# from that block.
+CONTRACT_EXAMPLE_INPUTS.update(
+    {e["name"]: json.loads(e["block"]) for e in PART_EXAMPLES if "block" in e}
+)
 
 
 def test_every_contract_part_example_is_made_here_or_is_vercel_only() -> None:
@@ -728,6 +692,36 @@ def test_langchain_v1_block_with_a_non_media_type_is_not_a_media_part() -> None:
             {"type": "file", "file_id": "file-1", "file": {"file_data": PDF}},
             {"type": "file", "modality": "document", "file_id": "file-1"},
         ),
+        # A file block's empty or redacted file_id loses to any usable
+        # reference, a string base64 included.
+        (
+            {"type": "file", "file_id": "", "url": "https://e.com/a.mp4"},
+            {"type": "uri", "modality": "video", "uri": "https://e.com/a.mp4"},
+        ),
+        (
+            {"type": "file", "file_id": "__REDACTED__", "base64": "", "mime_type": "image/png"},
+            _blob("image", "image/png", 0, "not_captured"),
+        ),
+        # With nothing else usable it is the native file part, its modality
+        # member kept first.
+        (
+            {"type": "file", "file_id": "", "url": "__REDACTED__", "modality": "audio"},
+            {"type": "file", "modality": "audio", "file_id": ""},
+        ),
+        (
+            {"type": "file", "file_id": "x", "url": "https://e.com/a.png", "modality": "video"},
+            {"type": "file", "modality": "video", "file_id": "x"},
+        ),
+        # Any other block ignores a modality member.
+        (
+            {"type": "image", "url": "https://e.com/a.png", "modality": "audio"},
+            {"type": "uri", "modality": "image", "uri": "https://e.com/a.png"},
+        ),
+        # A file_id that is not a string, beside a string url: a v1 block.
+        (
+            {"type": "file", "file_id": 5, "url": ""},
+            _blob("document", None, None, "redacted_upstream"),
+        ),
         (
             {"type": "file", "file_id": "__REDACTED__", "mime_type": "image/png"},
             {
@@ -815,6 +809,45 @@ def test_langchain_block_with_no_reference_it_reads_stays_as_it_came(
     # no reference is no semconv file part.
     [message] = normalize_messages([{"role": "user", "content": [block]}], "user")
     assert message["parts"] == [block]
+
+
+@pytest.mark.parametrize(
+    ("part", "rebuilt"),
+    [
+        (
+            {"type": "file", "file_id": "", "url": "https://e.com/a.pdf"},
+            {"type": "uri", "modality": "document", "uri": "https://e.com/a.pdf"},
+        ),
+        (
+            {"type": "file", "file_id": 5, "url": "https://e.com/a.wav"},
+            {"type": "uri", "modality": "audio", "uri": "https://e.com/a.wav"},
+        ),
+        (
+            {"type": "file", "file_id": "__REDACTED__", "base64": PDF},
+            _blob("document", None, 5, "not_captured"),
+        ),
+        (
+            {"type": "file", "file_id": "__REDACTED__", "url": ""},
+            {"type": "file", "modality": "document", "file_id": "__REDACTED__"},
+        ),
+    ],
+)
+def test_a_langchain_file_block_in_a_native_message_key_is_read_by_its_rule(
+    part: dict[str, Any], rebuilt: dict[str, Any]
+) -> None:
+    messages = json.dumps([{"role": "user", "parts": [part]}], separators=(",", ":"))
+    out = _export(_span({GEN_AI_INPUT_MESSAGES: messages}))
+    assert out.attributes is not None
+    [message] = json.loads(str(out.attributes[GEN_AI_INPUT_MESSAGES]))
+    assert message["parts"] == [rebuilt]
+    assert _parts([part]) == [rebuilt]
+
+
+def test_a_native_file_part_whose_file_id_is_not_a_string_stays_as_it_came() -> None:
+    messages = '[{"role":"user","parts":[{"type":"file","file_id":5}]}]'
+    out = _export(_span({GEN_AI_INPUT_MESSAGES: messages}))
+    assert out.attributes is not None
+    assert out.attributes[GEN_AI_INPUT_MESSAGES] == messages
 
 
 def test_an_anthropic_image_block_is_not_read_as_a_langchain_block() -> None:
