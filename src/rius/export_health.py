@@ -99,11 +99,18 @@ class ExportOutcomeExporter(SpanExporter):
     set comes from the OTLP exporter, so the warning points at the key and
     endpoint; ``endpoint=None`` means the caller passed its own
     ``span_exporter``, and the warning blames that instead.
+    ``custom_exporter=True`` with ``endpoint`` set means both: the caller's
+    exporter sits beside workspace destinations that export to ``endpoint``.
+    One failing destination fails the whole routed export, so the warning
+    names both and keeps the key and endpoint hint.
     """
 
-    def __init__(self, inner: SpanExporter, *, endpoint: str | None) -> None:
+    def __init__(
+        self, inner: SpanExporter, *, endpoint: str | None, custom_exporter: bool = False
+    ) -> None:
         self._inner = inner
         self._endpoint = endpoint
+        self._custom_exporter = custom_exporter
         self._warned = False
         self.last_export_failed = False
 
@@ -144,6 +151,15 @@ class ExportOutcomeExporter(SpanExporter):
                 "traces are not being delivered. %s",
                 repeats,
             )
+        elif self._custom_exporter:
+            logger.warning(
+                "span export failed: the configured span_exporter or a workspace "
+                "destination at %s returned FAILURE; traces are not being delivered. "
+                "Check that exporter, each workspace API key and RIUS_ENDPOINT (the "
+                "OTLP exporter's own log line above has the HTTP status). %s",
+                self._endpoint,
+                repeats,
+            )
         else:
             logger.warning(
                 "span export to %s failed; traces are not being delivered. "
@@ -155,7 +171,11 @@ class ExportOutcomeExporter(SpanExporter):
         return result
 
     def _destination(self) -> str:
-        return "" if self._endpoint is None else f" to {self._endpoint}"
+        # With a caller's exporter in the chain the endpoint is not the
+        # whole destination, so naming it alone would mislead.
+        if self._endpoint is None or self._custom_exporter:
+            return ""
+        return f" to {self._endpoint}"
 
     def shutdown(self) -> None:
         self._inner.shutdown()
