@@ -63,11 +63,16 @@ def _plain(value: Any) -> Any:
 
 
 class _Spans:
-    """A client exporting to memory, read back one span at a time."""
+    """A client exporting to memory, read back one span at a time.
+
+    No instrumentation: patching a library here would leak into later tests.
+    """
 
     def __init__(self) -> None:
         self.sink = InMemorySpanExporter()
-        self.client = rius.init(span_exporter=self.sink, heartbeat=False, service_name="svc")
+        self.client = rius.init(
+            span_exporter=self.sink, heartbeat=False, instruments=[], service_name="svc"
+        )
 
     def attributes(self) -> dict[str, Any]:
         self.client.flush()
@@ -206,7 +211,7 @@ def test_resource(case: dict[str, Any], monkeypatch: pytest.MonkeyPatch) -> None
     if case["otel_resource_attributes"] is not None:
         monkeypatch.setenv("OTEL_RESOURCE_ATTRIBUTES", case["otel_resource_attributes"])
     sink = InMemorySpanExporter()
-    client = rius.init(span_exporter=sink, heartbeat=False, **case["options"])
+    client = rius.init(span_exporter=sink, heartbeat=False, instruments=[], **case["options"])
     try:
         rius.start_span("s").end()
         client.flush()

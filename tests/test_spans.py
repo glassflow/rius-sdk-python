@@ -1,4 +1,5 @@
 import json
+from typing import Any
 
 import pytest
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -696,3 +697,60 @@ def test_set_attribute_keeps_primitive_arrays_native(
     obs.end()
 
     assert exported_spans.get_finished_spans()[0].attributes["app.tags"] == ("a", "b")
+
+
+@pytest.mark.parametrize(
+    ("value", "written"),
+    [
+        ([1, "a"], '[1,"a"]'),
+        ([True, 1], "[true,1]"),
+        ([["x"], ["y"]], '[["x"],["y"]]'),
+        ([1, None, "é<&>"], '[1,null,"é<&>"]'),
+        ((1, (2, b"ab")), '[1,[2,"[stripped unknown 2 bytes]"]]'),
+    ],
+)
+def test_set_attribute_writes_a_mixed_or_nested_array_as_one_json_string(
+    exported_spans: InMemorySpanExporter, value: Any, written: str
+) -> None:
+    """OpenTelemetry arrays are homogeneous: OTel Python before 1.25 drops a
+    mixed or nested one, later versions send it as is, and the TypeScript SDK
+    writes it as its JSON. One JSON string, as a mapping already is."""
+    obs = start_span("op")
+    obs.set_attribute("app.mixed", value)
+    obs.end()
+
+    assert exported_spans.get_finished_spans()[0].attributes["app.mixed"] == written
+
+
+@pytest.mark.parametrize(
+    ("value", "kept"),
+    [
+        ([], ()),
+        ([None, 1], (None, 1)),
+        ([True, False], (True, False)),
+        (["a", None], ("a", None)),
+    ],
+)
+def test_set_attribute_keeps_a_homogeneous_array_with_nulls_or_none_native(
+    exported_spans: InMemorySpanExporter, value: Any, kept: tuple[Any, ...]
+) -> None:
+    obs = start_span("op")
+    obs.set_attribute("app.list", value)
+    obs.end()
+
+    assert exported_spans.get_finished_spans()[0].attributes["app.list"] == kept
+
+
+def test_set_attribute_writes_integers_beside_fractions_as_fractions(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    """Numbers are one type, as in TypeScript, but OTel Python before 1.25
+    drops an array mixing int and float: the ints become floats, so every
+    supported OpenTelemetry keeps the array."""
+    obs = start_span("op")
+    obs.set_attribute("app.nums", [1, 1.5, None])
+    obs.end()
+
+    value = exported_spans.get_finished_spans()[0].attributes["app.nums"]
+    assert value == (1.0, 1.5, None)
+    assert [type(v) for v in value] == [float, float, type(None)]

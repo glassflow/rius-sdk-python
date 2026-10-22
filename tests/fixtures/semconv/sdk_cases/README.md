@@ -11,7 +11,7 @@ code, so the two SDKs agree with each other by agreeing with these files.
 | File | What it checks | Through |
 | -- | -- | -- |
 | `values.json` | `input.value` / `output.value` of a generic span: a string as it is, anything else its compact JSON, numbers and booleans included. | `set_input` / `setInput`, `set_output` / `setOutput` |
-| `attributes.json` | A span attribute set by the SDK: primitives and arrays of them kept, a mapping (or an array holding one) one JSON encoding, byte objects as markers. | `set_attribute` / `setAttribute` |
+| `attributes.json` | A span attribute set by the SDK: primitives and homogeneous arrays of them kept; a mapping, a mixed or nested array, or an array holding a mapping one JSON encoding, byte objects as markers. | `set_attribute` / `setAttribute` |
 | `messages.json` | `gen_ai.input.messages`, `gen_ai.output.messages` and `rius.context.sizes`: a lone string or mapping is one message, a missing role is the default, a null role is kept and sized as `user`. | a generation's `set_input` / `set_output` |
 | `masking.json` | What reaches the exporter with content capture off, and with a mask that returns a value, returns null or throws: span attributes, `exception` event text and the status description. | `MaskingSpanExporter` |
 | `env.json` | `RIUS_*` variables: booleans (blank or unrecognised keeps the default), blank strings (unset), numbers (as Python's `float()` reads them, clamped to range). | `resolve_config()` / `resolveConfig({}, env)` |

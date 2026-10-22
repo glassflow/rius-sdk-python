@@ -1,5 +1,5 @@
 {
-  "about": "How an SDK's span setter (Observation.set_attribute / setAttribute on a span from start_span / startSpan) writes a value. A string, a number, a boolean and an array of one of them is kept as it is. A mapping, or an array holding one, is one JSON string, encoded once: a mixed array inside it stays an array in the JSON. A byte object is its marker, `[stripped unknown <N> bytes]`, bare at the root and in an array of strings, quoted inside JSON (registry/media_parts.yaml byte_objects.attribute_values). `value` uses the tagged forms README.md describes. `expected` is the attribute value the span holds, an array as a JSON array.",
+  "about": "How an SDK's span setter (Observation.set_attribute / setAttribute on a span from start_span / startSpan) writes a value. A string, a number and a boolean is kept as it is. An array is kept as an array when, nulls aside, its elements (byte objects already their markers) are all strings, all numbers or all booleans; an empty array is kept too. Any other array (mixed types, a boolean beside a number, a nested array, a mapping inside) and any mapping is one JSON string: compact, non-ASCII kept, nothing HTML-escaped, encoded once (an array inside it stays an array in the JSON), byte objects as quoted markers. A byte object is its marker, `[stripped unknown <N> bytes]`, bare at the root and in an array of strings (registry/media_parts.yaml byte_objects.attribute_values). `value` uses the tagged forms README.md describes. `expected` is the attribute value the span holds, an array as a JSON array.",
   "cases": [
     {
       "name": "string",
@@ -172,6 +172,136 @@
         "i": 1
       },
       "expected": "{\"k\":\"[stripped unknown 2 bytes]\",\"n\":[[\"[stripped unknown 3 bytes]\"],[\"x\"]],\"i\":1}"
+    },
+    {
+      "name": "empty_array",
+      "value": [],
+      "expected": []
+    },
+    {
+      "name": "null_beside_a_number",
+      "value": [
+        null,
+        1
+      ],
+      "expected": [
+        null,
+        1
+      ]
+    },
+    {
+      "name": "only_null",
+      "value": [
+        null
+      ],
+      "expected": [
+        null
+      ]
+    },
+    {
+      "name": "integer_beside_a_fraction",
+      "value": [
+        1,
+        1.5
+      ],
+      "expected": [
+        1,
+        1.5
+      ]
+    },
+    {
+      "name": "number_beside_a_string",
+      "value": [
+        1,
+        "a"
+      ],
+      "expected": "[1,\"a\"]"
+    },
+    {
+      "name": "boolean_beside_a_number",
+      "value": [
+        true,
+        1
+      ],
+      "expected": "[true,1]"
+    },
+    {
+      "name": "string_beside_a_boolean",
+      "value": [
+        "a",
+        false
+      ],
+      "expected": "[\"a\",false]"
+    },
+    {
+      "name": "mixed_with_a_null",
+      "value": [
+        1,
+        null,
+        "a"
+      ],
+      "expected": "[1,null,\"a\"]"
+    },
+    {
+      "name": "nested_arrays",
+      "value": [
+        [
+          "x"
+        ],
+        [
+          "y"
+        ]
+      ],
+      "expected": "[[\"x\"],[\"y\"]]"
+    },
+    {
+      "name": "nested_empty_array",
+      "value": [
+        []
+      ],
+      "expected": "[[]]"
+    },
+    {
+      "name": "number_beside_an_array",
+      "value": [
+        1,
+        [
+          2,
+          3
+        ]
+      ],
+      "expected": "[1,[2,3]]"
+    },
+    {
+      "name": "mixed_array_keeps_non_ascii_and_html_characters",
+      "value": [
+        "café <a href=\"x\">&</a>",
+        1
+      ],
+      "expected": "[\"café <a href=\\\"x\\\">&</a>\",1]"
+    },
+    {
+      "name": "byte_object_beside_a_number_in_an_array_beside_a_number",
+      "value": [
+        1,
+        [
+          1,
+          {
+            "$bytes": 1
+          }
+        ]
+      ],
+      "expected": "[1,[1,\"[stripped unknown 1 bytes]\"]]"
+    },
+    {
+      "name": "byte_object_beside_a_number",
+      "value": [
+        1,
+        {
+          "$bytes": 2
+        }
+      ],
+      "expected": "[1,\"[stripped unknown 2 bytes]\"]"
     }
   ]
 }

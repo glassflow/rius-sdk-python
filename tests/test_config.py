@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 
 import pytest
 
@@ -260,3 +261,29 @@ def test_a_recognised_false_boolean_env_turns_the_flag_off(
     with caplog.at_level(logging.WARNING, logger="rius.config"):
         assert resolve_config().capture_content is False
     assert not caplog.records
+
+
+@pytest.mark.parametrize(
+    ("name", "raw"),
+    [
+        ("RIUS_SAMPLE_RATE", "0.5abc"),
+        ("RIUS_SAMPLE_RATE", ""),
+        ("RIUS_HEARTBEAT_INTERVAL", "10s"),
+        ("RIUS_PARTIAL_SPANS_DELAY", "5 seconds"),
+    ],
+)
+def test_an_unparseable_numeric_env_keeps_the_default_and_warns(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, name: str, raw: str
+) -> None:
+    """Warn and skip, the SDK-wide policy for bad input, as the TypeScript
+    SDK does: a silent fallback hid a typo in the variable."""
+    monkeypatch.setenv(name, raw)
+    with caplog.at_level(logging.WARNING, logger="rius.config"):
+        config = resolve_config()
+    assert config == resolve_config_without(monkeypatch, name)
+    assert any(name in record.getMessage() for record in caplog.records)
+
+
+def resolve_config_without(monkeypatch: pytest.MonkeyPatch, name: str) -> Any:
+    monkeypatch.delenv(name)
+    return resolve_config()

@@ -86,9 +86,13 @@ def _env_float(name: str, *, default: float) -> float:
     if raw is None:
         return default
     try:
-        return _finite(name, float(raw), default)
+        value = float(raw)
     except ValueError:
+        # Warn and skip, as for an unrecognised boolean: a silent fallback
+        # hides a typo in the variable.
+        logger.warning("%s=%r is not a number; using the default (%s).", name, raw, default)
         return default
+    return _finite(name, value, default)
 
 
 def _finite(name: str, value: float, default: float) -> float:

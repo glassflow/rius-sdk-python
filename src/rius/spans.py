@@ -54,6 +54,40 @@ def _structured(value: Any) -> bool:
     return isinstance(value, (list, tuple)) and any(_structured(item) for item in value)
 
 
+def _scalar_kind(item: Any) -> str | None:
+    """The kind an array element counts as, as the TypeScript SDK reads it:
+    a bool is not a number, an int and a float are both numbers."""
+    if isinstance(item, bool):
+        return "bool"
+    if isinstance(item, (int, float)):
+        return "number"
+    if isinstance(item, str):
+        return "str"
+    return None
+
+
+def _homogeneous(items: list[Any] | tuple[Any, ...]) -> bool:
+    """Whether an array is one OpenTelemetry holds as an array: ``None``
+    aside, all strings, all numbers or all booleans (empty included)."""
+    kinds = {_scalar_kind(item) for item in items if item is not None}
+    return len(kinds) <= 1 and None not in kinds
+
+
+def _as_floats(items: list[Any] | tuple[Any, ...]) -> Any:
+    """An array of numbers mixing int and float, with every int a float.
+
+    OpenTelemetry Python before 1.25 drops an array mixing the two types; as
+    floats it is kept on every supported version. Unchanged otherwise.
+    """
+    numbers = [item for item in items if item is not None and not isinstance(item, bool)]
+    if not (
+        any(isinstance(item, int) for item in numbers)
+        and any(isinstance(item, float) for item in numbers)
+    ):
+        return items
+    return tuple(None if item is None else float(item) for item in items)
+
+
 class Observation:
     """Handle for annotating a span from ``start_span`` / ``start_as_current_span``.
 
@@ -110,19 +144,31 @@ class Observation:
 
         Args:
             key: Attribute name.
-            value: An OpenTelemetry-compatible attribute value. A mapping, or
-                an array holding one, is recorded as its JSON string, the way
-                every other structured value this SDK writes is. A bytes,
-                bytearray or memoryview in it, at any depth, is recorded as
-                ``[stripped unknown <N> bytes]``, never its content.
+            value: An OpenTelemetry-compatible attribute value. An array
+                whose elements, ``None`` aside, are all strings, all numbers
+                or all booleans is kept as an array (ints beside floats become
+                floats). A mapping, or any other array (mixed types, nested
+                arrays, one holding a mapping), is recorded as its JSON
+                string, the way every other structured value this SDK writes
+                is. A bytes, bytearray or memoryview in it, at any depth, is
+                recorded as ``[stripped unknown <N> bytes]``, never its
+                content.
         """
         # Structure is serialized once from the raw value (serialize writes a
         # byte object as its marker); converting first would turn a mixed
         # array into its JSON string and encode it a second time.
         if _structured(value):
             self._span.set_attribute(key, serialize(value))
-        else:
-            self._span.set_attribute(key, attribute_value(value))
+            return
+        written = attribute_value(value)
+        if isinstance(written, (list, tuple)):
+            # An array OpenTelemetry cannot hold as one (mixed types, nested
+            # arrays) is its JSON, one string, as in the TypeScript SDK.
+            if not _homogeneous(written):
+                self._span.set_attribute(key, serialize(value))
+                return
+            written = _as_floats(written)
+        self._span.set_attribute(key, written)
 
     def update(self, *, input: Any = None, output: Any = None) -> None:
         """Record input and/or output in one call.
