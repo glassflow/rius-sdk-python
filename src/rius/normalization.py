@@ -117,6 +117,7 @@ from ._media import (
 from ._provider_compaction import ProviderCompactions, compactions_in_response
 from ._provider_response import response_json
 from ._serde import (
+    LONE_SURROGATE,
     UNREADABLE,
     attribute_value,
     loads_json,
@@ -209,27 +210,6 @@ def wrap_in_list(values: list[Any]) -> Any:
     """The source scalar as a one-element list (e.g. a lone finish reason)."""
     value = values[0]
     return list(value) if isinstance(value, (list, tuple)) else [value]
-
-
-def json_member(member: str) -> Converter:
-    """Promote one member out of a JSON-object source value."""
-
-    def convert(values: list[Any]) -> Any:
-        raw = values[0]
-        if not isinstance(raw, str):
-            return SKIP
-        payload = loads_object(raw)
-        if payload is None or member not in payload:
-            return SKIP
-        return payload[member]
-
-    return convert
-
-
-def total(values: list[Any]) -> Any:
-    """The sum of the present source values; SKIP if none are numeric."""
-    numbers = [v for v in values if isinstance(v, (int, float)) and not isinstance(v, bool)]
-    return sum(numbers) if numbers else SKIP
 
 
 class Rule:
@@ -1485,14 +1465,9 @@ def _flag(value: Any) -> Any:
     return value if isinstance(value, bool) else SKIP
 
 
-def text_value(values: list[Any]) -> Any:
+def nonempty_text(values: list[Any]) -> Any:
     """The source value when it is a non-empty string; SKIP otherwise."""
     return _text(values[0])
-
-
-#: Lone UTF-16 surrogates. ``json.loads`` pairs the valid ones into one code
-#: point, so any left in a decoded ``str`` are unpaired.
-_LONE_SURROGATE = re.compile("[\ud800-\udfff]")
 
 
 def _compact_json(value: Any) -> str:
@@ -1506,7 +1481,7 @@ def _compact_json(value: Any) -> str:
     as the sink's decoder makes it.
     """
     text = json.dumps(value, separators=(",", ":"), ensure_ascii=False)
-    return _LONE_SURROGATE.sub("\ufffd", text)
+    return LONE_SURROGATE.sub("\ufffd", text)
 
 
 def _tool_choice(value: Any) -> Any:
@@ -1522,7 +1497,7 @@ def _tool_choice(value: Any) -> Any:
     if isinstance(value, dict):
         return _compact_json(value)
     text = _text(value)
-    return text if text is SKIP else _LONE_SURROGATE.sub("\ufffd", text)
+    return text if text is SKIP else LONE_SURROGATE.sub("\ufffd", text)
 
 
 def _text_sequence(value: Any) -> Any:
@@ -1826,7 +1801,7 @@ OPENINFERENCE_RULES: tuple[AnyRule, ...] = (
     # tool name, and a wrong name silently groups unrelated calls — worse than
     # an absent one. A third-party span offers no better guarantee. (It could
     # not be a rule anyway: the span name is not an attribute.)
-    Rule("tool.name", GEN_AI_TOOL_NAME, text_value),
+    Rule("tool.name", GEN_AI_TOOL_NAME, nonempty_text),
     # Why the model stopped. The source is a SCALAR and the canonical key is
     # an array (one entry per generation), so wrap rather than copy.
     #
@@ -1995,7 +1970,7 @@ OPENINFERENCE_RULES: tuple[AnyRule, ...] = (
     # The openai instrumentor sets it from the response's `model`; OpenAI's
     # embedding models have no dated snapshots for a response to resolve to,
     # so it is the model asked for.
-    Rule("embedding.model_name", GEN_AI_REQUEST_MODEL, text_value),
+    Rule("embedding.model_name", GEN_AI_REQUEST_MODEL, nonempty_text),
 )
 
 #: Live in every process. See the module docstring before adding a rule.

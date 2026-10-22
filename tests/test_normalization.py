@@ -23,9 +23,7 @@ from rius.normalization import (
     NormalizingSpanProcessor,
     Rule,
     copy_value,
-    json_member,
     to_int,
-    total,
     wrap_in_list,
 )
 from rius.semconv import GEN_AI_INPUT_MESSAGES, GEN_AI_REQUEST_MODEL, RIUS_SPAN_PENDING
@@ -100,28 +98,20 @@ def test_wrap_in_list_promotes_a_scalar() -> None:
     assert out["gen_ai.response.finish_reasons"] == ["stop"]
 
 
-def test_json_member_promotes_a_member_of_a_json_payload() -> None:
-    table = _table(Rule("vendor.params", GEN_AI_REQUEST_MODEL, json_member("model")))
-    out = _normalize(table, {"vendor.params": '{"model": "gpt-4o", "temperature": 0}'})
+def _first_present(values: list[Any]) -> Any:
+    return next((v for v in values if v is not None), None)
+
+
+def test_a_rule_over_several_source_keys_consumes_them_all() -> None:
+    table = _table(Rule(("vendor.a", "vendor.b"), GEN_AI_REQUEST_MODEL, _first_present))
+    out = _normalize(table, {"vendor.a": "gpt-4o", "vendor.b": "ignored"})
     assert out[GEN_AI_REQUEST_MODEL] == "gpt-4o"
-
-
-def test_json_member_skips_when_the_member_is_absent() -> None:
-    table = _table(Rule("vendor.params", GEN_AI_REQUEST_MODEL, json_member("model")))
-    out = _normalize(table, {"vendor.params": '{"temperature": 0}'})
-    assert GEN_AI_REQUEST_MODEL not in out
-
-
-def test_total_sums_several_source_keys() -> None:
-    table = _table(Rule(("vendor.a", "vendor.b"), "gen_ai.usage.input_tokens", total))
-    out = _normalize(table, {"vendor.a": 3, "vendor.b": 4})
-    assert out["gen_ai.usage.input_tokens"] == 7
     assert "vendor.a" not in out and "vendor.b" not in out
 
 
-def test_total_sums_the_sources_that_are_present() -> None:
-    table = _table(Rule(("vendor.a", "vendor.b"), "gen_ai.usage.input_tokens", total))
-    assert _normalize(table, {"vendor.a": 3})["gen_ai.usage.input_tokens"] == 3
+def test_a_rule_over_several_source_keys_sees_only_the_present_ones() -> None:
+    table = _table(Rule(("vendor.a", "vendor.b"), GEN_AI_REQUEST_MODEL, _first_present))
+    assert _normalize(table, {"vendor.b": "gpt-4o"})[GEN_AI_REQUEST_MODEL] == "gpt-4o"
 
 
 def test_a_converter_that_raises_drops_only_its_own_rule() -> None:

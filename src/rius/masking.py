@@ -34,6 +34,7 @@ from .semconv import (
     CONTENT_ATTRIBUTE_SUFFIXES,
     CONTENT_ATTRIBUTES,
     CONTENT_PREFIX_IDENTITY_ATTRIBUTES,
+    EXCEPTION_EVENT,
 )
 
 logger = logging.getLogger(__name__)
@@ -95,7 +96,6 @@ def is_content_key(key: str) -> bool:
 # attribute strip removes. exception.type deliberately stays: failures remain
 # visible and classifiable with content capture off (same policy as the
 # TypeScript SDK).
-_EXCEPTION_EVENT_NAME = "exception"
 _EXCEPTION_CONTENT_KEYS = frozenset({"exception.message", "exception.stacktrace"})
 # The status description is the same string once more: observe()/MCP write
 # str(exc) into it, and providers echo the rejected request. Not an attribute,
@@ -181,7 +181,7 @@ class MaskingSpanExporter(SpanExporter):
         changed = False
         out: list[Event] = []
         for event in events:
-            extra = _EXCEPTION_CONTENT_KEYS if event.name == _EXCEPTION_EVENT_NAME else frozenset()
+            extra = _EXCEPTION_CONTENT_KEYS if event.name == EXCEPTION_EVENT else frozenset()
             new_attributes = self._sanitize_mapping(event.attributes, extra_content_keys=extra)
             if new_attributes is None:
                 out.append(event)
