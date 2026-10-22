@@ -305,23 +305,38 @@ raw_payloads:
     carriage return `\r{0,1}`, and the repeated RFC 2397 parameter and the
     repeated continuation line are capturing groups. Neither the mime class nor
     the parameter class holds `;` or `:`. RFC 2045 lists `:` as a tspecial, so
-    it cannot appear in an unquoted mime type or parameter token. Rule (b) finds
-    its tokens this way: cut the string before each `data:` and each `data%3A`
-    (in any ASCII case, `[dD][aA][tT][aA]:` and percent_scheme searched left
-    to right; no two overlap), and try the pattern once at the start of each
-    piece that starts with `data:`, and percent_pattern at the start of each
-    that starts with `data%3A`, never past its end (Python
-    `pattern.match(text, start, end)`, or `^` before it on the piece in
-    JavaScript and Go). A decoded header holds no colon but may hold %, so a
-    data URL whose header holds data%3A is cut there and is no token: a
-    header no encoder writes. Each piece that matches gives one token, so tokens never
-    overlap and a run that continues over a line break never takes the start of
-    the next data URL (`...;base64,QUFB\ndata:...` is two tokens). The search is
-    linear: each character is in one piece and read by one attempt, the mime
-    type and parameters split in exactly one way, and once `;base64,` is read
-    the rest of the pattern cannot fail, so the run is taken greedily with no
-    backtracking into it. The run's first line is capped by `{0,76}`, so line
-    breaks are crossed only after a first line of at most 76; a longer first
+    it cannot appear in an unquoted mime type or parameter token. Rule (b)
+    finds its tokens by a procedure, not by one regex. First list the starts:
+    each `data:` (`[dD][aA][tT][aA]:`) and each `data%3A` (percent_scheme),
+    each searched left to right over the whole string; no two starts are at
+    the same place. Then visit the starts in order, with `covered` the end of
+    the last plain token (0 at first). (1) At a `data:`, try the pattern (or
+    escaped_pattern) at that start, never past the next `data:`, or the end of
+    the string (Python `pattern.match(text, start, end)`, or `^` before it on
+    the slice in JavaScript and Go). If it matches and a `data%3A` starts at
+    or after the start of its run (group 3) and before the end of the match,
+    try it again at the same start, never past that `data%3A`: the header and
+    `;base64,` come out the same and the run stops before it. The match is a
+    token; set `covered` to its end. (2) At a `data%3A` before `covered`, try
+    nothing: it is inside a plain token, in its header. (3) At any other
+    `data%3A`, try percent_pattern at that start, never past the next start of
+    either kind. So a plain header may hold `data%3A` (a percent-encoded
+    parameter, `name=metadata%3Av1.png`), and the data URL is one token; a
+    percent header may not (it is cut there). Tokens never overlap: no
+    header or run takes `:` and a plain run takes no `%`, so the only start
+    a plain match can reach past is a `data%3A` in its header (skipped by 2)
+    or the letters `data` of one glued after its run (cut by 1, so
+    `...;base64,QUFBdata%3A...` is two tokens); a percent match never
+    reaches past the next start of either kind. A run that continues over a
+    line break never takes the start of the next data URL
+    (`...;base64,QUFB\ndata:...` is two tokens). The search is linear: the
+    pieces of plain starts are disjoint, and so are those of percent starts,
+    so each character is read by at most one plain attempt, its one retry,
+    and one percent attempt; the mime type and parameters split in exactly one
+    way, and once `;base64,` is read the rest of the pattern cannot fail, so
+    the run is taken greedily with no backtracking into it. The run's first
+    line is capped by `{0,76}`, so line breaks are crossed only after a first
+    line of at most 76; a longer first
     line goes on in the last `[A-Za-z0-9+/_-]*` and ends the run at its line
     break. Continuation lines are not capped: a capped quantifier inside the
     repeated group makes V8 keep backtracking state for each character, and
@@ -354,8 +369,12 @@ raw_payloads:
     Go. A keeps_urls key searches its value for `[dD][aA][tT][aA]:` anywhere,
     with no trimming. For that key, and wherever a part rule asks for rule
     (b)'s pattern to match a whole value, the pattern matches the whole value
-    when its match anchored at the start (Python re.match, or `^` before it in
-    JavaScript and Go) ends at the end of the value. A keeps_urls key also
+    when the value starts with `data:` or `data%3A` and the first token the
+    procedure above finds starts at 0 and ends at the end of the value. That
+    is the same match, anchored at the start and with the same cuts, so a
+    whole value is exactly one that rule (b) replaces whole: a plain one is
+    not cut at a `data%3A` in its header, and a percent one is cut at the
+    next `data%3A`. A keeps_urls key also
     takes a match that ends one line break before the end, where what is left
     is exactly a newline, or a carriage return and newline, and so does a
     part rule; for percent_pattern, what is left may also be exactly `%0A`
@@ -423,7 +442,7 @@ raw_payloads:
   detection:
     - id: b
       name: data URL
-      description: 'A data:<mime>[;<parameter>]*;base64,<base64> token anywhere in a string, the scheme in any case (DATA:, Data:) and RFC 2397 parameters allowed before ;base64, (data:image/png;name=a.png;base64,...). The base64 run may be wrapped: at a line break (a newline, or a carriage return and a newline) followed by any spaces, tabs or > (an indented block or a quoted reply) and more base64, the run goes on, line after line, as base64.encodebytes, MIME and PEM encoders write it, and ends at the padding or at the first character that is no base64. It goes on over line breaks only when its first line, counted from ;base64,, holds at most 76 base64 characters, the most RFC 2045 lets a MIME line hold and what every wrapping encoder writes or less. A real image as a single-line data URL is far longer, so the prose after it stays whole. The cost: a tiny unpadded data URL (a run of 76 characters or fewer, about 57 bytes or less) at the end of a line takes each next line that starts with base64 with it, whatever that line''s length, up to its first character that is no base64; and a payload wrapped wider than 76 keeps everything after its first line. A padded run ends at its padding. The pattern finds each one, tried at each data: and never past the next (see regex_dialect): group 1 the mime type (empty when none), group 2 the last parameter (unused), group 3 the base64 run (standard or URL-safe), its line breaks included, group 4 its last continuation line (unused). A whole-string data URL is the special case. In the text of a JSON candidate that does not parse, escaped_pattern is tried instead: the same, but after its raw line breaks the run also goes on over line breaks written as JSON escapes (\n, or \r\n, as a backslash and a letter), with the same first-line guard; its group 5 is its last escaped continuation line (unused). A data URL percent-encoded whole, as a link carries one in its query (data%3Aimage%2Fpng%3Bbase64%2CiVBOR...%3D), is a token too, wherever rule (b) runs, by percent_pattern: its scheme data%3A in any ASCII case, a header of any characters but %, ;, comma, colon, ASCII whitespace and the quote, or percent escapes but those whose second digit is C (so %2C ends it), then %3Bbase64%2C, then a run of base64 characters and the escapes %2B and %2F and the line breaks %0A and %0D (the class %[02][ABDFabdf], so also the harmless %0B, %0F, %2A and %2D), ended by at most two %3D. The hex digits are in either case, and a / may be written as it is, as Python''s quote leaves it. Group 1 is the header: its media type is the header up to its first %3B, percent-decoded. Group 3 is the run, sized once its escapes are decoded and its line breaks removed. Groups 2, 4 and 5 are unused. So a payload wrapped before it was percent-encoded (quote of base64.encodebytes output) is one token, as a wrapped data URL is; with no first-line guard, an unpadded run of any length followed by %0A and more encoded base64 takes it too, and loses its size, only inside an encoded string; no payload byte is kept. The run takes no other escape, and a twice-encoded data URL (data%253A) is no token. Every match holds base64%2, a literal a pre-check can look for.'
+      description: 'A data:<mime>[;<parameter>]*;base64,<base64> token anywhere in a string, the scheme in any case (DATA:, Data:) and RFC 2397 parameters allowed before ;base64, (data:image/png;name=a.png;base64,...). The base64 run may be wrapped: at a line break (a newline, or a carriage return and a newline) followed by any spaces, tabs or > (an indented block or a quoted reply) and more base64, the run goes on, line after line, as base64.encodebytes, MIME and PEM encoders write it, and ends at the padding or at the first character that is no base64. It goes on over line breaks only when its first line, counted from ;base64,, holds at most 76 base64 characters, the most RFC 2045 lets a MIME line hold and what every wrapping encoder writes or less. A real image as a single-line data URL is far longer, so the prose after it stays whole. The cost: a tiny unpadded data URL (a run of 76 characters or fewer, about 57 bytes or less) at the end of a line takes each next line that starts with base64 with it, whatever that line''s length, up to its first character that is no base64; and a payload wrapped wider than 76 keeps everything after its first line. A padded run ends at its padding. The pattern finds each one, tried at each data: and never past the next data:, its run also stopping before a data%3A (see regex_dialect): group 1 the mime type (empty when none), group 2 the last parameter (unused), group 3 the base64 run (standard or URL-safe), its line breaks included, group 4 its last continuation line (unused). A whole-string data URL is the special case. In the text of a JSON candidate that does not parse, escaped_pattern is tried instead: the same, but after its raw line breaks the run also goes on over line breaks written as JSON escapes (\n, or \r\n, as a backslash and a letter), with the same first-line guard; its group 5 is its last escaped continuation line (unused). A data URL percent-encoded whole, as a link carries one in its query (data%3Aimage%2Fpng%3Bbase64%2CiVBOR...%3D), is a token too, wherever rule (b) runs, by percent_pattern: its scheme data%3A in any ASCII case, a header of any characters but %, ;, comma, colon, ASCII whitespace and the quote, or percent escapes but those whose second digit is C (so %2C ends it), then %3Bbase64%2C, then a run of base64 characters and the escapes %2B and %2F and the line breaks %0A and %0D (the class %[02][ABDFabdf], so also the harmless %0B, %0F, %2A and %2D), ended by at most two %3D. The hex digits are in either case, and a / may be written as it is, as Python''s quote leaves it. Group 1 is the header: its media type is the header up to its first %3B, percent-decoded. Group 3 is the run, sized once its escapes are decoded and its line breaks removed. Groups 2, 4 and 5 are unused. So a payload wrapped before it was percent-encoded (quote of base64.encodebytes output) is one token, as a wrapped data URL is; with no first-line guard, an unpadded run of any length followed by %0A and more encoded base64 takes it too, and loses its size, only inside an encoded string; no payload byte is kept. The run takes no other escape, and a twice-encoded data URL (data%253A) is no token. Every match holds base64%2, a literal a pre-check can look for.'
       pattern: '[dD][aA][tT][aA]:([^;,:\t\n\f\r "]*)(;[^;,:\t\n\f\r "]*)*;base64,([A-Za-z0-9+/_-]{0,76}(\r{0,1}\n[ \t>]*[A-Za-z0-9+/_-]+)*[A-Za-z0-9+/_-]*={0,2})'
       # A percent-encoded data URL, as encodeURIComponent, URLSearchParams,
       # Python's urllib.parse.quote and Go's url.QueryEscape write one into a
@@ -979,6 +998,34 @@ raw_payloads:
         - {rule: b, mime: image/png, byte_size: 60}
         - {rule: b, mime: image/png, byte_size: 60}
         - {rule: b, mime: image/png, byte_size: 61}
+    - name: a_plain_data_url_whose_header_holds_data_percent_3a_in_prose
+      note: 'A plain data URL is cut only at the next data:, so a header that holds data%3A in either case (a percent-encoded parameter such as name=metadata%3Av1.png) stays one token with its media type and size. Its run still stops before a data%3A glued to it, which is a token of its own.'
+      input: 'see data:image/png;name=metadata%3Av1.png;base64,QUFBQUFBQUFBQUFB thanks, DATA:image/png;name=metadata%3av1.png;base64,QUFB and data:a/b;base64,QUFBdata%3Aa%2Fb%3Bbase64%2CQkJD'
+      output: 'see [stripped image/png 12 bytes] thanks, [stripped image/png 3 bytes] and [stripped a/b 3 bytes][stripped a/b 3 bytes]'
+      tokens:
+        - {rule: b, mime: image/png, byte_size: 12}
+        - {rule: b, mime: image/png, byte_size: 3}
+        - {rule: b, mime: a/b, byte_size: 3}
+        - {rule: b, mime: a/b, byte_size: 3}
+    - name: a_plain_data_url_whose_header_holds_data_percent_3a_in_json_and_under_image
+      note: 'The same in a JSON string, and under image, where a value that is such a data URL, with or without one final line break, is one rule (b) token replaced whole, with its media type and size both ways. A percent-encoded data URL glued after a plain one is a token of its own.'
+      input: '[{"type":"text","text":"data:image/png;name=metadata%3Av1.png;base64,QUFBQUFBQUFBQUFB"},{"type":"image","image":"data:image/png;name=metadata%3Av1.png;base64,iVBORw0KGgo="},{"type":"image","image":"data:image/png;name=metadata%3Av1.png;base64,iVBORw0KGgo=\n"},{"type":"image","image":"data:xdata%3A;base64,QUFB"},{"type":"text","text":"data:a/b;base64,QUFBdata%3Aa%2Fb%3Bbase64%2CQkJD"}]'
+      output: '[{"type":"text","text":"[stripped image/png 12 bytes]"},{"type":"image","image":"[stripped image/png 8 bytes]"},{"type":"image","image":"[stripped image/png 8 bytes]"},{"type":"image","image":"[stripped unknown 3 bytes]"},{"type":"text","text":"[stripped a/b 3 bytes][stripped a/b 3 bytes]"}]'
+      tokens:
+        - {rule: b, mime: image/png, byte_size: 12}
+        - {rule: b, mime: image/png, byte_size: 8}
+        - {rule: b, mime: image/png, byte_size: 8}
+        - {rule: b, mime: unknown, byte_size: 3}
+        - {rule: b, mime: a/b, byte_size: 3}
+        - {rule: b, mime: a/b, byte_size: 3}
+    - name: a_plain_data_url_whose_header_holds_data_percent_3a_in_json_that_does_not_parse
+      note: 'In JSON that does not parse, escaped_pattern is cut the same way: a header that holds data%3A keeps its wrapped run, sized over the escaped line break, and a run stops before a data%3A on its next line, so the escaped line break between them stays.'
+      input: '{"a":"data:image/png;name=metadata%3Av1.png;base64,QUFB\nQkJD","b":"data:a/b;base64,QUFB\ndata%3Aa%2Fb%3Bbase64%2CQkJD","c":"cut'
+      output: '{"a":"[stripped image/png 6 bytes]","b":"[stripped a/b 3 bytes]\n[stripped a/b 3 bytes]","c":"cut'
+      tokens:
+        - {rule: b, mime: image/png, byte_size: 6}
+        - {rule: b, mime: a/b, byte_size: 3}
+        - {rule: b, mime: a/b, byte_size: 3}
     - name: a_base64_data_url_that_ends_in_one_line_break_under_a_url_key
       note: 'base64.encodebytes ends its output with a newline. Under a key that keeps URLs, a value that is one data URL and one final line break (a newline, or a carriage return and newline) is one rule (b) token, replaced whole with the line break, so it gets its mime type and size: under image, tagged data, a wrapped run and a string in an array under image alike. Two final line breaks are no such value, so that one is a rule (e) token. A plain data beside mediaType keeps no URLs, so it stays rule (e). Outside such a key rule (b) replaces the data URL alone and the line break stays.'
       input: '[{"type":"image","image":"data:image/png;base64,iVBORw0KGgo=\n"},{"type":"image","image":{"type":"data","data":"data:image/png;base64,iVBORw0KGgo=\r\n"}},{"type":"image","image":"data:image/png;base64,AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4\nOTo7\n"},{"type":"image","image":["data:image/png;base64,iVBORw0KGgo=\n"]},{"type":"image","image":"data:image/png;base64,iVBORw0KGgo=\n\n"},{"type":"file","data":"data:image/png;base64,iVBORw0KGgo=\n","mediaType":"image/png"},{"type":"image_url","image_url":{"url":"data:image/png;base64,iVBORw0KGgo=\n"}}]'

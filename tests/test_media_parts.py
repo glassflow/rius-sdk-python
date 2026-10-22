@@ -1216,6 +1216,12 @@ def test_a_native_uri_keeps_the_modality_it_has() -> None:
             '[{"type":"blob","modality":"image","mime_type":"image/png","byte_size":3,'
             '"stripped_reason":"not_captured"}]',
         ),
+        # ...but not one whose header holds data%3A, which rule (b) cuts there.
+        (
+            {"type": "uri", "uri": "data%3Aimage%2Fpng%3Bx%3Ddata%3Ab%3Bbase64%2CQUFB"},
+            '[{"type":"blob","modality":"image","mime_type":"image/png",'
+            '"stripped_reason":"not_captured"}]',
+        ),
         # A link holding one stays a uri.
         (
             {"type": "uri", "uri": "https://e/?u=data%3Aimage%2Fpng%3Bbase64%2CQUFB"},
