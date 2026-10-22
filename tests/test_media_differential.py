@@ -14,6 +14,7 @@ from __future__ import annotations
 import base64
 import json
 import random
+import re
 from typing import Any
 
 import pytest
@@ -51,7 +52,7 @@ def plain_base64_size(value: str) -> int | None:
 
 
 def plain_run_size(run: str) -> int | None:
-    return plain_base64_size(run.replace(">", ""))
+    return plain_base64_size(re.sub(r"\\r{0,1}\\{0,1}n", "", run).replace(">", ""))
 
 
 def plain_bounded_dumps(value: Any) -> str:
