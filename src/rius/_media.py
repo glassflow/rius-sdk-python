@@ -349,22 +349,45 @@ def _url_keys(members: Members, parent_key: str | None, holder: Members | None) 
     return frozenset(t.key for t in _typed_keys(members, parent_key, holder) if t.keeps_urls)
 
 
+def _next_start(starts: list[int], after: int, end: int) -> int:
+    """The first of the sorted ``starts`` past ``after``, else ``end``."""
+    i = bisect.bisect_right(starts, after)
+    return starts[i] if i < len(starts) else end
+
+
 def _data_url_matches(text: str, escaped: bool = False) -> Iterator[re.Match[str]]:
-    """Rule (b)'s matches in ``text``: the text is cut before each ``data:``
-    and each ``data%3A`` (in any ASCII case), and the pattern is tried at the
-    start of each piece, never past its end, so a run that goes on over a line
-    break never takes the start of the next data URL: ``DATA_URL_PATTERN`` at
-    a ``data:``, ``PERCENT_DATA_URL_PATTERN`` at a ``data%3A``. ``escaped``,
-    for the text of a JSON candidate that does not parse, tries
-    ``ESCAPED_DATA_URL_PATTERN`` in place of ``DATA_URL_PATTERN``."""
+    """Rule (b)'s matches in ``text``, in order. ``DATA_URL_PATTERN`` is tried
+    at each ``data:`` (in any ASCII case) and never past the next ``data:``,
+    so a run that goes on over a line break never takes the start of the next
+    data URL; its run (group 3), but not its header, also stops before the
+    next ``data%3A``, so a percent-encoded data URL glued after it is a token
+    of its own. ``PERCENT_DATA_URL_PATTERN`` is tried at each ``data%3A`` and
+    never past the next ``data:`` or ``data%3A``, except at a ``data%3A``
+    inside a plain match, which can only be in its header: a plain data URL
+    whose header holds ``data%3A`` is one token. ``escaped``, for the text of
+    a JSON candidate that does not parse, tries ``ESCAPED_DATA_URL_PATTERN``
+    in place of ``DATA_URL_PATTERN``."""
     plain = ESCAPED_DATA_URL_PATTERN if escaped else DATA_URL_PATTERN
-    starts = sorted(
-        [match.start() for match in _DATA_ANYWHERE.finditer(text)]
-        + [match.start() for match in PERCENT_SCHEME.finditer(text)]
-    )
-    for start, end in zip(starts, [*starts[1:], len(text)], strict=False):
-        pattern = plain if text[start + 4] == ":" else PERCENT_DATA_URL_PATTERN
-        match = pattern.match(text, start, end)
+    plains = [match.start() for match in _DATA_ANYWHERE.finditer(text)]
+    percents = [match.start() for match in PERCENT_SCHEME.finditer(text)]
+    starts = sorted(plains + percents)
+    covered = 0
+    for start in starts:
+        if text[start + 4] == ":":
+            match = plain.match(text, start, _next_start(plains, start, len(text)))
+            if match is not None:
+                # The first data%3A at or after the run's start: the run stops there.
+                cut = _next_start(percents, match.start(3) - 1, len(text))
+                if cut < match.end():
+                    match = plain.match(text, start, cut)
+            if match is not None:
+                covered = match.end()
+        elif start < covered:
+            continue
+        else:
+            match = PERCENT_DATA_URL_PATTERN.match(
+                text, start, _next_start(starts, start, len(text))
+            )
         if match is not None:
             yield match
 
@@ -393,19 +416,22 @@ def _match_token(match: re.Match[str]) -> tuple[str | None, int | None]:
 
 
 def whole_data_url(value: str, line_break: bool = False) -> re.Match[str] | None:
-    """Rule (b)'s match when it is the whole string: anchored at the start
-    (``PERCENT_DATA_URL_PATTERN`` for a value that starts with ``data%3A``),
-    ending at the end. What ``fullmatch`` says, as the run's greedy match
-    reaches furthest, but fast when a long value fails. With ``line_break``,
-    the match may also end one final line break before the end, and a
-    percent-encoded one also one final ``%0A`` or ``%0D%0A``."""
-    percent = PERCENT_SCHEME.match(value) is not None
-    match = (PERCENT_DATA_URL_PATTERN if percent else DATA_URL_PATTERN).match(value)
-    if match is None:
+    """Rule (b)'s match when it is the whole string: the first match
+    ``_data_url_matches`` finds, when it starts at the start and ends at the
+    end, so with the same cuts as everywhere rule (b) runs, and a whole value
+    is one rule (b) replaces whole. What ``fullmatch`` says, as the run's
+    greedy match reaches furthest, but fast when a long value fails. With
+    ``line_break``, the match may also end one final line break before the
+    end, and a percent-encoded one also one final ``%0A`` or ``%0D%0A``."""
+    if _DATA_ANYWHERE.match(value) is None and PERCENT_SCHEME.match(value) is None:
+        return None
+    match = next(_data_url_matches(value), None)
+    if match is None or match.start() != 0:
         return None
     rest = value[match.end() :]
     if not rest:
         return match
+    percent = match.group(0)[4] != ":"
     breaks = FINAL_LINE_BREAKS + (PERCENT_FINAL_LINE_BREAKS if percent else ())
     return match if line_break and rest.upper() in breaks else None
 

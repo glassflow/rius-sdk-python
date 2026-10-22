@@ -320,12 +320,60 @@ def test_a_percent_encoded_data_url_is_one_token(text: str, mime: str | None, si
         ("data%253Aa%3Bbase64%2CQUFB", None),
         ("data%3Aa%3Bbase64%2cQUFB", "data%3Aa%3Bbase64%2cQUFB"),
         ("data%3Aa%3BBASE64%2CQUFB", None),
-        # The uniform cut: a plain header holding data%3A is no token.
-        ("data:xdata%3A;base64,QUFB", None),
+        # A plain header holding data%3A is one plain token.
+        ("data:xdata%3A;base64,QUFB", "data:xdata%3A;base64,QUFB"),
     ],
 )
 def test_a_percent_encoded_data_url_ends_where_its_run_does(text: str, token: str | None) -> None:
     assert [t[0] for t in _tokens(text)][:1] == ([token] if token else [])
+
+
+@pytest.mark.parametrize(
+    ("text", "tokens"),
+    [
+        # A plain header that holds data%3A, in either case, is one token.
+        (
+            "data:image/png;name=metadata%3Av1.png;base64,QUFB",
+            ["data:image/png;name=metadata%3Av1.png;base64,QUFB"],
+        ),
+        ("data:xdata%3a;base64,QUFB", ["data:xdata%3a;base64,QUFB"]),
+        (
+            "data:x;p=data%3Aa%2Fb%3Bbase64%2CQkJD;base64,QUFB",
+            ["data:x;p=data%3Aa%2Fb%3Bbase64%2CQkJD;base64,QUFB"],
+        ),
+        # A plain run stops before a data%3A glued to it, which is its own token.
+        (
+            "data:a/b;base64,QUFBdata%3Aa%2Fb%3Bbase64%2CQkJD",
+            ["data:a/b;base64,QUFB", "data%3Aa%2Fb%3Bbase64%2CQkJD"],
+        ),
+        (
+            "data:a/b;base64,QUFB\ndata%3Aa%2Fb%3Bbase64%2CQkJD",
+            ["data:a/b;base64,QUFB", "data%3Aa%2Fb%3Bbase64%2CQkJD"],
+        ),
+        # A percent header that holds data%3A is still cut there.
+        ("data%3Aa%3Bx%3Ddata%3Ab%3Bbase64%2CQUFB", ["data%3Ab%3Bbase64%2CQUFB"]),
+        # A plain header that holds data%3A, then no ;base64,: the data%3A is tried.
+        ("data:x;n=data%3Aa%2Fb%3Bbase64%2CQUFB", ["data%3Aa%2Fb%3Bbase64%2CQUFB"]),
+    ],
+)
+def test_a_plain_data_url_is_cut_only_at_the_next_data_colon(text: str, tokens: list[str]) -> None:
+    for escaped in (False, True):
+        assert [t[0] for t in _tokens(text, escaped=escaped)] == tokens
+
+
+@pytest.mark.parametrize(
+    ("value", "whole"),
+    [
+        ("data:image/png;name=metadata%3Av1.png;base64,iVBORw0KGgo=", True),
+        ("data:image/png;name=metadata%3Av1.png;base64,iVBORw0KGgo=\n", True),
+        ("data:a/b;base64,QUFBdata%3Aa%2Fb%3Bbase64%2CQkJD", False),
+        ("data%3Aa%3Bx%3Ddata%3Ab%3Bbase64%2CQUFB", False),
+        ("data%3Aa%3Bx%3Ddata%3Ab%3Bbase64%2CQUFB%0A", False),
+    ],
+)
+def test_a_whole_value_is_cut_as_rule_b_cuts_it(value: str, whole: bool) -> None:
+    assert (_media.whole_data_url(value, line_break=True) is not None) == whole
+    assert _media._kept_url(value) == whole
 
 
 @pytest.mark.parametrize(
@@ -416,9 +464,16 @@ NEAR_MATCHES = {
     "percent_escaped_run": "data%3Aa%2Fb%3Bbase64%2C" + "%2B" * 13_000 + "!",
     "percent_line_breaks": "data%3Aa%2Fb%3Bbase64%2C" + "A%0D%0A" * 6_000 + "!",
     "percent_wrapped_tokens": "data%3Aa%2Fb%3Bbase64%2CQUFB%0A" * 1_500,
+    "plain_header_of_percent_schemes": "data:x" + "data%3A" * 6_000,
+    "plain_headers_holding_percent_tokens": "data:x;n=data%3Aa%3Bbase64%2CQUFB;base64,QUFB" * 1_000,
+    "plain_runs_glued_to_percent_tokens": "data:a;base64,QUFBdata%3Aa%3Bbase64%2CQkJD" * 1_000,
 }
 #: The near matches that hold no token; the others are all tokens.
-NO_TOKENS = {"percent_schemes", "percent_headers_with_no_comma"}
+NO_TOKENS = {
+    "percent_schemes",
+    "percent_headers_with_no_comma",
+    "plain_header_of_percent_schemes",
+}
 
 
 @pytest.mark.parametrize("name", NEAR_MATCHES)
