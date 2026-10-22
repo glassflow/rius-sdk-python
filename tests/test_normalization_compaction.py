@@ -21,7 +21,7 @@ from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from rius import init
+from rius import init, mark_compaction
 from rius import normalization as normalization_module
 from rius._provider_compaction import compactions_in_response
 from rius._serde import MAX_ATTR_CHARS, TRUNCATION_MARKER
@@ -820,6 +820,66 @@ def test_real_openai_call_after_the_compact_endpoint_is_flagged_once(
     assert [span.name for span in spans] == ["CompactedResponse", "Response", "Response"]
     assert [(s.attributes or {}).get(GEN_AI_CONVERSATION_COMPACTED) for s in spans] == [
         None,
+        True,
+        None,
+    ]
+
+
+@pytest.mark.integration
+def test_real_anthropic_call_after_mark_compaction_is_flagged_once(
+    anthropic_instrumentor: Any,
+) -> None:
+    # The flag is set when the instrumentor's span starts, so it depends on
+    # the provider SDK still reaching the instrumentor's wrapper on create().
+    anthropic = pytest.importorskip("anthropic")
+    server = _Provider({"/v1/messages": _anthropic_body()})
+    inner = InMemorySpanExporter()
+    client = init(span_exporter=inner, set_global=False, instruments=["anthropic"])
+    try:
+        messages = anthropic.Anthropic(api_key="test-key", base_url=server.url).messages
+        mark_compaction()
+        for _ in range(2):
+            messages.create(
+                model="claude-sonnet-5",
+                max_tokens=5,
+                messages=[{"role": "user", "content": "hi"}],
+            )
+        client.flush()
+    finally:
+        client.shutdown()
+        server.close()
+
+    calls = sorted(
+        (s for s in _spans(inner) if s.name != "compaction"), key=lambda s: s.start_time or 0
+    )
+    assert [(s.attributes or {}).get(GEN_AI_CONVERSATION_COMPACTED) for s in calls] == [
+        True,
+        None,
+    ]
+
+
+@pytest.mark.integration
+def test_real_openai_call_after_mark_compaction_is_flagged_once(
+    openai_instrumentor: Any,
+) -> None:
+    openai = pytest.importorskip("openai")
+    server = _Provider({"/v1/responses": json.loads(_openai([_text_item()]))})
+    inner = InMemorySpanExporter()
+    client = init(span_exporter=inner, set_global=False, instruments=["openai"])
+    try:
+        oai = openai.OpenAI(api_key="test-key", base_url=f"{server.url}/v1")
+        mark_compaction()
+        oai.responses.create(model="gpt-5", input="hi")
+        oai.responses.create(model="gpt-5", input="hi")
+        client.flush()
+    finally:
+        client.shutdown()
+        server.close()
+
+    calls = sorted(
+        (s for s in _spans(inner) if s.name != "compaction"), key=lambda s: s.start_time or 0
+    )
+    assert [(s.attributes or {}).get(GEN_AI_CONVERSATION_COMPACTED) for s in calls] == [
         True,
         None,
     ]

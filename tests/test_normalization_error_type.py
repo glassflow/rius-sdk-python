@@ -178,3 +178,108 @@ def test_an_auto_instrumented_failure_through_init_carries_error_type(
         client.shutdown()
     assert span.status.status_code is StatusCode.ERROR
     assert (span.attributes or {})[ERROR_TYPE] == "KeyError"
+
+
+class _NotFound:
+    """A local provider that answers every request 404 with the given error body."""
+
+    def __init__(self, body: dict[str, Any]) -> None:
+        import http.server
+        import json
+        import threading
+
+        encoded = json.dumps(body).encode()
+
+        class _Handler(http.server.BaseHTTPRequestHandler):
+            def do_POST(self) -> None:  # noqa: N802 (http.server API)
+                self.rfile.read(int(self.headers.get("Content-Length", 0)))
+                self.send_response(404)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(encoded)))
+                self.end_headers()
+                self.wfile.write(encoded)
+
+            def log_message(self, format: str, *args: Any) -> None:  # noqa: A002
+                pass
+
+        self._server = http.server.HTTPServer(("127.0.0.1", 0), _Handler)
+        threading.Thread(target=self._server.serve_forever, daemon=True).start()
+        self.url = f"http://127.0.0.1:{self._server.server_port}"
+
+    def close(self) -> None:
+        self._server.shutdown()
+        self._server.server_close()
+
+
+def _anthropic_404(url: str) -> None:
+    anthropic = pytest.importorskip("anthropic")
+    anthropic.Anthropic(api_key="test-key", base_url=url, max_retries=0).messages.create(
+        model="claude-nope", max_tokens=5, messages=[{"role": "user", "content": "hi"}]
+    )
+
+
+_INSTRUMENTOR = {"anthropic": "AnthropicInstrumentor", "openai": "OpenAIInstrumentor"}
+
+
+def _openai_404(url: str) -> None:
+    openai = pytest.importorskip("openai")
+    openai.OpenAI(api_key="test-key", base_url=f"{url}/v1", max_retries=0).chat.completions.create(
+        model="gpt-nope", messages=[{"role": "user", "content": "hi"}]
+    )
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("provider", "body", "call"),
+    [
+        (
+            "anthropic",
+            {"type": "error", "error": {"type": "not_found_error", "message": "model: nope"}},
+            _anthropic_404,
+        ),
+        (
+            "openai",
+            {
+                "error": {
+                    "message": "The model `gpt-nope` does not exist",
+                    "type": "invalid_request_error",
+                    "code": "model_not_found",
+                }
+            },
+            _openai_404,
+        ),
+    ],
+)
+def test_a_real_provider_404_names_the_sdk_exception_class_not_the_error_body(
+    provider: str, body: dict[str, Any], call: Any
+) -> None:
+    # The provider's error body carries its own `type` (not_found_error,
+    # invalid_request_error); error.type must be the SDK's exception class,
+    # which is what the exception event spells.
+    sdk = pytest.importorskip(provider)
+    oi = pytest.importorskip(f"openinference.instrumentation.{provider}")
+    instrumentor = getattr(oi, _INSTRUMENTOR[provider])()
+    if instrumentor.is_instrumented_by_opentelemetry:
+        instrumentor.uninstrument()
+    server = _NotFound(body)
+    collected = InMemorySpanExporter()
+    client = init(span_exporter=collected, set_global=False, instruments=[provider])
+    try:
+        with pytest.raises(sdk.NotFoundError) as raised:
+            call(server.url)
+        client.flush()
+        (span,) = collected.get_finished_spans()
+    finally:
+        client.shutdown()
+        server.close()
+        if instrumentor.is_instrumented_by_opentelemetry:
+            instrumentor.uninstrument()
+
+    cls = type(raised.value)
+    assert span.status.status_code is StatusCode.ERROR
+    (event,) = [e for e in span.events if e.name == EXCEPTION_EVENT]
+    attributes = span.attributes or {}
+    assert attributes[ERROR_TYPE] == (event.attributes or {})[EXCEPTION_TYPE]
+    # Module-qualified on current OpenTelemetry, the bare name on the 1.24 floor.
+    assert attributes[ERROR_TYPE] in (f"{cls.__module__}.{cls.__qualname__}", cls.__name__)
+    assert cls.__name__ == "NotFoundError"
