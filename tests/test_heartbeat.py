@@ -398,6 +398,8 @@ def test_atexit_sends_stopped_ping_from_real_process() -> None:
             "RIUS_ENDPOINT": f"http://127.0.0.1:{server.server_port}",
             "RIUS_HEARTBEAT": "1",  # overrides the conftest guard in os.environ
             "RIUS_SERVICE_NAME": "atexit-agent",
+            # The default transport only pings with credentials.
+            "RIUS_API_KEY": "k",
         }
         # init() then exit normally WITHOUT calling shutdown(): the atexit
         # hook alone must produce the stopped ping.
@@ -478,3 +480,109 @@ def test_stopped_senders_leave_the_fork_registry() -> None:
     assert len(_active_senders) == before + 1
     sender.stop()
     assert len(_active_senders) == before
+
+
+# ---------------------------------------------------------------------------
+# No credentials, no heartbeat
+# ---------------------------------------------------------------------------
+# The managed endpoint rejects an unauthenticated ping, so the default
+# transport would only fail every interval. An injected transport knows its
+# own destination and still runs.
+
+
+def test_no_api_key_starts_no_heartbeat(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("RIUS_HEARTBEAT", raising=False)
+    monkeypatch.delenv("RIUS_API_KEY", raising=False)
+    client = init(
+        set_global=False,
+        service_name="svc",
+        endpoint="http://127.0.0.1:1",
+        span_exporter=InMemorySpanExporter(),
+    )
+    try:
+        assert client._heartbeat is None  # noqa: SLF001
+    finally:
+        client.shutdown()
+
+
+def test_a_heartbeat_skipped_for_lack_of_credentials_logs_why(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.delenv("RIUS_HEARTBEAT", raising=False)
+    monkeypatch.delenv("RIUS_API_KEY", raising=False)
+    with caplog.at_level(logging.DEBUG, logger="rius.client"):
+        client = init(
+            set_global=False,
+            service_name="svc",
+            endpoint="http://127.0.0.1:1",
+            span_exporter=InMemorySpanExporter(),
+        )
+    client.shutdown()
+    assert any(
+        r.levelno == logging.DEBUG and "heartbeat" in r.getMessage().lower() for r in caplog.records
+    )
+
+
+def test_a_disabled_heartbeat_logs_no_credentials_message(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.delenv("RIUS_API_KEY", raising=False)
+    with caplog.at_level(logging.DEBUG, logger="rius.client"):
+        client = init(
+            set_global=False,
+            service_name="svc",
+            heartbeat=False,
+            endpoint="http://127.0.0.1:1",
+            span_exporter=InMemorySpanExporter(),
+        )
+    client.shutdown()
+    assert not any("credentials" in r.getMessage() for r in caplog.records)
+
+
+def test_an_api_key_starts_the_heartbeat(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("RIUS_HEARTBEAT", raising=False)
+    client = init(
+        set_global=False,
+        service_name="svc",
+        api_key="k",
+        endpoint="http://127.0.0.1:1",
+        span_exporter=InMemorySpanExporter(),
+    )
+    try:
+        assert client._heartbeat is not None  # noqa: SLF001
+    finally:
+        client.shutdown()
+
+
+def test_an_explicit_authorization_header_starts_the_heartbeat(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("RIUS_HEARTBEAT", raising=False)
+    monkeypatch.delenv("RIUS_API_KEY", raising=False)
+    client = init(
+        set_global=False,
+        service_name="svc",
+        headers={"authorization": "Bearer custom"},
+        endpoint="http://127.0.0.1:1",
+        span_exporter=InMemorySpanExporter(),
+    )
+    try:
+        assert client._heartbeat is not None  # noqa: SLF001
+    finally:
+        client.shutdown()
+
+
+def test_an_injected_transport_heartbeats_without_an_api_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("RIUS_API_KEY", raising=False)
+    sent: list[dict[str, Any]] = []
+    client = init(
+        set_global=False,
+        service_name="svc",
+        heartbeat=True,
+        heartbeat_transport=sent.append,
+        span_exporter=InMemorySpanExporter(),
+    )
+    client.shutdown()
+    assert sent

@@ -1075,3 +1075,42 @@ def test_a_non_finite_number_fails_a_numeric_guard(
     attrs = _params(exported_spans, **{spelling: value})
     assert f"gen_ai.request.{spelling}" not in attrs
     assert f"rius.request.{spelling}" in attrs
+
+
+# --- a single message dict is one message, never iterated ---
+
+
+def test_set_output_with_a_single_message_dict_records_one_message(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    """A lone ``{"role", "content"}`` dict is one message. Iterating it walked
+    its KEYS, recording messages whose text was "role" and "content"."""
+    from rius import start_generation
+
+    gen = start_generation("chat", model="gpt-4o", provider="openai")
+    gen.set_output({"role": "assistant", "content": "hello"})
+    gen.end()
+
+    attrs = exported_spans.get_finished_spans()[0].attributes
+    assert json.loads(attrs["gen_ai.output.messages"]) == [
+        {"role": "assistant", "parts": [{"type": "text", "content": "hello"}]}
+    ]
+    sizes = json.loads(attrs["rius.context.sizes"])
+    assert sizes["output_messages"] == [
+        {"role": "assistant", "parts": [{"type": "text", "bytes": len(b"hello")}]}
+    ]
+
+
+def test_set_input_with_a_single_message_dict_records_one_message(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    from rius import start_generation
+
+    gen = start_generation("chat", model="gpt-4o", provider="openai")
+    gen.set_input({"role": "user", "content": "hi"})
+    gen.end()
+
+    attrs = exported_spans.get_finished_spans()[0].attributes
+    assert json.loads(attrs["gen_ai.input.messages"]) == [
+        {"role": "user", "parts": [{"type": "text", "content": "hi"}]}
+    ]

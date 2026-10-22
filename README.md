@@ -118,7 +118,11 @@ keep their old behaviour through their deprecation window
 which has no upstream twin, carries the optional agent version.
 `gen_ai.agent.name` is still stamped alongside them, unchanged: the keys are
 additive so that no deployment loses its agent identity between an SDK upgrade
-and a backend one.
+and a backend one. It is omitted on the `unknown_service` placeholder too.
+
+Boolean environment variables accept `1`/`true`/`yes`/`on` and
+`0`/`false`/`no`/`off` (case-insensitive). Any other value, including an empty
+one, keeps the default and logs a warning on the `rius.config` logger.
 
 `mask` is a code-only option (no env var): pass a callable to `init(mask=...)` and
 it is applied to every content attribute value at export, across our spans and any

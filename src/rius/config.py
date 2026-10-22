@@ -54,13 +54,31 @@ PARTIAL_SPANS_DELAY_MIN = 0.0
 PARTIAL_SPANS_DELAY_MAX = 60.0
 
 _TRUENESS = frozenset({"1", "true", "yes", "on"})
+_FALSENESS = frozenset({"0", "false", "no", "off"})
 
 
 def _env_bool(name: str, *, default: bool) -> bool:
+    """A boolean env var; an unrecognised value (including empty) keeps ``default``.
+
+    Reading anything outside the accepted spellings as false would silently
+    turn off a default-on flag such as content capture or the heartbeat.
+    """
     raw = os.getenv(name)
     if raw is None:
         return default
-    return raw.strip().lower() in _TRUENESS
+    value = raw.strip().lower()
+    if value in _TRUENESS:
+        return True
+    if value in _FALSENESS:
+        return False
+    logger.warning(
+        "%s=%r is not a recognised boolean; using the default (%s). "
+        "Accepted: 1/true/yes/on, 0/false/no/off.",
+        name,
+        raw,
+        default,
+    )
+    return default
 
 
 def _env_float(name: str, *, default: float) -> float:

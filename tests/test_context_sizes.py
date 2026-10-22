@@ -125,6 +125,15 @@ def test_roles_are_literal_strings() -> None:
     ]
 
 
+def test_a_none_role_is_reported_as_user() -> None:
+    normalized = normalize_messages([{"role": None, "content": "hi"}], "user")
+    # The message itself keeps the role it was given.
+    assert normalized[0]["role"] is None
+    sizes = json.loads(context_sizes(None, normalized, normalized))
+    assert [entry["role"] for entry in sizes["input_messages"]] == ["user"]
+    assert [entry["role"] for entry in sizes["output_messages"]] == ["user"]
+
+
 def test_text_part_is_utf8_byte_length_not_character_count() -> None:
     text = "状態を確認して 🚨"
     assert len(text) != len(text.encode())

@@ -349,6 +349,33 @@ def test_an_attribute_values_example_on_a_raw_opentelemetry_span(
     assert _exported(set_value) == example["output"]
 
 
+def _decode_array_strings(value: Any) -> Any:
+    """``value`` with every string that is an array's JSON decoded, at any depth."""
+    if isinstance(value, dict):
+        return {k: _decode_array_strings(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_decode_array_strings(v) for v in value]
+    if isinstance(value, str):
+        try:
+            decoded = json.loads(value)
+        except ValueError:
+            return value
+        if isinstance(decoded, list):
+            return _decode_array_strings(decoded)
+    return value
+
+
+def test_the_sdks_set_attribute_encodes_a_mixed_array_in_a_mapping_once(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    observation = start_span("s")
+    observation.set_attribute("payload", {"a": [b"x", 1]})
+    observation.end()
+    attributes = exported_spans.get_finished_spans()[0].attributes
+    assert attributes is not None
+    assert attributes["payload"] == '{"a":["[stripped unknown 1 bytes]",1]}'
+
+
 @pytest.mark.parametrize("example", PYTHON_ATTRIBUTE_VALUES, ids=lambda e: str(e["name"]))
 def test_an_attribute_values_example_through_the_sdks_set_attribute(
     example: dict[str, Any], exported_spans: InMemorySpanExporter
@@ -360,7 +387,17 @@ def test_an_attribute_values_example_through_the_sdks_set_attribute(
     observation.end()
     [finished] = exported_spans.get_finished_spans()
     assert finished.attributes is not None
-    assert _as_written(finished.attributes["payload"]) == example["output"]
+    written = finished.attributes["payload"]
+    if isinstance(example["output"], dict):
+        # The SDK's setter writes structure as JSON, as every other SDK path
+        # does, where a raw OpenTelemetry span holds the mapping: one JSON
+        # encoding, byte objects as markers. A raw span holds a mixed array in
+        # the mapping as that array's JSON; the setter's one encoding holds it
+        # as an array.
+        assert isinstance(written, str)
+        assert json.loads(written) == _decode_array_strings(example["output"])
+    else:
+        assert _as_written(written) == example["output"]
 
 
 def test_the_sdks_set_attribute_leaves_other_values_as_they_are(

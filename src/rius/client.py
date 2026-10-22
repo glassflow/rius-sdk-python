@@ -333,6 +333,9 @@ def init(
             (``RIUS_HEARTBEAT``; on by default, set False to opt out). Pings
             ``<endpoint>/v1/heartbeat`` from init until process exit so the
             platform can tell a live-but-idle agent from a vanished one.
+            Needs credentials (``api_key`` or an ``Authorization`` header):
+            without them it does not start, since the endpoint would reject
+            every ping. A ``heartbeat_transport`` runs regardless.
             Each ``init()`` mints one instance id, sent both in heartbeat
             payloads and on every span as the ``service.instance.id``
             resource attribute, so the platform can join the two and count
@@ -356,8 +359,9 @@ def init(
             duplication costs essentially nothing. The deprecated
             ``rius.main_agent.name`` carries the same value through its
             deprecation window. A process whose name resolves to the
-            ``unknown_service`` placeholder emits no main-agent name at all,
-            the same suppression the span helpers apply. It is ALSO the
+            ``unknown_service`` placeholder emits no agent name at all on the
+            resource (neither key), the same suppression the span helpers
+            apply. It is ALSO the
             ``gen_ai.main_agent.id`` when no ``main_agent_id`` is set, so
             renaming the agent changes that id.
         main_agent_id: Stable identifier of the agent this process IS
@@ -644,6 +648,7 @@ def _do_init(
     # one; deployments needing exact per-worker span identity should init()
     # after fork.
     instance_id = str(uuid.uuid4())
+    agent_name = _agent.named_agent(config.agent_name)
     # telemetry.sdk.* is reserved for the OTel SDK itself (Resource.create fills
     # it); we identify as a distribution via telemetry.distro.*.
     resource = Resource.create(
@@ -661,7 +666,10 @@ def _do_init(
             # already defaults it to the service name, so a process that sets
             # only a service name is unchanged; one that sets both no longer
             # has its spans grouped under a different name than its heartbeats.
-            GEN_AI_AGENT_NAME: config.agent_name,
+            # Omitted on the unknown_service placeholder, by the rule the main
+            # agent keys below follow: a process that named nothing claims no
+            # agent identity.
+            **({GEN_AI_AGENT_NAME: agent_name} if agent_name is not None else {}),
             # The SAME resolved name as gen_ai.main_agent.name (and, through
             # its deprecation window, rius.main_agent.name), the keys where the
             # process-level question belongs: gen_ai.agent.name has no
@@ -786,7 +794,20 @@ def _do_init(
     # traffic. The tracker rides the provider as a span processor so payloads
     # can carry the currently-open root trace ids; disabled kills it too.
     sender: HeartbeatSender | None = None
-    if config.heartbeat and not config.disabled:
+    # Without credentials the managed endpoint rejects every ping, so the
+    # default transport would only fail each interval. An injected transport
+    # knows its own destination and runs regardless.
+    can_authenticate = heartbeat_transport is not None or any(
+        key.lower() == "authorization" for key in config.headers
+    )
+    if config.heartbeat and not config.disabled and not can_authenticate:
+        # Silent otherwise: auth supplied only through OTEL_EXPORTER_OTLP_HEADERS
+        # reaches the exporter but not this check.
+        logger.debug(
+            "rius heartbeat not started: no credentials (set api_key or an "
+            "Authorization header in headers)"
+        )
+    if config.heartbeat and not config.disabled and can_authenticate:
         tracker = OpenRootSpanTracker()
         pipeline.add_span_processor(tracker)
         sender = HeartbeatSender(

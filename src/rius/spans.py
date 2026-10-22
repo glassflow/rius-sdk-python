@@ -15,7 +15,7 @@ equivalents.
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from contextlib import contextmanager, nullcontext
 from typing import Any
 
@@ -27,11 +27,10 @@ from ._agent import (
     invoked_agent_name,
     resolve_agent_name,
 )
-from ._errors import error_type, record_error
+from ._errors import record_error
 from ._serde import attribute_value, serialize, text_value
 from ._tracer import sdk_tracer
 from .semconv import (
-    ERROR_TYPE,
     GEN_AI_RETRIEVAL_DOCUMENTS,
     INPUT_VALUE,
     OUTPUT_VALUE,
@@ -42,6 +41,17 @@ from .semconv import (
     otel_span_kind,
 )
 from .user import user
+
+
+def _structured(value: Any) -> bool:
+    """Whether ``value`` is a mapping or an array holding one.
+
+    OpenTelemetry would export either as an OTLP kvlist (or drop the array as
+    inhomogeneous); everywhere else the SDK writes structure as JSON.
+    """
+    if isinstance(value, Mapping):
+        return True
+    return isinstance(value, (list, tuple)) and any(_structured(item) for item in value)
 
 
 class Observation:
@@ -100,11 +110,19 @@ class Observation:
 
         Args:
             key: Attribute name.
-            value: An OpenTelemetry-compatible attribute value. A bytes,
+            value: An OpenTelemetry-compatible attribute value. A mapping, or
+                an array holding one, is recorded as its JSON string, the way
+                every other structured value this SDK writes is. A bytes,
                 bytearray or memoryview in it, at any depth, is recorded as
                 ``[stripped unknown <N> bytes]``, never its content.
         """
-        self._span.set_attribute(key, attribute_value(value))
+        # Structure is serialized once from the raw value (serialize writes a
+        # byte object as its marker); converting first would turn a mixed
+        # array into its JSON string and encode it a second time.
+        if _structured(value):
+            self._span.set_attribute(key, serialize(value))
+        else:
+            self._span.set_attribute(key, attribute_value(value))
 
     def update(self, *, input: Any = None, output: Any = None) -> None:
         """Record input and/or output in one call.
@@ -397,17 +415,20 @@ def start_as_current_span(
             span_name,
             kind=otel_span_kind(kind),
             attributes=attributes,
+            # Recorded below through record_error, the one spelling every
+            # helper shares (the bare message as the status description).
+            record_exception=False,
+            set_status_on_exception=False,
         ) as span,
     ):
         observation = Observation(span)
         _configure(observation, input)
         try:
             yield observation
-        except BaseException as exc:
-            # The OTel context manager above records the exception event and
-            # ERROR status as the block unwinds; error.type is the one thing
-            # it does not set, and the GenAI conventions require it on a span
-            # that ends in an error. Set it before re-raising so the event and
-            # this attribute land on the same span.
-            span.set_attribute(ERROR_TYPE, error_type(exc))
+        except Exception as exc:
+            # Only an Exception is a failure. Cancellation, KeyboardInterrupt
+            # and SystemExit unwind through here unrecorded (UNSET, no event,
+            # no error.type), as they do through @observe and as OTel's own
+            # context manager treats them.
+            record_error(span, exc)
             raise
