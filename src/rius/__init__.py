@@ -3,6 +3,7 @@
 __version__ = "1.4.0"  # x-release-please-version
 
 from .client import GlassflowClient, build_span_exporter, get_tracer, init, register_workspace
+from .compaction import mark_compaction
 from .config import GlassflowConfig, resolve_config
 from .export_health import ProbeTransport
 from .generation import Generation, start_as_current_generation, start_generation
@@ -24,6 +25,7 @@ __all__ = [
     "build_span_exporter",
     "get_tracer",
     "init",
+    "mark_compaction",
     "observe",
     "register_workspace",
     "resolve_config",

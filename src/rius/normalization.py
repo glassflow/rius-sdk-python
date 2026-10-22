@@ -114,12 +114,16 @@ from ._media import (
     rebuild_native_parts,
     url_part,
 )
+from ._provider_compaction import ProviderCompactions, compactions_in_response
+from ._provider_response import response_json
 from ._serde import attribute_value, serialize, strip_within_budget
 from .aggregated_usage import WrappedCallTracker, move_aggregated_usage
+from .compaction import CompactedContextProcessor
 from .semconv import (
     ERROR_TYPE,
     EXCEPTION_EVENT,
     EXCEPTION_TYPE,
+    GEN_AI_CONVERSATION_COMPACTED,
     GEN_AI_INPUT_MESSAGES,
     GEN_AI_OPERATION_NAME,
     GEN_AI_OUTPUT_MESSAGES,
@@ -159,7 +163,7 @@ from .semconv import (
     INVOCATION_PARAMETERS_CONTENT_MEMBERS,
     LLM_INVOCATION_PARAMETERS,
     OPENINFERENCE_SPAN_KIND,
-    OUTPUT_VALUE,
+    RIUS_COMPACTION_EVENT,
     RIUS_REQUEST_TOOL_CHOICE,
     SpanKind,
     kind_for_operation,
@@ -905,12 +909,6 @@ def reassemble_openinference_messages(
     return rebuilt
 
 
-#: OpenInference's declared type for ``output.value``, and its JSON value. Source
-#: spellings, like the ``llm.*`` keys: we read them and never emit them.
-_OUTPUT_MIME_TYPE = "output.mime_type"
-_JSON_MIME_TYPE = "application/json"
-
-
 def _sorted_deep(value: Any) -> Any:
     """``value`` with every object's keys sorted, at every depth."""
     if isinstance(value, dict):
@@ -1041,6 +1039,22 @@ def drop_embedding_vectors(attributes: Mapping[str, Any] | None) -> dict[str, An
     return rebuilt
 
 
+def _llm_response_json(attributes: Mapping[str, Any]) -> str | None:
+    """``output.value`` of an LLM span, when it can be the provider's JSON response object.
+
+    Only an LLM span qualifies, by the taxonomy (the kind the taxonomy rules
+    derive from either key), because a tool's or chain's ``output.value`` is
+    the user's data and its ``id`` is not a response id.
+
+    Hot path: every exported LLM span reaches here. The cheap checks all run
+    before any ``json.loads``, and a value that does not start with ``{`` is
+    never parsed.
+    """
+    if attributes.get(OPENINFERENCE_SPAN_KIND) != SpanKind.LLM.value:
+        return None
+    return response_json(attributes)
+
+
 def response_id_from_output_value(attributes: Mapping[str, Any] | None) -> dict[str, Any]:
     """``gen_ai.response.id`` for an LLM span, from the provider object in ``output.value``.
 
@@ -1052,16 +1066,8 @@ def response_id_from_output_value(attributes: Mapping[str, Any] | None) -> dict[
     ahead of masking, so the id survives capture-off. ``output.value`` itself
     is never modified or removed.
 
-    ``output.mime_type``, when present, must be ``application/json``.
-
-    Only an LLM span qualifies, by the taxonomy (the kind the taxonomy rules
-    derive from either key), because a tool's or chain's ``output.value`` is
-    the user's data and its ``id`` is not a response id. Native wins: a span
-    already carrying ``gen_ai.response.id`` is left alone.
-
-    Hot path: every exported LLM span reaches here. The cheap checks all run
-    before the one ``json.loads``, and a value that does not start with ``{``
-    is not parsed at all.
+    Only an LLM span qualifies (see :func:`_llm_response_json`). Native wins: a
+    span already carrying ``gen_ai.response.id`` is left alone.
 
     Streaming, as recorded from the real instrumentors: openai's
     ``stream=True`` serializes the ACCUMULATED completion, whose ``id`` is the
@@ -1072,17 +1078,8 @@ def response_id_from_output_value(attributes: Mapping[str, Any] | None) -> dict[
     """
     if not attributes or GEN_AI_RESPONSE_ID in attributes:
         return {}
-    if attributes.get(OPENINFERENCE_SPAN_KIND) != SpanKind.LLM.value:
-        return {}
-    # A declared type other than JSON means output.value is not the provider's
-    # response object: the JS instrumentors record a streamed reply's TEXT
-    # there as text/plain, and a JSON-mode reply's {"id": ...} is then the
-    # model's words. Exact match, as in the TypeScript SDK; an absent type is
-    # still taken.
-    if _OUTPUT_MIME_TYPE in attributes and attributes[_OUTPUT_MIME_TYPE] != _JSON_MIME_TYPE:
-        return {}
-    raw = attributes.get(OUTPUT_VALUE)
-    if not isinstance(raw, str) or not raw.startswith("{"):
+    raw = _llm_response_json(attributes)
+    if raw is None:
         return {}
     try:
         payload = json.loads(raw)
@@ -1094,6 +1091,25 @@ def response_id_from_output_value(attributes: Mapping[str, Any] | None) -> dict[
     if not isinstance(response_id, str) or not response_id:
         return {}
     return {GEN_AI_RESPONSE_ID: response_id}
+
+
+def compactions_from_output_value(attributes: Mapping[str, Any] | None) -> ProviderCompactions:
+    """The ``rius.compaction`` events an LLM span's response reports.
+
+    Anthropic's context editing and compaction blocks and OpenAI's compaction
+    items are in the provider object under ``output.value`` and nowhere else
+    (see :mod:`rius._provider_compaction`). Like the response id, they are read
+    in the exporter, ahead of masking, so a compaction survives capture-off;
+    the summary text is a content attribute on the event and masking handles it
+    there.
+
+    The gate is :func:`_llm_response_json`, and a value that cannot report a
+    compaction is not parsed at all.
+    """
+    raw = _llm_response_json(attributes) if attributes else None
+    if raw is None:
+        return ProviderCompactions([], False)
+    return compactions_in_response(raw)
 
 
 #: The message keys whose parts a normalizer builds (the contract's
@@ -1181,6 +1197,24 @@ def _stripped_events(span: ReadableSpan) -> tuple[Event, ...] | None:
     )
 
 
+def _compaction_events(
+    span: ReadableSpan, attributes: Mapping[str, Any] | None
+) -> tuple[list[Event], bool]:
+    """The ``rius.compaction`` events the span's response reports, and whether it is flagged.
+
+    Nothing for a span that already carries one: a producer that records its
+    own compaction is authoritative, and the same compaction is never reported
+    twice. Stamped at the end of the call, when the response that reported it
+    arrived.
+    """
+    found = compactions_from_output_value(attributes)
+    if not found.events or any(event.name == RIUS_COMPACTION_EVENT for event in span.events):
+        return [], False
+    timestamp = span.end_time if span.end_time is not None else span.start_time
+    events = [Event(RIUS_COMPACTION_EVENT, event, timestamp) for event in found.events]
+    return events, found.compacted_context
+
+
 def _stripped_links(span: ReadableSpan) -> tuple[Link, ...] | None:
     """The span's links with their attributes stripped, or None if unchanged."""
     links = tuple(span.links)
@@ -1206,12 +1240,19 @@ class NormalizingSpanExporter(SpanExporter):
         *,
         table: NormalizationTable | None = None,
         wrapped_calls: WrappedCallTracker | None = None,
+        compacted_context: CompactedContextProcessor | None = None,
     ) -> None:
         self._inner = inner
         self._table = table if table is not None else DEFAULT_TABLE
         # Fed by the same provider's processors; without it no wrapper's usage
         # moves (a span on its own cannot say whether it repeats a child's).
         self._wrapped_calls = wrapped_calls
+        # The same for a model call that was not known to be one when it
+        # started (see CompactedContextProcessor).
+        self._compacted_context = compacted_context
+
+    def _takes_mark(self, span: ReadableSpan) -> bool:
+        return self._compacted_context is not None and self._compacted_context.take(span)
 
     def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
         return self._inner.export([self._normalized(span) for span in spans])
@@ -1242,14 +1283,17 @@ class NormalizingSpanExporter(SpanExporter):
         )
         if vectorless is not None:
             new_attributes = vectorless
+        # On the rebuilt attributes, so the taxonomy the table derived
+        # decides whether this is an LLM span.
+        llm_attributes = span.attributes if new_attributes is None else new_attributes
+        compactions, compacted = _compaction_events(span, llm_attributes)
+        # Always asked, so a mark is consumed even when the response flags the span.
+        marked = self._takes_mark(span)
         event_attributes = {
             **first_chunk_from_event(span),
             **error_type_from_exception_event(span),
-            # On the rebuilt attributes, so the taxonomy the table derived
-            # decides whether this is an LLM span.
-            **response_id_from_output_value(
-                span.attributes if new_attributes is None else new_attributes
-            ),
+            **response_id_from_output_value(llm_attributes),
+            **({GEN_AI_CONVERSATION_COMPACTED: True} if compacted or marked else {}),
         }
         if event_attributes:
             # setdefault, not update: the event passes already skipped the
@@ -1280,6 +1324,8 @@ class NormalizingSpanExporter(SpanExporter):
         if stripped is not None:
             new_attributes = stripped
         events = _stripped_events(span)
+        if compactions:
+            events = (*(tuple(span.events) if events is None else events), *compactions)
         links = _stripped_links(span)
         if new_attributes is None and events is None and links is None:
             return span

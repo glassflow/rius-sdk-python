@@ -20,6 +20,7 @@ from opentelemetry.sdk.trace.sampling import ParentBased, Sampler, TraceIdRatioB
 
 from . import __version__, _agent, _tracer
 from .aggregated_usage import WrappedCallTracker
+from .compaction import CompactedContextProcessor
 from .config import DEFAULT_ENDPOINT, GlassflowConfig, resolve_config
 from .export_health import (
     ExportOutcomeExporter,
@@ -729,7 +730,10 @@ def _do_init(
         # Shared with the exporter: it learns, from end order, which wrapper
         # spans repeat a child's usage, and the exporter acts on it.
         wrapped_calls = WrappedCallTracker()
-        exporter = NormalizingSpanExporter(exporter, wrapped_calls=wrapped_calls)
+        compacted_context = CompactedContextProcessor()
+        exporter = NormalizingSpanExporter(
+            exporter, wrapped_calls=wrapped_calls, compacted_context=compacted_context
+        )
         exporter = ResourceAdoptingExporter(exporter, resource)
         # Outermost wrapper so it observes the outcome of the whole chain
         # (masking included); client.flush() reads it for honest delivery
@@ -747,6 +751,7 @@ def _do_init(
         # normalization is what lets a pending snapshot (built at on_start,
         # from the identity allowlist) carry canonical keys.
         pipeline.add_span_processor(NormalizingSpanProcessor())
+        pipeline.add_span_processor(compacted_context)
         pipeline.add_span_processor(wrapped_calls)
         pipeline.add_span_processor(SessionSpanProcessor(config.session_id))
         pipeline.add_span_processor(UserSpanProcessor())

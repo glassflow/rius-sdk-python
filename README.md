@@ -228,6 +228,54 @@ from opentelemetry.sdk.trace import SpanLimits, TracerProvider
 provider = TracerProvider(span_limits=SpanLimits(max_span_attributes=4096))
 ```
 
+## Compactions
+
+When an agent's history is shrunk, the trace says where. Each compaction is a
+`rius.compaction` event (or, for your own, a `compaction` span) carrying what
+it did, who did it (`provider` or `client`), and the token and message counts
+that are known. The model call that ran on the shrunk context is flagged
+`gen_ai.conversation.compacted`.
+
+Reported automatically, from the provider's response:
+
+- **Anthropic** context editing (`clear_tool_uses`, `clear_thinking`) and
+  server-side compaction blocks.
+- **OpenAI** `compaction` items in a Responses `output`. `truncation: "auto"`
+  reports nothing, because the response does not say what was cut. The
+  `/responses/compact` call is reported as the compaction it performed, with
+  the tokens it read; it is not flagged itself, since it ran on the full
+  context, and the model call that follows it is.
+
+For compaction your own code does, call `mark_compaction` once the history has
+been replaced:
+
+```python
+import rius
+
+rius.mark_compaction(
+    "summarize",
+    trigger="auto",
+    tokens_before=92_000,
+    tokens_after=11_000,
+    messages_compacted=48,
+    messages_kept=6,
+    summary=summary_text,
+)
+```
+
+It records the span under the current span (a root when there is none) and
+flags the next model call made in the same context, once, whenever it
+comes: the flag does not expire. A mark made in a child task or thread
+(`create_task`, `to_thread`, an executor, a graph node) is not seen by the code
+that started it; it reaches only copies of the context made after the call.
+`kind` is
+`"summarize"` (the default), `"clear_tool_results"`, `"clear_thinking"` or
+`"truncate"`, and `trigger` is `"auto"` or `"manual"`; anything else raises
+`ValueError`. Counts you do not know are left out.
+
+The summary is content: its size in bytes is always sent, and its text follows
+`capture_content` and `mask` like a prompt does.
+
 ## Reliability
 
 Export is designed to never block or crash your application:
