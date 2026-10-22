@@ -8,6 +8,7 @@ reader can tell the call that ran on the shrunk context.
 from __future__ import annotations
 
 import contextvars
+import json
 import threading
 from collections.abc import Iterator
 from typing import Any
@@ -23,6 +24,7 @@ from rius import _tracer, init, mark_compaction
 from rius._serde import MAX_ATTR_CHARS, TRUNCATION_MARKER
 from rius.compaction import OPERATION_COMPACTION, CompactedContextProcessor
 from rius.masking import MaskingSpanExporter
+from rius.normalization import NormalizingSpanExporter
 from rius.semconv import (
     GEN_AI_CONVERSATION_COMPACTED,
     GEN_AI_OPERATION_NAME,
@@ -37,6 +39,7 @@ from rius.semconv import (
     RIUS_COMPACTION_TOKENS_BEFORE,
     RIUS_COMPACTION_TOKENS_DROPPED,
     RIUS_COMPACTION_TRIGGER,
+    RIUS_SPAN_PENDING,
     SpanKind,
     kind_for_operation,
 )
@@ -59,9 +62,11 @@ class _Pipeline:
         sink: Any = self.exporter
         if not capture_content:
             sink = MaskingSpanExporter(sink, capture_content=False)
+        processor = CompactedContextProcessor()
+        sink = NormalizingSpanExporter(sink, compacted_context=processor)
         self.provider = TracerProvider()
         self.provider.add_span_processor(self.started)
-        self.provider.add_span_processor(CompactedContextProcessor())
+        self.provider.add_span_processor(processor)
         self.provider.add_span_processor(SimpleSpanProcessor(sink))
         _tracer.publish(self.provider)
         self.tracer = self.provider.get_tracer("app")
@@ -294,6 +299,74 @@ def test_a_model_call_started_while_the_compaction_span_ends_is_the_next_one(
     assert not _marked(pipeline, "after")
 
 
+def test_a_span_whose_kind_is_set_after_it_started_is_the_next_model_call(
+    pipeline: _Pipeline,
+) -> None:
+    # LangChain, LiteLLM and LlamaIndex start a span and learn it is a model
+    # call only before it ends.
+    mark_compaction()
+    with pipeline.tracer.start_as_current_span("late") as span:
+        span.set_attribute(OPENINFERENCE_SPAN_KIND, "LLM")
+    pipeline.llm("after")
+    assert _marked(pipeline, "late")
+    assert not _marked(pipeline, "after")
+
+
+def test_a_late_span_that_never_becomes_a_model_call_leaves_the_flag_for_the_next(
+    pipeline: _Pipeline,
+) -> None:
+    mark_compaction()
+    with pipeline.tracer.start_as_current_span("late") as span:
+        span.set_attribute(OPENINFERENCE_SPAN_KIND, "CHAIN")
+    pipeline.llm("after")
+    assert not _marked(pipeline, "late")
+    assert _marked(pipeline, "after")
+
+
+def test_a_late_span_does_not_take_a_flag_a_known_call_already_took(
+    pipeline: _Pipeline,
+) -> None:
+    mark_compaction()
+    with pipeline.tracer.start_as_current_span("late") as span:
+        pipeline.llm("known")
+        span.set_attribute(OPENINFERENCE_SPAN_KIND, "LLM")
+    assert _marked(pipeline, "known")
+    assert not _marked(pipeline, "late")
+
+
+def test_a_late_span_ending_without_an_exporter_pass_is_remembered_only_boundedly() -> None:
+    processor = CompactedContextProcessor(max_tracked=2)
+    provider = TracerProvider()
+    provider.add_span_processor(processor)
+    tracer = provider.get_tracer("app")
+    _tracer.publish(provider)
+    mark_compaction()
+    spans = []
+    for name in ("a", "b", "c"):
+        spans.append(tracer.start_span(name))
+    assert len(processor._open) == 2
+    for span in spans:
+        span.end()
+    assert not processor._open
+
+
+def test_a_pending_snapshot_does_not_spend_the_late_span_mark() -> None:
+    processor = CompactedContextProcessor()
+    provider = TracerProvider()
+    provider.add_span_processor(processor)
+    _tracer.publish(provider)
+    mark_compaction()
+    span = provider.get_tracer("app").start_span("late")
+    span.set_attribute(OPENINFERENCE_SPAN_KIND, "LLM")
+    span.end()
+    snapshot = ReadableSpan(
+        "late", context=span.get_span_context(), attributes={RIUS_SPAN_PENDING: True}
+    )
+    assert not processor.take(snapshot)
+    assert processor.take(span)
+    assert not processor.take(span)
+
+
 def test_only_the_next_llm_span_is_marked(pipeline: _Pipeline) -> None:
     mark_compaction()
     pipeline.llm("first")
@@ -402,6 +475,49 @@ def test_a_client_flags_the_next_call_through_its_own_pipeline() -> None:
     (span,) = [s for s in sink.get_finished_spans() if s.name == "llm"]
     assert _attrs(span)[GEN_AI_CONVERSATION_COMPACTED] is True
     client.shutdown()
+
+
+_COMPACT_REPLY = json.dumps(
+    {
+        "id": "resp_c",
+        "object": "response.compaction",
+        "output": [{"id": "cmp_1", "type": "compaction", "encrypted_content": "opaque"}],
+        "usage": {"input_tokens": 5000},
+    }
+)
+
+
+def _compact_call(pipeline: _Pipeline, name: str, reply: str) -> None:
+    with pipeline.tracer.start_as_current_span(
+        name, attributes={OPENINFERENCE_SPAN_KIND: "LLM"}
+    ) as span:
+        span.set_attribute("output.value", reply)
+
+
+def test_the_call_after_the_compact_endpoint_ran_on_the_compacted_context(
+    pipeline: _Pipeline,
+) -> None:
+    _compact_call(pipeline, "compact", _COMPACT_REPLY)
+    pipeline.llm("after")
+    pipeline.llm("later")
+    assert not _marked(pipeline, "compact")
+    assert _marked(pipeline, "after")
+    assert not _marked(pipeline, "later")
+
+
+def test_a_reply_that_is_not_the_compact_endpoint_arms_nothing(pipeline: _Pipeline) -> None:
+    _compact_call(pipeline, "chat", json.dumps({"id": "resp_1", "object": "response"}))
+    pipeline.llm("after")
+    assert not _marked(pipeline, "after")
+
+
+def test_a_non_llm_span_carrying_the_compact_reply_arms_nothing(pipeline: _Pipeline) -> None:
+    with pipeline.tracer.start_as_current_span(
+        "tool", attributes={OPENINFERENCE_SPAN_KIND: "TOOL"}
+    ) as span:
+        span.set_attribute("output.value", _COMPACT_REPLY)
+    pipeline.llm("after")
+    assert not _marked(pipeline, "after")
 
 
 def test_it_is_part_of_the_public_api() -> None:

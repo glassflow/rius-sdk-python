@@ -311,6 +311,39 @@ def test_a_context_that_grew_has_no_dropped_count() -> None:
     assert RIUS_COMPACTION_TOKENS_DROPPED not in event
 
 
+def test_each_compaction_block_is_sized_from_its_own_compaction_iteration() -> None:
+    body = _anthropic(
+        content=[_compaction_block("first"), _compaction_block("second")],
+        iterations=[
+            _iteration("compaction", 9000),
+            _iteration("compaction", 7000),
+            _iteration("message", 400),
+        ],
+    )
+    events = _events(_export(_llm(body)))
+    assert [e[RIUS_COMPACTION_TOKENS_BEFORE] for e in events] == [9000, 7000]
+
+
+def test_the_size_left_behind_is_what_the_last_sampling_iteration_read() -> None:
+    body = _anthropic(
+        content=[_compaction_block()],
+        iterations=[
+            _iteration("compaction", 9000),
+            _iteration("message", 800),
+            _iteration("message", 400),
+        ],
+    )
+    (event,) = _events(_export(_llm(body)))
+    assert event[RIUS_COMPACTION_TOKENS_AFTER] == 400
+    assert event[RIUS_COMPACTION_TOKENS_DROPPED] == 8600
+
+
+def test_a_thinking_edit_never_reports_a_tool_result_count() -> None:
+    edit = {**_clear_thinking(900), "cleared_tool_uses": 4}
+    (event,) = _events(_export(_llm(json.dumps(_anthropic_body(edits=[edit])))))
+    assert RIUS_COMPACTION_TOOL_RESULTS_CLEARED not in event
+
+
 def test_a_compaction_block_never_gets_an_invented_id() -> None:
     (event,) = _events(_export(_llm(_anthropic(content=[_compaction_block()]))))
     assert RIUS_COMPACTION_ID not in event
@@ -400,22 +433,44 @@ def test_a_response_without_a_compaction_item_reports_nothing() -> None:
     assert GEN_AI_CONVERSATION_COMPACTED not in (span.attributes or {})
 
 
-def test_the_compact_endpoint_reply_is_not_marked() -> None:
-    # responses.compact is the compaction call itself, recorded by the OpenAI
-    # instrumentor as an LLM span whose output.value holds the compacted
-    # window. It is not a call that ran on a compacted context.
-    reply = CompactedResponse.model_validate(
+def _compact_reply(input_tokens: int = 5000, output: list[dict[str, Any]] | None = None) -> str:
+    return CompactedResponse.model_validate(
         {
             "id": "resp_c",
             "object": "response.compaction",
             "created_at": 1,
-            "output": [_compaction_item()],
-            "usage": _OPENAI_USAGE,
+            "output": [_compaction_item()] if output is None else output,
+            "usage": {**_OPENAI_USAGE, "input_tokens": input_tokens},
         }
     ).model_dump_json()
-    span = _export(_llm(reply))
-    assert _events(span) == []
+
+
+def test_the_compact_endpoint_reply_is_the_compaction_it_performed() -> None:
+    # responses.compact is recorded by the OpenAI instrumentor as an LLM span
+    # whose output.value holds the compacted window. The call read the whole
+    # context, so that is what it compacted; the span itself did not run on a
+    # compacted context, so it is not flagged.
+    span = _export(_llm(_compact_reply(5000)))
+    assert _events(span) == [
+        {
+            RIUS_COMPACTION_KIND: "summarize",
+            RIUS_COMPACTION_EXECUTOR: "provider",
+            RIUS_COMPACTION_ID: "cmp_1",
+            RIUS_COMPACTION_TOKENS_BEFORE: 5000,
+        }
+    ]
     assert GEN_AI_CONVERSATION_COMPACTED not in (span.attributes or {})
+
+
+def test_a_compact_reply_without_a_compaction_item_reports_nothing() -> None:
+    span = _export(_llm(_compact_reply(output=[_text_item()])))
+    assert _events(span) == []
+
+
+def test_a_compact_reply_without_usage_carries_no_size() -> None:
+    reply = json.dumps({"id": "r", "object": "response.compaction", "output": [_compaction_item()]})
+    (event,) = _events(_export(_llm(reply)))
+    assert RIUS_COMPACTION_TOKENS_BEFORE not in event
 
 
 # --- what never qualifies ------------------------------------------------------
@@ -514,14 +569,14 @@ def counting_loads(monkeypatch: pytest.MonkeyPatch) -> Iterator[_CountingLoads]:
 def test_the_cheap_checks_run_before_any_parse(
     counting_loads: _CountingLoads, attributes: dict[str, Any]
 ) -> None:
-    assert compactions_from_output_value(attributes) == []
+    assert compactions_from_output_value(attributes).events == []
     assert counting_loads.calls == 0
 
 
 def test_a_response_with_no_compaction_marker_is_never_parsed_for_one(
     counting_loads: _CountingLoads,
 ) -> None:
-    assert compactions_from_output_value(_llm(_anthropic())) == []
+    assert compactions_from_output_value(_llm(_anthropic())).events == []
     assert counting_loads.calls == 0
 
 
@@ -530,7 +585,7 @@ def test_a_response_with_no_compaction_marker_is_never_parsed_for_one(
     ['{"compaction": ', '{"type":"compaction"', '{"applied_edits": [}', '{"compaction"}'],
 )
 def test_a_marker_in_text_that_does_not_parse_means_nothing(output_value: str) -> None:
-    assert compactions_from_output_value(_llm(output_value)) == []
+    assert compactions_from_output_value(_llm(output_value)).events == []
 
 
 # --- end to end: the real instrumentors through init() ---------------------------
@@ -703,7 +758,7 @@ def test_real_anthropic_beta_stream_reports_its_compaction(anthropic_instrumento
 
 
 @pytest.mark.integration
-def test_real_openai_responses_reports_a_compaction_item_and_not_the_compact_call(
+def test_real_openai_responses_reports_a_compaction_item_and_the_compact_call(
     openai_instrumentor: Any,
 ) -> None:
     openai = pytest.importorskip("openai")
@@ -736,8 +791,38 @@ def test_real_openai_responses_reports_a_compaction_item_and_not_the_compact_cal
     assert [e[RIUS_COMPACTION_ID] for e in _events(created)] == ["cmp_7"]
     assert (created.attributes or {})[GEN_AI_CONVERSATION_COMPACTED] is True
     compact_call = by_name["CompactedResponse"]
-    assert _events(compact_call) == []
+    assert [e[RIUS_COMPACTION_ID] for e in _events(compact_call)] == ["cmp_1"]
+    assert _events(compact_call)[0][RIUS_COMPACTION_TOKENS_BEFORE] == 1
     assert GEN_AI_CONVERSATION_COMPACTED not in (compact_call.attributes or {})
+
+
+@pytest.mark.integration
+def test_real_openai_call_after_the_compact_endpoint_is_flagged_once(
+    openai_instrumentor: Any,
+) -> None:
+    openai = pytest.importorskip("openai")
+    plain = json.loads(_openai([_text_item()]))
+    compacted = json.loads(_compact_reply(5000))
+    server = _Provider({"/v1/responses": plain, "/v1/responses/compact": compacted})
+    inner = InMemorySpanExporter()
+    client = init(span_exporter=inner, set_global=False, instruments=["openai"])
+    try:
+        oai = openai.OpenAI(api_key="test-key", base_url=f"{server.url}/v1")
+        oai.responses.compact(model="gpt-5", input="hi")
+        oai.responses.create(model="gpt-5", input="hi")
+        oai.responses.create(model="gpt-5", input="hi")
+        client.flush()
+    finally:
+        client.shutdown()
+        server.close()
+
+    spans = sorted(_spans(inner), key=lambda span: span.start_time or 0)
+    assert [span.name for span in spans] == ["CompactedResponse", "Response", "Response"]
+    assert [(s.attributes or {}).get(GEN_AI_CONVERSATION_COMPACTED) for s in spans] == [
+        None,
+        True,
+        None,
+    ]
 
 
 @pytest.mark.parametrize(
@@ -745,4 +830,4 @@ def test_real_openai_responses_reports_a_compaction_item_and_not_the_compact_cal
     ['["compaction"]', '"applied_edits"', "null", "7", '[{"type": "compaction", "content": "x"}]'],
 )
 def test_a_json_value_that_is_not_an_object_reports_nothing(raw: str) -> None:
-    assert compactions_in_response(raw) == []
+    assert compactions_in_response(raw).events == []

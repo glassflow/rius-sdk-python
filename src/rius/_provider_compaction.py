@@ -17,8 +17,9 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterator, Mapping
-from typing import Any
+from typing import Any, NamedTuple
 
+from ._provider_response import COMPACT_ENDPOINT_OBJECT
 from ._serde import text_value
 from .compaction import dropped_tokens
 from .semconv import (
@@ -42,10 +43,6 @@ from .semconv import (
 #: reply that merely mentions one of them is parsed and finds nothing.
 _MARKERS = ('"compaction"', '"applied_edits"')
 
-#: What ``POST /responses/compact`` answers with. That call is the compaction
-#: itself, not a request that ran on a compacted context.
-_COMPACT_ENDPOINT_OBJECT = "response.compaction"
-
 #: Anthropic names an edit by family and date (``clear_tool_uses_20250919``),
 #: so a newer date of a known family is still that family.
 _EDIT_KIND_BY_PREFIX = (
@@ -56,21 +53,39 @@ _EDIT_KIND_BY_PREFIX = (
 _COMPACTION_TYPE = "compaction"
 
 
-def compactions_in_response(raw: str) -> list[dict[str, Any]]:
+class ProviderCompactions(NamedTuple):
+    """What a response reports: the events, and whether the call ran on a compacted context.
+
+    The reply of ``POST /responses/compact`` reports the compaction it
+    performed, but it is the call that read the whole context, so it is not
+    flagged.
+    """
+
+    events: list[dict[str, Any]]
+    compacted_context: bool
+
+
+_NONE = ProviderCompactions([], False)
+
+
+def compactions_in_response(raw: str) -> ProviderCompactions:
     """The ``rius.compaction`` event attributes a provider response reports.
 
-    ``raw`` is the text of a JSON object. One entry per compaction, in the
-    order the response lists them; empty when it reports none.
+    ``raw`` is the text of a JSON object. One event per compaction, in the
+    order the response lists them; none when it reports none.
     """
     if not any(marker in raw for marker in _MARKERS):
-        return []
+        return _NONE
     try:
         payload = json.loads(raw)
     except ValueError:
-        return []
-    if not isinstance(payload, dict) or payload.get("object") == _COMPACT_ENDPOINT_OBJECT:
-        return []
-    return [*_edit_events(payload), *_summary_events(payload), *_item_events(payload)]
+        return _NONE
+    if not isinstance(payload, dict):
+        return _NONE
+    if payload.get("object") == COMPACT_ENDPOINT_OBJECT:
+        return ProviderCompactions(list(_compact_endpoint_events(payload)), False)
+    events = [*_edit_events(payload), *_summary_events(payload), *_item_events(payload)]
+    return ProviderCompactions(events, bool(events))
 
 
 def _provider_event(kind: str) -> dict[str, Any]:
@@ -157,4 +172,12 @@ def _item_events(payload: Mapping[str, Any]) -> Iterator[dict[str, Any]]:
             continue
         event = _provider_event(RIUS_COMPACTION_KIND_SUMMARIZE)
         _set(event, RIUS_COMPACTION_ID, _identifier(item.get("id")))
+        yield event
+
+
+def _compact_endpoint_events(payload: Mapping[str, Any]) -> Iterator[dict[str, Any]]:
+    usage = payload.get("usage")
+    before = _size(usage.get("input_tokens")) if isinstance(usage, dict) else None
+    for event in _item_events(payload):
+        _set(event, RIUS_COMPACTION_TOKENS_BEFORE, before)
         yield event
