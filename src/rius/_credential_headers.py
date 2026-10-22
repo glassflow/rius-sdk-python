@@ -21,7 +21,7 @@ from opentelemetry.sdk.trace import Event, ReadableSpan
 from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
 from opentelemetry.trace import Link
 
-from ._attributes import replacement_attributes
+from ._attributes import rebuilt_item_attributes, replacement_attributes
 from .semconv import (
     CREDENTIAL_HEADER_NAME_SUFFIXES,
     CREDENTIAL_HEADER_NAMES,
@@ -78,14 +78,14 @@ class CredentialHeaderDroppingExporter(SpanExporter):
             if kept is None:
                 continue
             events = events if events is not None else list(span.events)
-            events[i] = Event(event.name, replacement_attributes(event, kept), event.timestamp)
+            events[i] = Event(event.name, rebuilt_item_attributes(event, kept), event.timestamp)
         links: list[Link] | None = None
         for i, link in enumerate(span.links):
             kept = _without_credentials(link.attributes)
             if kept is None:
                 continue
             links = links if links is not None else list(span.links)
-            links[i] = Link(link.context, replacement_attributes(link, kept))
+            links[i] = Link(link.context, rebuilt_item_attributes(link, kept))
         if attributes is None and events is None and links is None:
             return span
         dropped = copy.copy(span)

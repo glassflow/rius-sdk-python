@@ -181,4 +181,25 @@ def test_rebuilt_events_and_links_keep_their_dropped_count() -> None:
     (out,) = inner.get_finished_spans()
     for item in (out.events[0], out.links[0]):
         assert not DROPPED & set(item.attributes or {})
-        assert item.dropped_attributes == 3
+        # Read off the attributes, which every OTel version carries the count on
+        # (Event.dropped_attributes arrives in 1.25, Link's in 1.27).
+        assert isinstance(item.attributes, BoundedAttributes)
+        assert item.attributes.dropped == 3
+
+
+def test_rebuilt_events_and_links_stay_encodable() -> None:
+    # The OTLP encoder before OTel 1.25 reads attributes.dropped off every event
+    # and link, so one rebuilt with a plain mapping would fail the whole batch.
+    # Capture on and no mask: nothing but the credential drop rewrites them.
+    inner = InMemorySpanExporter()
+    client = init(span_exporter=inner, set_global=False)
+    linked = SpanContext(trace_id=1, span_id=2, is_remote=True)
+    span = client.get_tracer().start_span("s", links=[Link(linked, dict(HEADERS))])
+    span.add_event("request", dict(HEADERS))
+    span.end()
+    client.flush()
+
+    (out,) = inner.get_finished_spans()
+    for item in (out.events[0], out.links[0]):
+        assert not DROPPED & set(item.attributes or {})
+        assert isinstance(item.attributes, BoundedAttributes), item.attributes
