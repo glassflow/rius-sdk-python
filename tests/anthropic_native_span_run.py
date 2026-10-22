@@ -6,7 +6,9 @@ anthropic SDK's own spans go to that global provider. The suite's other tests
 use ``init(set_global=False)``, where those spans never reach rius.
 
 Usage: ``python anthropic_native_span_run.py '<json options>'`` with
-``instruments`` (list), ``capture_content`` (bool) and ``partial_spans`` (bool).
+``instruments`` (list), ``capture_content`` (bool), ``partial_spans`` (bool) and
+``foreign`` (bool: another provider holds the global and rius bridges to it;
+what that provider exports is printed under ``foreign``).
 """
 
 from __future__ import annotations
@@ -20,7 +22,9 @@ import threading
 from typing import Any
 
 import anthropic
-from opentelemetry.sdk.trace import ReadableSpan
+from opentelemetry import trace
+from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 import rius
@@ -123,11 +127,20 @@ def main() -> None:
     server = http.server.HTTPServer(("127.0.0.1", 0), _Handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     exporter = InMemorySpanExporter()
+    foreign_exporter: InMemorySpanExporter | None = None
+    if options.get("foreign"):
+        # Another SDK claims the global first; rius bridges to it, so the
+        # anthropic SDK's spans are that provider's, reaching rius as copies.
+        foreign_exporter = InMemorySpanExporter()
+        foreign = TracerProvider()
+        foreign.add_span_processor(SimpleSpanProcessor(foreign_exporter))
+        trace.set_tracer_provider(foreign)
     client = rius.init(
         span_exporter=exporter,
         instruments=options["instruments"],
         capture_content=options.get("capture_content", True),
         partial_spans=options.get("partial_spans", False),
+        bridge_foreign_provider=bool(options.get("foreign")),
         heartbeat=False,
     )
     messages = anthropic.Anthropic(
@@ -184,12 +197,16 @@ def main() -> None:
             bedrock.messages.create(**request)
 
         cases["bedrock"] = bedrock_create
-    out: dict[str, Any] = {"anthropic": anthropic.__version__, "cases": {}}
+    out: dict[str, Any] = {"anthropic": anthropic.__version__, "cases": {}, "foreign": {}}
     for name, call in cases.items():
         exporter.clear()
+        if foreign_exporter is not None:
+            foreign_exporter.clear()
         call()
         client.flush()
         out["cases"][name] = [_span(s) for s in exporter.get_finished_spans()]
+        if foreign_exporter is not None:
+            out["foreign"][name] = [_span(s) for s in foreign_exporter.get_finished_spans()]
     client.shutdown()
     server.shutdown()
     print(json.dumps(out))

@@ -60,7 +60,7 @@ def demoted_attributes(attributes: Mapping[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in attributes.items() if not _removed(key)}
 
 
-def _is_sdk_chat_span(span: Span) -> bool:
+def _is_sdk_chat_span(span: ReadableSpan) -> bool:
     scope = span.instrumentation_scope
     if scope is None or not scope.name.startswith(ANTHROPIC_SDK_SCOPE_PREFIX):
         return False
@@ -73,9 +73,14 @@ class NativeChatSpanDemoter(SpanProcessor):
     Registered ahead of every processor that reads a span at start
     (normalization, the compaction flag, the pending snapshot), which then see
     a plain client span. Keys the SDK sets later (usage, the response model)
-    are stripped again at ``on_end``, ahead of the export processor. A bridged
-    span reaches the pipeline as rius's private twin and copy, so the other
-    provider's own span is never touched. Never raises.
+    are stripped again at ``on_end``, ahead of the export processor.
+
+    ``on_end`` decides on its own: a span demoted at start (which no longer
+    carries its operation) is known by its span context, and any other span
+    is judged again by its own scope and operation. A bridged span reaches
+    the pipeline as rius's private twin at start and a separate copy at end;
+    only those are ever written, so the other provider's span is never
+    touched. Never raises.
     """
 
     def __init__(self, active: Callable[[], bool]) -> None:
@@ -105,9 +110,10 @@ class NativeChatSpanDemoter(SpanProcessor):
                 return
             key = (context.trace_id, context.span_id)
             with self._lock:
-                if key not in self._demoted:
-                    return
+                started_demoted = key in self._demoted
                 self._demoted.discard(key)
+            if not started_demoted and not (_is_sdk_chat_span(span) and self._active()):
+                return
             attributes = span.attributes or {}
             if any(_removed(k) for k in attributes):
                 span._attributes = replacement_attributes(  # noqa: SLF001

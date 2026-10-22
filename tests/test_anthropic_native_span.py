@@ -46,11 +46,12 @@ def _run(
     instruments: tuple[str, ...] = ("anthropic",),
     content_mode: bool = False,
     partial_spans: bool = False,
+    foreign: bool = False,
 ) -> dict[str, Any]:
     env = {**os.environ}
     if content_mode:
         env["ANTHROPIC_OPEN_TELEMETRY_TRACES_CONTENT_MODE"] = "content"
-    options = {"instruments": list(instruments), "partial_spans": partial_spans}
+    options = {"instruments": list(instruments), "partial_spans": partial_spans, "foreign": foreign}
     done = subprocess.run(
         [sys.executable, str(_RUNNER), json.dumps(options)],
         capture_output=True,
@@ -226,6 +227,29 @@ def test_without_openinference_the_sdk_span_stays_the_llm_span() -> None:
         assert llm["attributes"]["gen_ai.request.model"]
 
 
+@pytest.mark.integration
+@pytest.mark.parametrize("case", _CASES)
+def test_bridged_to_another_sdk_each_call_still_counts_once(case: str) -> None:
+    # The anthropic SDK's span then belongs to the other provider: rius's
+    # pipeline sees a twin at start and a separate copy at end, and must
+    # demote the copy it exports without touching the other SDK's span.
+    run = _run(foreign=True)
+    attributes = [s["attributes"] for s in run["cases"][case]]
+    assert sum(_argus_badges_llm(a) for a in attributes) == 1
+    if case != "not_found":
+        assert sum(_argus_prices(a) for a in attributes) == 1
+    if not _has_native_tracing():
+        return
+    (ours,) = _native(run["cases"][case])
+    assert "gen_ai.request.model" not in ours["attributes"]
+    assert "gen_ai.operation.name" not in ours["attributes"]
+    (theirs,) = _native(run["foreign"][case])
+    assert theirs["span_id"] == ours["span_id"]
+    assert theirs["attributes"]["gen_ai.operation.name"] == "chat"
+    assert theirs["attributes"]["gen_ai.request.model"].startswith("claude-")
+    assert "openinference.span.kind" not in theirs["attributes"]
+
+
 # --- the processor on its own -------------------------------------------------
 
 
@@ -324,4 +348,29 @@ def test_a_failing_check_never_reaches_the_caller() -> None:
     provider.add_span_processor(SimpleSpanProcessor(exporter))
     _chat_span(provider)
     (span,) = exporter.get_finished_spans()
+    assert (span.attributes or {})["gen_ai.request.model"] == "claude-sonnet-5"
+
+
+def test_a_chat_span_seen_only_at_its_end_is_demoted_from_its_own_attributes() -> None:
+    # Decided again at on_end from the span's own scope and operation, so a
+    # copy whose start this processor never saw is demoted all the same.
+    finished = InMemorySpanExporter()
+    elsewhere = TracerProvider()
+    elsewhere.add_span_processor(SimpleSpanProcessor(finished))
+    _chat_span(elsewhere)
+    (span,) = finished.get_finished_spans()
+    NativeChatSpanDemoter(lambda: True).on_end(span)
+    attributes = dict(span.attributes or {})
+    assert "gen_ai.request.model" not in attributes
+    assert "gen_ai.usage.input_tokens" not in attributes
+    assert attributes["gen_ai.provider.name"] == "anthropic"
+
+
+def test_a_tool_span_seen_only_at_its_end_is_left_alone() -> None:
+    finished = InMemorySpanExporter()
+    elsewhere = TracerProvider()
+    elsewhere.add_span_processor(SimpleSpanProcessor(finished))
+    _chat_span(elsewhere, **{"gen_ai.operation.name": "execute_tool"})
+    (span,) = finished.get_finished_spans()
+    NativeChatSpanDemoter(lambda: True).on_end(span)
     assert (span.attributes or {})["gen_ai.request.model"] == "claude-sonnet-5"
