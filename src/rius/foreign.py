@@ -334,6 +334,47 @@ class _Forwarder(SpanProcessor):
         return True
 
 
+class OwnPipeline(SpanProcessor):
+    """rius's pipeline on rius's own provider, cut off once it shuts down.
+
+    The OpenTelemetry global is write-once, so after ``shutdown()`` and a new
+    ``init()`` the old provider stays global and keeps starting third-party
+    spans, which the new client receives through a bridge. OTel cannot remove
+    a processor, so without this every such span also entered the old,
+    shut-down pipeline (on OTel 1.24 its batch processor logs "Already
+    shutdown, dropping span." once per span). ``shutdown`` shuts the pipeline
+    down, then stops feeding it.
+    """
+
+    def __init__(self, pipeline: SpanProcessor) -> None:
+        self._pipeline: SpanProcessor | None = pipeline
+
+    def on_start(self, span: Span, parent_context: Context | None = None) -> None:
+        pipeline = self._pipeline
+        if pipeline is not None:
+            pipeline.on_start(span, parent_context=parent_context)
+
+    def _on_ending(self, span: Span) -> None:
+        pipeline = self._pipeline
+        if pipeline is not None:
+            pipeline._on_ending(span)  # noqa: SLF001 - the SpanProcessor hook itself
+
+    def on_end(self, span: ReadableSpan) -> None:
+        pipeline = self._pipeline
+        if pipeline is not None:
+            pipeline.on_end(span)
+
+    def shutdown(self) -> None:
+        pipeline = self._pipeline
+        if pipeline is not None:
+            pipeline.shutdown()
+            self._pipeline = None
+
+    def force_flush(self, timeout_millis: int = 30000) -> bool:
+        pipeline = self._pipeline
+        return True if pipeline is None else pipeline.force_flush(timeout_millis)
+
+
 # One forwarder per provider, re-targeted on every init(), so a shutdown()+init()
 # cycle never stacks a second one on a provider that cannot drop the first.
 _forwarders: weakref.WeakKeyDictionary[TracerProvider, _Forwarder] = weakref.WeakKeyDictionary()

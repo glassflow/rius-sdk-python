@@ -32,6 +32,7 @@ from .foreign import (
     Bridge,
     BridgeAwareSampler,
     ForeignParentDetector,
+    OwnPipeline,
     ResourceAdoptingExporter,
     bridge,
 )
@@ -729,7 +730,9 @@ def _do_init(
     # Every processor rides this one chain, so a bridged provider gets exactly
     # the treatment rius's own spans do.
     pipeline = SynchronousMultiSpanProcessor()  # type: ignore[no-untyped-call]
-    provider.add_span_processor(pipeline)
+    # Behind a switch shutdown() turns off: this provider may stay the OTel
+    # global after shutdown() and keep starting third-party spans.
+    provider.add_span_processor(OwnPipeline(pipeline))
     detector: ForeignParentDetector | None = None
 
     export_health: ExportOutcomeExporter | None = None
