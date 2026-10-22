@@ -45,6 +45,7 @@ from opentelemetry import context as otel_context
 from opentelemetry.sdk.trace import ReadableSpan, Span, SpanProcessor
 from opentelemetry.trace import Status, StatusCode
 
+from .masking import is_content_key
 from .semconv import (
     PENDING_IDENTITY_ATTRIBUTES,
     PENDING_IDENTITY_PREFIXES,
@@ -189,13 +190,20 @@ class PendingScheduler:
 
 
 def _identity_attributes(attributes: Any) -> dict[str, Any]:
-    """Filter a span's start-time attributes down to the pending allowlist."""
+    """Filter a span's start-time attributes down to the pending allowlist.
+
+    The request prefixes admit whole namespaces, and some keys under them are
+    content (``rius.request.tools``, ``gen_ai.request.messages``, ...). Those
+    are content first: with content capture on nothing strips them at export,
+    so the snapshot itself leaves out every key the content rules match.
+    """
     if not attributes:
         return {}
     return {
         key: value
         for key, value in attributes.items()
-        if key in PENDING_IDENTITY_ATTRIBUTES or key.startswith(PENDING_IDENTITY_PREFIXES)
+        if (key in PENDING_IDENTITY_ATTRIBUTES or key.startswith(PENDING_IDENTITY_PREFIXES))
+        and not is_content_key(key)
     }
 
 
