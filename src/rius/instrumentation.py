@@ -43,6 +43,18 @@ _ENABLED: dict[str, Any] = {}
 # client must not re-bind those: that would move every LLM span in the
 # process off the global client. Cleared by release() when it shuts down.
 _GLOBAL_OWNER: dict[str, Any] = {}
+# The provider each instrumentor we enabled was last bound to.
+_BOUND: dict[str, Any] = {}
+
+
+def instruments_for(name: str, tracer_provider: Any) -> bool:
+    """Whether rius enabled instrumentor ``name``, still active, against ``tracer_provider``."""
+    instrumentor = _ENABLED.get(name)
+    return (
+        instrumentor is not None
+        and _BOUND.get(name) is tracer_provider
+        and bool(getattr(instrumentor, "is_instrumented_by_opentelemetry", False))
+    )
 
 
 def release(tracer_provider: Any) -> None:
@@ -232,6 +244,7 @@ def enable_instrumentations(
             logger.warning("failed to enable instrument %r", spec.name, exc_info=True)
             continue
         _ENABLED[spec.name] = instrumentor
+        _BOUND[spec.name] = tracer_provider
         if for_global:
             _GLOBAL_OWNER[spec.name] = tracer_provider
         else:

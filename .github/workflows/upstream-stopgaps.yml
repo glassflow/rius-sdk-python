@@ -28,7 +28,10 @@
 # test_normalization_response_id.py, test_normalization_error_type.py (a
 # provider error's error.type) and test_normalization_compaction.py (the
 # compaction flag on an instrumented call) run against the newest pair so the
-# next such change shows up here first.
+# next such change shows up here first, as does test_anthropic_native_span.py:
+# from 1.14.0 the anthropic SDK starts a chat span of its own, which rius
+# demotes to a plain client span while OpenInference instruments the call, and
+# a new release may rename its scope or its attributes.
 #
 # The tests answer every request in-process and guard the socket, so the only
 # network use is the package index.
@@ -94,3 +97,4 @@ jobs:
           tests/test_normalization_response_id.py
           tests/test_normalization_error_type.py
           tests/test_normalization_compaction.py
+          tests/test_anthropic_native_span.py

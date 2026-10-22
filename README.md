@@ -259,6 +259,13 @@ Supported instruments: `openai`, `anthropic`, `langchain`, `llama-index`,
 `litellm`, and `mcp`. Content captured by instrumentors is covered by the same
 `mask` / `capture_content` controls as our own spans.
 
+From `anthropic` 1.14.0 the Anthropic SDK also starts a span of its own for
+each API call. While the `anthropic` instrument covers the call, rius exports
+the SDK's chat span as a plain client span (its HTTP and `anthropic.*`
+attributes, without the model, usage or message content), so each call counts
+once in tokens and cost. Without the instrument, the SDK's span is the call's
+LLM span.
+
 The `mcp` instrument is built in and has **no extra**: there is no third-party
 instrumentation to install, and an extra that installed `mcp` for you would
 break the rule above. If the [`mcp`](https://pypi.org/project/mcp/)
