@@ -1,4 +1,4 @@
-# Vendored from rius-semconv v1.8.2 out/python/_semconv_generated.py by
+# Vendored from rius-semconv v1.8.3 out/python/_semconv_generated.py by
 # scripts/sync-semconv.sh. Do not edit: change the registry in rius-semconv.
 """Rius semantic conventions: the constants and tables, generated.
 
@@ -1193,6 +1193,64 @@ CONTENT_ATTRIBUTE_PREFIXED_SUFFIXES = (
     ("llm.request.functions.", (".description", ".parameters", ".arguments")),
 )
 
+# Header names that carry a credential, lower case. An attribute holding one
+# of these headers is dropped from every span (final and pending), whatever
+# capture_content and mask say: a credential is never content to be masked,
+# and a mask that is absent or passes it through would ship it. The Vercel
+# AI SDK's @ai-sdk/otel 1.0.141 writes a call's headers option as
+# ai.request.headers.<name>: its LegacyOpenTelemetry integration on every
+# call with no option to turn it off, its OpenTelemetry integration with
+# headers: true. generateText lower-cases the name, generateSpeech keeps the
+# caller's (ai.request.headers.Authorization). OpenTelemetry's HTTP
+# instrumentations write http.request.header.<name> and
+# http.response.header.<name> when header capture is configured. See
+# HEADER_ATTRIBUTE_SEGMENTS for how a consumer finds the header name.
+CREDENTIAL_HEADER_NAMES = (
+    "authorization",
+    "proxy-authorization",
+    "cookie",
+    "set-cookie",
+    "x-api-key",
+    "api-key",
+    "x-goog-api-key",
+    "apikey",
+    "x-apikey",
+    "ocp-apim-subscription-key",
+    "helicone-auth",
+)
+
+# A header name ending in one of these is a credential too (x-auth-token,
+# x-amz-security-token, x-client-secret, x-portkey-api-key,
+# x-litellm-api-key): vendors invent such headers faster than a list of
+# names can follow them. The suffixes match a whole word, so
+# x-ratelimit-remaining-tokens and max-tokens are kept, and -api-key rather
+# than a bare -key keeps idempotency-key. Dropping a harmless token-like
+# header such as next-page-token or csrf-token is intended: a lost header
+# costs a little context, a shipped credential costs a rotation.
+CREDENTIAL_HEADER_NAME_SUFFIXES = (
+    "-token",
+    "-secret",
+    "-api-key",
+)
+
+# The key segments after which an attribute key names a header. A consumer
+# lower-cases the key, takes what follows the LAST occurrence of a segment
+# as the header name, reads "_" in it as "-", and drops the attribute when
+# the name is in CREDENTIAL_HEADER_NAMES or ends with one of
+# CREDENTIAL_HEADER_NAME_SUFFIXES. .headers. is the Vercel AI SDK's
+# (ai.request.headers.<name>); .header. is OpenTelemetry's HTTP conventions'
+# (http.request.header.<name>, http.response.header.<name>). Matched as a
+# segment anywhere in the key, not as a fixed prefix, so a copy under
+# another namespace (the OpenInference transform's metadata.<key>) and any
+# other instrumentor's <ns>.headers.<name> are covered too. "_" reads as "-"
+# because OpenTelemetry Python's HTTP instrumentations write header names
+# with underscores (http.request.header.x_api_key), where the conventions
+# spell the header as sent (http.request.header.x-api-key).
+HEADER_ATTRIBUTE_SEGMENTS = (
+    ".headers.",
+    ".header.",
+)
+
 
 class SpanKind(str, Enum):
     """Observation kind. Values are OpenInference ``openinference.span.kind`` values.
@@ -1354,6 +1412,8 @@ __all__ = [
     "CONTENT_ATTRIBUTE_PREFIXES",
     "CONTENT_ATTRIBUTE_SUFFIXES",
     "CONTENT_PREFIX_IDENTITY_ATTRIBUTES",
+    "CREDENTIAL_HEADER_NAMES",
+    "CREDENTIAL_HEADER_NAME_SUFFIXES",
     "CURSOR_BACKGROUND",
     "CURSOR_COMPOSER_MODE",
     "CURSOR_CONTEXT_TOKENS",
@@ -1430,6 +1490,7 @@ __all__ = [
     "GEN_AI_USAGE_TEXT_CACHE_READ_INPUT_TOKENS",
     "GEN_AI_USAGE_TEXT_INPUT_TOKENS",
     "GEN_AI_USAGE_TEXT_OUTPUT_TOKENS",
+    "HEADER_ATTRIBUTE_SEGMENTS",
     "INPUT_VALUE",
     "INVOCATION_PARAMETERS_CONTENT_MEMBERS",
     "LLM_INVOCATION_PARAMETERS",

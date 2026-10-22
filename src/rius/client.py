@@ -19,6 +19,7 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor, SpanExporter
 from opentelemetry.sdk.trace.sampling import ParentBased, Sampler, TraceIdRatioBased
 
 from . import __version__, _agent, _tracer
+from ._credential_headers import CredentialHeaderDroppingExporter
 from .aggregated_usage import WrappedCallTracker
 from .compaction import CompactedContextProcessor
 from .config import DEFAULT_ENDPOINT, GlassflowConfig, resolve_config
@@ -765,6 +766,9 @@ def _do_init(
             factory = workspace_exporter_factory or _workspace_exporter_factory(config)
             routing = RoutingSpanExporter(exporter, factory, routes=workspaces)
             exporter = routing
+        # Credential headers are dropped whatever capture_content and mask say,
+        # so unlike masking this wrapper is always in the chain.
+        exporter = CredentialHeaderDroppingExporter(exporter)
         if not config.capture_content or mask is not None:
             exporter = MaskingSpanExporter(
                 exporter, capture_content=config.capture_content, mask=mask
