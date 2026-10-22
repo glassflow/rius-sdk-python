@@ -116,10 +116,13 @@ class Observation:
                 bytearray or memoryview in it, at any depth, is recorded as
                 ``[stripped unknown <N> bytes]``, never its content.
         """
-        recorded = attribute_value(value)
-        if _structured(recorded):
-            recorded = serialize(recorded)
-        self._span.set_attribute(key, recorded)
+        # Structure is serialized once from the raw value (serialize writes a
+        # byte object as its marker); converting first would turn a mixed
+        # array into its JSON string and encode it a second time.
+        if _structured(value):
+            self._span.set_attribute(key, serialize(value))
+        else:
+            self._span.set_attribute(key, attribute_value(value))
 
     def update(self, *, input: Any = None, output: Any = None) -> None:
         """Record input and/or output in one call.

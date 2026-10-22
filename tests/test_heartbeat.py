@@ -505,6 +505,40 @@ def test_no_api_key_starts_no_heartbeat(monkeypatch: pytest.MonkeyPatch) -> None
         client.shutdown()
 
 
+def test_a_heartbeat_skipped_for_lack_of_credentials_logs_why(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.delenv("RIUS_HEARTBEAT", raising=False)
+    monkeypatch.delenv("RIUS_API_KEY", raising=False)
+    with caplog.at_level(logging.DEBUG, logger="rius.client"):
+        client = init(
+            set_global=False,
+            service_name="svc",
+            endpoint="http://127.0.0.1:1",
+            span_exporter=InMemorySpanExporter(),
+        )
+    client.shutdown()
+    assert any(
+        r.levelno == logging.DEBUG and "heartbeat" in r.getMessage().lower() for r in caplog.records
+    )
+
+
+def test_a_disabled_heartbeat_logs_no_credentials_message(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.delenv("RIUS_API_KEY", raising=False)
+    with caplog.at_level(logging.DEBUG, logger="rius.client"):
+        client = init(
+            set_global=False,
+            service_name="svc",
+            heartbeat=False,
+            endpoint="http://127.0.0.1:1",
+            span_exporter=InMemorySpanExporter(),
+        )
+    client.shutdown()
+    assert not any("credentials" in r.getMessage() for r in caplog.records)
+
+
 def test_an_api_key_starts_the_heartbeat(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("RIUS_HEARTBEAT", raising=False)
     client = init(

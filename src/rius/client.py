@@ -800,6 +800,13 @@ def _do_init(
     can_authenticate = heartbeat_transport is not None or any(
         key.lower() == "authorization" for key in config.headers
     )
+    if config.heartbeat and not config.disabled and not can_authenticate:
+        # Silent otherwise: auth supplied only through OTEL_EXPORTER_OTLP_HEADERS
+        # reaches the exporter but not this check.
+        logger.debug(
+            "rius heartbeat not started: no credentials (set api_key or an "
+            "Authorization header in headers)"
+        )
     if config.heartbeat and not config.disabled and can_authenticate:
         tracker = OpenRootSpanTracker()
         pipeline.add_span_processor(tracker)

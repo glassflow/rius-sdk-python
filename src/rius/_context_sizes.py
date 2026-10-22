@@ -46,9 +46,10 @@ no content to size) or, for any other part type, ``{"type": <type>}`` with no
 size. A text part's ``bytes`` are its prose only: a media token in it (a data
 URL, keyed base64, a Buffer, whatever the raw-payload strip replaces) follows
 it as a blob entry of its own, its modality from the token's mime type
-(document when it names none). Every media entry carries a modality. Roles are the literal
-role strings of the normalized messages; ``tool`` is the tool NAME (resolved
-through the call id for responses), ``null`` when unknown.
+(document when it names none). Every media entry carries a modality. Roles are the
+literal role strings of the normalized messages (``user`` for a ``None`` role);
+``tool`` is the tool NAME (resolved through the call id for responses), ``null``
+when unknown.
 
 This function runs on the user's request path, so it never raises: any
 unexpected shape yields a best-effort entry instead.
@@ -103,7 +104,10 @@ def _tool_name(tool: Any) -> str | None:
 
 
 def _role(message: Any) -> str:
+    """The message's role; a missing or ``None`` role is ``user``, as the TS SDK reports it."""
     role = message.get("role") if isinstance(message, dict) else None
+    if role is None:
+        return "user"
     return role if isinstance(role, str) else str(role)
 
 
