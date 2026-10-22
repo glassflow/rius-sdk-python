@@ -180,8 +180,11 @@ def _strip_media(text: str) -> str:
     return stripped
 
 
-#: A JSON string, or one bracket outside any.
-_STRING_OR_BRACKET = re.compile(r'"(?:[^"\\]|\\.)*"|[\[\]{}]', re.DOTALL)
+#: A JSON string, or one bracket outside any. A string that never closes (JSON
+#: stored in a string and then cut) runs to the end of the text, a lone
+#: backslash included: a failed match would restart at each escaped quote in
+#: it, which reads the text once per quote.
+_STRING_OR_BRACKET = re.compile(r'"(?:[^"\\]|\\.)*(?:"|\\?\Z)|[\[\]{}]', re.DOTALL)
 
 
 def _nests_past_parser_depth(text: str) -> bool:
