@@ -631,3 +631,16 @@ def test_instrumentor_with_satisfied_dependencies_is_enabled(
     provider = object()
     assert instrumentation.enable_instrumentations(provider) == ["conflicting"]
     assert conflicting_registry.instrument_calls == [provider]
+
+
+def test_runs_against_the_openai_major_the_job_pins() -> None:
+    # The openai-v3 CI job overlays openai 3.x with `uv run --with`, since the
+    # lock cannot hold it (llama-index-llms-openai and litellm cap openai<3).
+    # A bare `pytest` there would run the locked 2.x and pass silently.
+    import os
+    from importlib.metadata import version
+
+    expected = os.environ.get("RIUS_EXPECT_OPENAI_MAJOR")
+    if not expected:
+        pytest.skip("set by the CI job that pins an openai major")
+    assert version("openai").split(".")[0] == expected
