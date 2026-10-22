@@ -1,0 +1,177 @@
+{
+  "about": "How an SDK's span setter (Observation.set_attribute / setAttribute on a span from start_span / startSpan) writes a value. A string, a number, a boolean and an array of one of them is kept as it is. A mapping, or an array holding one, is one JSON string, encoded once: a mixed array inside it stays an array in the JSON. A byte object is its marker, `[stripped unknown <N> bytes]`, bare at the root and in an array of strings, quoted inside JSON (registry/media_parts.yaml byte_objects.attribute_values). `value` uses the tagged forms README.md describes. `expected` is the attribute value the span holds, an array as a JSON array.",
+  "cases": [
+    {
+      "name": "string",
+      "value": "x",
+      "expected": "x"
+    },
+    {
+      "name": "integer",
+      "value": 3,
+      "expected": 3
+    },
+    {
+      "name": "fraction",
+      "value": 1.5,
+      "expected": 1.5
+    },
+    {
+      "name": "boolean",
+      "value": true,
+      "expected": true
+    },
+    {
+      "name": "array_of_strings",
+      "value": [
+        "a",
+        "b"
+      ],
+      "expected": [
+        "a",
+        "b"
+      ]
+    },
+    {
+      "name": "array_of_numbers",
+      "value": [
+        1,
+        2
+      ],
+      "expected": [
+        1,
+        2
+      ]
+    },
+    {
+      "name": "array_of_booleans",
+      "value": [
+        true,
+        false
+      ],
+      "expected": [
+        true,
+        false
+      ]
+    },
+    {
+      "name": "mapping",
+      "value": {
+        "a": 1,
+        "b": "x"
+      },
+      "expected": "{\"a\":1,\"b\":\"x\"}"
+    },
+    {
+      "name": "nested_mapping",
+      "value": {
+        "a": {
+          "b": [
+            1,
+            2
+          ]
+        }
+      },
+      "expected": "{\"a\":{\"b\":[1,2]}}"
+    },
+    {
+      "name": "array_holding_a_mapping",
+      "value": [
+        {
+          "a": 1
+        }
+      ],
+      "expected": "[{\"a\":1}]"
+    },
+    {
+      "name": "byte_object",
+      "value": {
+        "$bytes": 2
+      },
+      "expected": "[stripped unknown 2 bytes]"
+    },
+    {
+      "name": "byte_objects_in_an_array",
+      "value": [
+        {
+          "$bytes": 2
+        },
+        {
+          "$bytes": 3
+        }
+      ],
+      "expected": [
+        "[stripped unknown 2 bytes]",
+        "[stripped unknown 3 bytes]"
+      ]
+    },
+    {
+      "name": "byte_object_beside_a_string",
+      "value": [
+        "a",
+        {
+          "$bytes": 2
+        }
+      ],
+      "expected": [
+        "a",
+        "[stripped unknown 2 bytes]"
+      ]
+    },
+    {
+      "name": "byte_object_beside_a_number_in_a_nested_array",
+      "value": [
+        [
+          1,
+          {
+            "$bytes": 1
+          }
+        ]
+      ],
+      "expected": [
+        "[1,\"[stripped unknown 1 bytes]\"]"
+      ]
+    },
+    {
+      "name": "byte_object_in_a_mapping",
+      "value": {
+        "img": {
+          "$bytes": 3
+        }
+      },
+      "expected": "{\"img\":\"[stripped unknown 3 bytes]\"}"
+    },
+    {
+      "name": "byte_object_beside_a_number_in_a_mapping",
+      "value": {
+        "k": [
+          1,
+          {
+            "$bytes": 2
+          }
+        ]
+      },
+      "expected": "{\"k\":[1,\"[stripped unknown 2 bytes]\"]}"
+    },
+    {
+      "name": "byte_objects_in_a_mapping_and_a_nested_array",
+      "value": {
+        "k": {
+          "$bytes": 2
+        },
+        "n": [
+          [
+            {
+              "$bytes": 3
+            }
+          ],
+          [
+            "x"
+          ]
+        ],
+        "i": 1
+      },
+      "expected": "{\"k\":\"[stripped unknown 2 bytes]\",\"n\":[[\"[stripped unknown 3 bytes]\"],[\"x\"]],\"i\":1}"
+    }
+  ]
+}

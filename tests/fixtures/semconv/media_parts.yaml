@@ -1232,15 +1232,19 @@ raw_payloads:
         is instead one string: the JSON the SDK serializes the array to under
         the rule above, `[1,"[stripped unknown 2 bytes]"]`, its numbers
         written as that SDK writes them. An array that held no byte object is
-        kept, its elements walked. The SDK then sets the walked value in the
-        form its OpenTelemetry attribute API holds. OpenTelemetry Python holds a
-        mapping and a nested array, so it sets them as they are. OpenTelemetry
-        JS holds neither, nor an array whose elements, null aside, are not
-        all strings, all numbers or all booleans. So a walked value that held
-        a byte object and is then a mapping, or an array OpenTelemetry JS
-        cannot hold, is set as one string: the JSON the SDK serializes the
-        whole value to under the rule above, every byte object a quoted marker
-        and every array an array. `{k: [1, bytes]}` is
+        kept, its elements walked. The walked value is then set in the form
+        the OpenTelemetry attribute API holds. A raw OpenTelemetry Python span
+        holds a mapping and a nested array, so they are set as they are.
+        OpenTelemetry JS holds neither, nor an array whose elements, null
+        aside, are not all strings, all numbers or all booleans. So a walked
+        value that held a byte object and is then a mapping, or an array
+        OpenTelemetry JS cannot hold, is set as one string: the JSON the SDK
+        serializes the whole value to under the rule above, every byte object
+        a quoted marker and every array an array. The SDKs' own setters
+        (set_attribute in Python, setAttribute in TypeScript) write a mapping,
+        or an array holding one, as one JSON encoding, byte objects as
+        markers, in both languages, so only a raw Python span still holds a
+        mapping. `{k: [1, bytes]}` is
         `{"k":[1,"[stripped unknown 2 bytes]"]}` and `[1, [1, bytes]]` is
         `[1,[1,"[stripped unknown 1 bytes]"]]`, each encoded once, never
         holding a mixed array's own JSON as a string. The sink does the same
@@ -1260,8 +1264,8 @@ raw_payloads:
         (above), which is JSON and so quoted. generators/media_parts.py
         attribute_value and otlp_attribute_value are the reference, and the
         TypeScript examples run through the replacer the tests hold; each
-        example's output is the attribute value the SDK sets: a string, an
-        array of them, a mapping (Python and the sink), or an array's or a
+        example's output is the attribute value set on a raw span: a string,
+        an array of them, a mapping (Python and the sink), or an array's or a
         mapping's JSON.
       examples:
         - name: python_bytes_attribute
@@ -1279,6 +1283,7 @@ raw_payloads:
           output: ['a', '[stripped unknown 2 bytes]']
         - name: python_byte_objects_in_a_mapping_and_a_nested_array
           language: python
+          note: 'A raw span holds the mapping as a mapping. The SDK setter writes one JSON encoding, byte objects as markers: {"k":"[stripped unknown 2 bytes]","n":[["[stripped unknown 3 bytes]"],["x"]],"i":1}.'
           value: '{"k": b"ab", "n": [[b"abc"], ["x"]], "i": 1}'
           output: {k: '[stripped unknown 2 bytes]', n: [['[stripped unknown 3 bytes]'], ['x']], i: 1}
         - name: python_byte_object_beside_a_number
@@ -1288,12 +1293,12 @@ raw_payloads:
           output: '[1,"[stripped unknown 2 bytes]"]'
         - name: python_byte_object_in_a_mapping
           language: python
-          note: OpenTelemetry Python holds a mapping, so it is set as a mapping.
+          note: 'A raw span holds a mapping, so it is set as a mapping. The SDK setter writes one JSON encoding, byte objects as markers: {"img":"[stripped unknown 3 bytes]"}.'
           value: '{"img": b"abc"}'
           output: {img: '[stripped unknown 3 bytes]'}
         - name: python_byte_object_beside_a_number_in_a_mapping
           language: python
-          note: The mixed array is its JSON, and the mapping around it stays a mapping.
+          note: 'On a raw span the mixed array is its JSON, and the mapping around it stays a mapping. The SDK setter writes one JSON encoding, byte objects as markers, the mixed array an array in it: {"k":[1,"[stripped unknown 2 bytes]"]}.'
           value: '{"k": [1, b"ab"]}'
           output: {k: '[1,"[stripped unknown 2 bytes]"]'}
         - name: python_byte_object_beside_a_number_in_a_nested_array

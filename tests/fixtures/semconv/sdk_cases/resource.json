@@ -1,0 +1,78 @@
+{
+  "about": "How an SDK builds its resource from OTEL_RESOURCE_ATTRIBUTES and its own settings: rius.init() / init() with `options` (service_name and agent_name, by their Python names), every RIUS_* variable unset and OTEL_RESOURCE_ATTRIBUTES set to `otel_resource_attributes` (unset when null). Every key the variable carries reaches the resource (values percent-decoded, keys and values trimmed, a pair without = skipped), under the SDK's own keys, which win. `expected` names resource attributes and their values; `absent` names attributes the resource must not have.",
+  "cases": [
+    {
+      "name": "every_key_is_merged",
+      "otel_resource_attributes": "deployment.environment.name=prod, team = a%20b ,malformed,cloud.region=eu-west-1",
+      "options": {
+        "service_name": "svc"
+      },
+      "expected": {
+        "deployment.environment.name": "prod",
+        "team": "a b",
+        "cloud.region": "eu-west-1",
+        "service.name": "svc"
+      },
+      "absent": [
+        "malformed"
+      ]
+    },
+    {
+      "name": "the_sdk_keys_win",
+      "otel_resource_attributes": "service.name=from-env,gen_ai.agent.name=env-agent,telemetry.distro.name=other",
+      "options": {
+        "service_name": "svc",
+        "agent_name": "planner"
+      },
+      "expected": {
+        "service.name": "svc",
+        "gen_ai.agent.name": "planner",
+        "telemetry.distro.name": "glassflow-rius"
+      },
+      "absent": []
+    },
+    {
+      "name": "service_version_from_the_variable",
+      "otel_resource_attributes": "service.version=0.0.1-env",
+      "options": {
+        "service_name": "svc"
+      },
+      "expected": {
+        "service.version": "0.0.1-env"
+      },
+      "absent": []
+    },
+    {
+      "name": "the_unknown_service_placeholder_is_not_an_agent_name",
+      "otel_resource_attributes": null,
+      "options": {},
+      "expected": {
+        "service.name": "unknown_service"
+      },
+      "absent": [
+        "gen_ai.agent.name"
+      ]
+    },
+    {
+      "name": "an_operator_agent_name_passes_through_when_nothing_named_one",
+      "otel_resource_attributes": "gen_ai.agent.name=ops-agent",
+      "options": {},
+      "expected": {
+        "gen_ai.agent.name": "ops-agent"
+      },
+      "absent": []
+    },
+    {
+      "name": "a_named_service_is_the_agent_name",
+      "otel_resource_attributes": null,
+      "options": {
+        "service_name": "svc"
+      },
+      "expected": {
+        "service.name": "svc",
+        "gen_ai.agent.name": "svc"
+      },
+      "absent": []
+    }
+  ]
+}

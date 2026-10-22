@@ -1,0 +1,451 @@
+{
+  "about": "How an SDK records a generation's messages (set_input / setInput and set_output / setOutput on a generation from start_generation / startGeneration). `direction` says which setter: input writes gen_ai.input.messages with default role user, output writes gen_ai.output.messages with default role assistant. `messages` is that attribute's JSON, parsed. `context_sizes` is rius.context.sizes, parsed. A lone string is one message with the default role, a lone mapping is one message, a missing role is the default role, and an explicit null role is kept on the message but reported as user in rius.context.sizes, the role whose bytes it counts under.",
+  "cases": [
+    {
+      "name": "single_string_input",
+      "direction": "input",
+      "value": "hello",
+      "messages": [
+        {
+          "role": "user",
+          "parts": [
+            {
+              "type": "text",
+              "content": "hello"
+            }
+          ]
+        }
+      ],
+      "context_sizes": {
+        "version": 1,
+        "input_messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "bytes": 5
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "single_string_output",
+      "direction": "output",
+      "value": "done",
+      "messages": [
+        {
+          "role": "assistant",
+          "parts": [
+            {
+              "type": "text",
+              "content": "done"
+            }
+          ]
+        }
+      ],
+      "context_sizes": {
+        "version": 1,
+        "output_messages": [
+          {
+            "role": "assistant",
+            "parts": [
+              {
+                "type": "text",
+                "bytes": 4
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "single_message_mapping_output",
+      "direction": "output",
+      "value": {
+        "role": "assistant",
+        "content": "hi"
+      },
+      "messages": [
+        {
+          "role": "assistant",
+          "parts": [
+            {
+              "type": "text",
+              "content": "hi"
+            }
+          ]
+        }
+      ],
+      "context_sizes": {
+        "version": 1,
+        "output_messages": [
+          {
+            "role": "assistant",
+            "parts": [
+              {
+                "type": "text",
+                "bytes": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "single_message_mapping_with_content_blocks",
+      "direction": "input",
+      "value": {
+        "role": "user",
+        "content": [
+          {
+            "type": "text",
+            "text": "x"
+          }
+        ]
+      },
+      "messages": [
+        {
+          "role": "user",
+          "parts": [
+            {
+              "type": "text",
+              "content": "x"
+            }
+          ]
+        }
+      ],
+      "context_sizes": {
+        "version": 1,
+        "input_messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "bytes": 1
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "single_message_mapping_without_a_role",
+      "direction": "output",
+      "value": {
+        "content": "ok"
+      },
+      "messages": [
+        {
+          "role": "assistant",
+          "parts": [
+            {
+              "type": "text",
+              "content": "ok"
+            }
+          ]
+        }
+      ],
+      "context_sizes": {
+        "version": 1,
+        "output_messages": [
+          {
+            "role": "assistant",
+            "parts": [
+              {
+                "type": "text",
+                "bytes": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "missing_role_is_the_default",
+      "direction": "input",
+      "value": [
+        {
+          "content": "hi"
+        }
+      ],
+      "messages": [
+        {
+          "role": "user",
+          "parts": [
+            {
+              "type": "text",
+              "content": "hi"
+            }
+          ]
+        }
+      ],
+      "context_sizes": {
+        "version": 1,
+        "input_messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "bytes": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "null_role_is_kept_and_sized_as_user",
+      "direction": "input",
+      "value": [
+        {
+          "role": null,
+          "content": "hi"
+        }
+      ],
+      "messages": [
+        {
+          "role": null,
+          "parts": [
+            {
+              "type": "text",
+              "content": "hi"
+            }
+          ]
+        }
+      ],
+      "context_sizes": {
+        "version": 1,
+        "input_messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "bytes": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "null_role_on_a_parts_message",
+      "direction": "input",
+      "value": [
+        {
+          "role": null,
+          "parts": [
+            {
+              "type": "text",
+              "content": "hi"
+            }
+          ]
+        }
+      ],
+      "messages": [
+        {
+          "role": null,
+          "parts": [
+            {
+              "type": "text",
+              "content": "hi"
+            }
+          ]
+        }
+      ],
+      "context_sizes": {
+        "version": 1,
+        "input_messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "bytes": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "null_role_on_an_output_message_is_sized_as_user",
+      "direction": "output",
+      "value": [
+        {
+          "role": null,
+          "content": "hi"
+        }
+      ],
+      "messages": [
+        {
+          "role": null,
+          "parts": [
+            {
+              "type": "text",
+              "content": "hi"
+            }
+          ]
+        }
+      ],
+      "context_sizes": {
+        "version": 1,
+        "output_messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "bytes": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "content_list_with_null_and_a_number",
+      "direction": "input",
+      "value": [
+        {
+          "role": "user",
+          "content": [
+            "a",
+            null,
+            1
+          ]
+        }
+      ],
+      "messages": [
+        {
+          "role": "user",
+          "parts": [
+            {
+              "type": "text",
+              "content": "a"
+            },
+            {
+              "type": "text",
+              "content": "null"
+            },
+            {
+              "type": "text",
+              "content": "1"
+            }
+          ]
+        }
+      ],
+      "context_sizes": {
+        "version": 1,
+        "input_messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "bytes": 1
+              },
+              {
+                "type": "text",
+                "bytes": 4
+              },
+              {
+                "type": "text",
+                "bytes": 1
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "string_beside_a_message",
+      "direction": "input",
+      "value": [
+        "hi",
+        {
+          "role": "assistant",
+          "content": "yo"
+        }
+      ],
+      "messages": [
+        {
+          "role": "user",
+          "parts": [
+            {
+              "type": "text",
+              "content": "hi"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "parts": [
+            {
+              "type": "text",
+              "content": "yo"
+            }
+          ]
+        }
+      ],
+      "context_sizes": {
+        "version": 1,
+        "input_messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "bytes": 2
+              }
+            ]
+          },
+          {
+            "role": "assistant",
+            "parts": [
+              {
+                "type": "text",
+                "bytes": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "non_ascii_text_is_sized_in_utf8_bytes",
+      "direction": "input",
+      "value": "café 😀",
+      "messages": [
+        {
+          "role": "user",
+          "parts": [
+            {
+              "type": "text",
+              "content": "café 😀"
+            }
+          ]
+        }
+      ],
+      "context_sizes": {
+        "version": 1,
+        "input_messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "bytes": 10
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-# Vendored from rius-semconv 118e2d19c165fd33ed861d809d9b845fcdda73ed fixtures/_replay.py by
+# Vendored from rius-semconv 20ace6eb528087cc38a81bf21718ec4150e6c282 fixtures/_replay.py by
 # scripts/sync-semconv-fixtures.sh. Do not edit: change it in rius-semconv.
 """Turn a stored recording back into OpenTelemetry ReadableSpans (Python).
 
@@ -16,7 +16,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from opentelemetry.attributes import BoundedAttributes
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import Event, ReadableSpan
 from opentelemetry.sdk.util.instrumentation import InstrumentationScope
@@ -79,15 +78,7 @@ def scenario_spans(scenario: dict[str, Any]) -> list[ReadableSpan]:
                 resource=resource,
                 attributes=attributes(d.get("attributes", [])),
                 events=[
-                    # BoundedAttributes, as the SDK's add_event builds: the
-                    # OTLP encoder before OTel 1.25 reads .dropped off it.
-                    Event(
-                        e["name"],
-                        BoundedAttributes(
-                            attributes=attributes(e.get("attributes", [])), immutable=True
-                        ),
-                        int(e["timeUnixNano"]),
-                    )
+                    Event(e["name"], attributes(e.get("attributes", [])), int(e["timeUnixNano"]))
                     for e in d.get("events", [])
                 ],
                 kind=_KINDS[d.get("kind", "SPAN_KIND_INTERNAL")],
