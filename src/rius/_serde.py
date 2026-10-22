@@ -138,9 +138,16 @@ def _non_finite_name(value: float) -> str:
     return "Infinity" if value > 0 else "-Infinity"
 
 
+def _finite_key(key: Any) -> Any:
+    if isinstance(key, float) and not math.isfinite(key):
+        return _non_finite_name(key)
+    return key
+
+
 def _finite(value: Any, ancestors: list[int] | None = None) -> Any:
     """``value`` with every NaN and infinity inside its mappings and arrays
-    replaced by ``None``, which JSON writes as null.
+    replaced by ``None``, which JSON writes as null, and a mapping key that is
+    one replaced by its name.
 
     NaN and the infinities are no JSON; the TypeScript SDK's JSON.stringify
     writes them as null, and so does this SDK. Only mappings, lists and
@@ -157,7 +164,9 @@ def _finite(value: Any, ancestors: list[int] | None = None) -> Any:
     ancestors.append(id(value))
     try:
         if isinstance(value, Mapping):
-            return {key: _finite(item, ancestors) for key, item in value.items()}
+            # A non-finite key stays its name, as json writes a float key
+            # and JavaScript's String() names it; only values become null.
+            return {_finite_key(key): _finite(item, ancestors) for key, item in value.items()}
         return [_finite(item, ancestors) for item in value]
     finally:
         ancestors.pop()

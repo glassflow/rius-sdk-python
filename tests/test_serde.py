@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import re
 
+import pytest
+
 from rius._serde import (
     MAX_ATTR_CHARS,
     MAX_STRIP_CHARS,
@@ -217,3 +219,20 @@ def test_an_escape_is_one_character_of_a_run_past_the_budget() -> None:
         word, media = escape * 63, escape * 64
         text = text_value(word + " " + media + " " + "x" * MAX_STRIP_CHARS)
         assert text.startswith(word + " [stripped unknown unknown bytes] ")
+
+
+@pytest.mark.parametrize(
+    ("value", "written"),
+    [
+        ({float("nan"): 1}, '{"NaN":1}'),
+        ({float("inf"): float("nan")}, '{"Infinity":null}'),
+        ({float("-inf"): [1, float("inf")]}, '{"-Infinity":[1,null]}'),
+    ],
+)
+def test_a_non_finite_mapping_key_is_its_name_and_only_values_are_null(
+    value: dict[float, object], written: str
+) -> None:
+    """json names a float key as it repr's the float, NaN and the infinities
+    included, as JavaScript's String() does; only a non-finite VALUE is no
+    JSON, so only values become null. The value never falls back to repr."""
+    assert serialize(value) == written
