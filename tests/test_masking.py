@@ -520,13 +520,13 @@ def test_capture_content_false_strips_genai_tool_call_and_system_keys() -> None:
 
 
 def test_metadata_mirror_of_a_content_key_is_content() -> None:
-    from rius.masking import _is_content_key
+    from rius.masking import is_content_key
 
-    assert _is_content_key("metadata.gen_ai.system_instructions")
-    assert _is_content_key("metadata.gen_ai.input.messages")
-    assert _is_content_key("metadata.llm.input_messages.0.message.content")
-    assert not _is_content_key("metadata.gen_ai.tool.name")
-    assert not _is_content_key("metadata.ai.model.id")
+    assert is_content_key("metadata.gen_ai.system_instructions")
+    assert is_content_key("metadata.gen_ai.input.messages")
+    assert is_content_key("metadata.llm.input_messages.0.message.content")
+    assert not is_content_key("metadata.gen_ai.tool.name")
+    assert not is_content_key("metadata.ai.model.id")
 
 
 def test_capture_content_false_strips_metadata_mirrors() -> None:
@@ -737,9 +737,9 @@ def test_capture_content_false_strips_third_party_sdk_content_keys() -> None:
 
 
 def test_third_party_usage_and_identity_keys_are_not_content() -> None:
-    from rius.masking import _is_content_key
+    from rius.masking import is_content_key
 
-    assert [key for key in THIRD_PARTY_KEYS_THAT_SURVIVE if _is_content_key(key)] == []
+    assert [key for key in THIRD_PARTY_KEYS_THAT_SURVIVE if is_content_key(key)] == []
 
 
 def test_capture_content_false_keeps_third_party_usage_and_identity_keys() -> None:
@@ -830,3 +830,43 @@ def test_capture_content_false_strips_vercel_speech_decision_and_metadata_keys()
     attrs = inner.get_finished_spans()[0].attributes
     assert "SECRET" not in json.dumps(dict(attrs))
     assert attrs["ai.settings.maxRetries"] == 2
+
+
+# Other providers' names for the prompt (Gemini, Bedrock, Cohere, a bare
+# system_prompt), and structured-output schemas, which are content too.
+PROVIDER_CONTENT_PARAMETERS = (
+    "contents",
+    "system_instruction",
+    "systemInstruction",
+    "system_prompt",
+    "systemPrompt",
+    "toolConfig",
+    "preamble",
+    "chat_history",
+    "message",
+    "documents",
+    "response_format",
+    "json_schema",
+)
+
+
+def test_capture_content_false_strips_provider_spellings_of_content_parameters() -> None:
+    from rius import _tracer, start_generation
+
+    inner = InMemorySpanExporter()
+    client = init(span_exporter=inner, set_global=False, capture_content=False, instruments=[])
+    _tracer.publish(client._provider)
+    generation = start_generation(
+        "chat",
+        model_parameters={
+            **{member: "SECRET" for member in PROVIDER_CONTENT_PARAMETERS},
+            "temperature": 0.7,
+        },
+    )
+    generation.end()
+    client.flush()
+    attrs = inner.get_finished_spans()[0].attributes
+    for member in PROVIDER_CONTENT_PARAMETERS:
+        assert f"rius.request.{member}" not in attrs, member
+    assert "SECRET" not in json.dumps(dict(attrs))
+    assert attrs["gen_ai.request.temperature"] == 0.7

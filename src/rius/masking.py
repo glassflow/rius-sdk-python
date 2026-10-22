@@ -67,7 +67,13 @@ def _accepts_key(mask: Mask) -> bool:
 _METADATA_PREFIX = "metadata."
 
 
-def _is_content_key(key: str) -> bool:
+def is_content_key(key: str) -> bool:
+    """Whether an attribute key carries content (prompts, messages, tool data).
+
+    The single definition of content: the exporter strips or masks these keys,
+    and pending snapshots leave them out even with content capture on, so a
+    change here changes both.
+    """
     if (
         key in CONTENT_ATTRIBUTES
         or (
@@ -81,7 +87,7 @@ def _is_content_key(key: str) -> bool:
         )
     ):
         return True
-    return key.startswith(_METADATA_PREFIX) and _is_content_key(key[len(_METADATA_PREFIX) :])
+    return key.startswith(_METADATA_PREFIX) and is_content_key(key[len(_METADATA_PREFIX) :])
 
 
 # record_exception() writes the provider's error string, and providers echo
@@ -207,7 +213,7 @@ class MaskingSpanExporter(SpanExporter):
         """Sanitized copy of an attribute mapping, or None when unchanged."""
         if not attributes:
             return None
-        keys = [key for key in attributes if _is_content_key(key) or key in extra_content_keys]
+        keys = [key for key in attributes if is_content_key(key) or key in extra_content_keys]
         if not keys:
             return None
 

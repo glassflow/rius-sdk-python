@@ -45,7 +45,7 @@ from opentelemetry import context as otel_context
 from opentelemetry.sdk.trace import ReadableSpan, Span, SpanProcessor
 from opentelemetry.trace import Status, StatusCode
 
-from .masking import _is_content_key
+from .masking import is_content_key
 from .semconv import (
     PENDING_IDENTITY_ATTRIBUTES,
     PENDING_IDENTITY_PREFIXES,
@@ -203,7 +203,7 @@ def _identity_attributes(attributes: Any) -> dict[str, Any]:
         key: value
         for key, value in attributes.items()
         if (key in PENDING_IDENTITY_ATTRIBUTES or key.startswith(PENDING_IDENTITY_PREFIXES))
-        and not _is_content_key(key)
+        and not is_content_key(key)
     }
 
 
