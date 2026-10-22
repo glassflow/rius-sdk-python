@@ -1,0 +1,348 @@
+{
+  "about": "How an SDK's span setter (Observation.set_attribute / setAttribute on a span from start_span / startSpan) writes a value. A string, a number and a boolean is kept as it is. An array is kept as an array when, nulls aside, its elements (byte objects already their markers) are all strings, all numbers or all booleans; an empty array is kept too. Any other array (mixed types, a boolean beside a number, any array holding an array or a mapping, whatever its own elements) and any mapping is one JSON string: compact, non-ASCII kept, nothing HTML-escaped, NaN and the infinities null (as JSON.stringify writes them), encoded once (an array inside it stays an array in the JSON), byte objects as quoted markers. A byte object is its marker, `[stripped unknown <N> bytes]`, bare at the root and in an array of strings and byte objects (registry/media_parts.yaml byte_objects.attribute_values). `value` uses the tagged forms README.md describes. `expected` is the attribute value the span holds, an array as a JSON array.",
+  "cases": [
+    {
+      "name": "string",
+      "value": "x",
+      "expected": "x"
+    },
+    {
+      "name": "integer",
+      "value": 3,
+      "expected": 3
+    },
+    {
+      "name": "fraction",
+      "value": 1.5,
+      "expected": 1.5
+    },
+    {
+      "name": "boolean",
+      "value": true,
+      "expected": true
+    },
+    {
+      "name": "array_of_strings",
+      "value": [
+        "a",
+        "b"
+      ],
+      "expected": [
+        "a",
+        "b"
+      ]
+    },
+    {
+      "name": "array_of_numbers",
+      "value": [
+        1,
+        2
+      ],
+      "expected": [
+        1,
+        2
+      ]
+    },
+    {
+      "name": "array_of_booleans",
+      "value": [
+        true,
+        false
+      ],
+      "expected": [
+        true,
+        false
+      ]
+    },
+    {
+      "name": "mapping",
+      "value": {
+        "a": 1,
+        "b": "x"
+      },
+      "expected": "{\"a\":1,\"b\":\"x\"}"
+    },
+    {
+      "name": "nested_mapping",
+      "value": {
+        "a": {
+          "b": [
+            1,
+            2
+          ]
+        }
+      },
+      "expected": "{\"a\":{\"b\":[1,2]}}"
+    },
+    {
+      "name": "array_holding_a_mapping",
+      "value": [
+        {
+          "a": 1
+        }
+      ],
+      "expected": "[{\"a\":1}]"
+    },
+    {
+      "name": "byte_object",
+      "value": {
+        "$bytes": 2
+      },
+      "expected": "[stripped unknown 2 bytes]"
+    },
+    {
+      "name": "byte_objects_in_an_array",
+      "value": [
+        {
+          "$bytes": 2
+        },
+        {
+          "$bytes": 3
+        }
+      ],
+      "expected": [
+        "[stripped unknown 2 bytes]",
+        "[stripped unknown 3 bytes]"
+      ]
+    },
+    {
+      "name": "byte_object_beside_a_string",
+      "value": [
+        "a",
+        {
+          "$bytes": 2
+        }
+      ],
+      "expected": [
+        "a",
+        "[stripped unknown 2 bytes]"
+      ]
+    },
+    {
+      "name": "byte_object_beside_a_number_in_a_nested_array",
+      "value": [
+        [
+          1,
+          {
+            "$bytes": 1
+          }
+        ]
+      ],
+      "expected": "[[1,\"[stripped unknown 1 bytes]\"]]"
+    },
+    {
+      "name": "byte_object_in_a_mapping",
+      "value": {
+        "img": {
+          "$bytes": 3
+        }
+      },
+      "expected": "{\"img\":\"[stripped unknown 3 bytes]\"}"
+    },
+    {
+      "name": "byte_object_beside_a_number_in_a_mapping",
+      "value": {
+        "k": [
+          1,
+          {
+            "$bytes": 2
+          }
+        ]
+      },
+      "expected": "{\"k\":[1,\"[stripped unknown 2 bytes]\"]}"
+    },
+    {
+      "name": "byte_objects_in_a_mapping_and_a_nested_array",
+      "value": {
+        "k": {
+          "$bytes": 2
+        },
+        "n": [
+          [
+            {
+              "$bytes": 3
+            }
+          ],
+          [
+            "x"
+          ]
+        ],
+        "i": 1
+      },
+      "expected": "{\"k\":\"[stripped unknown 2 bytes]\",\"n\":[[\"[stripped unknown 3 bytes]\"],[\"x\"]],\"i\":1}"
+    },
+    {
+      "name": "empty_array",
+      "value": [],
+      "expected": []
+    },
+    {
+      "name": "null_beside_a_number",
+      "value": [
+        null,
+        1
+      ],
+      "expected": [
+        null,
+        1
+      ]
+    },
+    {
+      "name": "only_null",
+      "value": [
+        null
+      ],
+      "expected": [
+        null
+      ]
+    },
+    {
+      "name": "integer_beside_a_fraction",
+      "value": [
+        1,
+        1.5
+      ],
+      "expected": [
+        1,
+        1.5
+      ]
+    },
+    {
+      "name": "number_beside_a_string",
+      "value": [
+        1,
+        "a"
+      ],
+      "expected": "[1,\"a\"]"
+    },
+    {
+      "name": "boolean_beside_a_number",
+      "value": [
+        true,
+        1
+      ],
+      "expected": "[true,1]"
+    },
+    {
+      "name": "string_beside_a_boolean",
+      "value": [
+        "a",
+        false
+      ],
+      "expected": "[\"a\",false]"
+    },
+    {
+      "name": "mixed_with_a_null",
+      "value": [
+        1,
+        null,
+        "a"
+      ],
+      "expected": "[1,null,\"a\"]"
+    },
+    {
+      "name": "nested_arrays",
+      "value": [
+        [
+          "x"
+        ],
+        [
+          "y"
+        ]
+      ],
+      "expected": "[[\"x\"],[\"y\"]]"
+    },
+    {
+      "name": "nested_empty_array",
+      "value": [
+        []
+      ],
+      "expected": "[[]]"
+    },
+    {
+      "name": "number_beside_an_array",
+      "value": [
+        1,
+        [
+          2,
+          3
+        ]
+      ],
+      "expected": "[1,[2,3]]"
+    },
+    {
+      "name": "mixed_array_keeps_non_ascii_and_html_characters",
+      "value": [
+        "café <a href=\"x\">&</a>",
+        1
+      ],
+      "expected": "[\"café <a href=\\\"x\\\">&</a>\",1]"
+    },
+    {
+      "name": "byte_object_beside_a_number_in_an_array_beside_a_number",
+      "value": [
+        1,
+        [
+          1,
+          {
+            "$bytes": 1
+          }
+        ]
+      ],
+      "expected": "[1,[1,\"[stripped unknown 1 bytes]\"]]"
+    },
+    {
+      "name": "byte_object_beside_a_number",
+      "value": [
+        1,
+        {
+          "$bytes": 2
+        }
+      ],
+      "expected": "[1,\"[stripped unknown 2 bytes]\"]"
+    },
+    {
+      "name": "non_finite_number_in_a_mixed_array_is_null",
+      "value": [
+        1,
+        {
+          "$number": "NaN"
+        },
+        "a"
+      ],
+      "expected": "[1,null,\"a\"]"
+    },
+    {
+      "name": "byte_object_in_a_nested_array",
+      "value": [
+        [
+          {
+            "$bytes": 1
+          }
+        ]
+      ],
+      "expected": "[[\"[stripped unknown 1 bytes]\"]]"
+    },
+    {
+      "name": "byte_object_in_a_mapping_in_an_array",
+      "value": [
+        {
+          "k": {
+            "$bytes": 2
+          }
+        }
+      ],
+      "expected": "[{\"k\":\"[stripped unknown 2 bytes]\"}]"
+    },
+    {
+      "name": "nested_mixed_array",
+      "value": [
+        [
+          1,
+          "a"
+        ]
+      ],
+      "expected": "[[1,\"a\"]]"
+    }
+  ]
+}

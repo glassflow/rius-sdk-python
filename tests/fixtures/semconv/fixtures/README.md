@@ -97,9 +97,27 @@ to equal the recording exactly. A normalizer change that alters an SDK's own
 output fails there, and every consumer's conformance test checks the same
 property for its own normalizer.
 
-Both families have the same scenarios, so the two SDKs' output can also be
-compared directly. They pin a released SDK version, like every other family
-pins its instrumentor.
+Both families have the same scenarios, so the two SDKs' output is also
+compared directly: `tools/check_controls.py` (in CI) diffs the newest
+recording of each family, scenario by scenario and span by span (resource,
+scope, name, kind, ids, times, status, every attribute, every event and its
+attributes). Every difference must be listed in `control_differences.json`
+with the reason it is a difference of language, or of the library a recorder
+drives (each recorder pins its language's MCP library and OpenTelemetry SDK),
+and not a disagreement between the SDKs. An entry matches on where and key,
+and on the exact values when it gives them. A difference no entry matches
+fails, and so does an entry that matches nothing. A real disagreement is never
+listed: it is fixed in the SDK that is wrong, and both controls are
+re-recorded.
+
+They pin an SDK version, like every other family pins its instrumentor. A
+recording made from an SDK's main branch ahead of a release names the commit
+in its manifest entry (`sdk_commit`) and how it was installed (`note`), since
+the version string alone does not say which build it was.
+
+Behaviour the SDKs share that no recording exercises (value encoding, masking,
+environment parsing, the resource) is in `../sdk_cases/` instead, as cases
+both SDKs run.
 
 ## The expected result
 

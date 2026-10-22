@@ -1,0 +1,384 @@
+{
+  "about": "What an SDK's masking exporter (MaskingSpanExporter, between the span processors and the OTLP exporter) does to a span's content: its content attributes (registry content keys, e.g. input.value, gen_ai.input.messages), the exception.message and exception.stacktrace of an exception event, and the status description. Non-content attributes, exception.type and the status code always survive. `capture_content` false drops all content whatever the mask. With it true, `mask` (when given) runs over each content value with its key (status.description for the status): `returns` gives that value back, `format` gives the string with {key} and {value} filled in, `throws` raises. A mask that returns null or throws drops the value; a string, number or boolean it returns is kept as it is. `span` is the span as it ends (an ERROR status with `status` as its description when given); `expected` is what reaches the inner exporter: every attribute, the status description (null for none), and every event's attributes.",
+  "cases": [
+    {
+      "name": "capture_on_without_a_mask_keeps_everything",
+      "capture_content": true,
+      "mask": null,
+      "span": {
+        "attributes": {
+          "input.value": "secret",
+          "gen_ai.request.model": "m"
+        },
+        "events": [
+          {
+            "name": "exception",
+            "attributes": {
+              "exception.type": "ValueError",
+              "exception.message": "secret",
+              "exception.stacktrace": "trace"
+            }
+          }
+        ],
+        "status": "secret"
+      },
+      "expected": {
+        "attributes": {
+          "input.value": "secret",
+          "gen_ai.request.model": "m"
+        },
+        "events": [
+          {
+            "name": "exception",
+            "attributes": {
+              "exception.type": "ValueError",
+              "exception.message": "secret",
+              "exception.stacktrace": "trace"
+            }
+          }
+        ],
+        "status": "secret"
+      }
+    },
+    {
+      "name": "capture_off_drops_content_attributes_exception_text_and_status",
+      "capture_content": false,
+      "mask": null,
+      "span": {
+        "attributes": {
+          "input.value": "secret",
+          "output.value": "secret",
+          "gen_ai.input.messages": "[]",
+          "gen_ai.request.model": "m"
+        },
+        "events": [
+          {
+            "name": "exception",
+            "attributes": {
+              "exception.type": "ValueError",
+              "exception.message": "secret",
+              "exception.stacktrace": "trace"
+            }
+          }
+        ],
+        "status": "secret"
+      },
+      "expected": {
+        "attributes": {
+          "gen_ai.request.model": "m"
+        },
+        "events": [
+          {
+            "name": "exception",
+            "attributes": {
+              "exception.type": "ValueError"
+            }
+          }
+        ],
+        "status": null
+      }
+    },
+    {
+      "name": "capture_off_ignores_the_mask",
+      "capture_content": false,
+      "mask": {
+        "returns": "[masked]"
+      },
+      "span": {
+        "attributes": {
+          "input.value": "secret",
+          "gen_ai.request.model": "m"
+        },
+        "events": [
+          {
+            "name": "exception",
+            "attributes": {
+              "exception.type": "ValueError",
+              "exception.message": "secret"
+            }
+          }
+        ],
+        "status": "secret"
+      },
+      "expected": {
+        "attributes": {
+          "gen_ai.request.model": "m"
+        },
+        "events": [
+          {
+            "name": "exception",
+            "attributes": {
+              "exception.type": "ValueError"
+            }
+          }
+        ],
+        "status": null
+      }
+    },
+    {
+      "name": "mask_returning_a_string_replaces_content",
+      "capture_content": true,
+      "mask": {
+        "returns": "[masked]"
+      },
+      "span": {
+        "attributes": {
+          "input.value": "secret",
+          "gen_ai.request.model": "m"
+        },
+        "events": [
+          {
+            "name": "exception",
+            "attributes": {
+              "exception.type": "ValueError",
+              "exception.message": "secret",
+              "exception.stacktrace": "trace"
+            }
+          }
+        ],
+        "status": "secret"
+      },
+      "expected": {
+        "attributes": {
+          "input.value": "[masked]",
+          "gen_ai.request.model": "m"
+        },
+        "events": [
+          {
+            "name": "exception",
+            "attributes": {
+              "exception.type": "ValueError",
+              "exception.message": "[masked]",
+              "exception.stacktrace": "[masked]"
+            }
+          }
+        ],
+        "status": "[masked]"
+      }
+    },
+    {
+      "name": "mask_sees_each_key",
+      "capture_content": true,
+      "mask": {
+        "format": "{key}:{value}"
+      },
+      "span": {
+        "attributes": {
+          "input.value": "a",
+          "gen_ai.request.model": "m"
+        },
+        "events": [
+          {
+            "name": "exception",
+            "attributes": {
+              "exception.type": "ValueError",
+              "exception.message": "b",
+              "exception.stacktrace": "c"
+            }
+          }
+        ],
+        "status": "d"
+      },
+      "expected": {
+        "attributes": {
+          "input.value": "input.value:a",
+          "gen_ai.request.model": "m"
+        },
+        "events": [
+          {
+            "name": "exception",
+            "attributes": {
+              "exception.type": "ValueError",
+              "exception.message": "exception.message:b",
+              "exception.stacktrace": "exception.stacktrace:c"
+            }
+          }
+        ],
+        "status": "status.description:d"
+      }
+    },
+    {
+      "name": "mask_returning_null_drops_content",
+      "capture_content": true,
+      "mask": {
+        "returns": null
+      },
+      "span": {
+        "attributes": {
+          "input.value": "secret",
+          "gen_ai.request.model": "m"
+        },
+        "events": [
+          {
+            "name": "exception",
+            "attributes": {
+              "exception.type": "ValueError",
+              "exception.message": "secret",
+              "exception.stacktrace": "trace"
+            }
+          }
+        ],
+        "status": "secret"
+      },
+      "expected": {
+        "attributes": {
+          "gen_ai.request.model": "m"
+        },
+        "events": [
+          {
+            "name": "exception",
+            "attributes": {
+              "exception.type": "ValueError"
+            }
+          }
+        ],
+        "status": null
+      }
+    },
+    {
+      "name": "mask_that_throws_drops_content",
+      "capture_content": true,
+      "mask": {
+        "throws": true
+      },
+      "span": {
+        "attributes": {
+          "input.value": "secret",
+          "gen_ai.request.model": "m"
+        },
+        "events": [
+          {
+            "name": "exception",
+            "attributes": {
+              "exception.type": "ValueError",
+              "exception.message": "secret",
+              "exception.stacktrace": "trace"
+            }
+          }
+        ],
+        "status": "secret"
+      },
+      "expected": {
+        "attributes": {
+          "gen_ai.request.model": "m"
+        },
+        "events": [
+          {
+            "name": "exception",
+            "attributes": {
+              "exception.type": "ValueError"
+            }
+          }
+        ],
+        "status": null
+      }
+    },
+    {
+      "name": "mask_returning_a_number_keeps_it",
+      "capture_content": true,
+      "mask": {
+        "returns": 7
+      },
+      "span": {
+        "attributes": {
+          "input.value": "secret"
+        },
+        "events": [],
+        "status": "secret"
+      },
+      "expected": {
+        "attributes": {
+          "input.value": 7
+        },
+        "events": [],
+        "status": "7"
+      }
+    },
+    {
+      "name": "mask_returning_a_mapping_writes_its_json",
+      "capture_content": true,
+      "mask": {
+        "returns": {
+          "redacted": true
+        }
+      },
+      "span": {
+        "attributes": {
+          "input.value": "secret"
+        },
+        "events": []
+      },
+      "expected": {
+        "attributes": {
+          "input.value": "{\"redacted\":true}"
+        },
+        "events": [],
+        "status": null
+      }
+    },
+    {
+      "name": "exception_text_outside_an_exception_event_is_not_content",
+      "capture_content": false,
+      "mask": null,
+      "span": {
+        "attributes": {
+          "exception.message": "kept"
+        },
+        "events": [
+          {
+            "name": "retry",
+            "attributes": {
+              "exception.message": "kept"
+            }
+          }
+        ]
+      },
+      "expected": {
+        "attributes": {
+          "exception.message": "kept"
+        },
+        "events": [
+          {
+            "name": "retry",
+            "attributes": {
+              "exception.message": "kept"
+            }
+          }
+        ],
+        "status": null
+      }
+    },
+    {
+      "name": "content_in_a_non_exception_event_is_masked",
+      "capture_content": true,
+      "mask": {
+        "returns": "[masked]"
+      },
+      "span": {
+        "attributes": {},
+        "events": [
+          {
+            "name": "gen_ai.client.inference.operation.details",
+            "attributes": {
+              "gen_ai.input.messages": "[]",
+              "gen_ai.request.model": "m"
+            }
+          }
+        ]
+      },
+      "expected": {
+        "attributes": {},
+        "events": [
+          {
+            "name": "gen_ai.client.inference.operation.details",
+            "attributes": {
+              "gen_ai.input.messages": "[masked]",
+              "gen_ai.request.model": "m"
+            }
+          }
+        ],
+        "status": null
+      }
+    }
+  ]
+}

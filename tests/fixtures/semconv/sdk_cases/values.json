@@ -1,0 +1,129 @@
+{
+  "about": "How an SDK writes a generic span's input.value and output.value (set_input / setInput and set_output / setOutput on a span from start_span / startSpan). The value is always a string: a string as it is, anything else as its compact JSON (no spaces, keys in insertion order, non-ASCII kept), a byte object as its marker. `value` uses the tagged forms README.md describes for what JSON cannot hold. `expected` is the attribute, set by both setters.",
+  "cases": [
+    {
+      "name": "string",
+      "value": "hi",
+      "expected": "hi"
+    },
+    {
+      "name": "empty_string",
+      "value": "",
+      "expected": ""
+    },
+    {
+      "name": "non_ascii_string",
+      "value": "café 😀",
+      "expected": "café 😀"
+    },
+    {
+      "name": "integer",
+      "value": 1,
+      "expected": "1"
+    },
+    {
+      "name": "fraction",
+      "value": 1.5,
+      "expected": "1.5"
+    },
+    {
+      "name": "negative",
+      "value": -2,
+      "expected": "-2"
+    },
+    {
+      "name": "true",
+      "value": true,
+      "expected": "true"
+    },
+    {
+      "name": "false",
+      "value": false,
+      "expected": "false"
+    },
+    {
+      "name": "null",
+      "value": null,
+      "expected": "null"
+    },
+    {
+      "name": "nan",
+      "value": {
+        "$number": "NaN"
+      },
+      "expected": "NaN"
+    },
+    {
+      "name": "infinity",
+      "value": {
+        "$number": "Infinity"
+      },
+      "expected": "Infinity"
+    },
+    {
+      "name": "negative_infinity",
+      "value": {
+        "$number": "-Infinity"
+      },
+      "expected": "-Infinity"
+    },
+    {
+      "name": "mapping",
+      "value": {
+        "z": 1,
+        "a": [
+          1,
+          "x",
+          null
+        ],
+        "n": {
+          "b": true
+        }
+      },
+      "expected": "{\"z\":1,\"a\":[1,\"x\",null],\"n\":{\"b\":true}}"
+    },
+    {
+      "name": "empty_mapping",
+      "value": {},
+      "expected": "{}"
+    },
+    {
+      "name": "array",
+      "value": [
+        1,
+        "a",
+        null,
+        false
+      ],
+      "expected": "[1,\"a\",null,false]"
+    },
+    {
+      "name": "empty_array",
+      "value": [],
+      "expected": "[]"
+    },
+    {
+      "name": "non_ascii_in_a_mapping",
+      "value": {
+        "k": "café"
+      },
+      "expected": "{\"k\":\"café\"}"
+    },
+    {
+      "name": "byte_object_in_a_mapping",
+      "value": {
+        "img": {
+          "$bytes": 3
+        }
+      },
+      "expected": "{\"img\":\"[stripped unknown 3 bytes]\"}"
+    },
+    {
+      "name": "byte_object_at_the_root",
+      "value": {
+        "$bytes": 2
+      },
+      "expected": "\"[stripped unknown 2 bytes]\""
+    }
+  ]
+}

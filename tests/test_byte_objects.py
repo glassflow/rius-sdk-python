@@ -414,21 +414,26 @@ def test_the_sdks_set_attribute_encodes_a_mixed_array_in_a_mapping_once(
 def test_an_attribute_values_example_through_the_sdks_set_attribute(
     example: dict[str, Any], exported_spans: InMemorySpanExporter
 ) -> None:
-    _skip_unless_otel_holds(_value(example["value"]), byte_objects=False)
+    value = _value(example["value"])
+    _skip_unless_otel_holds(value, byte_objects=False)
     # The global test provider has no exporter chain: what it holds is what
     # the SDK handed OpenTelemetry, already the marker.
     observation = start_span("s")
-    observation.set_attribute("payload", _value(example["value"]))
+    observation.set_attribute("payload", value)
     observation.end()
     [finished] = exported_spans.get_finished_spans()
     assert finished.attributes is not None
     written = finished.attributes["payload"]
-    if isinstance(example["output"], dict):
-        # The SDK's setter writes structure as JSON, as every other SDK path
-        # does, where a raw OpenTelemetry span holds the mapping: one JSON
-        # encoding, byte objects as markers. A raw span holds a mixed array in
-        # the mapping as that array's JSON; the setter's one encoding holds it
-        # as an array.
+    structured = isinstance(value, dict) or (
+        isinstance(value, (list, tuple))
+        and any(isinstance(item, (list, tuple, dict)) for item in value)
+    )
+    if structured:
+        # The SDK's setter writes structure (a mapping, an array holding an
+        # array or a mapping) as JSON, as every other SDK path does, where a
+        # raw OpenTelemetry span walks it: one JSON encoding, byte objects as
+        # markers. A raw span holds a mixed inner array as that array's JSON;
+        # the setter's one encoding holds it as an array.
         assert isinstance(written, str)
         assert json.loads(written) == _decode_array_strings(example["output"])
     else:

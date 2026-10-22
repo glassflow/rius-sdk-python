@@ -15,6 +15,7 @@ equivalents.
 
 from __future__ import annotations
 
+import numbers
 import warnings
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager, nullcontext
@@ -45,14 +46,74 @@ from .user import user
 
 
 def _structured(value: Any) -> bool:
-    """Whether ``value`` is a mapping or an array holding one.
+    """Whether ``value`` is a mapping or an array holding an array or a
+    mapping.
 
-    OpenTelemetry would export either as an OTLP kvlist (or drop the array as
-    inhomogeneous); everywhere else the SDK writes structure as JSON.
+    OpenTelemetry would export a mapping as an OTLP kvlist and a nested array
+    as a nested array value (or drop either, before 1.25); everywhere else
+    the SDK writes structure as JSON, and so does the TypeScript SDK. The
+    whole value is serialized once, whatever the inner array holds: walking
+    it first would turn ``[[1, b"a"]]`` into an array of the inner array's
+    JSON.
     """
     if isinstance(value, Mapping):
         return True
-    return isinstance(value, (list, tuple)) and any(_structured(item) for item in value)
+    return isinstance(value, (list, tuple)) and any(
+        isinstance(item, (list, tuple, Mapping)) for item in value
+    )
+
+
+def _is_bool(item: Any) -> bool:
+    """A Python bool, or NumPy's bool scalar, which is no Python bool and no
+    number."""
+    kind = type(item)
+    return isinstance(item, bool) or (
+        kind.__module__ == "numpy" and kind.__name__ in ("bool_", "bool")
+    )
+
+
+def _plain_array(items: list[Any] | tuple[Any, ...]) -> tuple[Any, ...] | None:
+    """The array as OpenTelemetry holds it, or None when it cannot hold it.
+
+    An array is held when, ``None`` aside, its elements are all strings, all
+    numbers or all booleans (empty included), as the TypeScript SDK reads
+    them: a bool is no number, an int and a float are both numbers. Each
+    element becomes the plain Python value (a NumPy scalar included). Ints
+    beside floats become floats, since OpenTelemetry Python before 1.25 drops
+    an array mixing the two; an int too large for a float leaves the array
+    one OpenTelemetry cannot hold.
+    """
+    kinds: set[str] = set()
+    out: list[Any] = []
+    for item in items:
+        if item is None:
+            out.append(None)
+            continue
+        if _is_bool(item):
+            kinds.add("bool")
+            out.append(bool(item))
+        elif isinstance(item, numbers.Integral):
+            kinds.add("number")
+            out.append(int(item))
+        elif isinstance(item, numbers.Real):
+            kinds.add("number")
+            out.append(float(item))
+        elif isinstance(item, str):
+            kinds.add("str")
+            out.append(item)
+        else:
+            return None
+        if len(kinds) > 1:
+            return None
+    present = [item for item in out if item is not None]
+    if any(isinstance(item, float) for item in present) and any(
+        isinstance(item, int) for item in present
+    ):
+        try:
+            return tuple(None if item is None else float(item) for item in out)
+        except OverflowError:
+            return None
+    return tuple(out)
 
 
 class Observation:
@@ -111,19 +172,32 @@ class Observation:
 
         Args:
             key: Attribute name.
-            value: An OpenTelemetry-compatible attribute value. A mapping, or
-                an array holding one, is recorded as its JSON string, the way
-                every other structured value this SDK writes is. A bytes,
-                bytearray or memoryview in it, at any depth, is recorded as
-                ``[stripped unknown <N> bytes]``, never its content.
+            value: An OpenTelemetry-compatible attribute value. An array
+                whose elements, ``None`` aside, are all strings, all numbers
+                or all booleans is kept as an array (ints beside floats become
+                floats). A mapping, or any other array (mixed types, nested
+                arrays, one holding a mapping), is recorded as its JSON
+                string, the way every other structured value this SDK writes
+                is. A bytes, bytearray or memoryview in it, at any depth, is
+                recorded as ``[stripped unknown <N> bytes]``, never its
+                content.
         """
         # Structure is serialized once from the raw value (serialize writes a
         # byte object as its marker); converting first would turn a mixed
         # array into its JSON string and encode it a second time.
         if _structured(value):
             self._span.set_attribute(key, serialize(value))
-        else:
-            self._span.set_attribute(key, attribute_value(value))
+            return
+        written = attribute_value(value)
+        if isinstance(written, (list, tuple)):
+            # An array OpenTelemetry cannot hold as one (mixed types, nested
+            # arrays) is its JSON, one string, as in the TypeScript SDK.
+            plain = _plain_array(written)
+            if plain is None:
+                self._span.set_attribute(key, serialize(value))
+                return
+            written = plain
+        self._span.set_attribute(key, written)
 
     def update(self, *, input: Any = None, output: Any = None) -> None:
         """Record input and/or output in one call.
