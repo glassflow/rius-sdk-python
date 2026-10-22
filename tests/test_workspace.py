@@ -245,3 +245,116 @@ def test_pending_snapshot_routes_with_the_scope() -> None:
         assert pending[0].attributes.get(RIUS_SPAN_PENDING) is True
         assert WORKSPACE_ROUTE not in pending[0].attributes
     client.flush()
+
+
+# --- one destination's failure stays its own ---
+
+
+def _stamped_span(alias: str | None, name: str):
+    from opentelemetry.sdk.trace import ReadableSpan
+    from opentelemetry.trace import SpanContext
+
+    attributes = {} if alias is None else {WORKSPACE_ROUTE: alias}
+    context = SpanContext(trace_id=1, span_id=len(name) + 1, is_remote=False)
+    return ReadableSpan(name=name, context=context, attributes=attributes)
+
+
+def test_a_raising_exporter_factory_fails_only_its_own_group(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    from rius.workspace import RoutingSpanExporter
+
+    def factory(api_key: str) -> SpanExporter:
+        raise RuntimeError("bad key material")
+
+    default = InMemorySpanExporter()
+    routing = RoutingSpanExporter(default, factory, {"acme": "key-acme"})
+    with caplog.at_level(logging.WARNING, logger="rius.workspace"):
+        result = routing.export([_stamped_span("acme", "a"), _stamped_span(None, "default")])
+    assert result is SpanExportResult.FAILURE
+    assert [s.name for s in default.get_finished_spans()] == ["default"]
+    assert any("acme" in r.getMessage() for r in caplog.records)
+
+
+def test_a_raising_destination_exporter_fails_only_its_own_group() -> None:
+    from rius.workspace import RoutingSpanExporter
+
+    class Exploding(SpanExporter):
+        def export(self, spans):  # type: ignore[no-untyped-def]
+            raise ConnectionError("boom")
+
+    default = InMemorySpanExporter()
+    routing = RoutingSpanExporter(default, lambda key: Exploding(), {"acme": "key-acme"})
+    result = routing.export([_stamped_span("acme", "a"), _stamped_span(None, "default")])
+    assert result is SpanExportResult.FAILURE
+    assert [s.name for s in default.get_finished_spans()] == ["default"]
+
+
+# --- key rotation releases the exporter it replaced ---
+
+
+class _Tracked(InMemorySpanExporter):
+    def __init__(self) -> None:
+        super().__init__()
+        self.shut = False
+
+    def shutdown(self) -> None:
+        self.shut = True
+        super().shutdown()
+
+
+def test_key_rotation_shuts_down_and_evicts_the_replaced_exporter() -> None:
+    from rius.workspace import RoutingSpanExporter
+
+    built: list[_Tracked] = []
+
+    def factory(api_key: str) -> SpanExporter:
+        built.append(_Tracked())
+        return built[-1]
+
+    routing = RoutingSpanExporter(InMemorySpanExporter(), factory, {"acme": "key-0"})
+    for n in range(1, 6):
+        routing.export([_stamped_span("acme", f"s{n}")])
+        routing.register("acme", f"key-{n}")
+    routing.export([_stamped_span("acme", "last")])
+
+    assert len(built) == 6
+    assert [e.shut for e in built] == [True] * 5 + [False]
+    assert len(routing._exporters) == 1
+    assert [s.name for s in built[-1].get_finished_spans()] == ["last"]
+
+
+def test_rotation_keeps_an_exporter_another_alias_still_uses() -> None:
+    from rius.workspace import RoutingSpanExporter
+
+    built: dict[str, _Tracked] = {}
+
+    def factory(api_key: str) -> SpanExporter:
+        built[api_key] = _Tracked()
+        return built[api_key]
+
+    routing = RoutingSpanExporter(
+        InMemorySpanExporter(), factory, {"acme": "shared", "globex": "shared"}
+    )
+    routing.export([_stamped_span("acme", "a")])
+    routing.register("acme", "acme-own")
+    routing.export([_stamped_span("globex", "g"), _stamped_span("acme", "a2")])
+    assert not built["shared"].shut
+    assert [s.name for s in built["shared"].get_finished_spans()] == ["a", "g"]
+    assert [s.name for s in built["acme-own"].get_finished_spans()] == ["a2"]
+
+
+def test_re_registering_the_same_key_keeps_its_exporter() -> None:
+    from rius.workspace import RoutingSpanExporter
+
+    built: list[_Tracked] = []
+
+    def factory(api_key: str) -> SpanExporter:
+        built.append(_Tracked())
+        return built[-1]
+
+    routing = RoutingSpanExporter(InMemorySpanExporter(), factory, {"acme": "k"})
+    routing.export([_stamped_span("acme", "a")])
+    routing.register("acme", "k")
+    routing.export([_stamped_span("acme", "b")])
+    assert len(built) == 1 and not built[0].shut
