@@ -956,3 +956,67 @@ def test_pending_snapshot_of_a_real_instrumentor_span(name: str) -> None:
     }
     assert not [key for key in attrs if _is_content_key(key)]
     assert final[0].attributes["gen_ai.request.model"] in {"gpt-4o", "claude-sonnet-5"}
+
+
+def test_pending_snapshot_excludes_content_request_keys_with_capture_on() -> None:
+    """The identity prefixes admit gen_ai.request.* and rius.request.*, but a
+    key under them that is content (tool definitions, the system prompt, the
+    messages) is content first. With content capture on nothing strips it at
+    export, so the snapshot itself must leave it out: a live view of a
+    still-running span is identity only."""
+    from rius import _tracer, start_generation
+
+    client, exporter = _memory_client(partial_spans=True)
+    _tracer.publish(client._provider)
+    span = start_generation(
+        "chat",
+        model_parameters={
+            "tools": [{"description": "SECRET"}],
+            "system": "SECRET system prompt",
+            "messages": [{"role": "user", "content": "SECRET"}],
+            "temperature": 0.7,
+            "my_custom_knob": 3,
+        },
+    )
+    client.flush()
+    pending, _ = _split(exporter.get_finished_spans())
+    span.end()
+    assert pending, "expected a pending snapshot"
+    attrs = pending[0].attributes
+    for key in ("rius.request.tools", "rius.request.system", "rius.request.messages"):
+        assert key not in attrs, key
+    assert "SECRET" not in json.dumps(dict(attrs))
+    assert attrs["gen_ai.request.temperature"] == 0.7
+    assert attrs["rius.request.my_custom_knob"] == 3
+
+
+def test_pending_snapshot_excludes_canonical_content_request_keys() -> None:
+    client, exporter = _memory_client(partial_spans=True)
+    with client.get_tracer().start_as_current_span(
+        "op",
+        attributes={
+            "gen_ai.request.tools": '[{"description": "SECRET"}]',
+            "gen_ai.request.functions": '[{"description": "SECRET"}]',
+            "gen_ai.request.model": "gpt-4o",
+        },
+    ):
+        client.flush()
+    pending, _ = _split(exporter.get_finished_spans())
+    assert pending, "expected a pending snapshot"
+    attrs = pending[0].attributes
+    assert "gen_ai.request.tools" not in attrs
+    assert "gen_ai.request.functions" not in attrs
+    assert attrs["gen_ai.request.model"] == "gpt-4o"
+
+
+def test_pending_snapshot_carries_no_prompt_bearing_parameter_with_capture_off() -> None:
+    from rius import _tracer, start_generation
+
+    client, exporter = _memory_client(partial_spans=True, capture_content=False)
+    _tracer.publish(client._provider)
+    span = start_generation("chat", model_parameters={"system": "SECRET", "instructions": "SECRET"})
+    client.flush()
+    pending, _ = _split(exporter.get_finished_spans())
+    span.end()
+    assert pending, "expected a pending snapshot"
+    assert "SECRET" not in json.dumps(dict(pending[0].attributes))
