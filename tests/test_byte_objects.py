@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from typing import Any, NamedTuple
 
 import pytest
+from opentelemetry.attributes import BoundedAttributes
 from opentelemetry.sdk.trace import Event, ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import Link, SpanContext
@@ -39,6 +40,34 @@ def _value(source: str) -> Any:
     """An example's value: a Python expression over the byte types only."""
     names = {"bytes": bytes, "bytearray": bytearray, "memoryview": memoryview}
     return eval(source, {"__builtins__": names})  # noqa: S307 - the contract's own examples
+
+
+#: OpenTelemetry before 1.45 holds no mapping, nested array or byte object in an
+#: attribute value: it drops the first two, and decodes a byte object to text or drops it,
+#: before any exporter sees the value. No span on such a version carries one,
+#: so the cases built on one apply only where OpenTelemetry holds it.
+_OTEL_HOLDS_ANY_VALUE = "m" in BoundedAttributes(attributes={"m": {"k": b"v"}})
+
+
+def _skip_unless_otel_holds(value: Any, *, byte_objects: bool) -> None:
+    """Skip a case whose input the installed OpenTelemetry cannot hold.
+
+    ``byte_objects`` says whether a byte object counts: it does on a path
+    through OpenTelemetry's own setters, not on a hand-built event or link.
+    """
+
+    def needs(v: Any) -> bool:
+        if isinstance(v, dict):
+            return True
+        if isinstance(v, (bytes, bytearray, memoryview)):
+            return byte_objects
+        if isinstance(v, (list, tuple)):
+            # A nested array is no more a plain attribute value than a mapping.
+            return any(isinstance(item, (list, tuple)) or needs(item) for item in v)
+        return False
+
+    if not _OTEL_HOLDS_ANY_VALUE and needs(value):
+        pytest.skip("this OpenTelemetry drops or decodes the value before any exporter")
 
 
 def _leaks(text: str) -> bool:
@@ -273,6 +302,7 @@ def test_a_raw_payload_byte_object(value: Any, written: Any) -> None:
 
 @pytest.mark.parametrize(("value", "written"), RAW_ATTRIBUTES)
 def test_an_event_attribute_byte_object(value: Any, written: Any) -> None:
+    _skip_unless_otel_holds(value, byte_objects=False)
     out = _export(_span({"k": "v"}, events=(Event("e", {"payload": value}, 5),)))
     assert out.events[0].attributes is not None
     assert _as_written(out.events[0].attributes["payload"]) == written
@@ -280,6 +310,7 @@ def test_an_event_attribute_byte_object(value: Any, written: Any) -> None:
 
 @pytest.mark.parametrize(("value", "written"), RAW_ATTRIBUTES)
 def test_a_link_attribute_byte_object(value: Any, written: Any) -> None:
+    _skip_unless_otel_holds(value, byte_objects=False)
     link = Link(SpanContext(trace_id=1, span_id=3, is_remote=False), {"payload": value})
     out = _export(_span({"k": "v"}, links=(link,)))
     assert out.links[0].attributes is not None
@@ -287,6 +318,7 @@ def test_a_link_attribute_byte_object(value: Any, written: Any) -> None:
 
 
 def test_a_span_set_attribute_byte_object_from_the_sdk_pipeline() -> None:
+    _skip_unless_otel_holds(PNG, byte_objects=True)
     # The whole pipeline, as an instrumentation that sets bytes would use it.
     inner = InMemorySpanExporter()
     client = init(span_exporter=inner, set_global=False)
@@ -341,6 +373,8 @@ def _exported(set_value: Any) -> Any:
 def test_an_attribute_values_example_on_a_raw_opentelemetry_span(
     example: dict[str, Any],
 ) -> None:
+    _skip_unless_otel_holds(_value(example["value"]), byte_objects=True)
+
     def set_value(client: Any) -> None:
         span = client.get_tracer().start_span("raw")
         span.set_attribute("payload", _value(example["value"]))
@@ -380,6 +414,7 @@ def test_the_sdks_set_attribute_encodes_a_mixed_array_in_a_mapping_once(
 def test_an_attribute_values_example_through_the_sdks_set_attribute(
     example: dict[str, Any], exported_spans: InMemorySpanExporter
 ) -> None:
+    _skip_unless_otel_holds(_value(example["value"]), byte_objects=False)
     # The global test provider has no exporter chain: what it holds is what
     # the SDK handed OpenTelemetry, already the marker.
     observation = start_span("s")

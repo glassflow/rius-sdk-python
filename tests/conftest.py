@@ -61,3 +61,4 @@ def _reset_rius_lifecycle() -> "Iterator[None]":
     _agent._active = None
     compaction._pending.set(None)
     instrumentation_module._ENABLED.clear()
+    instrumentation_module._GLOBAL_OWNER.clear()

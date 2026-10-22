@@ -9,7 +9,15 @@ independent and never auto-enable process-global instrumentors.
 
 from __future__ import annotations
 
+import copy
+import os
+import subprocess
+import sys
+from typing import Any
+
 import pytest
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from rius import init
@@ -103,3 +111,100 @@ def test_helpers_use_the_global_provider_when_no_client_is_active(
 
     start_span("no-client").end()
     assert [s.name for s in exported_spans.get_finished_spans()] == ["no-client"]
+
+
+# --- re-init: the write-once OTel global still holds the first, dead provider ---
+
+_REINIT_GLOBAL_TRACER = """
+import logging, sys
+from opentelemetry import trace
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+import rius
+
+records = []
+class Grab(logging.Handler):
+    def emit(self, record):
+        records.append(record.getMessage())
+logging.getLogger("rius").addHandler(Grab())
+logging.getLogger("rius").setLevel(logging.DEBUG)
+
+first_exporter = InMemorySpanExporter()
+first = rius.init(span_exporter=first_exporter, instruments=[])
+assert trace.get_tracer_provider() is first._provider
+first.shutdown()
+
+second_exporter = InMemorySpanExporter()
+second = rius.init(span_exporter=second_exporter, instruments=[])
+trace.get_tracer("third.party").start_span("third-party").end()
+second.flush()
+second_names = [s.name for s in second_exporter.get_finished_spans()]
+first_names = [s.name for s in first_exporter.get_finished_spans()]
+assert second_names == ["third-party"], (second_names, first_names)
+assert not any("another SDK" in r or "could not register" in r for r in records), records
+second.shutdown()
+
+# A third cycle bridges again, and the second client's bridge stays released.
+third_exporter = InMemorySpanExporter()
+third = rius.init(span_exporter=third_exporter, instruments=[])
+trace.get_tracer("third.party").start_span("again").end()
+third.flush()
+assert [s.name for s in third_exporter.get_finished_spans()] == ["again"]
+assert [s.name for s in second_exporter.get_finished_spans()] == ["third-party"]
+third.shutdown()
+"""
+
+
+def test_reinit_reaches_global_tracer_spans_without_the_bridge_opt_in() -> None:
+    # The OTel global is write-once, so after shutdown()+init() it still holds
+    # the first client's (dead) provider. Spans third-party code starts through
+    # it must reach the new client, as the init() docstring promises, without
+    # the foreign-provider opt-in: that provider is ours, not another SDK's.
+    # A subprocess, because this suite's conftest claims the global first.
+    result = subprocess.run(
+        [sys.executable, "-c", _REINIT_GLOBAL_TRACER],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        env={**os.environ, "RIUS_HEARTBEAT": "false", "RIUS_BRIDGE_FOREIGN_PROVIDER": "false"},
+    )
+    assert result.returncode == 0, result.stderr
+
+
+class _UncachedTracerProvider(TracerProvider):
+    """An SDK provider as it was before OTel 1.42: a new tracer per call."""
+
+    def get_tracer(self, *args: Any, **kwargs: Any) -> trace.Tracer:
+        tracer = super().get_tracer(*args, **kwargs)
+        return copy.copy(tracer)
+
+
+def test_withdraw_clears_the_tracer_even_when_the_provider_does_not_cache_tracers() -> None:
+    from rius import _tracer
+
+    provider = _UncachedTracerProvider()
+    assert provider.get_tracer("x") is not provider.get_tracer("x")
+    _tracer.publish(provider)
+    assert _tracer._active is not None
+    _tracer.withdraw(provider)
+    assert _tracer._active is None
+
+
+def test_withdraw_by_a_stale_provider_keeps_the_newer_tracer() -> None:
+    from rius import _tracer
+
+    stale, current = _UncachedTracerProvider(), _UncachedTracerProvider()
+    _tracer.publish(current)
+    published = _tracer.sdk_tracer()
+    _tracer.withdraw(stale)
+    assert _tracer.sdk_tracer() is published
+
+
+def test_shutdown_returns_the_helpers_to_the_global_provider(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    from rius import start_span
+
+    client = init(span_exporter=InMemorySpanExporter(), set_global=True, instruments=[])
+    client.shutdown()
+    start_span("after-shutdown").end()
+    assert [s.name for s in exported_spans.get_finished_spans()] == ["after-shutdown"]

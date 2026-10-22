@@ -37,6 +37,7 @@ from .foreign import (
 )
 from .heartbeat import HeartbeatSender, OpenRootSpanTracker
 from .instrumentation import enable_instrumentations
+from .instrumentation import release as release_instrumentations
 from .masking import MaskingSpanExporter
 from .normalization import NormalizingSpanExporter, NormalizingSpanProcessor
 from .pending import PendingSpanProcessor
@@ -292,6 +293,7 @@ class GlassflowClient:
                 _current_client = None
         _tracer.withdraw(self._provider)
         _agent.withdraw(self._provider)
+        release_instrumentations(self._provider)
 
 
 def init(
@@ -331,8 +333,10 @@ def init(
     the generation helpers) follow the new client, as do the bundled
     instrumentors. Third-party code that took a tracer from the OpenTelemetry
     global keeps the first provider, because that global is write-once; its
-    spans still reach the new client through the bridge described under
-    ``bridge_foreign_provider``.
+    spans still reach the new client, which attaches its pipeline to that
+    provider whatever ``bridge_foreign_provider`` says (the provider is the
+    SDK's own, not another SDK's). Such a span is sampled by the first
+    provider's sampler as well as the new client's.
 
     The provider allows up to 4096 attributes per span rather than OTel's
     default of 128, which a long OpenInference agent span passes within a few
@@ -822,7 +826,7 @@ def _do_init(
     # Instrumentors are process-global singletons: auto-enable only for a global
     # init; a scoped client must opt in explicitly via `instruments=[...]`.
     if not config.disabled and (set_global or instruments is not None):
-        enable_instrumentations(provider, instruments)
+        enable_instrumentations(provider, instruments, for_global=set_global)
 
     # Heartbeat: process-lifetime liveness, independent of trace
     # traffic. The tracker rides the provider as a span processor so payloads
@@ -892,6 +896,16 @@ def _register_global(
     existing = trace.get_tracer_provider()
     if existing is provider:
         return None
+    if existing in _own_providers and isinstance(existing, TracerProvider):
+        # A previous init() claimed the write-once global and has since shut
+        # down. That provider is ours, not another SDK's: bridging it is what
+        # keeps third-party get_tracer() spans flowing across a re-init, so it
+        # needs no opt-in and earns no "another SDK" warning.
+        logger.debug(
+            "the OpenTelemetry global provider belongs to a previous init(); rius "
+            "attached this client's span pipeline to it."
+        )
+        return bridge(existing, pipeline, sampler, limits)
     if bridge_foreign and isinstance(existing, TracerProvider):
         logger.info(
             "the OpenTelemetry global provider was already set (%s); rius attached its "

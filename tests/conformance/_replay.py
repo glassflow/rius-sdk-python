@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from opentelemetry.attributes import BoundedAttributes
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import Event, ReadableSpan
 from opentelemetry.sdk.util.instrumentation import InstrumentationScope
@@ -78,7 +79,15 @@ def scenario_spans(scenario: dict[str, Any]) -> list[ReadableSpan]:
                 resource=resource,
                 attributes=attributes(d.get("attributes", [])),
                 events=[
-                    Event(e["name"], attributes(e.get("attributes", [])), int(e["timeUnixNano"]))
+                    # BoundedAttributes, as the SDK's add_event builds: the
+                    # OTLP encoder before OTel 1.25 reads .dropped off it.
+                    Event(
+                        e["name"],
+                        BoundedAttributes(
+                            attributes=attributes(e.get("attributes", [])), immutable=True
+                        ),
+                        int(e["timeUnixNano"]),
+                    )
                     for e in d.get("events", [])
                 ],
                 kind=_KINDS[d.get("kind", "SPAN_KIND_INTERNAL")],

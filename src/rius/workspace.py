@@ -137,16 +137,31 @@ class RoutingSpanExporter(SpanExporter):
         self._factory = exporter_factory
         self._routes: dict[str, str] = dict(routes or {})
         self._exporters: dict[str, SpanExporter] = {}
+        # Exporters a key rotation replaced, shut down at the start of the next
+        # export() rather than in register(): exports run one at a time on the
+        # batch thread, so none of them can still be mid-request by then.
+        self._retired: list[SpanExporter] = []
         self._warned_aliases: set[str] = set()
+        self._failing_aliases: set[str | None] = set()
         self._lock = threading.Lock()
 
     def register(self, alias: str, api_key: str) -> None:
-        """Add or replace a route. Replacing supports key rotation."""
+        """Add or replace a route. Replacing supports key rotation.
+
+        A replaced key's exporter (and its HTTP session) is released once no
+        alias routes to that key any more.
+        """
         if not alias or not api_key:
             raise ValueError("workspace alias and api_key must be non-empty strings")
         with self._lock:
+            previous = self._routes.get(alias)
             self._routes[alias] = api_key
             self._warned_aliases.discard(alias)
+            self._failing_aliases.discard(alias)
+            if previous is not None and previous not in self._routes.values():
+                replaced = self._exporters.pop(previous, None)
+                if replaced is not None:
+                    self._retired.append(replaced)
 
     def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
         groups: dict[str | None, list[ReadableSpan]] = {}
@@ -158,12 +173,44 @@ class RoutingSpanExporter(SpanExporter):
                 span = self._stripped(span)
             groups.setdefault(alias, []).append(span)
 
+        self._shutdown_retired()
         result = SpanExportResult.SUCCESS
         for alias, group in groups.items():
-            exporter = self._resolve(alias)
-            if exporter.export(group) is not SpanExportResult.SUCCESS:
+            # One destination's failure is its own: a factory or exporter that
+            # raises fails that group, never the other workspaces' spans.
+            try:
+                outcome = self._resolve(alias).export(group)
+            except Exception:
+                outcome = SpanExportResult.FAILURE
+                self._warn_failing(alias)
+            else:
+                # Warn again on the next failure after a recovery.
+                with self._lock:
+                    self._failing_aliases.discard(alias)
+            if outcome is not SpanExportResult.SUCCESS:
                 result = SpanExportResult.FAILURE
         return result
+
+    def _warn_failing(self, alias: str | None) -> None:
+        with self._lock:
+            if alias in self._failing_aliases:
+                return
+            self._failing_aliases.add(alias)
+        logger.warning(
+            "exporting to workspace %r raised; its spans in this batch are lost, "
+            "other workspaces are unaffected.",
+            "default" if alias is None else alias,
+            exc_info=True,
+        )
+
+    def _shutdown_retired(self) -> None:
+        with self._lock:
+            retired, self._retired = self._retired, []
+        for exporter in retired:
+            try:
+                exporter.shutdown()
+            except Exception:
+                logger.debug("shutting down a rotated-out workspace exporter raised", exc_info=True)
 
     def _resolve(self, alias: str | None) -> SpanExporter:
         if alias is None:
@@ -207,6 +254,7 @@ class RoutingSpanExporter(SpanExporter):
         return ok
 
     def shutdown(self) -> None:
+        self._shutdown_retired()
         self._default.shutdown()
         with self._lock:
             exporters = list(self._exporters.values())
