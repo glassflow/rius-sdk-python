@@ -794,14 +794,12 @@ def _do_init(
         batch_processor = BatchSpanProcessor(export_health)
         detector = ForeignParentDetector(foreign_global)
         pipeline.add_span_processor(detector)
-        # Registered BEFORE the pending processor: both act at on_start, and
-        # the pending snapshot is built from the attributes already on the
-        # span, so the session id (and the workspace route, which decides
-        # which destination the snapshot itself goes to) must be stamped
-        # first to ride it.
-        # Before the pending processor, like the identity stampers: start-time
-        # normalization is what lets a pending snapshot (built at on_start,
-        # from the identity allowlist) carry canonical keys.
+        # Everything that writes at on_start (normalization, the compaction
+        # flag, the session, user and workspace stamps) is registered BEFORE
+        # the pending processor: the pending snapshot is built from the
+        # attributes already on the span, so canonical keys, the session id
+        # and the workspace route (which decides which destination the
+        # snapshot itself goes to) must be there first to ride it.
         pipeline.add_span_processor(NormalizingSpanProcessor())
         pipeline.add_span_processor(compacted_context)
         pipeline.add_span_processor(wrapped_calls)

@@ -14,8 +14,10 @@ the object is a different type at each:
 * :class:`NormalizingSpanProcessor` runs at ``on_start``, where the object is
   a live ``Span`` and ``set_attribute`` works. This is what lets a pending
   snapshot — built at start — see canonical keys. A live span has no delete,
-  so start-time mapping is **add-only**; the source key rides along and the
-  exporter removes it.
+  so start-time mapping never removes a key: it adds canonical keys, and the
+  only existing key it overwrites is an :class:`ExpandingRule`'s own source
+  (``llm.invocation_parameters`` is rewritten without the members it
+  promoted). The other source keys ride along and the exporter removes them.
 * :class:`NormalizingSpanExporter` runs at export. It cannot mutate: the
   ``ReadableSpan.attributes`` handed to ``on_end``/``export`` is a read-only
   ``mappingproxy`` (assignment raises ``TypeError``), and even reaching past
@@ -303,7 +305,11 @@ class NormalizationTable:
         return any(key.startswith(self._prefixes) for key in attributes)
 
     def additions(self, attributes: Mapping[str, Any]) -> dict[str, Any]:
-        """Canonical keys this table would add, without removing anything."""
+        """Keys this table would set, without removing anything.
+
+        Canonical keys, plus an :class:`ExpandingRule`'s rewrite of its own
+        source key.
+        """
         added: dict[str, Any] = {}
         for rule in self._rules:
             present = [attributes[s] for s in rule.sources if s in attributes]
@@ -365,9 +371,11 @@ class NormalizationTable:
 class NormalizingSpanProcessor(SpanProcessor):
     """Add canonical keys at span start, so pending snapshots carry them.
 
-    Add-only: a live ``Span`` exposes no delete, and the source keys are
-    removed by :class:`NormalizingSpanExporter` before the span leaves the
-    process.
+    Never removes a key: a live ``Span`` exposes no delete, and the source
+    keys are removed by :class:`NormalizingSpanExporter` before the span
+    leaves the process. It adds canonical keys and overwrites one kind of
+    existing key, an :class:`ExpandingRule`'s own source, with what that rule
+    left of it (``llm.invocation_parameters`` minus its promoted members).
     """
 
     def __init__(self, table: NormalizationTable | None = None) -> None:
