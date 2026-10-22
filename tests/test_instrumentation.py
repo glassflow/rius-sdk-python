@@ -140,6 +140,39 @@ def test_reinit_after_shutdown_rebinds_instrumentors(
     assert fake_registry.instrument_calls == [first._provider, second._provider]
 
 
+def test_scoped_client_does_not_steal_the_global_clients_instrumentors(
+    fake_registry: type[FakeInstrumentor], caplog: pytest.LogCaptureFixture
+) -> None:
+    # Instrumentors bind to one provider. Re-binding one to a scoped client
+    # would silently move every LLM span in the process off the global client,
+    # and leave it on a dead provider once the scoped client shuts down.
+    first = init(span_exporter=InMemorySpanExporter(), set_global=True)
+    with caplog.at_level("WARNING"):
+        scoped = init(span_exporter=InMemorySpanExporter(), set_global=False, instruments=["fake"])
+    assert fake_registry.instrument_calls == [first._provider]
+    assert fake_registry.uninstrument_calls == []
+    assert any("fake" in r.message and "global" in r.message for r in caplog.records)
+    scoped.shutdown()
+    assert fake_registry.instrument_calls == [first._provider]
+
+
+def test_scoped_client_may_take_instrumentors_once_the_global_one_shut_down(
+    fake_registry: type[FakeInstrumentor],
+) -> None:
+    first = init(span_exporter=InMemorySpanExporter(), set_global=True)
+    first.shutdown()
+    scoped = init(span_exporter=InMemorySpanExporter(), set_global=False, instruments=["fake"])
+    assert fake_registry.instrument_calls == [first._provider, scoped._provider]
+
+
+def test_global_init_takes_instrumentors_back_from_a_scoped_client(
+    fake_registry: type[FakeInstrumentor],
+) -> None:
+    scoped = init(span_exporter=InMemorySpanExporter(), set_global=False, instruments=["fake"])
+    first = init(span_exporter=InMemorySpanExporter(), set_global=True)
+    assert fake_registry.instrument_calls == [scoped._provider, first._provider]
+
+
 def test_externally_enabled_instrumentor_is_not_stolen(
     fake_registry: type[FakeInstrumentor],
 ) -> None:

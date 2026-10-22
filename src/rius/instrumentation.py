@@ -28,6 +28,17 @@ logger = logging.getLogger(__name__)
 # re-bind them to the new provider without touching instrumentation someone
 # else set up.
 _ENABLED: dict[str, Any] = {}
+# The provider of a live GLOBAL client each instrumentor is bound to. A scoped
+# client must not re-bind those: that would move every LLM span in the
+# process off the global client. Cleared by release() when it shuts down.
+_GLOBAL_OWNER: dict[str, Any] = {}
+
+
+def release(tracer_provider: Any) -> None:
+    """Forget that ``tracer_provider``'s (now shut down) client owns any instrumentor."""
+    for name, owner in list(_GLOBAL_OWNER.items()):
+        if owner is tracer_provider:
+            del _GLOBAL_OWNER[name]
 
 
 @dataclass(frozen=True)
@@ -108,12 +119,16 @@ def _dependency_conflict(instrumentor: Any) -> str | None:
 def enable_instrumentations(
     tracer_provider: Any,
     instruments: Sequence[str] | None = None,
+    *,
+    for_global: bool = True,
 ) -> list[str]:
     """Enable bundled instrumentors against ``tracer_provider``.
 
     ``instruments=None`` enables every registry entry whose package is
     installed; an explicit list restricts to those names (warning if one is
     unknown or not installed). Returns the names actually enabled.
+    ``for_global=False`` (a scoped client) leaves an instrumentor a live
+    global client holds where it is.
     """
     known = {spec.name for spec in REGISTRY}
     if instruments is not None:
@@ -178,6 +193,16 @@ def enable_instrumentations(
                 continue
             if getattr(instrumentor, "is_instrumented_by_opentelemetry", False):
                 if spec.name in _ENABLED:
+                    if not for_global and spec.name in _GLOBAL_OWNER:
+                        logger.warning(
+                            "instrument %r stays with the global rius client: an "
+                            "instrumentor binds to one provider for the whole "
+                            "process, and moving it to a scoped client would take "
+                            "every %s span away from the global one.",
+                            spec.name,
+                            spec.name,
+                        )
+                        continue
                     # We enabled it previously (e.g. before a shutdown/re-init):
                     # re-bind it to the new provider.
                     if spec.name == "litellm":
@@ -208,5 +233,9 @@ def enable_instrumentations(
             logger.warning("failed to enable instrument %r", spec.name, exc_info=True)
             continue
         _ENABLED[spec.name] = instrumentor
+        if for_global:
+            _GLOBAL_OWNER[spec.name] = tracer_provider
+        else:
+            _GLOBAL_OWNER.pop(spec.name, None)
         enabled.append(spec.name)
     return enabled
