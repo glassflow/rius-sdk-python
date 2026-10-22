@@ -780,3 +780,71 @@ def test_set_attribute_writes_integers_beside_fractions_as_fractions(
     value = exported_spans.get_finished_spans()[0].attributes["app.nums"]
     assert value == (1.0, 1.5, None)
     assert [type(v) for v in value] == [float, float, type(None)]
+
+
+def test_set_attribute_never_raises_on_an_int_too_large_for_a_float(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    """Writing ints beside floats as floats overflows for an int past the
+    float range: the array is then its JSON, never an error in the caller."""
+    obs = start_span("op")
+    obs.set_attribute("app.nums", [2**1100, 1.5])
+    obs.end()
+
+    value = exported_spans.get_finished_spans()[0].attributes["app.nums"]
+    assert value == f"[{2**1100},1.5]"
+
+
+@pytest.mark.parametrize(
+    ("value", "written"),
+    [
+        ([1, float("nan"), "a"], '[1,null,"a"]'),
+        ([float("inf"), "a"], '[null,"a"]'),
+        ({"a": float("-inf"), "b": [float("nan")]}, '{"a":null,"b":[null]}'),
+    ],
+)
+def test_set_attribute_writes_a_non_finite_number_inside_json_as_null(
+    exported_spans: InMemorySpanExporter, value: Any, written: str
+) -> None:
+    """NaN and the infinities are not JSON: inside a value encoded as JSON
+    they are null, as JSON.stringify writes them in the TypeScript SDK."""
+    obs = start_span("op")
+    obs.set_attribute("app.v", value)
+    obs.end()
+
+    assert exported_spans.get_finished_spans()[0].attributes["app.v"] == written
+
+
+def test_input_value_writes_a_nested_non_finite_number_as_null_and_a_root_one_by_name(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    obs = start_span("op")
+    obs.set_input({"score": float("nan")})
+    obs.set_output(float("nan"))
+    obs.end()
+
+    attributes = exported_spans.get_finished_spans()[0].attributes
+    assert attributes["input.value"] == '{"score":null}'
+    assert attributes["output.value"] == "NaN"
+
+
+@pytest.mark.parametrize(
+    ("make", "kept"),
+    [
+        (lambda np: [np.int64(1), np.int64(2)], (1, 2)),
+        (lambda np: [np.float32(1.5), np.int64(1)], (1.5, 1.0)),
+        (lambda np: [np.bool_(True), False], (True, False)),
+        (lambda np: [np.float64(0.25), None], (0.25, None)),
+    ],
+)
+def test_set_attribute_keeps_a_numpy_scalar_array_as_plain_python_values(
+    exported_spans: InMemorySpanExporter, make: Any, kept: tuple[Any, ...]
+) -> None:
+    np = pytest.importorskip("numpy")
+    obs = start_span("op")
+    obs.set_attribute("app.arr", make(np))
+    obs.end()
+
+    value = exported_spans.get_finished_spans()[0].attributes["app.arr"]
+    assert value == kept
+    assert [type(v) for v in value] == [type(v) for v in kept]

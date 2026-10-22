@@ -15,6 +15,7 @@ equivalents.
 
 from __future__ import annotations
 
+import numbers
 import warnings
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager, nullcontext
@@ -55,38 +56,57 @@ def _structured(value: Any) -> bool:
     return isinstance(value, (list, tuple)) and any(_structured(item) for item in value)
 
 
-def _scalar_kind(item: Any) -> str | None:
-    """The kind an array element counts as, as the TypeScript SDK reads it:
-    a bool is not a number, an int and a float are both numbers."""
-    if isinstance(item, bool):
-        return "bool"
-    if isinstance(item, (int, float)):
-        return "number"
-    if isinstance(item, str):
-        return "str"
-    return None
+def _is_bool(item: Any) -> bool:
+    """A Python bool, or NumPy's bool scalar, which is no Python bool and no
+    number."""
+    kind = type(item)
+    return isinstance(item, bool) or (
+        kind.__module__ == "numpy" and kind.__name__ in ("bool_", "bool")
+    )
 
 
-def _homogeneous(items: list[Any] | tuple[Any, ...]) -> bool:
-    """Whether an array is one OpenTelemetry holds as an array: ``None``
-    aside, all strings, all numbers or all booleans (empty included)."""
-    kinds = {_scalar_kind(item) for item in items if item is not None}
-    return len(kinds) <= 1 and None not in kinds
+def _plain_array(items: list[Any] | tuple[Any, ...]) -> tuple[Any, ...] | None:
+    """The array as OpenTelemetry holds it, or None when it cannot hold it.
 
-
-def _as_floats(items: list[Any] | tuple[Any, ...]) -> Any:
-    """An array of numbers mixing int and float, with every int a float.
-
-    OpenTelemetry Python before 1.25 drops an array mixing the two types; as
-    floats it is kept on every supported version. Unchanged otherwise.
+    An array is held when, ``None`` aside, its elements are all strings, all
+    numbers or all booleans (empty included), as the TypeScript SDK reads
+    them: a bool is no number, an int and a float are both numbers. Each
+    element becomes the plain Python value (a NumPy scalar included). Ints
+    beside floats become floats, since OpenTelemetry Python before 1.25 drops
+    an array mixing the two; an int too large for a float leaves the array
+    one OpenTelemetry cannot hold.
     """
-    numbers = [item for item in items if item is not None and not isinstance(item, bool)]
-    if not (
-        any(isinstance(item, int) for item in numbers)
-        and any(isinstance(item, float) for item in numbers)
+    kinds: set[str] = set()
+    out: list[Any] = []
+    for item in items:
+        if item is None:
+            out.append(None)
+            continue
+        if _is_bool(item):
+            kinds.add("bool")
+            out.append(bool(item))
+        elif isinstance(item, numbers.Integral):
+            kinds.add("number")
+            out.append(int(item))
+        elif isinstance(item, numbers.Real):
+            kinds.add("number")
+            out.append(float(item))
+        elif isinstance(item, str):
+            kinds.add("str")
+            out.append(item)
+        else:
+            return None
+        if len(kinds) > 1:
+            return None
+    present = [item for item in out if item is not None]
+    if any(isinstance(item, float) for item in present) and any(
+        isinstance(item, int) for item in present
     ):
-        return items
-    return tuple(None if item is None else float(item) for item in items)
+        try:
+            return tuple(None if item is None else float(item) for item in out)
+        except OverflowError:
+            return None
+    return tuple(out)
 
 
 class Observation:
@@ -165,10 +185,11 @@ class Observation:
         if isinstance(written, (list, tuple)):
             # An array OpenTelemetry cannot hold as one (mixed types, nested
             # arrays) is its JSON, one string, as in the TypeScript SDK.
-            if not _homogeneous(written):
+            plain = _plain_array(written)
+            if plain is None:
                 self._span.set_attribute(key, serialize(value))
                 return
-            written = _as_floats(written)
+            written = plain
         self._span.set_attribute(key, written)
 
     def update(self, *, input: Any = None, output: Any = None) -> None:

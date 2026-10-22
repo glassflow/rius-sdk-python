@@ -26,8 +26,9 @@ from __future__ import annotations
 
 import ast
 import json
+import math
 import re
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterator, Mapping
 from typing import Any
 
 from ._media import MAX_DEPTH, replacement, strip_raw_payload
@@ -131,7 +132,44 @@ def _default(value: Any) -> str:
 # \uXXXX escapes, and no HTML escaping of < > & (Python never does that).
 # It is what TypeScript's JSON.stringify writes, so the same value produces the
 # same bytes whichever SDK recorded it.
-_encoder = json.JSONEncoder(default=_default, separators=(",", ":"), ensure_ascii=False)
+class _Encoder(json.JSONEncoder):
+    """Compact JSON whose non-finite numbers are what JSON.stringify writes.
+
+    NaN and the infinities are no JSON: inside a value they are ``null``, as
+    the TypeScript SDK's JSON.stringify writes them. A non-finite number on
+    its own is its name (``NaN``, ``Infinity``, ``-Infinity``), as the
+    TypeScript SDK writes a lone number with ``String``.
+    """
+
+    def iterencode(self, o: Any, _one_shot: bool = False) -> Iterator[str]:
+        if isinstance(o, float) and not math.isfinite(o):
+            return iter((_non_finite_name(o),))
+        encode: Iterator[str] = json.encoder._make_iterencode(  # type: ignore[attr-defined]
+            {} if self.check_circular else None,
+            self.default,
+            json.encoder.encode_basestring,
+            self.indent,
+            _finite_or_null,
+            self.key_separator,
+            self.item_separator,
+            self.sort_keys,
+            self.skipkeys,
+            _one_shot,
+        )(o, 0)
+        return encode
+
+
+def _non_finite_name(value: float) -> str:
+    if value != value:
+        return "NaN"
+    return "Infinity" if value > 0 else "-Infinity"
+
+
+def _finite_or_null(value: float) -> str:
+    return float.__repr__(value) if math.isfinite(value) else "null"
+
+
+_encoder = _Encoder(default=_default, separators=(",", ":"), ensure_ascii=False)
 
 # ensure_ascii=False writes a lone surrogate raw, and a string holding one
 # cannot be encoded as UTF-8: the OTLP exporter drops such an attribute. The
