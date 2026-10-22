@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from typing import Any
 
 import pytest
@@ -262,3 +263,28 @@ def test_a_wrapper_still_open_at_shutdown_is_still_marked() -> None:
         tracker.shutdown()
     assert isinstance(parent, ReadableSpan)
     assert tracker.take(parent)
+
+
+class _CountingLock:
+    def __init__(self) -> None:
+        self._inner = threading.Lock()
+        self.acquired = 0
+
+    def __enter__(self) -> bool:
+        self.acquired += 1
+        return self._inner.__enter__()
+
+    def __exit__(self, *exc: object) -> None:
+        self._inner.__exit__(*exc)  # type: ignore[arg-type]
+
+
+def test_a_span_ending_with_no_wrapper_open_takes_no_lock() -> None:
+    # on_end runs for every span; most processes never open a wrapper span.
+    tracker = WrappedCallTracker()
+    lock = _CountingLock()
+    tracker._lock = lock  # type: ignore[assignment]
+    provider = TracerProvider()
+    provider.add_span_processor(tracker)
+    with provider.get_tracer(OPENAI_SCOPE).start_as_current_span("ChatCompletion") as child:
+        child.set_attributes(USAGE)
+    assert lock.acquired == 0

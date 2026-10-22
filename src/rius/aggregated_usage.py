@@ -97,6 +97,11 @@ class WrappedCallTracker(SpanProcessor):
             self._remember(self._open, span.context.span_id)
 
     def on_end(self, span: ReadableSpan) -> None:
+        # Runs for every span. With no wrapper span open there is nothing to
+        # forget or mark, and a wrapper's on_start always precedes the end of
+        # the span itself and of its children, so the unlocked read is safe.
+        if not self._open:
+            return
         span_id = span.context.span_id
         parent = span.parent
         with self._lock:

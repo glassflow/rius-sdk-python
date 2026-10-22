@@ -382,6 +382,10 @@ class ResourceAdoptingExporter(SpanExporter):
     def __init__(self, inner: SpanExporter, resource: Resource) -> None:
         self._inner = inner
         self._resource = resource
+        # The last foreign resource adopted and its adoption. A bridged
+        # provider's spans all share one Resource, so this builds one per
+        # provider instead of one per span. Replaced whole, never mutated.
+        self._last: tuple[Resource, Resource] | None = None
 
     def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
         return self._inner.export([self._adopted(span) for span in spans])
@@ -390,12 +394,20 @@ class ResourceAdoptingExporter(SpanExporter):
         if span.resource is self._resource:
             return span
         adopted = copy.copy(span)
-        # Not Resource.merge: on a schema_url conflict it keeps the OLD resource.
-        adopted._resource = Resource(  # noqa: SLF001 - as NormalizingSpanExporter does
-            {**span.resource.attributes, **self._resource.attributes},
-            self._resource.schema_url or span.resource.schema_url,
-        )
+        adopted._resource = self._adopt(span.resource)  # noqa: SLF001 - as NormalizingSpanExporter does
         return adopted
+
+    def _adopt(self, foreign: Resource) -> Resource:
+        last = self._last
+        if last is not None and last[0] is foreign:
+            return last[1]
+        # Not Resource.merge: on a schema_url conflict it keeps the OLD resource.
+        resource = Resource(
+            {**foreign.attributes, **self._resource.attributes},
+            self._resource.schema_url or foreign.schema_url,
+        )
+        self._last = (foreign, resource)
+        return resource
 
     def force_flush(self, timeout_millis: int = 30_000) -> bool:
         return self._inner.force_flush(timeout_millis)
