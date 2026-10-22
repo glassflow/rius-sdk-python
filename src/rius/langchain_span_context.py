@@ -46,11 +46,9 @@ asyncio task whose step is running, and never raises into the caller's code.
 
 from __future__ import annotations
 
-import asyncio
 import contextvars
 import functools
 import logging
-import threading
 from collections.abc import AsyncIterator, Iterator
 from importlib.metadata import PackageNotFoundError, version
 from typing import Any
@@ -58,14 +56,14 @@ from typing import Any
 from opentelemetry import context as otel_context
 from opentelemetry import trace
 
+from ._stopgap import MARK, needs_context, owner, under, verified
+
 logger = logging.getLogger(__name__)
 
 #: The instrumentor releases whose tracer internals were read and found as
 #: this module expects. A later release may have reshaped them; it is left
 #: alone.
 VERIFIED_VERSIONS = ("0.1.67", "0.1.79")
-
-_MARK = "__rius_span_context__"
 
 #: The instrumentor's tracer the hooks look spans up in. Set by install().
 _tracer: Any = None
@@ -82,7 +80,7 @@ class _PendingStream:
     __slots__ = ("owner", "span", "token")
 
     def __init__(self) -> None:
-        self.owner = _owner()
+        self.owner = owner()
         self.span: Any = None
         self.token: Any = None
 
@@ -93,21 +91,8 @@ _PENDING: contextvars.ContextVar[_PendingStream | None] = contextvars.ContextVar
 )
 
 
-def _owner() -> tuple[int, Any]:
-    try:
-        task = asyncio.current_task()
-    except RuntimeError:
-        task = None
-    return threading.get_ident(), task
-
-
-def _version_tuple(text: str) -> tuple[int, ...]:
-    return tuple(int(part) for part in text.split(".") if part.isdigit())
-
-
 def _verified(installed: str) -> bool:
-    low, high = (_version_tuple(v) for v in VERIFIED_VERSIONS)
-    return low <= _version_tuple(installed) <= high
+    return verified(installed, VERIFIED_VERSIONS)
 
 
 def _span_of(run_manager: Any) -> Any:
@@ -121,16 +106,6 @@ def _span_of(run_manager: Any) -> Any:
         return None
 
 
-def _needs_context(span: Any) -> bool:
-    return span is not None and trace.get_current_span() is not span
-
-
-def _under(span: Any) -> Any:
-    return trace.use_span(
-        span, end_on_exit=False, record_exception=False, set_status_on_exception=False
-    )
-
-
 def _run_manager(args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
     # (self, messages, stop, run_manager, ...): run_manager is passed by
     # keyword by LangChain, positionally by nobody we know of.
@@ -141,12 +116,12 @@ def _wrap_generate(original: Any) -> Any:
     @functools.wraps(original)
     def run(*args: Any, **kwargs: Any) -> Any:
         span = _span_of(_run_manager(args, kwargs))
-        if not _needs_context(span):
+        if not needs_context(span):
             return original(*args, **kwargs)
-        with _under(span):
+        with under(span):
             return original(*args, **kwargs)
 
-    setattr(run, _MARK, original)
+    setattr(run, MARK, original)
     return run
 
 
@@ -154,12 +129,12 @@ def _wrap_agenerate(original: Any) -> Any:
     @functools.wraps(original)
     async def run(*args: Any, **kwargs: Any) -> Any:
         span = _span_of(_run_manager(args, kwargs))
-        if not _needs_context(span):
+        if not needs_context(span):
             return await original(*args, **kwargs)
-        with _under(span):
+        with under(span):
             return await original(*args, **kwargs)
 
-    setattr(run, _MARK, original)
+    setattr(run, MARK, original)
     return run
 
 
@@ -196,7 +171,7 @@ def _wrap_stream(original: Any) -> Any:
         finally:
             steps.close()
 
-    setattr(run, _MARK, original)
+    setattr(run, MARK, original)
     return run
 
 
@@ -224,7 +199,7 @@ def _wrap_astream(original: Any) -> Any:
         finally:
             await steps.aclose()
 
-    setattr(run, _MARK, original)
+    setattr(run, MARK, original)
     return run
 
 
@@ -232,13 +207,13 @@ def _attach_started(run_managers: Any) -> None:
     """After a chat model run starts: make its span current for the step."""
     try:
         pending = _PENDING.get()
-        if pending is None or pending.span is not None or pending.owner != _owner():
+        if pending is None or pending.span is not None or pending.owner != owner():
             return
         span = _span_of(run_managers[0])
         if span is None:
             return
         pending.span = span
-        if _needs_context(span):
+        if needs_context(span):
             pending.token = otel_context.attach(trace.set_span_in_context(span))
     except Exception:
         logger.debug("could not attach the langchain stream span", exc_info=True)
@@ -251,7 +226,7 @@ def _wrap_on_chat_model_start(original: Any) -> Any:
         _attach_started(run_managers)
         return run_managers
 
-    setattr(run, _MARK, original)
+    setattr(run, MARK, original)
     return run
 
 
@@ -262,7 +237,7 @@ def _wrap_aon_chat_model_start(original: Any) -> Any:
         _attach_started(run_managers)
         return run_managers
 
-    setattr(run, _MARK, original)
+    setattr(run, MARK, original)
     return run
 
 
@@ -316,7 +291,7 @@ def install(instrumentor: Any) -> bool:
                 current = cls.__dict__.get(name)
                 if current is None:
                     continue
-                setattr(cls, name, wrap(getattr(current, _MARK, current)))
+                setattr(cls, name, wrap(getattr(current, MARK, current)))
         _tracer = tracer
         return True
     except Exception:
@@ -331,8 +306,8 @@ def uninstall(instrumentor: Any) -> None:
         for cls, hooks in _hooked_classes():
             for name in hooks:
                 current = cls.__dict__.get(name)
-                if current is not None and hasattr(current, _MARK):
-                    setattr(cls, name, getattr(current, _MARK))
+                if current is not None and hasattr(current, MARK):
+                    setattr(cls, name, getattr(current, MARK))
         _tracer = None
     except Exception:
         logger.debug("could not uninstall the langchain chat model span context", exc_info=True)

@@ -518,7 +518,7 @@ def test_the_subclass_hook_still_runs_an_ancestors_hook(
                 return self._stream_chat(messages, **kwargs)
 
         assert seen == [LaterOpenAI]
-        assert hasattr(LaterOpenAI.__dict__["stream_chat"], llama_index_span_context._MARK)
+        assert hasattr(LaterOpenAI.__dict__["stream_chat"], llama_index_span_context.MARK)
     finally:
         client.shutdown()
 
@@ -566,8 +566,8 @@ def test_reinit_does_not_stack_hooks(openai_answers: Answers) -> None:
         )
         client.shutdown()
     for wrapped in _stream_methods().values():
-        inner = getattr(wrapped, llama_index_span_context._MARK, wrapped)
-        assert not hasattr(inner, llama_index_span_context._MARK)
+        inner = getattr(wrapped, llama_index_span_context.MARK, wrapped)
+        assert not hasattr(inner, llama_index_span_context.MARK)
     ours = [
         h
         for h in get_dispatcher().span_handlers
@@ -583,8 +583,8 @@ def test_installing_twice_does_not_stack(openai_answers: Answers) -> None:
         assert llama_index_span_context.install(instrumentor)
         assert llama_index_span_context.install(instrumentor)
         for wrapped in _stream_methods().values():
-            inner = getattr(wrapped, llama_index_span_context._MARK)
-            assert not hasattr(inner, llama_index_span_context._MARK)
+            inner = getattr(wrapped, llama_index_span_context.MARK)
+            assert not hasattr(inner, llama_index_span_context.MARK)
     finally:
         llama_index_span_context.uninstall(instrumentor)
         instrumentor.uninstrument()
@@ -619,7 +619,7 @@ def test_uninstall_restores_everything(openai_answers: Answers) -> None:
     instrumentor.instrument()
     try:
         assert llama_index_span_context.install(instrumentor)
-        assert all(hasattr(m, llama_index_span_context._MARK) for m in _stream_methods().values())
+        assert all(hasattr(m, llama_index_span_context.MARK) for m in _stream_methods().values())
         llama_index_span_context.uninstall(instrumentor)
         assert _stream_methods() == originals
         assert BaseLLM.__dict__.get("__pydantic_init_subclass__") == hook

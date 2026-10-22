@@ -31,7 +31,7 @@ import logging
 from importlib.metadata import PackageNotFoundError, version
 from typing import Any
 
-from opentelemetry import trace
+from ._stopgap import MARK, needs_context, under, verified
 
 logger = logging.getLogger(__name__)
 
@@ -55,16 +55,9 @@ _STARTED: contextvars.ContextVar[tuple[str, Any] | None] = contextvars.ContextVa
     "rius_litellm_started_span", default=None
 )
 
-_MARK = "__rius_stream_context__"
-
-
-def _version_tuple(text: str) -> tuple[int, ...]:
-    return tuple(int(part) for part in text.split(".") if part.isdigit())
-
 
 def _verified(installed: str) -> bool:
-    low, high = (_version_tuple(v) for v in VERIFIED_VERSIONS)
-    return low <= _version_tuple(installed) <= high
+    return verified(installed, VERIFIED_VERSIONS)
 
 
 class _TracerProxy:
@@ -92,39 +85,29 @@ def _take_started(span_name: str) -> Any:
     return span if name == span_name else None
 
 
-def _needs_context(span: Any) -> bool:
-    # None: no stream span was started for this call. Current already: the
-    # instrumentor made it current itself (a fixed release), nothing to do.
-    return span is not None and trace.get_current_span() is not span
-
-
 def _wrap(original: Any, span_name: str) -> Any:
     if inspect.iscoroutinefunction(original):
 
         @functools.wraps(original)
         async def run_async(*args: Any, **kwargs: Any) -> Any:
             span: Any = _take_started(span_name) if kwargs.get("stream") else None
-            if not _needs_context(span):
+            if not needs_context(span):
                 return await original(*args, **kwargs)
-            with trace.use_span(
-                span, end_on_exit=False, record_exception=False, set_status_on_exception=False
-            ):
+            with under(span):
                 return await original(*args, **kwargs)
 
-        setattr(run_async, _MARK, original)
+        setattr(run_async, MARK, original)
         return run_async
 
     @functools.wraps(original)
     def run(*args: Any, **kwargs: Any) -> Any:
         span: Any = _take_started(span_name) if kwargs.get("stream") else None
-        if not _needs_context(span):
+        if not needs_context(span):
             return original(*args, **kwargs)
-        with trace.use_span(
-            span, end_on_exit=False, record_exception=False, set_status_on_exception=False
-        ):
+        with under(span):
             return original(*args, **kwargs)
 
-    setattr(run, _MARK, original)
+    setattr(run, MARK, original)
     return run
 
 
@@ -160,7 +143,7 @@ def install(instrumentor: Any) -> bool:
                 continue
             # Already ours (a re-init), or restored from ours by uninstrument
             # and recorded again as the "original": wrap the real function.
-            original = getattr(original, _MARK, original)
+            original = getattr(original, MARK, original)
             table[func_name] = _wrap(original, span_name)
         return True
     except Exception:
@@ -177,6 +160,6 @@ def uninstall(instrumentor: Any) -> None:
         table = getattr(type(instrumentor), "original_litellm_funcs", None)
         if isinstance(table, dict):
             for func_name, func in list(table.items()):
-                table[func_name] = getattr(func, _MARK, func)
+                table[func_name] = getattr(func, MARK, func)
     except Exception:
         logger.debug("could not uninstall the litellm stream span context", exc_info=True)
