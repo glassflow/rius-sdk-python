@@ -171,7 +171,11 @@ raw_payloads:
     outside it is context for rule (e), and rule (d) inside it takes no mime
     type from outside. When it does not parse (a truncated payload, say), only
     rule (b) applies, to the string as it is (for a string inside JSON, to its
-    unescaped value). A string that is not a candidate gets rule (b) only.
+    unescaped value), with escaped_pattern in place of pattern: the text
+    still holds the JSON escapes of the strings in it, so a run there also
+    goes on over a line break written as an escape (`\n`, or `\r\n`), and a
+    wrapped payload in a truncated JSON string is replaced whole. A string
+    that is not a candidate gets rule (b) only, with pattern.
     Object keys are never matched.
   precedence: >-
     Values are visited in document order. At each value rule (d) is tried, then
@@ -185,10 +189,18 @@ raw_payloads:
     holder whose mime type a typed key with holder_mime reads. A typed key with
     keeps_urls leaves a string that starts with a URL scheme to (b) only when it
     holds no data: (in any ASCII case), or when (b)'s pattern matches the whole
-    unescaped string: such a string is no (e) token, so (b) is tried on it, and
-    a base64 data URL that is the whole value is replaced with its own mime type
-    and size, while any other URL stays. Any other string under that key that
-    holds data: (a percent-encoded payload, a run (b) stops short in, a link
+    unescaped string, or all of it but one final line break (a newline, or a
+    carriage return and newline, as base64.encodebytes ends its output): such
+    a string is no (e) token, so (b) is tried on it, and a base64 data URL that
+    is the whole value is replaced with its own mime type and size, its final
+    line break included (see spans), while any other URL stays. A string that
+    starts with data%3A has no URL scheme, but that key leaves it to (b) too
+    when percent_pattern matches all of it, or all of it but one final line
+    break, raw or percent-encoded (%0A, or %0D%0A). Any other string under
+    such a key that holds data%3A, and no data:, is left to (b) like any URL:
+    (b) replaces a percent-encoded data URL in a link where it sits. Any other
+    string under that key that holds data: (a data URL whose payload is
+    percent-encoded, data:image/png,%89PNG, a run (b) stops short in, a link
     with a data URL after it) is an (e) token, replaced whole with the key's
     usual mime type (see rule (e)), as the part rules make such a value a blob.
   idempotence: >-
@@ -220,8 +232,10 @@ raw_payloads:
     JSON string literal, quotes included. (e) The string literal, quotes
     included, is replaced by the replacement as a JSON string literal, quotes
     included. (b) In a JSON string, only the URL's characters are replaced: the
-    replacement goes inside the existing quotes, with no quotes added. (b) In a
-    string that is not JSON (or did not parse), the URL's characters are replaced
+    replacement goes inside the existing quotes, with no quotes added. Under a
+    key that keeps URLs, a value that is one data URL and one final line break
+    is replaced whole, line break included, inside its quotes, so it becomes a
+    complete replacement. (b) In a string that is not JSON (or did not parse), the URL's characters are replaced
     by the replacement, with no quotes. Rules (b) and (e) read a JSON string's
     unescaped value, so a span starts at the first raw character of its first
     character and ends after the last raw character of its last, escapes
@@ -236,7 +250,14 @@ raw_payloads:
   byte_size: >-
     Rule (e) computes it on the string's unescaped value, and rule (b) on its
     base64 run, the same way. Remove space, tab, newline and carriage return,
-    and for rule (b) also each `>` (the quote marker its run goes on over).
+    and for rule (b) also each `>` (the quote marker its run goes on over) and
+    each escaped line break escaped_pattern's run goes on over (a backslash,
+    an optional `r`, an optional backslash, then `n`). A percent-encoded
+    data URL's run is percent-decoded first, its hex digits in either case:
+    `%2B`, `%2F` and `%3D` are `+`, `/` and `=`, and the encoded line breaks
+    `%0A` and `%0D` are a newline and a carriage return, removed with the
+    rest. `%0B`, `%0F` and `%2A` decode to characters no base64 holds, so a
+    run with one is unknown, and `%2D` is `-`.
     When what is left is not valid base64, byte_size is unknown. Valid means:
     every character before the padding is from one alphabet, `A-Z a-z 0-9 + /` or
     `A-Z a-z 0-9 - _` (never `+` or `/` together with `-` or `_`); the padding is
@@ -285,11 +306,15 @@ raw_payloads:
     repeated continuation line are capturing groups. Neither the mime class nor
     the parameter class holds `;` or `:`. RFC 2045 lists `:` as a tspecial, so
     it cannot appear in an unquoted mime type or parameter token. Rule (b) finds
-    its tokens this way: cut the string before each `data:` (in any ASCII case,
-    `[dD][aA][tT][aA]:` searched left to right; two never overlap), and try the
-    pattern once at the start of each piece, never past its end (Python
+    its tokens this way: cut the string before each `data:` and each `data%3A`
+    (in any ASCII case, `[dD][aA][tT][aA]:` and percent_scheme searched left
+    to right; no two overlap), and try the pattern once at the start of each
+    piece that starts with `data:`, and percent_pattern at the start of each
+    that starts with `data%3A`, never past its end (Python
     `pattern.match(text, start, end)`, or `^` before it on the piece in
-    JavaScript and Go). Each piece that matches gives one token, so tokens never
+    JavaScript and Go). A decoded header holds no colon but may hold %, so a
+    data URL whose header holds data%3A is cut there and is no token: a
+    header no encoder writes. Each piece that matches gives one token, so tokens never
     overlap and a run that continues over a line break never takes the start of
     the next data URL (`...;base64,QUFB\ndata:...` is two tokens). The search is
     linear: each character is in one piece and read by one attempt, the mime
@@ -302,7 +327,25 @@ raw_payloads:
     repeated group makes V8 keep backtracking state for each character, and
     its regex stack then overflows on a few megabytes of wrapped input.
     `[ \t>]*` after a line break takes the indent of a block and the `>` of a
-    quoted reply.
+    quoted reply. escaped_pattern, for a JSON candidate that does not parse,
+    is pattern with a second repeated group after the first: a line break
+    written as a JSON escape, `\\r{0,1}\\{0,1}n` (a backslash, an optional
+    `r`, an optional backslash, then `n`), then the same indent and more
+    base64. It is found the same way, cut at each data:. The two groups start
+    with different characters, so the run still splits in one way. Raw line
+    breaks come first and escaped ones after them, never the other way. The
+    escaped break holds no group: written exactly, as `\\(r\\){0,1}n`, a
+    group inside the repeated group lowers V8's regex stack limit for
+    `\r\n` to about 0.93M wrapped lines, from about 1.66M. The loose form
+    also takes `\rn` and `\\n`, which no encoder writes after a base64
+    line. percent_pattern is linear too: a header
+    escape is never one whose second digit is C, so the header stops at the
+    %2C of %3Bbase64%2C, and backtracking to find %3Bbase64 reads only the
+    header. Each % starts one repetition of a group, so the header and the
+    run each split in exactly one way, and once %2C is read nothing after it
+    can fail. The run's escape class `%[02][ABDFabdf]` (the line breaks %0A
+    and %0D, `+` %2B and `/` %2F, and the harmless %0B, %0F, %2A and %2D)
+    never starts with %3, so it never meets the padding %3D.
     mime_pattern must match the whole value: Python re.fullmatch, or `^` and `$`
     around it in JavaScript and Go (where, without the m flag, `$` is the end of
     the text; in Python `$` also matches before a final newline, so use
@@ -312,7 +355,11 @@ raw_payloads:
     with no trimming. For that key, and wherever a part rule asks for rule
     (b)'s pattern to match a whole value, the pattern matches the whole value
     when its match anchored at the start (Python re.match, or `^` before it in
-    JavaScript and Go) ends at the end of the value. Do not use re.fullmatch
+    JavaScript and Go) ends at the end of the value. A keeps_urls key also
+    takes a match that ends one line break before the end, where what is left
+    is exactly a newline, or a carriage return and newline, and so does a
+    part rule; for percent_pattern, what is left may also be exactly `%0A`
+    or `%0D%0A`, its hex digits in either case. Do not use re.fullmatch
     or `$` for rule (b): the greedy match reaches furthest, so they agree, but
     when a long value fails they try each way to share a line between `{0,76}`
     and the last `*`, many times slower in Python. A whole value that holds a
@@ -342,7 +389,7 @@ raw_payloads:
     format: '[stripped <mime> <byte_size> bytes]'
     unknown: unknown
     # The mime type, by token: a data URL's own media type (unknown when
-    # empty); for rule (e), a sibling mime key, else image/<output_format>, else
+    # empty; percent-decoded for a percent-encoded one); for rule (e), a sibling mime key, else image/<output_format>, else
     # audio/<format> when the parent key is input_audio or audio, else, for a
     # typed key with holder_mime, a mime key of the enclosing object; for rule
     # (d), a mime key of the enclosing object. Mime keys are tried in the order of
@@ -361,10 +408,10 @@ raw_payloads:
       before: 'see data:image/png;base64,iVBORw0KGgo= here'
       after: 'see [stripped image/png 8 bytes] here'
     tokens:
-      - token: A data URL (rule b), anywhere in a string
-        replaced: 'The URL characters alone, from data: (in any case) to the end of the base64 run, parameters included, with no quotes added. A run wrapped at a line break goes on over each next line that starts with base64, after any spaces, tabs or >, when its first line holds at most 76 base64 characters, so nothing of a payload an encoder wrapped is left. The text around it stays byte-identical; a string that is only the data URL becomes the replacement text.'
-        mime: The URL's media type when it is token/token; unknown when it names none, or anything else.
-        byte_size: The base64 run's size, per byte_size; unknown when the run is not valid base64.
+      - token: A data URL (rule b), anywhere in a string, as it is or percent-encoded whole
+        replaced: 'The URL characters alone, from data: or data%3A (in any case) to the end of the base64 run, parameters included, with no quotes added. A run wrapped at a line break goes on over each next line that starts with base64, after any spaces, tabs or >, when its first line holds at most 76 base64 characters, so nothing of a payload an encoder wrapped is left; a run percent-encoded whole goes on over each encoded line break (%0A, or %0D%0A) the same way. The text around it stays byte-identical; a string that is only the data URL becomes the replacement text. Under a key that keeps URLs, so does a string that is the data URL and one final line break (for one percent-encoded whole, also %0A or %0D%0A). In JSON that does not parse, the run also goes on over a line break written as an escape.'
+        mime: The URL's media type when it is token/token (percent-decoded first, for a data URL percent-encoded whole); unknown when it names none, or anything else.
+        byte_size: The base64 run's size, per byte_size (percent-decoded first, for a data URL percent-encoded whole); unknown when the run is not valid base64.
       - token: A base64 string value (rule e)
         replaced: The string literal, quotes included, by the replacement as a JSON string literal; for an array under the key, each string element the same way.
         mime: The first of media_type, mediaType, mime_type, mimeType, in that order, that holds a token/token mime; else image/<output_format>; else audio/<format> under input_audio or audio; else, under a typed key with holder_mime (a Vercel v7 tagged data), the enclosing object's first such mime key; else unknown.
@@ -376,8 +423,14 @@ raw_payloads:
   detection:
     - id: b
       name: data URL
-      description: 'A data:<mime>[;<parameter>]*;base64,<base64> token anywhere in a string, the scheme in any case (DATA:, Data:) and RFC 2397 parameters allowed before ;base64, (data:image/png;name=a.png;base64,...). The base64 run may be wrapped: at a line break (a newline, or a carriage return and a newline) followed by any spaces, tabs or > (an indented block or a quoted reply) and more base64, the run goes on, line after line, as base64.encodebytes, MIME and PEM encoders write it, and ends at the padding or at the first character that is no base64. It goes on over line breaks only when its first line, counted from ;base64,, holds at most 76 base64 characters, the most RFC 2045 lets a MIME line hold and what every wrapping encoder writes or less. A real image as a single-line data URL is far longer, so the prose after it stays whole. The cost: a tiny unpadded data URL (a run of 76 characters or fewer, about 57 bytes or less) at the end of a line takes each next line that starts with base64 with it, whatever that line''s length, up to its first character that is no base64; and a payload wrapped wider than 76 keeps everything after its first line. A padded run ends at its padding. The pattern finds each one, tried at each data: and never past the next (see regex_dialect): group 1 the mime type (empty when none), group 2 the last parameter (unused), group 3 the base64 run (standard or URL-safe), its line breaks included, group 4 its last continuation line (unused). A whole-string data URL is the special case.'
+      description: 'A data:<mime>[;<parameter>]*;base64,<base64> token anywhere in a string, the scheme in any case (DATA:, Data:) and RFC 2397 parameters allowed before ;base64, (data:image/png;name=a.png;base64,...). The base64 run may be wrapped: at a line break (a newline, or a carriage return and a newline) followed by any spaces, tabs or > (an indented block or a quoted reply) and more base64, the run goes on, line after line, as base64.encodebytes, MIME and PEM encoders write it, and ends at the padding or at the first character that is no base64. It goes on over line breaks only when its first line, counted from ;base64,, holds at most 76 base64 characters, the most RFC 2045 lets a MIME line hold and what every wrapping encoder writes or less. A real image as a single-line data URL is far longer, so the prose after it stays whole. The cost: a tiny unpadded data URL (a run of 76 characters or fewer, about 57 bytes or less) at the end of a line takes each next line that starts with base64 with it, whatever that line''s length, up to its first character that is no base64; and a payload wrapped wider than 76 keeps everything after its first line. A padded run ends at its padding. The pattern finds each one, tried at each data: and never past the next (see regex_dialect): group 1 the mime type (empty when none), group 2 the last parameter (unused), group 3 the base64 run (standard or URL-safe), its line breaks included, group 4 its last continuation line (unused). A whole-string data URL is the special case. In the text of a JSON candidate that does not parse, escaped_pattern is tried instead: the same, but after its raw line breaks the run also goes on over line breaks written as JSON escapes (\n, or \r\n, as a backslash and a letter), with the same first-line guard; its group 5 is its last escaped continuation line (unused). A data URL percent-encoded whole, as a link carries one in its query (data%3Aimage%2Fpng%3Bbase64%2CiVBOR...%3D), is a token too, wherever rule (b) runs, by percent_pattern: its scheme data%3A in any ASCII case, a header of any characters but %, ;, comma, colon, ASCII whitespace and the quote, or percent escapes but those whose second digit is C (so %2C ends it), then %3Bbase64%2C, then a run of base64 characters and the escapes %2B and %2F and the line breaks %0A and %0D (the class %[02][ABDFabdf], so also the harmless %0B, %0F, %2A and %2D), ended by at most two %3D. The hex digits are in either case, and a / may be written as it is, as Python''s quote leaves it. Group 1 is the header: its media type is the header up to its first %3B, percent-decoded. Group 3 is the run, sized once its escapes are decoded and its line breaks removed. Groups 2, 4 and 5 are unused. So a payload wrapped before it was percent-encoded (quote of base64.encodebytes output) is one token, as a wrapped data URL is; with no first-line guard, an unpadded run of any length followed by %0A and more encoded base64 takes it too, and loses its size, only inside an encoded string; no payload byte is kept. The run takes no other escape, and a twice-encoded data URL (data%253A) is no token. Every match holds base64%2, a literal a pre-check can look for.'
       pattern: '[dD][aA][tT][aA]:([^;,:\t\n\f\r "]*)(;[^;,:\t\n\f\r "]*)*;base64,([A-Za-z0-9+/_-]{0,76}(\r{0,1}\n[ \t>]*[A-Za-z0-9+/_-]+)*[A-Za-z0-9+/_-]*={0,2})'
+      # A percent-encoded data URL, as encodeURIComponent, URLSearchParams,
+      # Python's urllib.parse.quote and Go's url.QueryEscape write one into a
+      # link: the scheme (where a piece starts), then the pattern.
+      percent_scheme: '[dD][aA][tT][aA]%3[aA]'
+      percent_pattern: '[dD][aA][tT][aA]%3[aA]([^%;,:\t\n\f\r "]*(%[0-9A-Fa-f][0-9ABD-Fabd-f][^%;,:\t\n\f\r "]*)*)%3[bB]base64%2[cC]([A-Za-z0-9+/_-]*(%[02][ABDFabdf][A-Za-z0-9+/_-]*)*(%3[dD]){0,2})'
+      escaped_pattern: '[dD][aA][tT][aA]:([^;,:\t\n\f\r "]*)(;[^;,:\t\n\f\r "]*)*;base64,([A-Za-z0-9+/_-]{0,76}(\r{0,1}\n[ \t>]*[A-Za-z0-9+/_-]+)*(\\r{0,1}\\{0,1}n[ \t>]*[A-Za-z0-9+/_-]+)*[A-Za-z0-9+/_-]*={0,2})'
     - id: d
       name: Buffer object
       description: 'An object {"type": "Buffer", "data": [...]} whose data is a non-empty array.'
@@ -386,7 +439,7 @@ raw_payloads:
       mime_keys: [media_type, mediaType, mime_type, mimeType]
     - id: e
       name: keyed base64 string
-      description: 'A non-empty string (or each string of an array) under one of the keys, when its object has one of the sibling keys with a non-empty string value that is not a complete replacement, or its object''s parent key is one of the parent keys, or its object is the value of a source key and has type base64 (the Anthropic {"source":{"type":"base64","media_type":...,"data":...}}: the object holding data is the source itself, not the content block around it); a non-empty string under content when its object has type blob (the semconv blob part, as in a raw payload like pydantic_ai.all_messages: the raw-payload twin of the fixture check''s rule that a normalized blob part carries no content); a non-empty string under a typed key when its object has one of that key''s types and, for a typed key that names parent keys, its object''s parent key is one of them (a LangChain v1 standard content block {"type":"image","base64":...,"mime_type":...}, Mistral''s audio chunk {"type":"input_audio","input_audio":...}, which its TypeScript SDK spells inputAudio, a Vercel image part {"type":"image","image":...}, or the v7 tagged data {"type":"data","data":...} a Vercel file part''s data or image part''s image holds); a non-empty string under one of the source bytes keys when its object is the value of a source key, whatever its type (the Bedrock Converse {"image":{"format":"png","source":{"bytes":...}}}: as for Anthropic, the object holding bytes is the source); and a non-empty string under one of a base64 marker''s own keys when its object has the marker (a member with exactly the marker''s key and string value, as in the LangChain v0 block {"type":"image","source_type":"base64","data":...}, whose marker reaches data and no other key). A typed key with holder_types counts only when the nearest object holding its object, through arrays, has one of those types: the v7 tagged data counts in a Vercel file or image part, never in a {"data":{"type":"data",...}} envelope of some other API. A typed key with keeps_urls leaves a string that starts with a URL scheme (url_scheme) to rule (b), whatever other way its key qualifies, when it holds no data: (searched anywhere, in any ASCII case) or rule (b)''s pattern matches the whole string: an http URL under a Vercel image stays, and a base64 data URL that is the whole value, wrapped or not, is replaced by rule (b) with its own mime type and size. Any other string that holds data: (a percent-encoded data URL, a run rule (b) stops short in, a link with a data URL after it) is a rule (e) token like any other, replaced whole with the key''s usual mime type, so no byte of its payload survives. The search has no word boundary, so a link with data: in its path (https://e/metadata:x.png) is replaced too. A typed key with holder_mime takes its mime type, when its own object names none, from the mime keys of the nearest object holding it, as rule (d) does, so a tagged data reads its Vercel part''s mediaType. Never a string that is already a complete replacement (see idempotence). See members for duplicate keys, siblings and arrays.'
+      description: 'A non-empty string (or each string of an array) under one of the keys, when its object has one of the sibling keys with a non-empty string value that is not a complete replacement, or its object''s parent key is one of the parent keys, or its object is the value of a source key and has type base64 (the Anthropic {"source":{"type":"base64","media_type":...,"data":...}}: the object holding data is the source itself, not the content block around it); a non-empty string under content when its object has type blob (the semconv blob part, as in a raw payload like pydantic_ai.all_messages: the raw-payload twin of the fixture check''s rule that a normalized blob part carries no content); a non-empty string under a typed key when its object has one of that key''s types and, for a typed key that names parent keys, its object''s parent key is one of them (a LangChain v1 standard content block {"type":"image","base64":...,"mime_type":...}, Mistral''s audio chunk {"type":"input_audio","input_audio":...}, which its TypeScript SDK spells inputAudio, a Vercel image part {"type":"image","image":...}, or the v7 tagged data {"type":"data","data":...} a Vercel file part''s data or image part''s image holds); a non-empty string under one of the source bytes keys when its object is the value of a source key, whatever its type (the Bedrock Converse {"image":{"format":"png","source":{"bytes":...}}}: as for Anthropic, the object holding bytes is the source); and a non-empty string under one of a base64 marker''s own keys when its object has the marker (a member with exactly the marker''s key and string value, as in the LangChain v0 block {"type":"image","source_type":"base64","data":...}, whose marker reaches data and no other key). A typed key with holder_types counts only when the nearest object holding its object, through arrays, has one of those types: the v7 tagged data counts in a Vercel file or image part, never in a {"data":{"type":"data",...}} envelope of some other API. A typed key with keeps_urls leaves a string that starts with a URL scheme (url_scheme) to rule (b), whatever other way its key qualifies, when it holds no data: (searched anywhere, in any ASCII case) or rule (b)''s pattern matches the whole string, or all of it but one final line break (a newline, or a carriage return and newline): an http URL under a Vercel image stays, and a base64 data URL that is the whole value, wrapped or not, is replaced by rule (b) with its own mime type and size, a final line break with it, so the base64.encodebytes output of an image gets its size. A string that starts with data%3A, a data URL percent-encoded whole, is left to rule (b) the same way when rule (b)''s percent_pattern matches all of it, or all of it but one final line break, raw or percent-encoded (%0A, or %0D%0A). Any other string that holds data: (a data URL whose payload is percent-encoded, a run rule (b) stops short in, a link with a data URL after it) is a rule (e) token like any other, replaced whole with the key''s usual mime type, so no byte of its payload survives. The search has no word boundary, so a link with data: in its path (https://e/metadata:x.png) is replaced too. A typed key with holder_mime takes its mime type, when its own object names none, from the mime keys of the nearest object holding it, as rule (d) does, so a tagged data reads its Vercel part''s mediaType. Never a string that is already a complete replacement (see idempotence). See members for duplicate keys, siblings and arrays.'
       keys: [data, b64_json, result, base64]
       # format is not one: it counts only under input_audio or audio (see members).
       sibling_keys: [media_type, mediaType, mime_type, mimeType, output_format]
@@ -407,7 +460,8 @@ raw_payloads:
       # key is one of them; with holder_types, only when the nearest object
       # holding it (through arrays, as for rule (d)) has one of those types. With keeps_urls, a string that starts with
       # url_scheme is left to rule (b), unless it holds data: anywhere and rule
-      # (b)'s pattern does not match all of it. With holder_mime, the mime type
+      # (b)'s pattern does not match all of it, or all of it but one final
+      # line break. With holder_mime, the mime type
       # falls back to the enclosing object's mime keys.
       typed_keys:
         - key: base64
@@ -512,6 +566,21 @@ raw_payloads:
       output: '{"messages":[{"role":"user","content":[{"type":"image","source":{"type":"base64","media_type":"image/png","data":"iVBORw0KGgo="}},{"type":"image_url","image_url":{"url":"[stripped image/png 8 bytes]"}}'
       tokens:
         - {rule: b, mime: image/png, byte_size: 8}
+    - name: a_wrapped_data_url_in_json_that_does_not_parse
+      note: 'The payload was cut off, so it does not parse, and rule (b) runs on the raw text, where a wrapped run''s line breaks are the JSON escapes \n and \r\n. escaped_pattern takes them as line breaks, so each wrapped payload is replaced whole and gets its size: base64.encodebytes output with LF or CRLF (its final escaped line break stays, as rule (b) replaces the URL alone), and a quoted reply. The first-line guard holds as for a raw line break: a data URL longer than 76 characters on one line keeps the line after it.'
+      input: '{"messages":[{"role":"user","content":[{"type":"image_url","image_url":{"url":"data:image/png;base64,AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4\nOTo7\n"}},{"type":"image_url","image_url":{"url":"data:image/png;base64,AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4\r\nOTo7\r\n"}},{"type":"text","text":"> see data:image/png;base64,AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4\n> OTo7PD0=\n> Thanks"},{"type":"text","text":"data:image/png;base64,AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7\nThanks"},{"type":"text","text":"cut off'
+      output: '{"messages":[{"role":"user","content":[{"type":"image_url","image_url":{"url":"[stripped image/png 60 bytes]\n"}},{"type":"image_url","image_url":{"url":"[stripped image/png 60 bytes]\r\n"}},{"type":"text","text":"> see [stripped image/png 62 bytes]\n> Thanks"},{"type":"text","text":"[stripped image/png 60 bytes]\nThanks"},{"type":"text","text":"cut off'
+      tokens:
+        - {rule: b, mime: image/png, byte_size: 60}
+        - {rule: b, mime: image/png, byte_size: 60}
+        - {rule: b, mime: image/png, byte_size: 62}
+        - {rule: b, mime: image/png, byte_size: 60}
+    - name: an_escaped_line_break_outside_json_ends_the_run
+      note: 'A string that is not a JSON candidate gets rule (b) by its pattern, which takes only a raw line break: a backslash and an n in prose end the run there, and what follows stays. escaped_pattern applies only to JSON that does not parse.'
+      input: 'see data:image/png;base64,AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4\nOTo7 here'
+      output: 'see [stripped image/png 57 bytes]\nOTo7 here'
+      tokens:
+        - {rule: b, mime: image/png, byte_size: 57}
     - name: json_nested_in_a_json_string
       note: A tool result holds JSON as a string. It is a JSON candidate, so rule (e) applies inside it, and the replacement literal is written escaped for that level.
       input: '{"messages":[{"role":"tool","content":"{\"source\":{\"type\":\"base64\",\"media_type\":\"image/png\",\"data\":\"iVBORw0KGgo=\"}}"}]}'
@@ -865,6 +934,61 @@ raw_payloads:
       tokens:
         - {rule: b, mime: image/png, byte_size: 8}
         - {rule: b, mime: image/png, byte_size: 8}
+        - {rule: e, mime: image/png, byte_size: unknown}
+        - {rule: b, mime: image/png, byte_size: 8}
+    - name: an_escaped_run_ends_at_a_unicode_escape
+      note: 'The accepted costs of escaped_pattern in JSON that does not parse: a line break written as the escape \u000a ends the run, and so does a quoted reply as Go''s encoding/json writes it, since it escapes > as \u003e by default and the indent class takes only a raw >. What follows each run stays.'
+      input: '{"a":"data:image/png;base64,QUFB\u000aQkJD","b":"data:image/png;base64,QUFB\n\u003e QkJD\n\u003e thanks","c":"cut'
+      output: '{"a":"[stripped image/png 3 bytes]\u000aQkJD","b":"[stripped image/png 3 bytes]\n\u003e QkJD\n\u003e thanks","c":"cut'
+      tokens:
+        - {rule: b, mime: image/png, byte_size: 3}
+        - {rule: b, mime: image/png, byte_size: 3}
+    - name: a_percent_encoded_data_url_in_prose
+      note: 'A data URL percent-encoded whole, as encodeURIComponent or Python''s quote writes it into a link, is a rule (b) token in prose: its media type percent-decoded (image/svg+xml from image%2Fsvg%2Bxml), its run sized once %2B, %2F and %3D are decoded. The hex digits may be in lower case, a / may be left as it is, and parameters in the header (%3Bname%3Da.png) are skipped as in a data URL.'
+      input: 'see data%3Aimage%2Fpng%3Bbase64%2CiVBORw0KGgo%3D here, data%3Aimage%2Fsvg%2Bxml%3Bbase64%2C%2B%2B%2B%2B%2F%2F%2F%2FAA%3D%3D and data%3Aimage%2fpng%3Bbase64%2C%2b%2b%2b%2b%2f%2f%2f%2fAA%3D%3D and data%3Aimage/png%3Bname%3Da.png%3Bbase64%2C%2B%2B%2B%2B////AA%3D%3D'
+      output: 'see [stripped image/png 8 bytes] here, [stripped image/svg+xml 7 bytes] and [stripped image/png 7 bytes] and [stripped image/png 7 bytes]'
+      tokens:
+        - {rule: b, mime: image/png, byte_size: 8}
+        - {rule: b, mime: image/svg+xml, byte_size: 7}
+        - {rule: b, mime: image/png, byte_size: 7}
+        - {rule: b, mime: image/png, byte_size: 7}
+    - name: a_percent_encoded_data_url_in_json_and_under_keys
+      note: 'In a JSON string the percent-encoded data URL is replaced where it sits, so a proxy link keeps the text around it, under image_url.url and under image alike. Under a key that keeps URLs, a value that is one percent-encoded data URL, or one and a final line break, is replaced whole with its own mime type and size. A plain data beside mediaType is a rule (e) token, as a data URL is there. A percent-encoded data URL glued to a data URL stops where the next data: starts.'
+      input: '[{"type":"image_url","image_url":{"url":"https://proxy.example/fetch?u=data%3Aimage%2Fpng%3Bbase64%2CiVBORw0KGgo%3D&w=1"}},{"type":"image","image":"data%3Aimage%2Fpng%3Bbase64%2CiVBORw0KGgo%3D"},{"type":"image","image":{"type":"data","data":"data%3aimage%2fpng%3bbase64%2ciVBORw0KGgo%3d\n"}},{"type":"image","image":"https://proxy.example/fetch?u=data%3Aimage%2Fpng%3Bbase64%2CiVBORw0KGgo%3D"},{"type":"file","data":"data%3Aimage%2Fpng%3Bbase64%2CiVBORw0KGgo%3D","mediaType":"image/png"},{"type":"text","text":"data%3Aa%2Fb%3Bbase64%2CQUFBdata:a/b;base64,QkJD"}]'
+      output: '[{"type":"image_url","image_url":{"url":"https://proxy.example/fetch?u=[stripped image/png 8 bytes]&w=1"}},{"type":"image","image":"[stripped image/png 8 bytes]"},{"type":"image","image":{"type":"data","data":"[stripped image/png 8 bytes]"}},{"type":"image","image":"https://proxy.example/fetch?u=[stripped image/png 8 bytes]"},{"type":"file","data":"[stripped image/png unknown bytes]","mediaType":"image/png"},{"type":"text","text":"[stripped a/b 3 bytes][stripped a/b 3 bytes]"}]'
+      tokens:
+        - {rule: b, mime: image/png, byte_size: 8}
+        - {rule: b, mime: image/png, byte_size: 8}
+        - {rule: b, mime: image/png, byte_size: 8}
+        - {rule: b, mime: image/png, byte_size: 8}
+        - {rule: e, mime: image/png, byte_size: unknown}
+        - {rule: b, mime: a/b, byte_size: 3}
+        - {rule: b, mime: a/b, byte_size: 3}
+    - name: a_percent_encoded_run_ends_at_any_other_escape
+      note: 'The accepted costs of percent_pattern: its run takes only the escapes %0A, %0D, %2B and %2F (and the harmless %0B, %0F, %2A and %2D), so any other escape, an encoded space included, ends it; a twice-encoded data URL (data%253A) is no token; a data URL with a plain scheme and a percent-encoded run, which no encoder writes, ends its run at the first escape; and a data URL with only its colon and slash encoded (data%3Aimage%2Fpng;base64,...) is no token, since a percent-encoded header takes no ; and its payload stays.'
+      input: 'data%3Aa%2Fb%3Bbase64%2CQUFB%20QkJD and data%253Aa%252Fb%253Bbase64%252CQUFB and data:a%2Fb;base64,QUFB%2BQkJD and data%3Aimage%2Fpng;base64,iVBORw0KGgo='
+      output: '[stripped a/b 3 bytes]%20QkJD and data%253Aa%252Fb%253Bbase64%252CQUFB and [stripped unknown 3 bytes]%2BQkJD and data%3Aimage%2Fpng;base64,iVBORw0KGgo='
+      tokens:
+        - {rule: b, mime: a/b, byte_size: 3}
+        - {rule: b, mime: unknown, byte_size: 3}
+    - name: a_percent_encoded_data_url_wrapped_before_it_was_encoded
+      note: 'Python''s quote(data_url, safe="") of a data URL whose payload is base64.encodebytes output writes each line break as %0A (or %0D%0A), and the run goes on over them, so the payload is replaced whole and sized with the encoded line breaks removed. A padded run ends at its padding, so a final encoded line break after it stays, as a raw one does outside a key that keeps URLs. Under image, a value that is the data URL and one final %0A or %0D%0A is replaced whole, as one with a raw final line break is.'
+      input: '[{"type":"text","text":"see data%3Aimage%2Fpng%3Bbase64%2CAAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4%0AOTo7%0A thanks"},{"type":"image","image":"data%3Aimage%2Fpng%3Bbase64%2CAAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4%0AOTo7%0A"},{"type":"image_url","image_url":{"url":"https://proxy.example/fetch?u=data%3aimage%2fpng%3bbase64%2cCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTIzNDU2Nzg5Ojs8PT4%2fQEFC%0d%0aQ0RFRg%3d%3d%0d%0a&w=1"}}]'
+      output: '[{"type":"text","text":"see [stripped image/png 60 bytes] thanks"},{"type":"image","image":"[stripped image/png 60 bytes]"},{"type":"image_url","image_url":{"url":"https://proxy.example/fetch?u=[stripped image/png 61 bytes]%0d%0a&w=1"}}]'
+      tokens:
+        - {rule: b, mime: image/png, byte_size: 60}
+        - {rule: b, mime: image/png, byte_size: 60}
+        - {rule: b, mime: image/png, byte_size: 61}
+    - name: a_base64_data_url_that_ends_in_one_line_break_under_a_url_key
+      note: 'base64.encodebytes ends its output with a newline. Under a key that keeps URLs, a value that is one data URL and one final line break (a newline, or a carriage return and newline) is one rule (b) token, replaced whole with the line break, so it gets its mime type and size: under image, tagged data, a wrapped run and a string in an array under image alike. Two final line breaks are no such value, so that one is a rule (e) token. A plain data beside mediaType keeps no URLs, so it stays rule (e). Outside such a key rule (b) replaces the data URL alone and the line break stays.'
+      input: '[{"type":"image","image":"data:image/png;base64,iVBORw0KGgo=\n"},{"type":"image","image":{"type":"data","data":"data:image/png;base64,iVBORw0KGgo=\r\n"}},{"type":"image","image":"data:image/png;base64,AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4\nOTo7\n"},{"type":"image","image":["data:image/png;base64,iVBORw0KGgo=\n"]},{"type":"image","image":"data:image/png;base64,iVBORw0KGgo=\n\n"},{"type":"file","data":"data:image/png;base64,iVBORw0KGgo=\n","mediaType":"image/png"},{"type":"image_url","image_url":{"url":"data:image/png;base64,iVBORw0KGgo=\n"}}]'
+      output: '[{"type":"image","image":"[stripped image/png 8 bytes]"},{"type":"image","image":{"type":"data","data":"[stripped image/png 8 bytes]"}},{"type":"image","image":"[stripped image/png 60 bytes]"},{"type":"image","image":["[stripped image/png 8 bytes]"]},{"type":"image","image":"[stripped unknown unknown bytes]"},{"type":"file","data":"[stripped image/png unknown bytes]","mediaType":"image/png"},{"type":"image_url","image_url":{"url":"[stripped image/png 8 bytes]\n"}}]'
+      tokens:
+        - {rule: b, mime: image/png, byte_size: 8}
+        - {rule: b, mime: image/png, byte_size: 8}
+        - {rule: b, mime: image/png, byte_size: 60}
+        - {rule: b, mime: image/png, byte_size: 8}
+        - {rule: e, mime: unknown, byte_size: unknown}
         - {rule: e, mime: image/png, byte_size: unknown}
         - {rule: b, mime: image/png, byte_size: 8}
     - name: a_percent_encoded_data_url_under_a_url_key_is_replaced_whole
@@ -1275,15 +1399,15 @@ part_shapes:
     - 'The modality that the part already has is kept, when it is one of modalities (any other value is ignored), except for a blob whose content is a string and a uri holding a data URL (below). Otherwise it is taken from the MIME type. Failing that, a provider item whose kind names a modality takes it from the kind: an image, image_url, input_image or image_generation_call item is image, an input_audio item audio, a document item document. A LangChain v1 block of type image, audio or video is that modality; a block of type file names none, so by a url that is not a data URL it takes the modality from the extension of the URL''s path (see extensions), and otherwise it is document. A text-plain block by base64 names none either and is document (one by url or file_id makes no part). A Bedrock Converse image, video, audio or document block is that modality. An OpenAI file or input_file item names none; its modality comes from the extension of its filename member alone (never from a file_url), and with no filename, or an empty one, it is document. A Gemini file_data, a native uri and a Vercel file part by URL take it from the extension of their URI''s path (see extensions), the Vercel part whether its URL is a plain string or v7''s {"type":"url"} data; a Vercel image part is an image. Otherwise it is document. So an Anthropic document by URL ending in .png is a document, an OpenAI input_file named a.png is an image, and an input_file by a file_url ending in .png with no filename is a document; a LangChain v1 image block by a URL ending in .bin is an image, and a v1 file block by a URL ending in .wav is audio. A native file part with no valid modality and no MIME type gets document; no member of it is read for an extension. Any other part with no MIME type and no other hint also gets document.'
     - 'A blob whose `content` is a string is rebuilt with stripped_reason not_captured and a byte_size taken from the content under the size rule of the strip (omitted when the size is unknown). Its modality comes from its MIME type first, then from the modality it has, then document: a PDF blob labelled image is a document. A content string that is itself a data URL follows the data URL rules below, with the part''s mime_type as the hint and the same modality order. A blob in a message key never carries content.'
     - 'A blob with no string `content` keeps a stripped_reason that is one of stripped_reasons. Otherwise its stripped_reason is redacted_upstream when it has no content member or a null one, and not_captured when its content is any other value. It keeps a byte_size that is a whole, non-negative number no larger than 2^53 - 1 (8, 8.0 and 8e0 alike, written 8); any other byte_size is omitted.'
-    - 'A uri part, or a provider URI, whose URI is a data URL is never a uri: it becomes a blob under the data URL rules below. Nor is a native uri part or a provider URI whose value holds data: anywhere else, in any ASCII case (a value led by whitespace, or a link with a data URL after it, wrapped, percent-encoded or not): it becomes a blob with the stripped_reason not_captured and no byte_size, its MIME type kept when valid, so no byte of the data URL survives. The provider URIs are an OpenAI image_url''s url and input_image''s image_url, an Anthropic image or document by a url source, an OpenAI input_file''s file_url, a Gemini file_data''s file_uri, a Vercel file or image part by URL (a plain string that starts with a URL scheme, or v7''s {"type":"url"} data), and the image url OpenInference flattens; a LangChain v1 url is read the same way (below). Any other value stays a uri as it came. A native uri part takes that blob''s modality as a blob whose content is a string does: from the MIME type first, then the modality it has, then document. A provider URI takes it from the MIME type the item gives (an Anthropic source''s media_type, a Gemini file_data''s mime_type, a Vercel part''s mediaType), then from the item''s kind (an image_url, an input_image and a Vercel image part are image, an Anthropic image or document that kind, an input_file the modality its filename names), then document: such a value has no path to read an extension from. The test is one search for [dD][aA][tT][aA]: with no trimming and no word boundary, so a link with data: in its path (https://e/metadata:x.png) becomes this blob too: a lost link, never a leak. generators/media_parts.py provider_uri_part(data, item) is the reference for a provider URI, and each example''s provider item is its test.'
-    - 'A URL of any scheme other than data: is a uri, its link kept as written: http, https, gs, s3, file and any other scheme alike. Only a data: URL, or inline data, becomes a blob, and a native uri, a provider URI or a LangChain v1 url that holds data: anywhere else (above and below). Where one value may hold either a URL or bare base64 (a Vercel file part''s data or image part''s image, as a plain string or as v7''s {"type":"data"} data), it is a URL when it starts with a scheme: an ASCII letter, then any ASCII letters, digits, `+`, `-` or `.`, then a colon. Base64 holds no colon, so the two never meet; anything else is base64. A value v7 tags {"type":"url"} is a URL whatever it holds. The strip reads these values the same way: rule (e) leaves a value that starts with a scheme to rule (b) (raw_payloads, rule (e)''s url_scheme and keeps_urls), except a value holding data: that rule (b)''s pattern does not match in full (a percent-encoded data URL, a link with a data URL after it), which rule (e) replaces whole, as the part rules make it a blob.'
-    - 'In a provider media item, a URL or a file id that is empty, or that is the __REDACTED__ marker an instrumentor writes in its place, was dropped upstream. When the item has no other usable reference (one that is neither empty nor __REDACTED__), it becomes a blob with the stripped_reason redacted_upstream and no byte_size. It keeps the MIME type the item gives (an Anthropic source''s media_type, a Gemini file_data''s mime_type, a Vercel part''s mediaType) and takes its modality by the rule above, so an image_url or input_image is image. This covers an image_url''s url, an input_image''s image_url and file_id, an Anthropic url or file source, a Gemini file_data''s file_uri, a Vercel part''s v7 {"type":"url"} data, an OpenAI file or input_file''s file_id, file_data and file_url (an empty file_data counts as dropped too, since its item has nothing else to point to), and a LangChain v1 image, audio, video or file block''s url and an image, audio or video block''s file_id. An OpenAI file or input_file with no usable reference becomes this blob too when it has no reference member at all, or only ones that are not strings (a file_id of 5 or null): its type file would otherwise collide with a native file part. A usable reference wins: an input_image whose image_url is __REDACTED__ and whose file_id is usable is a file, and an OpenAI file with an empty file_id and non-empty file_data is a blob of that data. It matches OpenInference''s __REDACTED__ on the flattened path. So no provider item this rule covers is left as a part of type file without a file_id. A native uri or file part is no provider item: its empty uri or file_id is kept, and so is that of a LangChain v1 file block with no other usable reference (no base64 but an empty or __REDACTED__ one, and no usable url), since such a block has a native file part''s shape and is read as one (below); a v1 file block that has one is read by it, as the usable reference wins. Nor is a reference not yet mapped to a part (a Bedrock Converse source by s3Location): it stays as it came, empty or not.'
+    - 'A uri part, or a provider URI, whose URI is a data URL is never a uri: it becomes a blob under the data URL rules below. A data URL is a value that starts with data:, or with data%3A (rule (b)''s percent_scheme: a data URL percent-encoded whole, as encodeURIComponent writes it), in any ASCII case. Nor is a native uri part or a provider URI whose value holds data: anywhere else, in any ASCII case (a value led by whitespace, or a link with a data URL after it, wrapped, percent-encoded or not): it becomes a blob with the stripped_reason not_captured and no byte_size, its MIME type kept when valid, so no byte of the data URL survives. The provider URIs are an OpenAI image_url''s url and input_image''s image_url, an Anthropic image or document by a url source, an OpenAI input_file''s file_url, a Gemini file_data''s file_uri, a Vercel file or image part by URL (a plain string that starts with a URL scheme, or v7''s {"type":"url"} data), and the image url OpenInference flattens; a LangChain v1 url is read the same way (below). Any other value stays a uri as it came, a link that holds data%3A and no data: included (a proxy link with an encoded data URL in its query): the strip then replaces the encoded data URL inside it where it sits, as rule (b) does wherever it runs. A native uri part takes that blob''s modality as a blob whose content is a string does: from the MIME type first, then the modality it has, then document. A provider URI takes it from the MIME type the item gives (an Anthropic source''s media_type, a Gemini file_data''s mime_type, a Vercel part''s mediaType, the image media_type OpenInference flattens beside its url), then from the item''s kind (an image_url, an input_image and a Vercel image part are image, an Anthropic image or document that kind, an input_file the modality its filename names), then document: such a value has no path to read an extension from. The test is one search for [dD][aA][tT][aA]: with no trimming and no word boundary, so a link with data: in its path (https://e/metadata:x.png) becomes this blob too: a lost link, never a leak. generators/media_parts.py provider_uri_part(data, item) is the reference for a provider URI, and each example''s provider item is its test.'
+    - 'A URL of any scheme other than data: is a uri, its link kept as written: http, https, gs, s3, file and any other scheme alike. Only a data: URL, or inline data, becomes a blob, and a native uri, a provider URI or a LangChain v1 url that holds data: anywhere else (above and below). Where one value may hold either a URL or bare base64 (a Vercel file part''s data or image part''s image, as a plain string or as v7''s {"type":"data"} data), it is a URL when it starts with a scheme: an ASCII letter, then any ASCII letters, digits, `+`, `-` or `.`, then a colon. Base64 holds no colon, so the two never meet; anything else is base64, but a value that starts with data%3A, which is a data URL (above). A value v7 tags {"type":"url"} is a URL whatever it holds. The strip reads these values the same way: rule (e) leaves a value that starts with a scheme to rule (b) (raw_payloads, rule (e)''s url_scheme and keeps_urls), except a value holding data: that rule (b)''s pattern does not match in full (a percent-encoded data URL, a link with a data URL after it), which rule (e) replaces whole, as the part rules make it a blob.'
+    - 'In a provider media item, a URL or a file id that is empty, or that is the __REDACTED__ marker an instrumentor writes in its place, was dropped upstream. When the item has no other usable reference (one that is neither empty nor __REDACTED__), it becomes a blob with the stripped_reason redacted_upstream and no byte_size. It keeps the MIME type the item gives (an Anthropic source''s media_type, a Gemini file_data''s mime_type, a Vercel part''s mediaType, OpenInference''s flattened image media_type) and takes its modality by the rule above, so an image_url or input_image is image. This covers an image_url''s url, an input_image''s image_url and file_id, an Anthropic url or file source, a Gemini file_data''s file_uri, a Vercel part''s v7 {"type":"url"} data, an OpenAI file or input_file''s file_id, file_data and file_url (an empty file_data counts as dropped too, since its item has nothing else to point to), and a LangChain v1 image, audio, video or file block''s url and an image, audio or video block''s file_id. An OpenAI file or input_file with no usable reference becomes this blob too when it has no reference member at all, or only ones that are not strings (a file_id of 5 or null): its type file would otherwise collide with a native file part. A usable reference wins: an input_image whose image_url is __REDACTED__ and whose file_id is usable is a file, and an OpenAI file with an empty file_id and non-empty file_data is a blob of that data. It matches OpenInference''s __REDACTED__ on the flattened path. So no provider item this rule covers is left as a part of type file without a file_id. A native uri or file part is no provider item: its empty uri or file_id is kept, and so is that of a LangChain v1 file block with no other usable reference (no base64 but an empty or __REDACTED__ one, and no usable url), since such a block has a native file part''s shape and is read as one (below); a v1 file block that has one is read by it, as the usable reference wins. Nor is a reference not yet mapped to a part (a Bedrock Converse source by s3Location): it stays as it came, empty or not.'
     - 'A Vercel file part whose data, or image part whose image, is neither a string nor v7 tagged data holding one makes no part: it is dropped from its message''s parts, never written as a bare {"type":"file"} or {"type":"image"}, and any raw payload holding its bytes is stripped per raw_payloads. So is a v7 {"type":"text"} whose text is not a string. A v7 tag no rule here names becomes a blob with the stripped_reason not_captured and no byte_size, keeping the part''s mediaType: its size was never measured.'
     - 'A LangChain v1 standard content block of type image, audio, video or file, or of type text-plain, makes one part, by the first of these that applies. A usable url or file_id is a string that is neither empty nor __REDACTED__. (1) A block of type file whose file_id is usable, a string that is neither empty nor __REDACTED__, is a native file part, whatever else it holds (a url, a base64, even an OpenAI-style file member): it is rebuilt as one (above), its mime_type kept when valid, and its modality by the native order: its own modality member when that is one of modalities, else from the MIME type, else document. (2) A base64 that is a string is a blob (the bare base64 rule below): an empty one is 0 bytes, and __REDACTED__, which is valid base64, is 9, as for any bare base64 payload. The one exception is a block of type file whose file_id is a string: there an empty or __REDACTED__ base64 is no usable reference, and the block reads on, so it never beats an empty file_id. (3) A usable file_id is a file part. (4) A usable url that is a data URL is a blob under the data URL rules, the block''s mime_type the hint: a data URL that rule (b)''s pattern does not match in full (a trailing space, a percent-encoded payload) is a blob with no byte_size, while a base64 run wrapped at a line break is a full match, sized. A usable url that holds data: anywhere else, in any ASCII case (one led by whitespace, or a link with a data URL after it), is a blob with the stripped_reason not_captured and no byte_size, so no byte of it is kept. Any other usable url is a uri, its value kept as it came, whatever its scheme and relative or not: {"type":"image","url":"/img/a.png"} is a uri. (5) A block of type file whose file_id is a string, and that reached here with no other usable reference, has a native file part''s shape and is one, rebuilt as in (1): its file_id is kept as written, empty or __REDACTED__ included. (6) When url or file_id is a string but none is usable, the block becomes a blob with the stripped_reason redacted_upstream and no byte_size (above). So a usable reference wins over an empty or __REDACTED__ file_id for every block type: {"type":"file","file_id":"","url":"https://example.com/a.pdf"} is a uri, and {"type":"file","file_id":""} alone is a file part. Nor does an empty or __REDACTED__ base64 beside one: {"type":"file","file_id":"","base64":""} is a file part by (5), while {"type":"image","base64":""} is a 0-byte blob by (2). A text-plain block is read by its base64 alone, in (2), and is document unless its mime_type names another modality; by url or file_id it makes no part and stays as it came. Every one keeps the block''s mime_type when it is valid and takes its modality by the rule above. A block with no base64, url or file_id that is a string makes no part this way and stays as it came. In every case but a native file part ((1) and (5)), only type, base64, url, file_id and mime_type are read, a modality member included in none; a native file part is read as one, so its valid modality member comes first. So a LangChain v0 block by url ({"type":"image","source_type":"url","url":...}) is read the same way, and a v0 block by base64 or by id holds none of them and stays as it came, its data stripped per raw_payloads. generators/media_parts.py langchain_v1_part(data, block) is the reference, and each v1 example''s block is its test. A block is read the same way on every path that delivers it: passthrough, and the provider blocks OpenLLMetry and Laminar write as gen_ai.prompt.N.content.'
     - 'When a part has duplicate `type` members, the last one wins, as in a standard JSON decoder. The strip is different: there, a condition on `type` holds when any member qualifies.'
-    - 'A base64 data URL (rule (b)''s pattern matching the whole string) becomes a blob with the stripped_reason not_captured. Its mime type is the URL''s when that is a valid token/token MIME type, else the hint (a native part''s mime_type). Its byte_size is that of the base64 run under the size rule of the strip: an empty run is 0 bytes, and an invalid run has no byte_size.'
+    - 'A base64 data URL (rule (b)''s pattern matching the whole string, or all of it but one final line break, a newline or a carriage return and newline, as base64.encodebytes ends its output and as a key that keeps URLs reads it in the strip; percent_pattern for a data URL percent-encoded whole, whose one final line break may also be %0A or %0D%0A) becomes a blob with the stripped_reason not_captured. Its mime type is the URL''s when that is a valid token/token MIME type, else the hint (a native part''s mime_type). Its byte_size is that of the base64 run under the size rule of the strip: an empty run is 0 bytes, and an invalid run has no byte_size. A percent-encoded one''s mime type and run are percent-decoded first, as rule (b) reads them.'
     - 'A provider item''s bare base64 payload (an input_audio data, a Mistral input_audio or inputAudio string, an Anthropic base64 source''s data, a LangChain v1 block''s base64 (but an empty or __REDACTED__ one beside a file block''s string file_id, below), a Bedrock Converse source''s bytes, an image_generation_call result, a Gemini inline_data data, a Vercel file part''s data or image part''s image, a non-empty OpenAI file_data) becomes a blob with the stripped_reason not_captured, its byte_size under the size rule of the strip: an empty string is 0 bytes, never redacted_upstream. A payload that is itself a data URL follows the data URL rules. An OpenAI file or input_file with no usable file_id, file_data or file_url was dropped upstream (above).'
-    - A data URL that is not base64 (`data:<mime>,<payload>`) becomes a blob with the stripped_reason not_captured and no byte_size. Its mime type is the text after `data:` up to the first `;` or `,`, when that is a valid token/token MIME type, else the hint; its payload is everything after the first comma. This rule also covers a URL that names base64 but whose run does not match rule (b), such as `data:image/png;base64,@@`. When its payload is empty or `None`, it becomes a blob with the stripped_reason redacted_upstream.
+    - A data URL that is not base64 (`data:<mime>,<payload>`) becomes a blob with the stripped_reason not_captured and no byte_size. Its mime type is the text after `data:` up to the first `;` or `,`, when that is a valid token/token MIME type, else the hint; its payload is everything after the first comma. This rule also covers a URL that names base64 but whose run does not match rule (b), such as `data:image/png;base64,@@`. When its payload is empty or `None`, it becomes a blob with the stripped_reason redacted_upstream. A data URL percent-encoded whole that percent_pattern does not match (`data%3Aimage%2Fpng;base64,...`, its `;` and comma kept) is read by this rule once each `%XX` is decoded.
     - 'When a normalizer rebuilds a native part inside an existing message-key value, it edits in place: only that part object token is replaced by its canonical compact serialization (no spaces, the minimal escaping of the strip), and every other byte of the value stays as it came. A value with nothing to rebuild stays byte for byte. Messages a normalizer builds itself are serialized compactly.'
   in_place_examples:
     - name: only_the_part_is_replaced
@@ -1550,6 +1674,14 @@ part_shapes:
       from: 'A native uri part {"type":"uri","modality":"image","uri":" data:image/png;base64,iVBO\nRw0KGgo="}: its uri holds data: but is no data URL, so it is a blob with no byte_size, its modality kept.'
       native: '{"type":"uri","modality":"image","uri":" data:image/png;base64,iVBO\nRw0KGgo="}'
       part: '{"type":"blob","modality":"image","stripped_reason":"not_captured"}'
+    - name: uri_that_is_a_percent_encoded_data_url
+      from: 'A native uri part whose uri is a data URL percent-encoded whole, its scheme in upper case: a sized blob under the data URL rules, its media type percent-decoded.'
+      native: '{"type":"uri","uri":"DATA%3Aaudio%2Fwav%3Bbase64%2CUklGRg%3D%3D"}'
+      part: '{"type":"blob","modality":"audio","mime_type":"audio/wav","byte_size":4,"stripped_reason":"not_captured"}'
+    - name: uri_that_is_a_data_url_and_one_final_line_break
+      from: 'A native uri part whose uri is a base64 data URL and one final newline: a sized blob under the data URL rules.'
+      native: '{"type":"uri","uri":"data:audio/wav;base64,UklGRg==\n"}'
+      part: '{"type":"blob","modality":"audio","mime_type":"audio/wav","byte_size":4,"stripped_reason":"not_captured"}'
     - name: image_url_by_a_link_followed_by_a_data_url
       from: 'An OpenAI image_url item whose url is an https link with a wrapped data URL on the next line: it holds data: but is no data URL, so it is a blob with no byte_size, image by the item''s kind, and no byte of the link or the data URL is kept.'
       provider: '{"type":"image_url","image_url":{"url":"https://x/a.png\ndata:image/png;base64,iVBO\nRw0KGgo="}}'
@@ -1574,6 +1706,34 @@ part_shapes:
       from: 'An OpenAI image_url item whose url is a base64 data URL rule (b) matches whole: a sized blob, as before.'
       provider: '{"type":"image_url","image_url":{"url":"data:image/jpeg;base64,/9j/4AAQSkZJRg=="}}'
       part: '{"type":"blob","modality":"image","mime_type":"image/jpeg","byte_size":10,"stripped_reason":"not_captured"}'
+    - name: image_url_by_a_data_url_that_ends_in_one_line_break
+      from: 'An OpenAI image_url item whose url is a base64 data URL and one final newline, as base64.encodebytes writes it: rule (b)''s pattern matches all of it but that line break, so it is a sized blob, as the strip sizes it.'
+      provider: '{"type":"image_url","image_url":{"url":"data:image/png;base64,iVBORw0KGgo=\n"}}'
+      part: '{"type":"blob","modality":"image","mime_type":"image/png","byte_size":8,"stripped_reason":"not_captured"}'
+    - name: vercel_image_by_a_wrapped_data_url_that_ends_in_one_line_break
+      from: 'A Vercel image part whose image is a base64 data URL wrapped at a carriage return and newline, with one final carriage return and newline: a sized blob.'
+      provider: '{"type":"image","image":"data:image/png;base64,iVBO\r\nRw0KGgo=\r\n"}'
+      part: '{"type":"blob","modality":"image","mime_type":"image/png","byte_size":8,"stripped_reason":"not_captured"}'
+    - name: image_url_by_a_data_url_that_ends_in_two_line_breaks
+      from: 'An OpenAI image_url item whose url is a base64 data URL and two final newlines: no whole match, so it is a blob with no byte_size, its mime type read up to the first ; as for a data URL that is not base64.'
+      provider: '{"type":"image_url","image_url":{"url":"data:image/png;base64,iVBORw0KGgo=\n\n"}}'
+      part: '{"type":"blob","modality":"image","mime_type":"image/png","stripped_reason":"not_captured"}'
+    - name: image_url_by_a_whole_percent_encoded_data_url
+      from: 'An OpenAI image_url item whose url is a data URL percent-encoded whole, as encodeURIComponent writes it: a data URL, so a blob with its media type and run percent-decoded, as rule (b) sizes it, never a uri.'
+      provider: '{"type":"image_url","image_url":{"url":"data%3Aimage%2Fpng%3Bbase64%2CiVBORw0KGgo%3D"}}'
+      part: '{"type":"blob","modality":"image","mime_type":"image/png","byte_size":8,"stripped_reason":"not_captured"}'
+    - name: vercel_image_by_a_percent_encoded_data_url_that_ends_in_one_line_break
+      from: 'A Vercel image part whose image is a data URL percent-encoded whole in lower-case hex, and one final newline: it has no URL scheme but is a data URL, so it is a sized blob, not base64.'
+      provider: '{"type":"image","image":"data%3aimage%2fpng%3bbase64%2ciVBORw0KGgo%3d\n"}'
+      part: '{"type":"blob","modality":"image","mime_type":"image/png","byte_size":8,"stripped_reason":"not_captured"}'
+    - name: image_url_by_a_partly_percent_encoded_data_url
+      from: 'An OpenAI image_url item whose url is data%3Aimage%2Fpng;base64,..., its colon and slash encoded and its ; and comma kept: percent_pattern does not match it, so once each %XX is decoded it is read as a data URL that rule (b) does not match, a blob with its media type and no byte_size.'
+      provider: '{"type":"image_url","image_url":{"url":"data%3Aimage%2Fpng;base64,iVBORw0KGgo="}}'
+      part: '{"type":"blob","modality":"image","mime_type":"image/png","stripped_reason":"not_captured"}'
+    - name: image_url_by_a_link_holding_a_percent_encoded_data_url
+      from: 'An OpenAI image_url item whose url is a proxy link holding a percent-encoded data URL in its query, and no data:: a uri, its link kept as it came. The strip then replaces the encoded data URL inside it, where it sits.'
+      provider: '{"type":"image_url","image_url":{"url":"https://proxy.example/fetch?u=data%3Aimage%2Fpng%3Bbase64%2CiVBORw0KGgo%3D&w=1"}}'
+      part: '{"type":"uri","modality":"image","uri":"https://proxy.example/fetch?u=data%3Aimage%2Fpng%3Bbase64%2CiVBORw0KGgo%3D&w=1"}'
     - name: input_image_by_a_link_followed_by_a_percent_encoded_data_url
       from: 'An OpenAI input_image whose image_url is a link followed by a percent-encoded data URL: a blob with no byte_size.'
       provider: '{"type":"input_image","image_url":"https://x/a.png data:image/png,%89PNG"}'
@@ -1618,6 +1778,18 @@ part_shapes:
       from: 'The image url OpenInference flattens (message_content.image.image.url beside message_content.type image), holding a link followed by a wrapped data URL: an image blob.'
       provider: '{"message_content.type":"image","message_content.image.image.url":"https://x/a.png\ndata:image/png;base64,iVBO\nRw0KGgo="}'
       part: '{"type":"blob","modality":"image","stripped_reason":"not_captured"}'
+    - name: openinference_image_url_by_a_data_url_with_a_media_type
+      from: 'The image url OpenInference flattens, a base64 data URL that names no media type, beside the flattened image media_type image/jpeg: the media_type is the MIME hint, so the blob is image/jpeg with its size. A data URL that names a valid media type keeps its own.'
+      provider: '{"message_content.type":"image","message_content.image.media_type":"image/jpeg","message_content.image.image.url":"data:;base64,/9j/4AAQSkZJRg=="}'
+      part: '{"type":"blob","modality":"image","mime_type":"image/jpeg","byte_size":10,"stripped_reason":"not_captured"}'
+    - name: openinference_image_url_by_a_link_holding_a_data_url_with_a_media_type
+      from: 'The image url OpenInference flattens, a link followed by a data URL, beside the flattened image media_type image/png: a blob with no byte_size that keeps the media_type as its MIME type.'
+      provider: '{"message_content.type":"image","message_content.image.media_type":"image/png","message_content.image.image.url":"https://x/a.png data:image/png;base64,iVBORw0KGgo="}'
+      part: '{"type":"blob","modality":"image","mime_type":"image/png","stripped_reason":"not_captured"}'
+    - name: openinference_image_url_by_a_link_with_a_media_type
+      from: 'The image url OpenInference flattens, an https link that holds no data:, beside the flattened image media_type image/webp: a uri with that MIME type.'
+      provider: '{"message_content.type":"image","message_content.image.media_type":"image/webp","message_content.image.image.url":"https://example.com/a"}'
+      part: '{"type":"uri","modality":"image","mime_type":"image/webp","uri":"https://example.com/a"}'
   # A source message, as the source attribute holds it, and the
   # gen_ai.input.messages it becomes.
   message_examples:
@@ -1863,7 +2035,7 @@ rows:
     modality: image
     paths: [openinference]
     fixtures: [openinference-openai/image_data_url, openinference-openai/image_https_url, openinference-openai/image_redacted, openinference-anthropic/image_base64, openinference-js-openai/image_data_url, openinference-js-openai/image_https_url, openinference-js-openai/image_redacted]
-    note: A data URL becomes a blob, an http(s) URL a uri, and __REDACTED__ a blob with stripped_reason redacted_upstream. A URL holding data:, in any case, past its start (a link followed by a data URL, or a data URL led by whitespace) is a blob with no byte_size (see part_shapes). Python and JS; the JS instrumentor redacts above the same 32,000 characters.
+    note: A data URL becomes a blob, an http(s) URL a uri, and __REDACTED__ a blob with stripped_reason redacted_upstream. Each takes image.media_type, when the item has a valid one, as its MIME type; a data URL's own valid media type wins over it. A URL holding data:, in any case, past its start (a link followed by a data URL, or a data URL led by whitespace) is a blob with no byte_size (see part_shapes). Python and JS; the JS instrumentor redacts above the same 32,000 characters.
 
   - source: vercel.ai
     shape: image / file parts in ai.prompt.messages

@@ -173,6 +173,14 @@ CONTRACT_EXAMPLE_INPUTS: dict[str, dict[str, Any]] = {
         "file": {"file_id": 5, "filename": "a.wav"},
     },
     "input_file_with_no_reference_and_no_filename": {"type": "input_file"},
+    "uri_that_is_a_data_url_and_one_final_line_break": {
+        "type": "uri",
+        "uri": "data:audio/wav;base64,UklGRg==\n",
+    },
+    "uri_that_is_a_percent_encoded_data_url": {
+        "type": "uri",
+        "uri": "DATA%3Aaudio%2Fwav%3Bbase64%2CUklGRg%3D%3D",
+    },
     "uri_led_by_whitespace_holding_a_data_url": {
         "type": "uri",
         "modality": "image",
@@ -188,6 +196,8 @@ VERCEL_ONLY = {
     "vercel_file_by_a_link_followed_by_a_data_url",
     "vercel_file_by_a_url_tag_holding_a_data_url_after_a_link",
     "vercel_image_by_a_link_followed_by_a_data_url",
+    "vercel_image_by_a_wrapped_data_url_that_ends_in_one_line_break",
+    "vercel_image_by_a_percent_encoded_data_url_that_ends_in_one_line_break",
 }
 
 PART_EXAMPLES = contract()["part_shapes"]["examples"]
@@ -659,6 +669,12 @@ LINK_AND_DATA_URL = "https://x/a.wav\ndata:image/png;base64,iVBO\nRw0KGgo="
             _blob("document", None, None, "not_captured"),
         ),
         ({"file_data": {"file_uri": "data:,a.wav"}}, _blob("document", None, None, "not_captured")),
+        # A percent-encoded data URL is read by its scheme too, never by the
+        # extension after it.
+        (
+            {"file_data": {"file_uri": "data%3Ax%3Bbase64%2CQUFB/a.wav"}},
+            _blob("document", None, None, "not_captured"),
+        ),
         (
             {"fileData": {"mimeType": "audio/wav", "fileUri": LINK_AND_DATA_URL}},
             _blob("audio", "audio/wav", None, "not_captured"),
@@ -1181,6 +1197,30 @@ def test_a_native_uri_keeps_the_modality_it_has() -> None:
         (
             {"type": "blob", "modality": "image", "byte_size": True},
             '[{"type":"blob","modality":"image","stripped_reason":"redacted_upstream"}]',
+        ),
+        # A data URL percent-encoded whole is a data URL: an empty payload...
+        (
+            {"type": "uri", "uri": "data%3Aimage%2Fpng%2C"},
+            '[{"type":"blob","modality":"image","mime_type":"image/png",'
+            '"stripped_reason":"redacted_upstream"}]',
+        ),
+        # ...one percent_pattern does not match whole, which takes the hint...
+        (
+            {"type": "uri", "mime_type": "audio/wav", "uri": "data%3A%3Bbase64%2CQUFB%20"},
+            '[{"type":"blob","modality":"audio","mime_type":"audio/wav",'
+            '"stripped_reason":"not_captured"}]',
+        ),
+        # ...and blob content, sized as rule (b) sizes it.
+        (
+            {"type": "blob", "content": "data%3Aimage%2Fpng%3Bbase64%2CQUFB"},
+            '[{"type":"blob","modality":"image","mime_type":"image/png","byte_size":3,'
+            '"stripped_reason":"not_captured"}]',
+        ),
+        # A link holding one stays a uri.
+        (
+            {"type": "uri", "uri": "https://e/?u=data%3Aimage%2Fpng%3Bbase64%2CQUFB"},
+            '[{"type":"uri","modality":"document",'
+            '"uri":"https://e/?u=data%3Aimage%2Fpng%3Bbase64%2CQUFB"}]',
         ),
     ],
 )

@@ -52,11 +52,39 @@ DATA_URL_PATTERN = re.compile(
     r'[dD][aA][tT][aA]:([^;,:\t\n\f\r "]*)(;[^;,:\t\n\f\r "]*)*;base64,'
     r"([A-Za-z0-9+/_-]{0,76}(\r{0,1}\n[ \t>]*[A-Za-z0-9+/_-]+)*[A-Za-z0-9+/_-]*={0,2})"
 )
+#: Rule (b) in the text of a JSON candidate that does not parse: the same, but
+#: the run also goes on over each line break written as a JSON escape (a
+#: backslash, an optional ``r``, an optional backslash, then ``n``), after the
+#: raw ones. Group 5, the last escaped line, is unused.
+ESCAPED_DATA_URL_PATTERN = re.compile(
+    r'[dD][aA][tT][aA]:([^;,:\t\n\f\r "]*)(;[^;,:\t\n\f\r "]*)*;base64,'
+    r"([A-Za-z0-9+/_-]{0,76}(\r{0,1}\n[ \t>]*[A-Za-z0-9+/_-]+)*"
+    r"(\\r{0,1}\\{0,1}n[ \t>]*[A-Za-z0-9+/_-]+)*[A-Za-z0-9+/_-]*={0,2})"
+)
+#: The scheme of a data URL percent-encoded whole: ``data%3A``, in any ASCII case.
+PERCENT_SCHEME = re.compile("[dD][aA][tT][aA]%3[aA]")
+#: Rule (b) for a data URL percent-encoded whole. Group 1 the header (the mime
+#: type up to its first ``%3B``, then any parameters), group 3 the run: base64
+#: and the escapes ``%[02][ABDFabdf]`` (``%2B``, ``%2F``, and the line breaks
+#: ``%0A`` and ``%0D`` of a payload wrapped before it was encoded), then at
+#: most two ``%3D``. Groups 2, 4 and 5 are unused.
+PERCENT_DATA_URL_PATTERN = re.compile(
+    r'[dD][aA][tT][aA]%3[aA]([^%;,:\t\n\f\r "]*(%[0-9A-Fa-f][0-9ABD-Fabd-f][^%;,:\t\n\f\r "]*)*)'
+    r"%3[bB]base64%2[cC]([A-Za-z0-9+/_-]*(%[02][ABDFabdf][A-Za-z0-9+/_-]*)*(%3[dD]){0,2})"
+)
 #: ``data:`` anywhere in a value, in any ASCII case: where a rule (b) token
 #: can start. Searched, never trimmed.
 _DATA_ANYWHERE = re.compile("[dD][aA][tT][aA]:")
 #: Text every rule (b) token holds: the pattern's own literal.
 DATA_URL_TEXT = ";base64,"
+#: Text every percent-encoded rule (b) token holds, whatever the case of its ``%2C``.
+PERCENT_DATA_URL_TEXT = "base64%2"
+#: The one final line break a key that keeps URLs, and the part rules, let
+#: follow a whole data URL: ``base64.encodebytes`` ends its output with one.
+FINAL_LINE_BREAKS = ("\n", "\r\n")
+#: The same, percent-encoded, after a data URL percent-encoded whole; compared
+#: upper-cased, so its hex digits may be in either case.
+PERCENT_FINAL_LINE_BREAKS = ("%0A", "%0D%0A")
 #: Rule (d): a Buffer object.
 BUFFER_TYPE = "Buffer"
 BUFFER_ARRAY_KEY = "data"
@@ -177,15 +205,22 @@ def base64_size(value: str) -> int | None:
 _RUN_BREAKS = b" \t\r\n>"
 
 
+#: A line break written as a JSON escape, as ``ESCAPED_DATA_URL_PATTERN`` reads one.
+_ESCAPED_LINE_BREAK = re.compile(r"\\r{0,1}\\{0,1}n")
+
+
 def data_url_size(run: str) -> int | None:
     """``base64_size`` of a data URL's base64 run (``DATA_URL_PATTERN``'s group 3),
-    with the ``>`` of each quoted line it goes on over removed too.
+    with the ``>`` of each quoted line and each escaped line break it goes on
+    over removed too.
 
     The pattern has already held the run to the two alphabets, with at most
     two ``=`` at the end, and only a line break brings in anything else; so
     once the breaks are gone, only the length and the mixed-alphabet rule are
-    left to check.
+    left to check. Only ``ESCAPED_DATA_URL_PATTERN``'s run holds a backslash.
     """
+    if "\\" in run:
+        return base64_size(_ESCAPED_LINE_BREAK.sub("", run).replace(">", ""))
     if "\n" in run:
         run = run.encode("ascii").translate(None, _RUN_BREAKS).decode("ascii")
     if len(run) % 4 or _mixed_alphabets(run):
@@ -314,36 +349,84 @@ def _url_keys(members: Members, parent_key: str | None, holder: Members | None) 
     return frozenset(t.key for t in _typed_keys(members, parent_key, holder) if t.keeps_urls)
 
 
-def _data_url_matches(text: str) -> Iterator[re.Match[str]]:
+def _data_url_matches(text: str, escaped: bool = False) -> Iterator[re.Match[str]]:
     """Rule (b)'s matches in ``text``: the text is cut before each ``data:``
-    (in any ASCII case), and the pattern is tried at the start of each piece,
-    never past its end, so a run that goes on over a line break never takes
-    the start of the next data URL."""
-    starts = [match.start() for match in _DATA_ANYWHERE.finditer(text)]
+    and each ``data%3A`` (in any ASCII case), and the pattern is tried at the
+    start of each piece, never past its end, so a run that goes on over a line
+    break never takes the start of the next data URL: ``DATA_URL_PATTERN`` at
+    a ``data:``, ``PERCENT_DATA_URL_PATTERN`` at a ``data%3A``. ``escaped``,
+    for the text of a JSON candidate that does not parse, tries
+    ``ESCAPED_DATA_URL_PATTERN`` in place of ``DATA_URL_PATTERN``."""
+    plain = ESCAPED_DATA_URL_PATTERN if escaped else DATA_URL_PATTERN
+    starts = sorted(
+        [match.start() for match in _DATA_ANYWHERE.finditer(text)]
+        + [match.start() for match in PERCENT_SCHEME.finditer(text)]
+    )
     for start, end in zip(starts, [*starts[1:], len(text)], strict=False):
-        match = DATA_URL_PATTERN.match(text, start, end)
+        pattern = plain if text[start + 4] == ":" else PERCENT_DATA_URL_PATTERN
+        match = pattern.match(text, start, end)
         if match is not None:
             yield match
 
 
-def whole_data_url(value: str) -> re.Match[str] | None:
-    """Rule (b)'s match when it is the whole string: anchored at the start,
+#: A percent escape: ``%XX``, its hex digits in either case.
+_PERCENT_ESCAPE = re.compile("%([0-9A-Fa-f]{2})")
+#: Where a percent-encoded data URL's media type ends: its first ``%3B``.
+_PERCENT_SEMICOLON = re.compile("%3[bB]")
+
+
+def _percent_decode(text: str) -> str:
+    """Each ``%XX`` escape as the character it encodes."""
+    return _PERCENT_ESCAPE.sub(lambda m: chr(int(m.group(1), 16)), text)
+
+
+def _match_token(match: re.Match[str]) -> tuple[str | None, int | None]:
+    """The mime type and size of one rule (b) match. A percent-encoded one's
+    mime type is its header up to its first ``%3B``, percent-decoded, and its
+    run is percent-decoded (``%2B``, ``%2F``, ``%3D``, and the line breaks
+    ``%0A`` and ``%0D`` that sizing removes) before it is sized."""
+    if match.group(0)[4] == ":":
+        mime = match.group(1)
+        return (mime if is_mime(mime) else None), data_url_size(match.group(3))
+    mime = _percent_decode(_PERCENT_SEMICOLON.split(match.group(1), maxsplit=1)[0])
+    return (mime if is_mime(mime) else None), base64_size(_percent_decode(match.group(3)))
+
+
+def whole_data_url(value: str, line_break: bool = False) -> re.Match[str] | None:
+    """Rule (b)'s match when it is the whole string: anchored at the start
+    (``PERCENT_DATA_URL_PATTERN`` for a value that starts with ``data%3A``),
     ending at the end. What ``fullmatch`` says, as the run's greedy match
-    reaches furthest, but fast when a long value fails."""
-    match = DATA_URL_PATTERN.match(value)
-    return match if match is not None and match.end() == len(value) else None
+    reaches furthest, but fast when a long value fails. With ``line_break``,
+    the match may also end one final line break before the end, and a
+    percent-encoded one also one final ``%0A`` or ``%0D%0A``."""
+    percent = PERCENT_SCHEME.match(value) is not None
+    match = (PERCENT_DATA_URL_PATTERN if percent else DATA_URL_PATTERN).match(value)
+    if match is None:
+        return None
+    rest = value[match.end() :]
+    if not rest:
+        return match
+    breaks = FINAL_LINE_BREAKS + (PERCENT_FINAL_LINE_BREAKS if percent else ())
+    return match if line_break and rest.upper() in breaks else None
 
 
 def _kept_url(value: str) -> bool:
     """A string a key that keeps URLs leaves to rule (b): it starts with a URL
     scheme, and either it holds no ``data:`` (in any ASCII case) or rule (b)
-    replaces the whole string. Any other string holding ``data:`` (a
-    percent-encoded data URL, a run rule (b) stops short in, a link with a
-    data URL after it) stays a rule (e) token, replaced whole, so no byte of
-    its payload survives."""
+    replaces the whole string, or all of it and one final line break (see
+    ``_url_line_break_edit``). Any other string holding ``data:`` (a data URL
+    whose payload is percent-encoded, a run rule (b) stops short in, a link
+    with a data URL after it) stays a rule (e) token, replaced whole, so no
+    byte of its payload survives. A value that starts with ``data%3A`` has no
+    URL scheme, but it is left to rule (b) when it is one whole
+    percent-encoded data URL too."""
+    if PERCENT_SCHEME.match(value) is not None:
+        return whole_data_url(value, line_break=True) is not None
     if URL_SCHEME.match(value) is None:
         return False
-    return _DATA_ANYWHERE.search(value) is None or whole_data_url(value) is not None
+    return (
+        _DATA_ANYWHERE.search(value) is None or whole_data_url(value, line_break=True) is not None
+    )
 
 
 def _keyed_token(key: str, value: Any, urls: frozenset[str]) -> bool:
@@ -709,19 +792,20 @@ def _literal(mime: str | None, byte_size: int | None) -> str:
 def _strip_text(text: str, depth: int, tokens: list[MediaToken]) -> list[_Edit]:
     """The edits on one string (an attribute, or a JSON string's unescaped
     value inside ``depth`` arrays and objects): the JSON walk when it is a
-    candidate that parses, else rule (b) alone."""
+    candidate that parses, else rule (b) alone, by the escaped pattern for a
+    candidate that does not parse."""
     if is_replacement(text):
         return []
-    if _is_json_candidate(text):
+    candidate = _is_json_candidate(text)
+    if candidate:
         document = _parse(text, depth)
         if document is not None:
             edits: list[_Edit] = []
             _walk(document, None, None, depth, tokens, edits)
             return edits
     edits = []
-    for match in _data_url_matches(text):
-        mime = match.group(1) if is_mime(match.group(1)) else None
-        size = data_url_size(match.group(3))
+    for match in _data_url_matches(text, escaped=candidate):
+        mime, size = _match_token(match)
         tokens.append(MediaToken("b", mime, size))
         edits.append((match.start(), match.end(), replacement(mime, size)))
     return edits
@@ -758,18 +842,20 @@ def _walk(
         holder_members = _members(holder) if holder else None
         keyed = _keyed_positions(members, parent_key, holder_members)
         mime = _keyed_mime(members, parent_key, holder_members) if keyed else None
-        urls = _url_keys(members, parent_key, holder_members) if keyed else frozenset()
+        urls = _url_keys(members, parent_key, holder_members)
         for i, (key, child) in enumerate(node.members):
-            if i not in keyed:
+            if key in urls and _url_line_break_edit(child, tokens, edits):
+                continue
+            if i not in keyed and not (key in urls and child.items is not None):
                 _walk(child, key, node, depth + 1, tokens, edits)
             elif child.items is None:
                 _keyed_edit(child, mime, tokens, edits)
             else:
                 # A string array under the key: each string element is a token.
                 for item in child.items:
-                    if _keyed_token(key, item.value, urls):
+                    if i in keyed and _keyed_token(key, item.value, urls):
                         _keyed_edit(item, mime, tokens, edits)
-                    else:
+                    elif not (key in urls and _url_line_break_edit(item, tokens, edits)):
                         _walk(item, key, node, depth + 2, tokens, edits)
     elif node.items is not None:
         for child in node.items:
@@ -798,6 +884,22 @@ _RULE_KEYS = frozenset(
 )
 
 
+def _url_line_break_edit(node: _Value, tokens: list[MediaToken], edits: list[_Edit]) -> bool:
+    """Rule (b) on a string under a key that keeps URLs that is one data URL
+    and one final line break: the whole value, its line break included,
+    replaced inside its quotes, so a second pass reads a complete replacement.
+    False, with no edit, for any other value."""
+    if node.segments is None or not node.value:
+        return False
+    match = whole_data_url(node.value, line_break=True)
+    if match is None or match.end() == len(node.value):
+        return False
+    mime, size = _match_token(match)
+    tokens.append(MediaToken("b", mime, size))
+    edits.append((node.start + 1, node.end - 1, json_escape(replacement(mime, size))))
+    return True
+
+
 def _keyed_edit(
     node: _Value, mime: str | None, tokens: list[MediaToken], edits: list[_Edit]
 ) -> None:
@@ -822,14 +924,15 @@ def _may_hold_media(text: str) -> bool:
     """False only when no rule can find a token in ``text``.
 
     Every token needs its rule's words written out, unless a ``\\u`` escape
-    hides them: rule (b)'s literal ``;base64,``, rule (d)'s ``Buffer`` and
-    ``data``, and rule (e)'s keyed key with its context word, or ``blob`` and
-    ``content`` for a blob part, a typed key with one of its types, or a source
-    bytes key with ``source``. The other JSON escapes write none of these
+    hides them: rule (b)'s literal ``;base64,`` (``base64%2`` for a data URL
+    percent-encoded whole), rule (d)'s ``Buffer`` and ``data``, and rule (e)'s
+    keyed key with its context word, or ``blob`` and ``content`` for a blob
+    part, a typed key with one of its types, or a source bytes key with
+    ``source``. The other JSON escapes write none of these
     characters. Most attributes, and most strings inside them, hold none and
     skip the parse; the test holds for a JSON string's unescaped value too.
     """
-    if DATA_URL_TEXT in text or "\\u" in text:
+    if DATA_URL_TEXT in text or PERCENT_DATA_URL_TEXT in text or "\\u" in text:
         return True
     if BUFFER_TYPE in text and BUFFER_ARRAY_KEY in text:
         return True
@@ -953,8 +1056,11 @@ def file_part(kind: str, mime: Any, file_id: str) -> Part:
 
 
 def is_data_url(value: Any) -> bool:
-    """A data URL, the scheme in any case."""
-    return isinstance(value, str) and value[:5].lower() == "data:"
+    """A data URL: it starts with ``data:``, or with ``data%3A`` (a data URL
+    percent-encoded whole), the scheme in any ASCII case."""
+    return isinstance(value, str) and (
+        value[:5].lower() == "data:" or value[:7].lower() == "data%3a"
+    )
 
 
 def holds_data_url(value: str) -> bool:
@@ -969,13 +1075,18 @@ def data_url_blob(url: str, kind: str, mime_hint: Any = None) -> Part:
     and the size of its base64 run. A data URL that is not base64 is a blob
     with no size; one with no payload at all (``data:None;url,None``, what
     OpenInference's Anthropic instrumentor writes for a url image) was
-    emptied before we saw it, so it is redacted upstream."""
-    match = whole_data_url(url)
+    emptied before we saw it, so it is redacted upstream. A whole match may
+    end one final line break before the end. A data URL percent-encoded whole
+    is matched as rule (b) matches one, its mime type and run percent-decoded;
+    when it does not match, it is read as any other once each ``%XX`` is
+    decoded."""
+    match = whole_data_url(url, line_break=True)
     if match is not None:
-        mime = match.group(1) if is_mime(match.group(1)) else mime_hint
-        return blob_part(kind, mime, data_url_size(match.group(3)), NOT_CAPTURED)
-    header = re.split("[;,]", url[5:], maxsplit=1)[0]
-    _, comma, payload = url.partition(",")
+        mime, size = _match_token(match)
+        return blob_part(kind, mime or mime_hint, size, NOT_CAPTURED)
+    rest = (url if url[4] == ":" else _percent_decode(url)).split(":", 1)[1]
+    header = re.split("[;,]", rest, maxsplit=1)[0]
+    _, comma, payload = rest.partition(",")
     mime = header if is_mime(header) else mime_hint
     if not comma or payload in ("", "None"):
         return blob_part(kind, mime, None, REDACTED_UPSTREAM)
@@ -1282,9 +1393,11 @@ def _gemini_part(item: Part) -> list[Part] | None:
         uri = file.get("file_uri", file.get("fileUri"))
         if isinstance(uri, str):
             mime = file.get("mime_type", file.get("mimeType"))
-            # A blob's modality never comes from the URI's extension: one
-            # holding data: is no link to read a path from.
-            kind = "document" if _DATA_ANYWHERE.search(uri) else _uri_modality(uri)
+            # A blob's modality never comes from the URI's extension: a data
+            # URL, or one holding data:, is no link to read a path from.
+            kind = (
+                "document" if is_data_url(uri) or _DATA_ANYWHERE.search(uri) else _uri_modality(uri)
+            )
             return [url_part(uri, kind, mime)]
     return None
 

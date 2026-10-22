@@ -14,6 +14,7 @@ from __future__ import annotations
 import base64
 import json
 import random
+import re
 from typing import Any
 
 import pytest
@@ -51,7 +52,7 @@ def plain_base64_size(value: str) -> int | None:
 
 
 def plain_run_size(run: str) -> int | None:
-    return plain_base64_size(run.replace(">", ""))
+    return plain_base64_size(re.sub(r"\\r{0,1}\\{0,1}n", "", run).replace(">", ""))
 
 
 def plain_bounded_dumps(value: Any) -> str:
@@ -197,6 +198,20 @@ def test_a_data_url_size_matches_the_plain_version_of_its_run() -> None:
     rng = random.Random(2)
     for _ in range(5000):
         for match in _data_url_matches("data:x/y;base64," + _base64(rng)):
+            run = match.group(3)
+            assert data_url_size(run) == plain_run_size(run), repr(run)
+
+
+def test_an_escaped_run_size_matches_the_plain_version_of_its_run() -> None:
+    # The run of a JSON candidate that does not parse also goes on over line
+    # breaks written as escapes, which the size drops as well.
+    rng = random.Random(5)
+    for _ in range(5000):
+        text = _base64(rng)
+        step = rng.choice((3, 4, 64, 76))
+        sep = rng.choice(("\\n", "\\r\\n", "\\n ", "\\n> ", "\n"))
+        text = sep.join(text[i : i + step] for i in range(0, len(text), step))
+        for match in _data_url_matches("data:x/y;base64," + text, escaped=True):
             run = match.group(3)
             assert data_url_size(run) == plain_run_size(run), repr(run)
 
