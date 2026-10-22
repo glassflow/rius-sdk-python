@@ -494,6 +494,13 @@ def first_chunk_from_event(span: ReadableSpan) -> dict[str, Any]:
     return added
 
 
+#: Kept for compatibility: the module's former public name for the registry's
+#: GEN_AI_CLIENT_OPERATION_TIME_TO_FIRST_CHUNK, the conventions' metric name
+#: for time to first chunk that pydantic-ai and @ai-sdk/otel write onto the
+#: span. A source spelling: mapped, never emitted.
+GEN_AI_CLIENT_TIME_TO_FIRST_CHUNK = GEN_AI_CLIENT_OPERATION_TIME_TO_FIRST_CHUNK
+
+
 def first_chunk_from_metric(raw: Any) -> Mapping[str, Any]:
     """The span attribute the metric spelling stands for, plus the stream flag.
 

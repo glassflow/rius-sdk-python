@@ -79,6 +79,11 @@ REGISTRY_KEYS = (
 
 def test_registry_keys_are_imported_not_hand_typed() -> None:
     values = {getattr(semconv, name): name for name in REGISTRY_KEYS}
+    # Every name must resolve to a key, or the scan below would pass vacuously.
+    for value, name in values.items():
+        assert isinstance(value, str), name
+        assert value, name
+    assert len(values) == len(REGISTRY_KEYS)
     package = Path(semconv.__file__).parent
     found = []
     for path in sorted(package.rglob("*.py")):

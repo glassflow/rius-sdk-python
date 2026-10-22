@@ -319,3 +319,16 @@ def test_an_unusable_duration_is_dropped(value: Any) -> None:
     assert GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK not in attributes
     assert GEN_AI_REQUEST_STREAM not in attributes
     assert _events(out) == []
+
+
+def test_the_old_public_name_for_the_metric_spelling_is_kept() -> None:
+    import rius.normalization as normalization
+    from rius.semconv import GEN_AI_CLIENT_OPERATION_TIME_TO_FIRST_CHUNK
+
+    assert normalization.GEN_AI_CLIENT_TIME_TO_FIRST_CHUNK == (
+        "gen_ai.client.operation.time_to_first_chunk"
+    )
+    assert (
+        normalization.GEN_AI_CLIENT_TIME_TO_FIRST_CHUNK
+        is GEN_AI_CLIENT_OPERATION_TIME_TO_FIRST_CHUNK
+    )
