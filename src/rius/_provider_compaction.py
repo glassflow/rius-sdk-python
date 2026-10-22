@@ -15,12 +15,11 @@ edit that cannot be told apart from a failure is not reported at all.
 
 from __future__ import annotations
 
-import json
 from collections.abc import Iterator, Mapping
 from typing import Any, NamedTuple
 
 from ._provider_response import COMPACT_ENDPOINT_OBJECT
-from ._serde import text_value
+from ._serde import loads_object, text_value
 from .compaction import dropped_tokens
 from .semconv import (
     RIUS_COMPACTION_EXECUTOR,
@@ -76,11 +75,8 @@ def compactions_in_response(raw: str) -> ProviderCompactions:
     """
     if not any(marker in raw for marker in _MARKERS):
         return _NONE
-    try:
-        payload = json.loads(raw)
-    except ValueError:
-        return _NONE
-    if not isinstance(payload, dict):
+    payload = loads_object(raw)
+    if payload is None:
         return _NONE
     if payload.get("object") == COMPACT_ENDPOINT_OBJECT:
         return ProviderCompactions(list(_compact_endpoint_events(payload)), False)

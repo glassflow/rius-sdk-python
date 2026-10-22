@@ -116,7 +116,14 @@ from ._media import (
 )
 from ._provider_compaction import ProviderCompactions, compactions_in_response
 from ._provider_response import response_json
-from ._serde import attribute_value, serialize, strip_within_budget
+from ._serde import (
+    UNREADABLE,
+    attribute_value,
+    loads_json,
+    loads_object,
+    serialize,
+    strip_within_budget,
+)
 from .aggregated_usage import WrappedCallTracker, move_aggregated_usage
 from .compaction import CompactedContextProcessor
 from .semconv import (
@@ -185,11 +192,17 @@ def copy_value(values: list[Any]) -> Any:
 
 
 def to_int(values: list[Any]) -> Any:
-    """The source value as an int; SKIP when it does not parse."""
-    try:
-        return int(values[0])
-    except (TypeError, ValueError):
-        return SKIP
+    """The source value as a count (see ``_count``); SKIP when it is none.
+
+    A string is read as the integer it spells, as some instrumentors write one.
+    """
+    value = values[0]
+    if isinstance(value, str):
+        try:
+            value = int(value)
+        except ValueError:
+            return SKIP
+    return _count(value)
 
 
 def wrap_in_list(values: list[Any]) -> Any:
@@ -205,11 +218,8 @@ def json_member(member: str) -> Converter:
         raw = values[0]
         if not isinstance(raw, str):
             return SKIP
-        try:
-            payload = json.loads(raw)
-        except ValueError:
-            return SKIP
-        if not isinstance(payload, dict) or member not in payload:
+        payload = loads_object(raw)
+        if payload is None or member not in payload:
             return SKIP
         return payload[member]
 
@@ -581,10 +591,10 @@ def normalize_tool_definitions(attributes: Mapping[str, Any] | None) -> dict[str
             raw = attributes[indexed[index]]
             if not isinstance(raw, str):
                 return None
-            try:
-                schemas.append(json.loads(raw))
-            except ValueError:
+            schema = loads_json(raw)
+            if schema is UNREADABLE:
                 return None
+            schemas.append(schema)
         drop = set(indexed.values())
         rebuilt = {k: v for k, v in attributes.items() if k not in drop}
         # litellm and langchain write the same definitions into the request
@@ -620,11 +630,8 @@ def _bag_without_definitions(
     bag = attributes.get(LLM_INVOCATION_PARAMETERS)
     if not isinstance(bag, str):
         return None
-    try:
-        payload = json.loads(bag)
-    except ValueError:
-        return None
-    if not isinstance(payload, dict):
+    payload = loads_object(bag)
+    if payload is None:
         return None
     members = [m for m in INVOCATION_PARAMETERS_CONTENT_MEMBERS if m in payload]
     if not members or not all(isinstance(payload[m], list) for m in members):
@@ -965,11 +972,8 @@ def promote_system_instruction(attributes: Mapping[str, Any] | None) -> dict[str
     bag = attributes.get(LLM_INVOCATION_PARAMETERS)
     if not isinstance(bag, str):
         return None
-    try:
-        payload = json.loads(bag)
-    except ValueError:
-        return None
-    if not isinstance(payload, dict) or "system" not in payload:
+    payload = loads_object(bag)
+    if payload is None or "system" not in payload:
         return None
     system = payload["system"]
     if isinstance(system, str) and system:
@@ -984,10 +988,7 @@ def promote_system_instruction(attributes: Mapping[str, Any] | None) -> dict[str
     if existing is not None:
         if not isinstance(existing, str):
             return None
-        try:
-            messages = json.loads(existing)
-        except ValueError:
-            return None
+        messages = loads_json(existing)
         if not isinstance(messages, list):
             return None
     if any(isinstance(m, dict) and m.get("role") == "system" for m in messages):
@@ -1081,12 +1082,10 @@ def response_id_from_output_value(attributes: Mapping[str, Any] | None) -> dict[
     raw = _llm_response_json(attributes)
     if raw is None:
         return {}
-    try:
-        payload = json.loads(raw)
-    except ValueError:
-        # Not JSON (or truncated by a length cap): no id to vouch for.
+    payload = loads_object(raw)
+    if payload is None:
+        # Not JSON (truncated by a length cap, or nested too deep): no id to vouch for.
         return {}
-    # A value that starts with "{" and parses is a JSON object, so no type check.
     response_id = payload.get("id")
     if not isinstance(response_id, str) or not response_id:
         return {}
@@ -1450,12 +1449,18 @@ def _number(value: Any) -> Any:
 
 
 def _count(value: Any) -> Any:
-    """An int, or SKIP. A non-finite float is SKIP: ``int()`` of one raises."""
+    """A non-negative whole number as an int, or SKIP.
+
+    Booleans are not counts, nor is a fractional float (truncating 12.9 would
+    invent a value) or a non-finite one (``int()`` of one raises). A negative
+    count is no count.
+    """
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return SKIP
-    if isinstance(value, float) and not math.isfinite(value):
+    if isinstance(value, float) and not (math.isfinite(value) and value.is_integer()):
         return SKIP
-    return int(value)
+    count = int(value)
+    return count if count >= 0 else SKIP
 
 
 def _configured_count(value: Any) -> Any:
@@ -1464,8 +1469,7 @@ def _configured_count(value: Any) -> Any:
     LlamaIndex writes ``num_output: -1`` when the request sets no output
     budget; that is no value, not a budget of -1.
     """
-    count = _count(value)
-    return SKIP if count is SKIP or count < 0 else count
+    return _count(value)  # which already reads a negative value as none
 
 
 def _text(value: Any) -> Any:
@@ -1612,11 +1616,8 @@ def _is_langchain_run(payload: Mapping[str, Any], read: Mapping[str, Any]) -> bo
     raw = read.get(METADATA)
     if not isinstance(raw, str):
         return False
-    try:
-        metadata = json.loads(raw)
-    except ValueError:
-        return False
-    return isinstance(metadata, dict) and any(
+    metadata = loads_object(raw)
+    return metadata is not None and any(
         isinstance(key, str) and key.startswith(_LANGCHAIN_METADATA_PREFIX) for key in metadata
     )
 
@@ -1632,11 +1633,8 @@ def _langchain_provider(read: Mapping[str, Any]) -> Any:
     raw = read.get(METADATA)
     if not isinstance(raw, str):
         return SKIP
-    try:
-        metadata = json.loads(raw)
-    except ValueError:
-        return SKIP
-    named = metadata.get("ls_provider") if isinstance(metadata, dict) else None
+    metadata = loads_object(raw)
+    named = metadata.get("ls_provider") if metadata is not None else None
     if not isinstance(named, str) or not named.strip():
         return SKIP
     return provider_name([named])
@@ -1681,13 +1679,10 @@ def openinference_invocation_parameters(
     """
     if not isinstance(raw, str):
         return {LLM_INVOCATION_PARAMETERS: raw}
-    try:
-        payload = json.loads(raw)
-    except ValueError:
+    payload = loads_object(raw)
+    if payload is None:
         # Unreadable is exactly when a pass-through is right: the caller's
         # value is the only record of it.
-        return {LLM_INVOCATION_PARAMETERS: raw}
-    if not isinstance(payload, dict):
         return {LLM_INVOCATION_PARAMETERS: raw}
 
     langchain = _is_langchain_run(payload, read or {})

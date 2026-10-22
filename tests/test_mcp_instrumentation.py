@@ -571,3 +571,29 @@ def test_mcp_call_carries_no_tool_call_id_and_no_tool_type() -> None:
     assert attrs is not None
     assert "gen_ai.tool.call.id" not in attrs
     assert "gen_ai.tool.type" not in attrs
+
+
+def test_exception_path_reraises_an_unprintable_exception() -> None:
+    # An exception whose __str__ raises must reach the caller as itself, not
+    # be replaced by the error the SDK's own str(exc) would raise.
+    from mcp import ClientSession
+
+    class Unprintable(Exception):
+        def __str__(self) -> str:
+            raise RuntimeError("no str for you")
+
+    class FailingSession:  # whatever the real call_tool reads off it raises Unprintable
+        def __getattr__(self, name: str) -> Any:
+            if name == "protocol_version":
+                raise AttributeError(name)
+            raise Unprintable()
+
+    inner = InMemorySpanExporter()
+    client = init(span_exporter=inner, set_global=False, instruments=["mcp"])
+    with pytest.raises(Unprintable):
+        asyncio.run(ClientSession.call_tool(FailingSession(), "x", None))  # type: ignore[arg-type]
+    client.flush()
+    (span,) = [s for s in inner.get_finished_spans() if s.name == "execute_tool x"]
+    assert not span.status.is_ok
+    assert span.attributes is not None
+    assert span.attributes["error.type"].endswith("Unprintable")

@@ -43,6 +43,19 @@ def _serialize_inputs(args: tuple[Any, ...], kwargs: dict[str, Any]) -> str:
     return serialize({"args": args, "kwargs": kwargs})
 
 
+def _qualname(fn: Callable[..., Any]) -> str:
+    """The name a decorated callable's spans are named by.
+
+    Not every callable has ``__qualname__``: a ``functools.partial`` names the
+    function it wraps, and a callable instance its class. Never the repr,
+    which holds a memory address and would make every span name unique.
+    """
+    while isinstance(fn, functools.partial):
+        fn = fn.func
+    qualname = getattr(fn, "__qualname__", None)
+    return qualname if isinstance(qualname, str) else type(fn).__qualname__
+
+
 def _resolve_tool_name(
     tool_name: str | None, name: str | None, qualname: str, kind: SpanKind
 ) -> str:
@@ -205,7 +218,8 @@ def observe(
     """
 
     def decorate(fn: Callable[..., Any]) -> Callable[..., Any]:
-        span_tool_name = _resolve_tool_name(tool_name, name, fn.__qualname__, kind)
+        qualname = _qualname(fn)
+        span_tool_name = _resolve_tool_name(tool_name, name, qualname, kind)
 
         def _kind_attributes() -> dict[str, str | int]:
             # Resolved per CALL, not per decoration: init() usually runs after
@@ -232,7 +246,7 @@ def observe(
             # span naming itself after the configured agent name sees the
             # value init() published rather than the one at import time.
             attributes = _kind_attributes()
-            return _decorated_span_name(name, fn.__qualname__, kind, attributes), attributes
+            return _decorated_span_name(name, qualname, kind, attributes), attributes
 
         def _step_context(span: trace.Span, attributes: Mapping[str, str | int]) -> Any:
             # The generator wrappers attach context per step instead of

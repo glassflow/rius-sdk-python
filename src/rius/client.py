@@ -74,7 +74,8 @@ DEFAULT_SPAN_ATTRIBUTE_COUNT_LIMIT = 4096
 
 #: The standard OTel env vars that set the span attribute count. When the user
 #: set either, their value wins and ``init()`` leaves resolution to OTel.
-_ATTRIBUTE_COUNT_ENV_VARS = ("OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT", "OTEL_ATTRIBUTE_COUNT_LIMIT")
+_GLOBAL_COUNT_ENV_VAR = "OTEL_ATTRIBUTE_COUNT_LIMIT"
+_ATTRIBUTE_COUNT_ENV_VARS = ("OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT", _GLOBAL_COUNT_ENV_VAR)
 
 
 #: OTel's default for event and link attribute counts (the spec's 128).
@@ -104,7 +105,9 @@ def _span_limits() -> SpanLimits:
     so passing ours unconditionally would silently override a user's
     ``OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT``. When either count variable holds a
     count OTel honours, OTel resolves everything itself, its own precedence
-    included. That is the TypeScript SDK's rule too.
+    included. That is the TypeScript SDK's rule too. The one exception is a
+    valid span count beside an unusable global count, which ``SpanLimits()``
+    would raise on: the global count is then passed at OTel's default.
 
     Anything else is not a choice of limit, and leaving it to OTel would be
     wrong: a blank ``OTEL_ATTRIBUTE_COUNT_LIMIT`` gives spans 128, the very
@@ -116,7 +119,19 @@ def _span_limits() -> SpanLimits:
     imported.)
     """
     if any(_honoured_count(name) for name in _ATTRIBUTE_COUNT_ENV_VARS):
-        return SpanLimits()
+        if _GLOBAL_COUNT_ENV_VAR not in os.environ or _honoured_count(_GLOBAL_COUNT_ENV_VAR):
+            return SpanLimits()
+        # The span count is the user's, but SpanLimits() also parses the
+        # global count and would raise on it out of init(). OTel's default
+        # for it keeps the user's span count and the warning says why.
+        logger.warning(
+            "%s=%r is not a non-negative integer, so OpenTelemetry cannot use it; "
+            "rius uses OpenTelemetry's default of %d for it instead.",
+            _GLOBAL_COUNT_ENV_VAR,
+            os.environ[_GLOBAL_COUNT_ENV_VAR],
+            _OTEL_DEFAULT_ATTRIBUTE_COUNT_LIMIT,
+        )
+        return SpanLimits(max_attributes=_OTEL_DEFAULT_ATTRIBUTE_COUNT_LIMIT)
     for name in _ATTRIBUTE_COUNT_ENV_VARS:
         if os.environ.get(name, "").strip():
             logger.warning(

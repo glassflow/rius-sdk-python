@@ -30,7 +30,7 @@ import re
 from collections.abc import Callable, Mapping
 from typing import Any
 
-from ._media import replacement, strip_raw_payload
+from ._media import MAX_DEPTH, replacement, strip_raw_payload
 
 MAX_ATTR_CHARS = 32 * 1024
 TRUNCATION_MARKER = "…(truncated)"
@@ -52,6 +52,30 @@ _MIN_MEDIA_RUN = 64
 
 #: The byte objects: written as the replacement, never as their content.
 BYTE_OBJECTS = (bytes, bytearray, memoryview)
+
+
+#: What a failed read of JSON text returns, so a JSON ``null`` stays a value.
+UNREADABLE: Any = object()
+
+
+def loads_json(raw: str) -> Any:
+    """``json.loads(raw)``, or ``UNREADABLE`` when the text cannot be read.
+
+    ``json.loads`` raises ``ValueError`` on malformed text and
+    ``RecursionError`` on text nested past the interpreter's recursion limit.
+    Every reader of a value some other code produced goes through here, so
+    neither escapes into the caller's code or costs an export batch.
+    """
+    try:
+        return json.loads(raw)
+    except (ValueError, RecursionError):
+        return UNREADABLE
+
+
+def loads_object(raw: str) -> dict[str, Any] | None:
+    """``raw`` read as a JSON object; None when it is unreadable or not an object."""
+    payload = loads_json(raw)
+    return payload if isinstance(payload, dict) else None
 
 
 def byte_object_size(value: bytes | bytearray | memoryview) -> int | None:
@@ -121,7 +145,7 @@ def truncate(text: str) -> str:
     """``text`` with its media stripped, cut at the attribute cap, the cut marked."""
     if len(text) > MAX_STRIP_CHARS:
         return _cut_past_budget(text)
-    return _cut(strip_raw_payload(text))
+    return _cut(_strip_media(text))
 
 
 def strip_within_budget(text: str) -> str:
@@ -133,7 +157,39 @@ def strip_within_budget(text: str) -> str:
     """
     if len(text) > MAX_STRIP_CHARS:
         return _cut_past_budget(text)
-    return strip_raw_payload(text)
+    return _strip_media(text)
+
+
+def _strip_media(text: str) -> str:
+    """The contract's strip, plus the base64-run fallback for a text nested
+    deeper than its parser reads.
+
+    The parser gives up past ``MAX_DEPTH`` arrays and objects, so such a text
+    is not JSON to it and only its data URLs are found: a keyed image's base64
+    would survive. The fallback is ``_cut_past_budget``'s, and the same
+    SDK-local guard: only a text that deep is not byte-identical with the
+    TypeScript SDK's.
+    """
+    stripped = strip_raw_payload(text)
+    if _nests_past_parser_depth(stripped):
+        return _BASE64_RUN.sub(_replace_media_run, stripped)
+    return stripped
+
+
+#: A JSON string, whose brackets nest nothing.
+_JSON_STRING = re.compile(r'"(?:[^"\\]|\\.)*"', re.DOTALL)
+_BRACKET = re.compile(r"[\[\]{}]")
+
+
+def _nests_past_parser_depth(text: str) -> bool:
+    if text.count("{") + text.count("[") <= MAX_DEPTH:
+        return False  # the common case, without reading the text again
+    depth = 0
+    for match in _BRACKET.finditer(_JSON_STRING.sub("", text)):
+        depth += 1 if match.group() in "[{" else -1
+        if depth > MAX_DEPTH:
+            return True
+    return False
 
 
 def _cut_past_budget(text: str) -> str:
