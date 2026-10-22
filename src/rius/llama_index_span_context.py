@@ -77,11 +77,9 @@ Not covered:
 
 from __future__ import annotations
 
-import asyncio
 import functools
 import inspect
 import logging
-import re
 import threading
 import weakref
 from collections.abc import AsyncIterator, Iterator
@@ -90,6 +88,8 @@ from typing import Any
 
 from opentelemetry import context as otel_context
 from opentelemetry import trace
+
+from ._stopgap import MARK, needs_context, owner, under, verified
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +100,6 @@ VERIFIED_VERSIONS = ("4.4.3", "4.6.0")
 #: The methods whose result is a stream that makes the provider request later.
 _STREAM_METHODS = ("stream_chat", "stream_complete", "astream_chat", "astream_complete")
 
-_MARK = "__rius_span_context__"
 _SUBCLASS_HOOK = "__pydantic_init_subclass__"
 
 #: The handler install() added to LlamaIndex's root dispatcher, kept across
@@ -110,56 +109,8 @@ _handler: Any = None
 _subclass_hook: Any = None
 
 
-def _owner() -> tuple[int, Any]:
-    try:
-        task = asyncio.current_task()
-    except RuntimeError:
-        task = None
-    return threading.get_ident(), task
-
-
-_VERSION = re.compile(r"v?(\d+(?:\.\d+)*)(.*)")
-_PRE_RELEASE = re.compile(r"[-_.]?(a|alpha|b|beta|c|rc|pre|preview|dev)\d*.*")
-
-
-def _version_key(text: str) -> tuple[tuple[int, ...], int] | None:
-    """A sortable key for a release string, or None if it doesn't parse.
-
-    The release numbers, without trailing zeros, then -1 for a pre- or dev
-    release, 0 for the release itself, and 1 for anything after it (a
-    post-release, a local version, an unknown suffix). So ``4.6.0rc1`` sorts
-    before ``4.6.0`` and ``4.6.0.post1`` after it.
-    """
-    match = _VERSION.fullmatch(text.strip().lower())
-    if match is None:
-        return None
-    release = [int(part) for part in match.group(1).split(".")]
-    while len(release) > 1 and release[-1] == 0:
-        release.pop()
-    suffix = match.group(2)
-    if not suffix:
-        phase = 0
-    elif _PRE_RELEASE.fullmatch(suffix):
-        phase = -1
-    else:
-        phase = 1
-    return tuple(release), phase
-
-
 def _verified(installed: str) -> bool:
-    key = _version_key(installed)
-    low, high = (_version_key(v) for v in VERIFIED_VERSIONS)
-    return key is not None and low is not None and high is not None and low <= key <= high
-
-
-def _needs_context(span: Any) -> bool:
-    return span is not None and trace.get_current_span() is not span
-
-
-def _under(span: Any) -> Any:
-    return trace.use_span(
-        span, end_on_exit=False, record_exception=False, set_status_on_exception=False
-    )
+    return verified(installed, VERIFIED_VERSIONS)
 
 
 def _current_llama_index_span() -> Any:
@@ -175,7 +126,7 @@ class _Entered:
 
     def __init__(self, span: Any) -> None:
         self.span = span
-        self.owner = _owner()
+        self.owner = owner()
         self.token: Any = None
 
 
@@ -223,7 +174,7 @@ def _handler_class() -> Any:
                 with self._rius_lock:
                     if not self._rius_enabled or id_ in self._rius_entered:
                         return
-                    if _needs_context(span):
+                    if needs_context(span):
                         entered.token = otel_context.attach(trace.set_span_in_context(span))
                     self._rius_entered[id_] = entered
             except Exception:
@@ -243,7 +194,7 @@ def _handler_class() -> Any:
             with self._rius_lock:
                 entered = self._rius_entered.pop(id_, None)
             if entered is not None and entered.token is not None:
-                if entered.owner == _owner():
+                if entered.owner == owner():
                     otel_context.detach(entered.token)
                 else:
                     # Not the frame that attached it (a sync method whose
@@ -285,7 +236,7 @@ def _stream_span(stream: Any) -> Any:
 def _steps_under(span: Any, stream: Iterator[Any]) -> Iterator[Any]:
     try:
         while True:
-            with _under(span):
+            with under(span):
                 try:
                     item = next(stream)
                 except StopIteration:
@@ -300,7 +251,7 @@ def _steps_under(span: Any, stream: Iterator[Any]) -> Iterator[Any]:
 async def _asteps_under(span: Any, stream: AsyncIterator[Any]) -> AsyncIterator[Any]:
     try:
         while True:
-            with _under(span):
+            with under(span):
                 try:
                     item = await stream.__anext__()
                 except StopAsyncIteration:
@@ -321,7 +272,7 @@ def _wrap_stream(original: Any) -> Any:
             return stream
         return _steps_under(span, stream)
 
-    setattr(run, _MARK, original)
+    setattr(run, MARK, original)
     return run
 
 
@@ -334,7 +285,7 @@ def _wrap_astream(original: Any) -> Any:
             return stream
         return _asteps_under(span, stream)
 
-    setattr(run, _MARK, original)
+    setattr(run, MARK, original)
     return run
 
 
@@ -343,7 +294,7 @@ def _wrap_class(cls: Any) -> None:
         current = cls.__dict__.get(name)
         if current is None:
             continue
-        original = getattr(current, _MARK, current)
+        original = getattr(current, MARK, current)
         wrap = _wrap_astream if name.startswith("a") else _wrap_stream
         setattr(cls, name, wrap(original))
 
@@ -351,8 +302,8 @@ def _wrap_class(cls: Any) -> None:
 def _unwrap_class(cls: Any) -> None:
     for name in _STREAM_METHODS:
         current = cls.__dict__.get(name)
-        if current is not None and hasattr(current, _MARK):
-            setattr(cls, name, getattr(current, _MARK))
+        if current is not None and hasattr(current, MARK):
+            setattr(cls, name, getattr(current, MARK))
 
 
 def _subclasses(cls: Any) -> list[Any]:

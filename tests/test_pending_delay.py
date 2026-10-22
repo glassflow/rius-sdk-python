@@ -137,3 +137,33 @@ def test_delay_zero_keeps_immediate_emission() -> None:
     client.flush()
     markers = [bool(s.attributes.get(RIUS_SPAN_PENDING)) for s in exporter.get_finished_spans()]
     assert sorted(markers) == [False, True]
+
+
+class _CountingCondition(threading.Condition):
+    def __init__(self) -> None:
+        super().__init__()
+        self.notified = 0
+
+    def notify_all(self) -> None:
+        self.notified += 1
+        super().notify_all()
+
+
+def test_only_a_new_earliest_deadline_wakes_the_scheduler_thread() -> None:
+    # The thread already sleeps until the earliest deadline, and every later
+    # snapshot is due after it, so waking it per span is wasted work.
+    emitted: list = []
+    clock = _Clock()
+    s = _scheduler(emitted, clock)
+    s._cond = cond = _CountingCondition()
+    s.schedule(("t", 1), "snapshot-1")
+    s.schedule(("t", 2), "snapshot-2")
+    clock.now += 1
+    s.schedule(("t", 3), "snapshot-3")
+    assert cond.notified == 1
+    clock.now += 10
+    s.pop_due()
+    assert emitted == ["snapshot-1", "snapshot-2", "snapshot-3"]
+    # Drained: the next snapshot is the earliest again and must wake it.
+    s.schedule(("t", 4), "snapshot-4")
+    assert cond.notified == 2

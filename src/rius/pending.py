@@ -122,8 +122,13 @@ class PendingScheduler:
             if self._stopped:
                 return
             self._snapshots[key] = snapshot
-            heapq.heappush(self._heap, (self._clock() + self._delay, next(self._counter), key))
-            self._cond.notify_all()
+            entry = (self._clock() + self._delay, next(self._counter), key)
+            heapq.heappush(self._heap, entry)
+            # The thread sleeps until the earliest deadline in the heap, and
+            # a later one changes nothing for it, so wake it only when this
+            # entry became the earliest (always so when the heap was empty).
+            if self._heap[0] is entry:
+                self._cond.notify_all()
 
     def cancel(self, key: _SpanKey) -> None:
         """Span ended before its deadline: the pending never hits the wire."""

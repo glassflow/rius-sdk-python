@@ -24,6 +24,17 @@ from . import langchain_span_context, litellm_stream_context, llama_index_span_c
 
 logger = logging.getLogger(__name__)
 
+#: The instrumentors whose span is not current while the provider call runs,
+#: so a provider span lands outside it, and the module that patches each one.
+#: Each module's install() and uninstall() are best-effort and never raise.
+#: litellm: its streaming calls do not make their span current. langchain and
+#: llama-index: their spans are never current.
+_STOPGAPS: dict[str, Any] = {
+    "litellm": litellm_stream_context,
+    "langchain": langchain_span_context,
+    "llama-index": llama_index_span_context,
+}
+
 # Instrumentors we enabled (name -> instance), so a legitimate re-init can
 # re-bind them to the new provider without touching instrumentation someone
 # else set up.
@@ -205,28 +216,16 @@ def enable_instrumentations(
                         continue
                     # We enabled it previously (e.g. before a shutdown/re-init):
                     # re-bind it to the new provider.
-                    if spec.name == "litellm":
-                        litellm_stream_context.uninstall(instrumentor)
-                    elif spec.name == "langchain":
-                        langchain_span_context.uninstall(instrumentor)
-                    elif spec.name == "llama-index":
-                        llama_index_span_context.uninstall(instrumentor)
+                    stopgap = _STOPGAPS.get(spec.name)
+                    if stopgap is not None:
+                        stopgap.uninstall(instrumentor)
                     instrumentor.uninstrument()
                 else:
                     continue  # someone else's instrumentation: leave it alone
             instrumentor.instrument(tracer_provider=tracer_provider)
-            if spec.name == "litellm":
-                # Its streaming calls do not make their span current; see
-                # litellm_stream_context. Best-effort and never raises.
-                litellm_stream_context.install(instrumentor)
-            elif spec.name == "langchain":
-                # Its spans are never current, so the provider call is not
-                # their child; see langchain_span_context. Never raises.
-                langchain_span_context.install(instrumentor)
-            elif spec.name == "llama-index":
-                # Its spans are never current either; see
-                # llama_index_span_context. Never raises.
-                llama_index_span_context.install(instrumentor)
+            stopgap = _STOPGAPS.get(spec.name)
+            if stopgap is not None:
+                stopgap.install(instrumentor)
         except Exception:
             # Instrumentation is best-effort: a broken instrumentor must not
             # take down init().

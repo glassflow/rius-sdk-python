@@ -136,8 +136,9 @@ _encoder = json.JSONEncoder(default=_default, separators=(",", ":"), ensure_asci
 # ensure_ascii=False writes a lone surrogate raw, and a string holding one
 # cannot be encoded as UTF-8: the OTLP exporter drops such an attribute. The
 # escaping ensure_ascii used to do for it is kept here, which is also what
-# JSON.stringify does with a lone surrogate.
-_SURROGATE = re.compile("[\ud800-\udfff]")
+# JSON.stringify does with a lone surrogate. ``json.loads`` pairs the valid
+# surrogates into one code point, so any left in a decoded ``str`` are unpaired.
+LONE_SURROGATE = re.compile("[\ud800-\udfff]")
 
 
 def _escape_surrogate(match: re.Match[str]) -> str:
@@ -179,8 +180,11 @@ def _strip_media(text: str) -> str:
     return stripped
 
 
-#: A JSON string, or one bracket outside any.
-_STRING_OR_BRACKET = re.compile(r'"(?:[^"\\]|\\.)*"|[\[\]{}]', re.DOTALL)
+#: A JSON string, or one bracket outside any. A string that never closes (JSON
+#: stored in a string and then cut) runs to the end of the text, a lone
+#: backslash included: a failed match would restart at each escaped quote in
+#: it, which reads the text once per quote.
+_STRING_OR_BRACKET = re.compile(r'"(?:[^"\\]|\\.)*(?:"|\\?\Z)|[\[\]{}]', re.DOTALL)
 
 
 def _nests_past_parser_depth(text: str) -> bool:
@@ -246,7 +250,7 @@ def text_value(value: Any) -> str:
     get the attribute dropped by the OTLP exporter.
     """
     if isinstance(value, str):
-        return truncate(_SURROGATE.sub("\ufffd", value))
+        return truncate(LONE_SURROGATE.sub("\ufffd", value))
     return serialize(value)
 
 
@@ -315,10 +319,10 @@ def _bounded_dumps(value: Any) -> str:
     size = 0
     for chunk in _encoder.iterencode(value, _one_shot=False):
         if size + len(chunk) <= MAX_STRIP_CHARS:
-            chunk = _SURROGATE.sub(_escape_surrogate, chunk)
+            chunk = LONE_SURROGATE.sub(_escape_surrogate, chunk)
         chunks.append(chunk)
         size += len(chunk)
         if size > MAX_STRIP_CHARS:
             kept = "".join(chunks)[:MAX_ATTR_CHARS]
-            return _cut_past_budget(_SURROGATE.sub(_escape_surrogate, kept))
+            return _cut_past_budget(LONE_SURROGATE.sub(_escape_surrogate, kept))
     return truncate("".join(chunks))

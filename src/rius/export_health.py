@@ -88,43 +88,94 @@ def check_connectivity(url: str, headers: dict[str, str] | None, send: ProbeTran
 class ExportOutcomeExporter(SpanExporter):
     """Delegate to ``inner`` and remember whether the last export succeeded.
 
-    The first failure logs one WARNING with the endpoint and the fix hints;
-    repeats log at DEBUG (the heartbeat sender's warn-once discipline). A
-    subsequent success logs one INFO and re-arms the warning, so a *new*
-    outage later in the process lifetime warns again.
+    The first failure logs one WARNING naming its cause; repeats log at DEBUG
+    (the heartbeat sender's warn-once discipline). A subsequent success logs
+    one INFO and re-arms the warning, so a *new* outage later in the process
+    lifetime warns again.
+
+    The cause is what the chain told us. An exception raised inside it (the
+    SDK's own wrappers or a user exporter) is logged with its traceback, and
+    says nothing about keys or endpoints. A FAILURE result with ``endpoint``
+    set comes from the OTLP exporter, so the warning points at the key and
+    endpoint; ``endpoint=None`` means the caller passed its own
+    ``span_exporter``, and the warning blames that instead.
+    ``custom_exporter=True`` with ``endpoint`` set means both: the caller's
+    exporter sits beside workspace destinations that export to ``endpoint``.
+    One failing destination fails the whole routed export, so the warning
+    names both and keeps the key and endpoint hint.
     """
 
-    def __init__(self, inner: SpanExporter, *, endpoint: str) -> None:
+    def __init__(
+        self, inner: SpanExporter, *, endpoint: str | None, custom_exporter: bool = False
+    ) -> None:
         self._inner = inner
         self._endpoint = endpoint
+        self._custom_exporter = custom_exporter
         self._warned = False
         self.last_export_failed = False
 
     def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
+        error: Exception | None = None
         try:
             result = self._inner.export(spans)
-        except Exception:  # noqa: BLE001 - reliability contract: never raise
-            logger.debug("span exporter raised", exc_info=True)
+        except Exception as exc:  # noqa: BLE001 - reliability contract: never raise
+            error = exc
             result = SpanExportResult.FAILURE
         if result is SpanExportResult.SUCCESS:
             if self.last_export_failed:
-                logger.info("span export to %s recovered", self._endpoint)
+                logger.info("span export%s recovered", self._destination())
             self.last_export_failed = False
             self._warned = False
             return result
         self.last_export_failed = True
-        if not self._warned:
-            self._warned = True
+        if self._warned:
+            logger.debug(
+                "span export%s failed again", self._destination(), exc_info=error is not None
+            )
+            return result
+        self._warned = True
+        repeats = "Further failures log at DEBUG until an export succeeds."
+        if error is not None:
+            logger.warning(
+                "span export%s failed: the export chain raised %s: %s; traces are not "
+                "being delivered. %s",
+                self._destination(),
+                type(error).__name__,
+                error,
+                repeats,
+                exc_info=error,
+            )
+        elif self._endpoint is None:
+            logger.warning(
+                "span export failed: the configured span_exporter returned FAILURE; "
+                "traces are not being delivered. %s",
+                repeats,
+            )
+        elif self._custom_exporter:
+            logger.warning(
+                "span export failed: the configured span_exporter or a workspace "
+                "destination at %s returned FAILURE; traces are not being delivered. "
+                "Check that exporter, each workspace API key and RIUS_ENDPOINT (the "
+                "OTLP exporter's own log line above has the HTTP status). %s",
+                self._endpoint,
+                repeats,
+            )
+        else:
             logger.warning(
                 "span export to %s failed; traces are not being delivered. "
                 "Check RIUS_API_KEY and RIUS_ENDPOINT (the exporter's "
-                "own log line above has the HTTP status). Further failures log "
-                "at DEBUG until an export succeeds.",
+                "own log line above has the HTTP status). %s",
                 self._endpoint,
+                repeats,
             )
-        else:
-            logger.debug("span export to %s failed again", self._endpoint)
         return result
+
+    def _destination(self) -> str:
+        # With a caller's exporter in the chain the endpoint is not the
+        # whole destination, so naming it alone would mislead.
+        if self._endpoint is None or self._custom_exporter:
+            return ""
+        return f" to {self._endpoint}"
 
     def shutdown(self) -> None:
         self._inner.shutdown()

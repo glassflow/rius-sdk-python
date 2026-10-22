@@ -13,6 +13,7 @@ import functools
 import json
 import math
 import os
+import time
 from collections.abc import Sequence
 from typing import Any
 
@@ -449,3 +450,55 @@ def test_a_json_string_within_the_parser_depth_keeps_a_long_word() -> None:
         "b": _nested(1, 30),
     }
     assert word in serialize(value)
+
+
+# --- a string left open at the end of the text --------------------------------------
+#
+# JSON stored in a JSON string and then cut is a string that never closes, its
+# content full of escaped quotes. The depth scan reads such a string to the end
+# of the text, once; the TypeScript SDK reads it the same way, so these inputs
+# give the same output from either SDK.
+
+#: Deterministic base64, long enough to be media (344 characters).
+_DATA = base64.b64encode(bytes(range(256))).decode()
+#: What the run fallback writes in place of a run long enough to be media.
+_RUN_MARKER = "[stripped unknown unknown bytes]"
+
+
+def _double_encoded_cut(size: int) -> str:
+    rows = [{"id": i, "tags": ["a", "b"], "meta": {"k": "v"}} for i in range(size // 20)]
+    return json.dumps({"result": json.dumps(rows)})[:size]
+
+
+def _elapsed(text: str) -> float:
+    start = time.perf_counter()
+    text_value(text)
+    return time.perf_counter() - start
+
+
+# Each took tens of seconds while a failed string match restarted at every
+# escaped quote; read once they take milliseconds, so a second is a wide margin.
+def test_double_encoded_json_cut_inside_its_string_is_read_in_linear_time() -> None:
+    assert _elapsed(_double_encoded_cut(100 * 1024)) < 1.0
+
+
+@pytest.mark.parametrize("end", ["", "\\"], ids=["plain", "lone-backslash"])
+def test_an_open_string_of_escaped_quotes_is_read_in_linear_time(end: str) -> None:
+    assert _elapsed('"' + '\\"' * (40 * 1024) + "[" * 65 + end) < 1.0
+
+
+def test_keyed_base64_deep_in_a_stringified_json_cut_short_is_stripped() -> None:
+    # The cut drops the closing quote, so the inner JSON is a string left open.
+    text = json.dumps({"s": json.dumps(_nested(_image(_DATA), 70))})[:-20]
+    assert text_value(text) == text.replace(_DATA, _RUN_MARKER)
+
+
+def test_brackets_in_a_string_left_open_count_as_its_opening_ones() -> None:
+    # Its closing brackets are not counted, as in a closed string: 70 opening
+    # ones are past the parser's depth, so the run fallback takes the word.
+    assert text_value('["' + "[]" * 70 + "a" * 100) == '["' + "[]" * 70 + _RUN_MARKER
+
+
+def test_a_string_left_open_on_a_lone_backslash_is_read_to_the_end() -> None:
+    text = '["' + "{" * 70 + _DATA + "\\"
+    assert text_value(text) == '["' + "{" * 70 + _RUN_MARKER + "\\"

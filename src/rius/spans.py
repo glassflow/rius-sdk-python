@@ -15,6 +15,7 @@ equivalents.
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager, nullcontext
 from typing import Any
@@ -213,6 +214,25 @@ def _configure(observation: Observation, input: Any) -> None:
         observation.set_input(input)
 
 
+def _warn_on_span_name_as_tool_name(
+    surface: str, name: str | None, kind: SpanKind, tool_name: str | None, stacklevel: int
+) -> None:
+    """Warn when a TOOL span's name is standing in for its tool name.
+
+    The same ambiguity, and the same warning, as ``@observe(name=..., kind=TOOL)``:
+    a caller labelling the span also renames the tool, and ``gen_ai.tool.name``
+    is a Required metric dimension. ``stacklevel`` counts from this function.
+    """
+    if kind is SpanKind.TOOL and name is not None and tool_name is None:
+        warnings.warn(
+            f"{surface}(name={name!r}, kind=TOOL) is naming the tool as well as the span; "
+            f"gen_ai.tool.name will be {name!r}. Pass tool_name= to set them separately. "
+            "A future major release will stop deriving the tool name from the span name.",
+            DeprecationWarning,
+            stacklevel=stacklevel + 1,
+        )
+
+
 def _creation(
     name: str | None,
     kind: SpanKind,
@@ -302,7 +322,9 @@ def start_span(
 
     ``tool_name`` sets ``gen_ai.tool.name`` on a ``TOOL`` span; it defaults to
     the span name, and exists so a span name that is not the bare tool name
-    does not become one.
+    does not become one. Leaving it to that default on a named span raises a
+    ``DeprecationWarning``, as ``@observe(name=..., kind=TOOL)`` does: a future
+    major release stops deriving the tool name from the span name.
 
     ``tool_call_id`` is the id the MODEL put on the tool-call message this
     ``TOOL`` span answers (``gen_ai.tool.call.id``), which is what joins the
@@ -340,6 +362,7 @@ def start_span(
     not lend its name to the tool spans that follow it, the same limitation
     ``user_id`` has here. Use ``start_as_current_span`` for that.
     """
+    _warn_on_span_name_as_tool_name("start_span", name, kind, tool_name, stacklevel=2)
     span_name, attributes = _creation(
         name,
         kind,
@@ -398,7 +421,9 @@ def start_as_current_span(
 
     ``tool_name`` sets ``gen_ai.tool.name`` on a ``TOOL`` span; it defaults to
     the span name, and exists so a span name that is not the bare tool name
-    does not become one.
+    does not become one. Leaving it to that default on a named span raises a
+    ``DeprecationWarning``, as ``@observe(name=..., kind=TOOL)`` does: a future
+    major release stops deriving the tool name from the span name.
 
     ``tool_call_id`` is the id the MODEL put on the tool-call message this
     ``TOOL`` span answers (``gen_ai.tool.call.id``), which is what joins the
@@ -436,6 +461,8 @@ def start_as_current_span(
     blocks override outer ones. Without any enclosing block the configured
     agent name applies, and a process that named nothing emits nothing.
     """
+    # Two frames above this body: contextlib's __enter__, then the caller.
+    _warn_on_span_name_as_tool_name("start_as_current_span", name, kind, tool_name, stacklevel=3)
     tracer = sdk_tracer()
     span_name, attributes = _creation(
         name,

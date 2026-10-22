@@ -1,4 +1,5 @@
 import json
+import warnings
 from typing import Any
 
 import pytest
@@ -21,7 +22,7 @@ def test_cm_default_kind_is_chain(exported_spans: InMemorySpanExporter) -> None:
 
 
 def test_cm_custom_kind(exported_spans: InMemorySpanExporter) -> None:
-    with start_as_current_span("t", kind=SpanKind.TOOL):
+    with start_as_current_span("t", kind=SpanKind.TOOL, tool_name="t"):
         pass
     assert exported_spans.get_finished_spans()[0].attributes["openinference.span.kind"] == "TOOL"
 
@@ -107,7 +108,7 @@ def test_cm_exception_sets_error_status(exported_spans: InMemorySpanExporter) ->
 
 
 def test_manual_requires_end(exported_spans: InMemorySpanExporter) -> None:
-    obs = start_span("job", kind=SpanKind.TOOL)
+    obs = start_span("job", kind=SpanKind.TOOL, tool_name="job")
     obs.update(output="done")
     assert exported_spans.get_finished_spans() == ()  # not ended -> not exported
     obs.end()
@@ -147,16 +148,41 @@ def test_cm_success_sets_no_error_type(exported_spans: InMemorySpanExporter) -> 
 
 
 def test_cm_tool_kind_sets_gen_ai_tool_name(exported_spans: InMemorySpanExporter) -> None:
-    with start_as_current_span("weather", kind=SpanKind.TOOL):
+    # The span name still names the tool, and warns as @observe(name=...) does.
+    with (
+        pytest.warns(DeprecationWarning, match="naming the tool as well as the span") as caught,
+        start_as_current_span("weather", kind=SpanKind.TOOL),
+    ):
         pass
+    assert caught[0].filename == __file__
     attrs = exported_spans.get_finished_spans()[0].attributes
     assert attrs["gen_ai.tool.name"] == "weather"
 
 
 def test_manual_tool_kind_sets_gen_ai_tool_name(exported_spans: InMemorySpanExporter) -> None:
-    start_span("weather", kind=SpanKind.TOOL).end()
+    with pytest.warns(DeprecationWarning, match="naming the tool as well as the span") as caught:
+        start_span("weather", kind=SpanKind.TOOL).end()
+    assert caught[0].filename == __file__
     attrs = exported_spans.get_finished_spans()[0].attributes
     assert attrs["gen_ai.tool.name"] == "weather"
+
+
+@pytest.mark.parametrize(
+    ("name", "kind", "tool_name"),
+    [
+        ("execute_tool weather", SpanKind.TOOL, "weather"),
+        (None, SpanKind.TOOL, None),
+        ("step", SpanKind.CHAIN, None),
+    ],
+)
+def test_only_a_span_name_standing_in_for_the_tool_name_warns(
+    name: str | None, kind: SpanKind, tool_name: str | None
+) -> None:
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", DeprecationWarning)
+        start_span(name, kind=kind, tool_name=tool_name).end()
+        with start_as_current_span(name, kind=kind, tool_name=tool_name):
+            pass
 
 
 def test_cm_explicit_tool_name_wins_over_the_span_name(

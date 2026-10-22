@@ -170,6 +170,55 @@ def test_reinit_reaches_global_tracer_spans_without_the_bridge_opt_in() -> None:
     assert result.returncode == 0, result.stderr
 
 
+_REINIT_DEAD_PIPELINE = """
+from opentelemetry import trace
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+import rius
+
+# Every processor a shut-down client still feeds. OpenTelemetry cannot remove
+# a processor from a provider, so the first client's pipeline stays on the
+# global provider; on OTel 1.24 its batch processor then logs "Already
+# shutdown, dropping span." for every third-party span.
+shut = []  # the processors themselves: an id() could be reused
+fed_after_shutdown = []
+real_shutdown, real_on_end = BatchSpanProcessor.shutdown, BatchSpanProcessor.on_end
+
+def shutdown(self):
+    shut.append(self)
+    real_shutdown(self)
+
+def on_end(self, span):
+    if any(self is s for s in shut):
+        fed_after_shutdown.append(span.name)
+    real_on_end(self, span)
+
+BatchSpanProcessor.shutdown = shutdown
+BatchSpanProcessor.on_end = on_end
+
+first = rius.init(span_exporter=InMemorySpanExporter(), instruments=[])
+first.shutdown()
+second_exporter = InMemorySpanExporter()
+second = rius.init(span_exporter=second_exporter, instruments=[])
+trace.get_tracer("third.party").start_span("third-party").end()
+second.flush()
+assert [s.name for s in second_exporter.get_finished_spans()] == ["third-party"]
+assert fed_after_shutdown == [], fed_after_shutdown
+second.shutdown()
+"""
+
+
+def test_a_shut_down_client_stops_receiving_global_tracer_spans() -> None:
+    result = subprocess.run(
+        [sys.executable, "-c", _REINIT_DEAD_PIPELINE],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        env={**os.environ, "RIUS_HEARTBEAT": "false", "RIUS_BRIDGE_FOREIGN_PROVIDER": "false"},
+    )
+    assert result.returncode == 0, result.stderr
+
+
 class _UncachedTracerProvider(TracerProvider):
     """An SDK provider as it was before OTel 1.42: a new tracer per call."""
 
