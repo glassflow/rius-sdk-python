@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.5.1](https://github.com/glassflow/rius-sdk-python/compare/v1.5.0...v1.5.1) (2026-10-22)
+
+
+### Bug Fixes
+
+* always drop credential headers from spans, whatever capture_content is ([#222](https://github.com/glassflow/rius-sdk-python/issues/222)) ([c5ce97c](https://github.com/glassflow/rius-sdk-python/commit/c5ce97cb94a86c0fb2e15b1e2e3f27104eb46239))
+* **anthropic:** export the Anthropic SDK's own chat span as a plain client span under OpenInference, and move provider SDKs to their latest releases ([#227](https://github.com/glassflow/rius-sdk-python/issues/227)) ([9f62b5d](https://github.com/glassflow/rius-sdk-python/commit/9f62b5d05b12d662d27fc2f084dda6845f0d9b14))
+* keep content off pending snapshots and treat prompt-bearing model parameters as content ([#219](https://github.com/glassflow/rius-sdk-python/issues/219)) ([c7d8e8d](https://github.com/glassflow/rius-sdk-python/commit/c7d8e8d0b532f593d11da7bef1819a57e67bdb0f))
+* **lifecycle:** re-init global-tracer spans, workspace routing isolation and exporter leak, OTel 1.24 floor ([#220](https://github.com/glassflow/rius-sdk-python/issues/220)) ([799a8da](https://github.com/glassflow/rius-sdk-python/commit/799a8da9ae2dcfade567bd70319f839c275293f7))
+* never raise into or replace the caller's exception on bad input ([#218](https://github.com/glassflow/rius-sdk-python/issues/218)) ([4955042](https://github.com/glassflow/rius-sdk-python/commit/4955042e1edbef7347f0b2d39ee76332a9fae2e8))
+* **sdk:** align wire shapes, boolean env parsing and heartbeat credentials ([#217](https://github.com/glassflow/rius-sdk-python/issues/217)) ([beeda6f](https://github.com/glassflow/rius-sdk-python/commit/beeda6f3b8aef8248f8dfbc659575de5a5812062))
+* **sdk:** code quality, export diagnostics and re-init fixes from the 2026-10-22 review ([#223](https://github.com/glassflow/rius-sdk-python/issues/223)) ([bdae117](https://github.com/glassflow/rius-sdk-python/commit/bdae1175956cf704c88a21fd4b06619f424f5620))
+* **serde:** read a string left open at the end of the text once in the depth scan ([#225](https://github.com/glassflow/rius-sdk-python/issues/225)) ([c9417e4](https://github.com/glassflow/rius-sdk-python/commit/c9417e4c3ed27e790b0a27ac15eab6a9fe873ede))
+* **spans:** write mixed and nested set_attribute arrays as one JSON string, warn on unparseable numeric env values, run the shared SDK cases ([#224](https://github.com/glassflow/rius-sdk-python/issues/224)) ([b6fd080](https://github.com/glassflow/rius-sdk-python/commit/b6fd080aff6b8c0c8f42628bb20a1db2d7edb27f))
+
 ## [1.5.0](https://github.com/glassflow/rius-sdk-python/compare/v1.4.0...v1.5.0) (2026-10-22)
 
 
