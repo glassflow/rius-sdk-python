@@ -7,7 +7,8 @@ from every span by an exporter that is always in the chain, and pending
 snapshots go through the same chain.
 
 Works on copies, as masking does: a ``ReadableSpan`` shares its attribute
-mapping with every processor on the provider.
+mapping with every processor on the provider. Each rebuilt span, event and
+link keeps the OTel SDK's dropped-attributes count.
 """
 
 from __future__ import annotations
@@ -77,14 +78,14 @@ class CredentialHeaderDroppingExporter(SpanExporter):
             if kept is None:
                 continue
             events = events if events is not None else list(span.events)
-            events[i] = Event(event.name, kept, event.timestamp)
+            events[i] = Event(event.name, replacement_attributes(event, kept), event.timestamp)
         links: list[Link] | None = None
         for i, link in enumerate(span.links):
             kept = _without_credentials(link.attributes)
             if kept is None:
                 continue
             links = links if links is not None else list(span.links)
-            links[i] = Link(link.context, kept)
+            links[i] = Link(link.context, replacement_attributes(link, kept))
         if attributes is None and events is None and links is None:
             return span
         dropped = copy.copy(span)

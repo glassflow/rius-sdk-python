@@ -11,7 +11,8 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from opentelemetry.sdk.trace import ReadableSpan
+from opentelemetry.attributes import BoundedAttributes
+from opentelemetry.sdk.trace import Event, ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import Link, SpanContext
 
@@ -33,6 +34,12 @@ from rius.semconv import RIUS_SPAN_PENDING
         "ai.request.headers.x-goog-api-key",
         "ai.request.headers.x-auth-token",
         "ai.request.headers.X-Client-Secret",
+        # Gateways' own key headers: Portkey, LiteLLM, Kong, Azure APIM, Helicone.
+        "ai.request.headers.x-portkey-api-key",
+        "ai.request.headers.x-litellm-api-key",
+        "ai.request.headers.x-apikey",
+        "http.request.header.ocp_apim_subscription_key",
+        "ai.request.headers.helicone-auth",
         "http.request.header.authorization",
         "http.response.header.set-cookie",
         # OpenTelemetry Python's HTTP instrumentations spell the header with "_".
@@ -61,6 +68,9 @@ def test_a_credential_header_key_is_recognised(key: str) -> None:
         # Only a whole hyphen-separated word: "token" alone is not "-token".
         "ai.request.headers.token",
         "ai.request.headers.x-tokens",
+        "ai.request.headers.x-ratelimit-remaining-tokens",
+        # -api-key, not a bare -key.
+        "ai.request.headers.idempotency-key",
     ],
 )
 def test_other_keys_are_not(key: str) -> None:
@@ -150,3 +160,25 @@ def test_the_exporter_leaves_the_original_span_alone() -> None:
     assert out is not span
     assert not DROPPED & set(out.attributes or {})
     assert set(span.attributes or {}) == set(HEADERS)
+
+
+def test_rebuilt_events_and_links_keep_their_dropped_count() -> None:
+    # An event or link that hit the attribute limit says so after the drop.
+    def bounded() -> BoundedAttributes:
+        attributes = BoundedAttributes(attributes=dict(HEADERS), immutable=True)
+        attributes.dropped = 3
+        return attributes
+
+    inner = InMemorySpanExporter()
+    linked = SpanContext(trace_id=1, span_id=1, is_remote=True)
+    span = ReadableSpan(
+        name="s",
+        events=(Event("request", bounded(), 1),),
+        links=(Link(linked, bounded()),),
+    )
+    CredentialHeaderDroppingExporter(inner).export([span])
+
+    (out,) = inner.get_finished_spans()
+    for item in (out.events[0], out.links[0]):
+        assert not DROPPED & set(item.attributes or {})
+        assert item.dropped_attributes == 3
