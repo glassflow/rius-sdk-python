@@ -112,6 +112,58 @@ class TestExportOutcomeExporter:
         infos = [r.getMessage() for r in caplog.records if r.levelno == logging.INFO]
         assert any("recovered" in m for m in infos)
 
+    def test_an_exception_in_the_chain_is_logged_as_the_cause(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        # A bug in the SDK's own exporter chain (or the user's exporter) is
+        # not a key or endpoint problem: the warning names what raised.
+        wrapper, _ = self._make([ValueError("normalizer broke"), ValueError("again")])
+        with caplog.at_level(logging.DEBUG, logger="rius.export_health"):
+            wrapper.export([])
+            wrapper.export([])
+        warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+        assert len(warnings) == 1
+        msg = warnings[0].getMessage()
+        assert "ValueError" in msg and "normalizer broke" in msg
+        assert "RIUS_API_KEY" not in msg and "RIUS_ENDPOINT" not in msg
+        assert warnings[0].exc_info is not None
+
+    def test_a_custom_exporter_failure_names_no_endpoint(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        from opentelemetry.sdk.trace.export import SpanExportResult
+
+        from rius.export_health import ExportOutcomeExporter
+
+        wrapper = ExportOutcomeExporter(
+            _FlakyExporter([SpanExportResult.FAILURE, SpanExportResult.SUCCESS]), endpoint=None
+        )
+        with caplog.at_level(logging.DEBUG, logger="rius.export_health"):
+            wrapper.export([])
+            wrapper.export([])
+        messages = [r.getMessage() for r in caplog.records if r.levelno >= logging.INFO]
+        assert any("span_exporter" in m and "not being delivered" in m for m in messages)
+        assert any("recovered" in m for m in messages)
+        assert not any(DEFAULT_ENDPOINT in m or "RIUS_API_KEY" in m for m in messages)
+
+
+class TestCustomExporterWiring:
+    def test_init_with_a_span_exporter_never_blames_the_managed_endpoint(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        from opentelemetry.sdk.trace.export import SpanExportResult
+
+        failing = _FlakyExporter([SpanExportResult.FAILURE] * 10)
+        client = init(**_init_kwargs(span_exporter=failing))  # type: ignore[arg-type]
+        with caplog.at_level(logging.WARNING, logger="rius.export_health"):
+            with client.get_tracer().start_as_current_span("doomed"):
+                pass
+            client.flush()
+        client.shutdown()
+        messages = [r.getMessage() for r in caplog.records]
+        assert any("not being delivered" in m for m in messages)
+        assert not any(DEFAULT_ENDPOINT in m or "RIUS_API_KEY" in m for m in messages)
+
 
 class TestHonestFlush:
     def test_flush_returns_false_when_exports_fail(self) -> None:

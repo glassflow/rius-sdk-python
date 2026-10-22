@@ -784,7 +784,10 @@ def _do_init(
         # Outermost wrapper so it observes the outcome of the whole chain
         # (masking included); client.flush() reads it for honest delivery
         # reporting.
-        export_health = ExportOutcomeExporter(exporter, endpoint=config.endpoint)
+        # A caller's own exporter has no RIUS_ENDPOINT behind it to blame.
+        export_health = ExportOutcomeExporter(
+            exporter, endpoint=config.endpoint if span_exporter is None else None
+        )
         batch_processor = BatchSpanProcessor(export_health)
         detector = ForeignParentDetector(foreign_global)
         pipeline.add_span_processor(detector)
