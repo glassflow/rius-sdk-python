@@ -459,8 +459,8 @@ def test_reinit_does_not_stack_wrappers(openai_answers: None) -> None:
         )
         client.shutdown()
     wrapped = BaseChatModel.__dict__["_generate_with_cache"]
-    inner = getattr(wrapped, langchain_span_context._MARK, wrapped)
-    assert not hasattr(inner, langchain_span_context._MARK)
+    inner = getattr(wrapped, langchain_span_context.MARK, wrapped)
+    assert not hasattr(inner, langchain_span_context.MARK)
 
 
 def test_uninstall_restores_the_hooked_classes(openai_answers: None) -> None:
@@ -471,7 +471,7 @@ def test_uninstall_restores_the_hooked_classes(openai_answers: None) -> None:
     try:
         assert langchain_span_context.install(instrumentor)
         assert all(
-            hasattr(cls.__dict__[name], langchain_span_context._MARK) for cls, name in originals
+            hasattr(cls.__dict__[name], langchain_span_context.MARK) for cls, name in originals
         )
         langchain_span_context.uninstall(instrumentor)
         assert {(cls, name): cls.__dict__[name] for cls, name in originals} == originals

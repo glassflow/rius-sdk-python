@@ -33,6 +33,7 @@ from .foreign import (
     Bridge,
     BridgeAwareSampler,
     ForeignParentDetector,
+    OwnPipeline,
     ResourceAdoptingExporter,
     bridge,
 )
@@ -730,7 +731,9 @@ def _do_init(
     # Every processor rides this one chain, so a bridged provider gets exactly
     # the treatment rius's own spans do.
     pipeline = SynchronousMultiSpanProcessor()  # type: ignore[no-untyped-call]
-    provider.add_span_processor(pipeline)
+    # Behind a switch shutdown() turns off: this provider may stay the OTel
+    # global after shutdown() and keep starting third-party spans.
+    provider.add_span_processor(OwnPipeline(pipeline))
     detector: ForeignParentDetector | None = None
 
     export_health: ExportOutcomeExporter | None = None
@@ -788,18 +791,23 @@ def _do_init(
         # Outermost wrapper so it observes the outcome of the whole chain
         # (masking included); client.flush() reads it for honest delivery
         # reporting.
-        export_health = ExportOutcomeExporter(exporter, endpoint=config.endpoint)
+        # A caller's own exporter has no RIUS_ENDPOINT behind it to blame, but
+        # workspace destinations from the default factory still do.
+        managed_workspaces = routing is not None and workspace_exporter_factory is None
+        export_health = ExportOutcomeExporter(
+            exporter,
+            endpoint=config.endpoint if span_exporter is None or managed_workspaces else None,
+            custom_exporter=span_exporter is not None and managed_workspaces,
+        )
         batch_processor = BatchSpanProcessor(export_health)
         detector = ForeignParentDetector(foreign_global)
         pipeline.add_span_processor(detector)
-        # Registered BEFORE the pending processor: both act at on_start, and
-        # the pending snapshot is built from the attributes already on the
-        # span, so the session id (and the workspace route, which decides
-        # which destination the snapshot itself goes to) must be stamped
-        # first to ride it.
-        # Before the pending processor, like the identity stampers: start-time
-        # normalization is what lets a pending snapshot (built at on_start,
-        # from the identity allowlist) carry canonical keys.
+        # Everything that writes at on_start (normalization, the compaction
+        # flag, the session, user and workspace stamps) is registered BEFORE
+        # the pending processor: the pending snapshot is built from the
+        # attributes already on the span, so canonical keys, the session id
+        # and the workspace route (which decides which destination the
+        # snapshot itself goes to) must be there first to ride it.
         pipeline.add_span_processor(NormalizingSpanProcessor())
         pipeline.add_span_processor(compacted_context)
         pipeline.add_span_processor(wrapped_calls)

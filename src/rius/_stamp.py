@@ -1,10 +1,12 @@
 """One span processor for "stamp a context value as an attribute at span start".
 
-Sessions, users and workspaces all work the same way: a scope puts a value in
-the OTel context, and a processor copies it onto every span at ``on_start``
-so pending snapshots (built at start) carry it too. This is the shared
-mechanism; each identity module keeps its own context key, attribute name and
-default policy.
+Sessions and users work the same way: a scope puts a value in the OTel
+context, and a processor copies it onto every span at ``on_start`` so pending
+snapshots (built at start) carry it too. This is the shared mechanism; each
+identity module keeps its own context key, attribute name and default policy.
+Workspaces stamp at start for the same reason but have their own processor
+(``workspace.WorkspaceSpanProcessor``), since they also check the alias
+against the parent span's.
 """
 
 from __future__ import annotations

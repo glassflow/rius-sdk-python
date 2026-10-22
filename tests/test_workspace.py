@@ -324,6 +324,25 @@ def test_key_rotation_shuts_down_and_evicts_the_replaced_exporter() -> None:
     assert [s.name for s in built[-1].get_finished_spans()] == ["last"]
 
 
+def test_shutdown_releases_an_exporter_rotated_out_since_the_last_export() -> None:
+    # The process can exit before another export would release it.
+    from rius.workspace import RoutingSpanExporter
+
+    built: list[_Tracked] = []
+
+    def factory(api_key: str) -> SpanExporter:
+        built.append(_Tracked())
+        return built[-1]
+
+    routing = RoutingSpanExporter(InMemorySpanExporter(), factory, {"acme": "key-0"})
+    routing.export([_stamped_span("acme", "s0")])
+    routing.register("acme", "key-1")
+    assert not built[0].shut
+    routing.shutdown()
+    assert built[0].shut
+    assert routing._retired == []
+
+
 def test_rotation_keeps_an_exporter_another_alias_still_uses() -> None:
     from rius.workspace import RoutingSpanExporter
 

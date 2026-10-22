@@ -205,8 +205,8 @@ def test_a_re_init_does_not_stack_the_wrappers(openai_answers: None) -> None:
         LiteLLMInstrumentor().uninstrument()
         start()
         entry = LiteLLMInstrumentor.original_litellm_funcs["completion"]
-        inner = entry.__rius_stream_context__
-        assert not hasattr(inner, "__rius_stream_context__")
+        inner = getattr(entry, litellm_stream_context.MARK)
+        assert not hasattr(inner, litellm_stream_context.MARK)
     finally:
         _release_instrumentors()
 

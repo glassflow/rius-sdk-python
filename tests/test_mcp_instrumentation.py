@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 from contextlib import asynccontextmanager
+from importlib.metadata import version
 from typing import Any
 
 import pytest
@@ -597,3 +599,13 @@ def test_exception_path_reraises_an_unprintable_exception() -> None:
     assert not span.status.is_ok
     assert span.attributes is not None
     assert span.attributes["error.type"].endswith("Unprintable")
+
+
+def test_runs_against_the_mcp_major_the_job_pins() -> None:
+    # The mcp-v1 CI job overlays mcp 1.x with `uv run --with`. A bare `pytest`
+    # there is the venv's script on the project interpreter, which never sees
+    # the overlay and silently tests the locked major instead.
+    expected = os.environ.get("RIUS_EXPECT_MCP_MAJOR")
+    if not expected:
+        pytest.skip("set by the CI job that pins an mcp major")
+    assert version("mcp").split(".")[0] == expected

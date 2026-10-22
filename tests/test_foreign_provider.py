@@ -167,6 +167,34 @@ def test_bridged_spans_are_exported_under_the_rius_resource_identity(
     assert job["deployment.environment"] == "x"
 
 
+def _ended_spans(provider: TracerProvider, *names: str) -> list[ReadableSpan]:
+    spans = []
+    for name in names:
+        span = provider.get_tracer("other.sdk").start_span(name)
+        span.end()
+        assert isinstance(span, ReadableSpan)
+        spans.append(span)
+    return spans
+
+
+def test_one_bridged_provider_gets_one_adopted_resource() -> None:
+    from rius.foreign import ResourceAdoptingExporter
+
+    ours = Resource({"service.name": "rius-svc"})
+    inner = InMemorySpanExporter()
+    exporter = ResourceAdoptingExporter(inner, ours)
+    other = TracerProvider(resource=Resource({"service.name": "other", "x": "y"}))
+    third = TracerProvider(resource=Resource({"service.name": "third", "z": "w"}))
+    exporter.export(_ended_spans(other, "a", "b"))
+    exporter.export(_ended_spans(other, "c") + _ended_spans(third, "d"))
+
+    a, b, c, d = inner.get_finished_spans()
+    # Built once per foreign resource, not once per span.
+    assert a.resource is b.resource is c.resource
+    assert dict(a.resource.attributes) == {"service.name": "rius-svc", "x": "y"}
+    assert dict(d.resource.attributes) == {"service.name": "rius-svc", "z": "w"}
+
+
 def test_rius_spans_keep_their_own_resource_object(
     foreign: tuple[_RecordingProvider, InMemorySpanExporter],
 ) -> None:

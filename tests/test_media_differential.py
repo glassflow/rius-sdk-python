@@ -59,7 +59,7 @@ def plain_bounded_dumps(value: Any) -> str:
     chunks: list[str] = []
     size = 0
     for chunk in _serde._encoder.iterencode(value, _one_shot=False):
-        chunk = _serde._SURROGATE.sub(_serde._escape_surrogate, chunk)
+        chunk = _serde.LONE_SURROGATE.sub(_serde._escape_surrogate, chunk)
         chunks.append(chunk)
         size += len(chunk)
         if size > _serde.MAX_STRIP_CHARS:
