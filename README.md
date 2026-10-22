@@ -91,6 +91,7 @@ variables:
 | `endpoint`     | `RIUS_ENDPOINT`     | `https://ingest.eu.console.rius-glassflow.com` | Base OTLP endpoint. Traces are sent to `<endpoint>/v1/traces`.       |
 | `api_key`      | `RIUS_API_KEY`      | none                           | Injected as an `Authorization: Bearer <key>` header on every export. |
 | `service_name` | `RIUS_SERVICE_NAME` | `unknown_service`              | Sets the OpenTelemetry `service.name` resource attribute.            |
+| `service_version` | `RIUS_SERVICE_VERSION` | none                       | Sets `service.version` on the resource. Unset leaves it off, so `OTEL_RESOURCE_ATTRIBUTES` can supply it. |
 | `disabled`     | `RIUS_DISABLED`     | `false`                        | Kill switch. When true, spans are created but never exported.        |
 | `sample_rate`  | `RIUS_SAMPLE_RATE`  | `1.0`                          | Head sampling ratio `0.0`–`1.0` (whole-trace; children follow root). |
 | `capture_content` | `RIUS_CAPTURE_CONTENT` | `true`                    | When false, prompt/response content is stripped at export (metadata still sent). |
@@ -98,6 +99,11 @@ variables:
 | `agent_name`   | `RIUS_AGENT_NAME`        | `service_name`                 | The agent this process is. Also the `gen_ai.main_agent.id` when `main_agent_id` is unset, so renaming it changes that id. |
 | `main_agent_id` | `RIUS_MAIN_AGENT_ID`    | a `gen_ai.main_agent.id` in `OTEL_RESOURCE_ATTRIBUTES`, else the agent name | A stable id for the agent (a registry id or an ARN), stamped as `gen_ai.main_agent.id`. Never a per-process value. |
 | `main_agent_description` | `RIUS_MAIN_AGENT_DESCRIPTION` | none             | What the agent does, stamped as `gen_ai.main_agent.description`. |
+| `heartbeat`    | `RIUS_HEARTBEAT`         | `true`                         | Send liveness pings to `<endpoint>/v1/heartbeat` (see [Heartbeat](#heartbeat)). |
+| `heartbeat_interval` | `RIUS_HEARTBEAT_INTERVAL` | `15`                   | Seconds between heartbeat pings, clamped to `5`–`300`. |
+| `partial_spans` | `RIUS_PARTIAL_SPANS`    | `false`                        | Also export a content-free snapshot of each span when it starts (see [Partial spans](#partial-spans)). |
+| `partial_spans_delay` | `RIUS_PARTIAL_SPANS_DELAY` | `0`                  | Seconds a span must stay open before its snapshot is sent, clamped to `0`–`60`. `0` sends it at start. |
+| `session_id`   | `RIUS_SESSION_ID`        | none                           | A process-wide `session.id` for every span; a `rius.session()` scope overrides it. |
 
 The agent this process *is* is described on the resource under the GenAI
 conventions' `gen_ai.main_agent.*`. `gen_ai.main_agent.id` is the entity's
@@ -142,6 +148,70 @@ rius.init(mask=lambda value: "[REDACTED]")  # redact all captured content
 rius.init(mask=lambda value, *, key: hash_pii(value) if "input" in key else value)
 rius.init(capture_content=False)  # drop content entirely, keep metadata
 ```
+
+### Sessions, users and workspaces
+
+Three context managers scope every span started inside them, including the
+spans of auto-instrumented libraries. Each stamps its value at span start, so
+it reaches partial spans too, and each follows async tasks the way
+OpenTelemetry context does.
+
+```python
+with rius.session(conversation_id):  # session.id on every span of the turn
+    handle_turn(message)
+
+with rius.session() as session_id:  # no argument: a fresh UUID for the block
+    run_job()
+
+with rius.user(request.user_id):  # user.id on every span of the request
+    handle(request)
+```
+
+Without a `session()` scope or `session_id`, spans carry no session id and the
+backend groups each trace as its own session. `session_id` (or
+`RIUS_SESSION_ID`) suits an agent that runs one session per process; a server
+handling many sessions should use the scope. Pass `user()` an opaque id rather
+than an email: it is stored on every span and shown in the console.
+
+To send different spans to different workspaces (one per customer, for
+example), opt in with `init(workspaces={alias: api_key, ...})` and pick the
+destination with `rius.workspace(alias)`. Spans outside a scope, or under an
+alias that is not registered (with a warning), go to the default workspace of
+`api_key`. `rius.register_workspace(alias, api_key)` adds a destination after
+`init()`, or rotates the key of an existing one; it needs `workspaces=` at
+`init()`, and an empty dict is enough.
+
+```python
+rius.init(api_key="glassflow_...", workspaces={})
+rius.register_workspace("acme", acme_key)
+
+with rius.workspace("acme"):
+    handle(request)  # exported with acme's key
+```
+
+A trace must stay in one workspace, so enter the scope at a request boundary,
+before the root span starts.
+
+### Heartbeat
+
+`init()` starts a background thread that sends a small liveness ping to
+`<endpoint>/v1/heartbeat` right away and then every 15 seconds
+(`heartbeat_interval`), so the console shows whether the agent is running even
+when it records no traces. `client.shutdown()`, or interpreter exit, sends a
+final ping that marks the agent as stopped. The heartbeat needs credentials:
+without `api_key` (or an `Authorization` header) it does not start. Turn it off
+with `init(heartbeat=False)` or `RIUS_HEARTBEAT=false`.
+
+### Partial spans
+
+A span normally leaves the process when it ends, so a long agent run shows
+nothing until it finishes, and a crashed one shows nothing at all. With
+`partial_spans=True` (or `RIUS_PARTIAL_SPANS=true`) each sampled span is also
+exported once when it starts, as a snapshot that carries its identity and
+`rius.span.pending=true` but never its content. The finished span replaces it;
+a snapshot that is never replaced records what a crashed agent was doing.
+`partial_spans_delay` sends a snapshot only for spans still open after that
+many seconds, so short spans cost nothing extra.
 
 ### Running next to another OpenTelemetry SDK
 
