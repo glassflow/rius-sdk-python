@@ -76,6 +76,22 @@ def _has_native_tracing() -> bool:
     return bool(_native(_run()["cases"]["create"]))
 
 
+_ARGUS_USAGE = tuple(
+    f"gen_ai.usage.{k}_tokens" for k in ("input", "output", "cache_read.input", "cache_write.input")
+)
+
+
+def _argus_badges_llm(attributes: dict[str, Any]) -> bool:
+    """argus-core's llm badge: the OpenInference kind, else a request model."""
+    kind = attributes.get("openinference.span.kind")
+    return kind == "LLM" if kind is not None else "gen_ai.request.model" in attributes
+
+
+def _argus_prices(attributes: dict[str, Any]) -> bool:
+    """argus-core's enrich.costFor: a request model and any token count, whatever the kind."""
+    return "gen_ai.request.model" in attributes and any(k in attributes for k in _ARGUS_USAGE)
+
+
 @pytest.mark.integration
 def test_the_runner_uses_the_anthropic_under_test() -> None:
     # A `uv run --with anthropic==X` overlay must reach the subprocess too.
@@ -119,13 +135,37 @@ def test_the_sdk_chat_span_is_a_plain_client_span(case: str) -> None:
         attributes = span["attributes"]
         assert span["kind"] == "CLIENT"
         assert "openinference.span.kind" not in attributes
-        # argus-core badges a span llm on the model and prices it on model + usage.
+        assert not _argus_badges_llm(attributes)
+        assert not _argus_prices(attributes)
         assert "gen_ai.request.model" not in attributes
         assert not [k for k in attributes if k.startswith("gen_ai.usage.")]
         assert {k for k in attributes if k.startswith("gen_ai.")} <= _KEPT_GEN_AI
         assert attributes["gen_ai.provider.name"] == "anthropic"
         assert attributes["server.address"] == "127.0.0.1"
         assert "http.response.status_code" in attributes
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("case", _CASES)
+def test_argus_badges_and_prices_each_call_once(case: str) -> None:
+    attributes = [s["attributes"] for s in _run()["cases"][case]]
+    assert sum(_argus_badges_llm(a) for a in attributes) == 1
+    if case != "not_found":
+        assert sum(_argus_prices(a) for a in attributes) == 1
+
+
+@pytest.mark.integration
+def test_a_bedrock_call_counts_once_and_its_sdk_span_keeps_its_provider() -> None:
+    spans = _run()["cases"].get("bedrock")
+    if spans is None:
+        pytest.skip("the Bedrock client needs botocore")
+    (llm,) = _llm(spans)
+    assert llm["scope"] == "openinference.instrumentation.anthropic"
+    for span in [s for s in spans if s["scope"].startswith("com.anthropic.sdk.")]:
+        assert span["scope"] == "com.anthropic.sdk.python.bedrock"
+        assert span["attributes"]["gen_ai.provider.name"] == "aws.bedrock"
+        assert not _argus_badges_llm(span["attributes"])
+        assert not _argus_prices(span["attributes"])
 
 
 @pytest.mark.integration
@@ -216,6 +256,24 @@ def _chat_span(provider: TracerProvider, scope: str = _SCOPE, **attributes: Any)
     span.set_attribute("gen_ai.response.model", "claude-sonnet-5")
     span.set_attribute("http.response.status_code", 200)
     span.end()
+
+
+@pytest.mark.parametrize(
+    ("scope", "provider_name"),
+    [
+        ("com.anthropic.sdk.python.bedrock", "aws.bedrock"),
+        ("com.anthropic.sdk.python.vertex", "gcp.vertex_ai"),
+        ("com.anthropic.sdk.python.foundry", "anthropic"),
+        ("com.anthropic.sdk.typescript", "anthropic"),
+    ],
+)
+def test_the_platform_clients_chat_spans_are_demoted_too(scope: str, provider_name: str) -> None:
+    provider, exporter = _pipeline(active=True)
+    _chat_span(provider, scope=scope, **{"gen_ai.provider.name": provider_name})
+    (span,) = exporter.get_finished_spans()
+    attributes = dict(span.attributes or {})
+    assert "gen_ai.request.model" not in attributes
+    assert attributes["gen_ai.provider.name"] == provider_name
 
 
 def test_the_processor_keeps_only_the_non_llm_keys() -> None:

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import contextlib
 import http.server
+import importlib.util
 import json
 import sys
 import threading
@@ -77,7 +78,8 @@ def _sse() -> bytes:
 class _Handler(http.server.BaseHTTPRequestHandler):
     def do_POST(self) -> None:  # noqa: N802 (http.server API)
         request = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))))
-        if request["model"] == "claude-nope":
+        # Bedrock names the model in the path, not the body.
+        if request.get("model") == "claude-nope":
             code, content_type = 404, "application/json"
             error = {"type": "not_found_error", "message": "model: claude-nope"}
             body = json.dumps({"type": "error", "error": error}).encode()
@@ -166,6 +168,22 @@ def main() -> None:
         "not_found": not_found,
         "compaction": compaction,
     }
+    if importlib.util.find_spec("botocore") is not None:
+        # The Bedrock client goes through the same Messages resource, so
+        # OpenInference wraps it too; its own span has a platform scope
+        # (com.anthropic.sdk.python.bedrock) and provider aws.bedrock.
+        bedrock = anthropic.AnthropicBedrock(
+            aws_access_key="AKIAEXAMPLE",
+            aws_secret_key="test-secret",
+            aws_region="us-east-1",
+            base_url=f"http://127.0.0.1:{server.server_port}",
+            max_retries=0,
+        )
+
+        def bedrock_create() -> None:
+            bedrock.messages.create(**request)
+
+        cases["bedrock"] = bedrock_create
     out: dict[str, Any] = {"anthropic": anthropic.__version__, "cases": {}}
     for name, call in cases.items():
         exporter.clear()
