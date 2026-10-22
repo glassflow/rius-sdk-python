@@ -501,3 +501,18 @@ def test_the_main_agent_version_and_the_service_version_are_independent() -> Non
     versioned_agent = _resource_with(main_agent_version="7")
     assert versioned_agent["rius.main_agent.version"] == "7"
     assert "service.version" not in versioned_agent
+
+
+def test_an_unnamed_process_emits_no_legacy_agent_name_either() -> None:
+    """gen_ai.agent.name on the resource is the same resolved name as
+    rius.main_agent.name, so the placeholder is suppressed there too: the
+    unknown_service fallback is not an agent identity."""
+    attrs = _unnamed_resource_with()
+    assert attrs["service.name"] == "unknown_service"
+    assert "gen_ai.agent.name" not in attrs
+    assert "gen_ai.main_agent.name" not in attrs
+
+
+def test_a_service_name_alone_still_names_the_agent_on_the_resource() -> None:
+    attrs = _unnamed_resource_with(service_name="billing")
+    assert attrs["gen_ai.agent.name"] == "billing"

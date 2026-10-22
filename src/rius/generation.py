@@ -9,20 +9,19 @@ spans are therefore readable by any gen_ai-compatible consumer.
 from __future__ import annotations
 
 import time
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from contextlib import contextmanager, nullcontext
 from typing import Any
 
 from opentelemetry.trace import Span
 
 from ._context_sizes import context_sizes
-from ._errors import error_type, record_error
+from ._errors import record_error
 from ._media import media_parts
 from ._serde import serialize
 from ._tracer import sdk_tracer
 from .normalization import REQUEST_PARAMETER_GUARDS, SKIP
 from .semconv import (
-    ERROR_TYPE,
     GEN_AI_INPUT_MESSAGES,
     GEN_AI_OPERATION_NAME,
     GEN_AI_OUTPUT_MESSAGES,
@@ -53,7 +52,7 @@ from .semconv import (
 )
 from .user import user
 
-Messages = str | list[Any]
+Messages = str | Mapping[str, Any] | list[Any]
 
 
 def _normalize_part(item: Any) -> list[dict[str, Any]]:
@@ -147,11 +146,12 @@ def _normalize_message(message: Any, default_role: str) -> dict[str, Any]:
 def normalize_messages(messages: Messages, default_role: str) -> list[dict[str, Any]]:
     """Normalize to the spec message-array shape (a list of ``{"role", "parts"}``).
 
-    A bare string becomes a single message with ``default_role``. This is the
-    one place messages are normalized: the content attribute and the context
-    sizes are both derived from its result.
+    A bare string, or a single message mapping, becomes a one-message list
+    (a string takes ``default_role``); iterating a lone mapping would walk its
+    keys. This is the one place messages are normalized: the content attribute
+    and the context sizes are both derived from its result.
     """
-    if isinstance(messages, str):
+    if isinstance(messages, (str, Mapping)):
         return [_normalize_message(messages, default_role)]
     return [_normalize_message(message, default_role) for message in messages]
 
@@ -611,19 +611,22 @@ def start_as_current_generation(
             name if name is not None else compose_span_name(SpanKind.LLM, attributes),
             kind=otel_span_kind(SpanKind.LLM),
             attributes=attributes,
+            # Recorded below through record_error, the one spelling every
+            # helper shares (the bare message as the status description).
+            record_exception=False,
+            set_status_on_exception=False,
         ) as span,
     ):
         generation = Generation(span)
         _configure(generation, provider=provider, input=input, tools=tools)
         try:
             yield generation
-        except BaseException as exc:
-            # The OTel context manager above records the exception event and
-            # ERROR status as the block unwinds; error.type is the one thing
-            # it does not set, and the GenAI conventions require it on an
-            # inference span that ends in an error. Set it before re-raising
-            # so the event and this attribute land on the same span.
-            span.set_attribute(ERROR_TYPE, error_type(exc))
+        except Exception as exc:
+            # Only an Exception is a failure. Cancellation, KeyboardInterrupt
+            # and SystemExit unwind through here unrecorded (UNSET, no event,
+            # no error.type), as they do through @observe and as OTel's own
+            # context manager treats them.
+            record_error(span, exc)
             raise
         finally:
             # Still inside the OTel context manager, so the span is recording:

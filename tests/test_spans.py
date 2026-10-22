@@ -648,3 +648,51 @@ def test_manual_span_takes_the_agent_version_too(exported_spans: InMemorySpanExp
     span = start_span("plan", kind=SpanKind.AGENT, agent_name="p", agent_version="7")
     span.end()
     assert exported_spans.get_finished_spans()[0].attributes["gen_ai.agent.version"] == "7"
+
+
+# --- set_attribute with structure is JSON, like every other path ---
+
+
+def test_set_attribute_with_a_dict_is_json_encoded(exported_spans: InMemorySpanExporter) -> None:
+    """A mapping is one JSON string, never an OTLP kvlist: every other path
+    the SDK writes structure through JSON-encodes it, and so does TypeScript."""
+    obs = start_span("op")
+    obs.set_attribute("app.meta", {"tier": "gold", "n": 2})
+    obs.end()
+
+    value = exported_spans.get_finished_spans()[0].attributes["app.meta"]
+    assert isinstance(value, str)
+    assert json.loads(value) == {"tier": "gold", "n": 2}
+
+
+def test_set_attribute_with_a_list_of_dicts_is_json_encoded(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    obs = start_span("op")
+    obs.set_attribute("app.docs", [{"id": "a"}, {"id": "b"}])
+    obs.end()
+
+    value = exported_spans.get_finished_spans()[0].attributes["app.docs"]
+    assert isinstance(value, str)
+    assert json.loads(value) == [{"id": "a"}, {"id": "b"}]
+
+
+def test_set_attribute_with_a_dict_holding_bytes_strips_them(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    obs = start_span("op")
+    obs.set_attribute("app.blob", {"data": b"\x00\x01\x02"})
+    obs.end()
+
+    value = exported_spans.get_finished_spans()[0].attributes["app.blob"]
+    assert json.loads(value) == {"data": "[stripped unknown 3 bytes]"}
+
+
+def test_set_attribute_keeps_primitive_arrays_native(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    obs = start_span("op")
+    obs.set_attribute("app.tags", ["a", "b"])
+    obs.end()
+
+    assert exported_spans.get_finished_spans()[0].attributes["app.tags"] == ("a", "b")

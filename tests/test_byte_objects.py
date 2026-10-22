@@ -360,7 +360,15 @@ def test_an_attribute_values_example_through_the_sdks_set_attribute(
     observation.end()
     [finished] = exported_spans.get_finished_spans()
     assert finished.attributes is not None
-    assert _as_written(finished.attributes["payload"]) == example["output"]
+    written = finished.attributes["payload"]
+    if isinstance(example["output"], dict):
+        # The SDK's setter writes structure as JSON, as every other SDK path
+        # does, where a raw OpenTelemetry span holds the mapping: the same
+        # markers, one string around them.
+        assert isinstance(written, str)
+        assert json.loads(written) == example["output"]
+    else:
+        assert _as_written(written) == example["output"]
 
 
 def test_the_sdks_set_attribute_leaves_other_values_as_they_are(

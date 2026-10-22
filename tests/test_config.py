@@ -1,3 +1,5 @@
+import logging
+
 import pytest
 
 from rius.config import DEFAULT_ENDPOINT, GlassflowConfig, resolve_config
@@ -218,3 +220,43 @@ def test_the_agent_definition_version_is_not_the_service_version(
     monkeypatch.delenv("RIUS_MAIN_AGENT_VERSION", raising=False)
     assert resolve_config(service_version="2.3.1").main_agent_version is None
     assert resolve_config(main_agent_version="7").service_version is None
+
+
+# --- an unrecognised boolean keeps the default, with a warning ---
+
+
+@pytest.mark.parametrize(
+    ("name", "attr", "default"),
+    [
+        ("RIUS_CAPTURE_CONTENT", "capture_content", True),
+        ("RIUS_HEARTBEAT", "heartbeat", True),
+        ("RIUS_DISABLED", "disabled", False),
+        ("RIUS_PARTIAL_SPANS", "partial_spans", False),
+    ],
+)
+@pytest.mark.parametrize("raw", ["", "  ", "maybe", "enabled"])
+def test_an_unrecognised_boolean_env_keeps_the_default_and_warns(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    name: str,
+    attr: str,
+    default: bool,
+    raw: str,
+) -> None:
+    """Reading it as false silently turned off default-on features such as
+    content capture and the heartbeat."""
+    monkeypatch.setenv(name, raw)
+    with caplog.at_level(logging.WARNING, logger="rius.config"):
+        config = resolve_config()
+    assert getattr(config, attr) is default
+    assert any(name in record.getMessage() for record in caplog.records)
+
+
+@pytest.mark.parametrize("raw", ["0", "false", "no", "off", " OFF "])
+def test_a_recognised_false_boolean_env_turns_the_flag_off(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, raw: str
+) -> None:
+    monkeypatch.setenv("RIUS_CAPTURE_CONTENT", raw)
+    with caplog.at_level(logging.WARNING, logger="rius.config"):
+        assert resolve_config().capture_content is False
+    assert not caplog.records
