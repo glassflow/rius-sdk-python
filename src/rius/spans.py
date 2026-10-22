@@ -336,7 +336,7 @@ def start_as_current_span(
     """Open a span as the current span and yield an ``Observation``; auto-ends.
 
     Exceptions raised in the block are recorded and set the span status to ERROR
-    (OpenTelemetry's ``start_as_current_span`` default), then re-raised.
+    and ``error.type``, then re-raised unchanged.
 
     ``name`` is optional. Left out, the span is named the way the GenAI
     conventions say it should be: the operation the kind maps to, followed by
@@ -415,8 +415,9 @@ def start_as_current_span(
             span_name,
             kind=otel_span_kind(kind),
             attributes=attributes,
-            # Recorded below through record_error, the one spelling every
-            # helper shares (the bare message as the status description).
+            # Recorded below through record_error instead: OTel's own recording
+            # calls str(exc), which raises for an exception with a broken
+            # __str__ and would replace the caller's exception with that error.
             record_exception=False,
             set_status_on_exception=False,
         ) as span,

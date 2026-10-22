@@ -53,7 +53,7 @@ from opentelemetry.trace import Status, StatusCode
 
 from . import __version__
 from ._agent import executing_agent_name
-from ._errors import error_type
+from ._errors import record_error
 from ._serde import serialize, truncate
 from .semconv import (
     ERROR_TYPE,
@@ -221,9 +221,7 @@ class MCPInstrumentor:
                 try:
                     result = await original(session, name, arguments, *args, **kw)
                 except Exception as exc:
-                    span.record_exception(exc)
-                    span.set_status(Status(StatusCode.ERROR, str(exc)))
-                    span.set_attribute(ERROR_TYPE, error_type(exc))
+                    record_error(span, exc)
                     raise
                 _record_result(span, result)
                 return result

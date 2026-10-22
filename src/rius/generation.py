@@ -129,9 +129,14 @@ def _normalize_message(message: Any, default_role: str) -> dict[str, Any]:
         parts.extend(media_parts({"type": "input_audio", "input_audio": audio}) or [])
         if isinstance(audio.get("transcript"), str):
             parts.append({"type": "text", "content": audio["transcript"]})
-    for call in message.get("tool_calls") or []:
+    tool_calls = message.get("tool_calls")
+    # Anything but a list of dicts is not a tool call this can read: skipped,
+    # never raised into the caller's start_as_current_generation(input=...).
+    for call in tool_calls if isinstance(tool_calls, (list, tuple)) else ():
         if isinstance(call, dict):
-            function = call.get("function") or {}
+            function = call.get("function")
+            if not isinstance(function, dict):
+                function = {}
             parts.append(
                 {
                     "type": "tool_call",
@@ -611,8 +616,8 @@ def start_as_current_generation(
             name if name is not None else compose_span_name(SpanKind.LLM, attributes),
             kind=otel_span_kind(SpanKind.LLM),
             attributes=attributes,
-            # Recorded below through record_error, the one spelling every
-            # helper shares (the bare message as the status description).
+            # Recorded below through record_error instead, for the reason in
+            # spans.start_as_current_span.
             record_exception=False,
             set_status_on_exception=False,
         ) as span,

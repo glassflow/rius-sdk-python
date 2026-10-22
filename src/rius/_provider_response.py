@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import json
 from collections.abc import Mapping
 from typing import Any
 
+from ._serde import loads_object
 from .semconv import OUTPUT_VALUE
 
 OUTPUT_MIME_TYPE = "output.mime_type"
@@ -37,8 +37,5 @@ def is_compact_reply(raw: str) -> bool:
     """Whether ``raw`` is the reply of ``POST /responses/compact``."""
     if COMPACT_ENDPOINT_OBJECT not in raw:
         return False
-    try:
-        payload = json.loads(raw)
-    except ValueError:
-        return False
-    return isinstance(payload, dict) and payload.get("object") == COMPACT_ENDPOINT_OBJECT
+    payload = loads_object(raw)
+    return payload is not None and payload.get("object") == COMPACT_ENDPOINT_OBJECT
