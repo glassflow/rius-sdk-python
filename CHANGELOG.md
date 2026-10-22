@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.5.0](https://github.com/glassflow/rius-sdk-python/compare/v1.4.0...v1.5.0) (2026-10-22)
+
+
+### Features
+
+* report provider compactions and add mark_compaction (RIUS-1544) ([#213](https://github.com/glassflow/rius-sdk-python/issues/213)) ([7f86981](https://github.com/glassflow/rius-sdk-python/commit/7f86981ffb548e9adadd3e83722567bf0c85ab36))
+
+
+### Bug Fixes
+
+* keep a plain data URL whose header holds data%3A one token ([#216](https://github.com/glassflow/rius-sdk-python/issues/216)) ([0ef4c85](https://github.com/glassflow/rius-sdk-python/commit/0ef4c8573e35e4f54050915d7409552d06753169))
+* strip percent-encoded and escaped-wrapped data URLs, and size a newline-terminated one ([#215](https://github.com/glassflow/rius-sdk-python/issues/215)) ([1521091](https://github.com/glassflow/rius-sdk-python/commit/1521091e050ff683a5e46d7d1f66cebfbc2effc2))
+
 ## [1.4.0](https://github.com/glassflow/rius-sdk-python/compare/v1.3.1...v1.4.0) (2026-10-21)
 
 
