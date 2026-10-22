@@ -669,6 +669,12 @@ LINK_AND_DATA_URL = "https://x/a.wav\ndata:image/png;base64,iVBO\nRw0KGgo="
             _blob("document", None, None, "not_captured"),
         ),
         ({"file_data": {"file_uri": "data:,a.wav"}}, _blob("document", None, None, "not_captured")),
+        # A percent-encoded data URL is read by its scheme too, never by the
+        # extension after it.
+        (
+            {"file_data": {"file_uri": "data%3Ax%3Bbase64%2CQUFB/a.wav"}},
+            _blob("document", None, None, "not_captured"),
+        ),
         (
             {"fileData": {"mimeType": "audio/wav", "fileUri": LINK_AND_DATA_URL}},
             _blob("audio", "audio/wav", None, "not_captured"),
