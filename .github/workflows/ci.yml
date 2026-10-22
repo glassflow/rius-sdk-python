@@ -62,6 +62,37 @@ jobs:
           python -c "import importlib.metadata as m; print('mcp', m.version('mcp'))"
       - run: uv run --with "mcp>=1.28.1,<2" pytest tests/test_mcp_instrumentation.py
 
+  # pyproject declares opentelemetry-*>=1.24 but the lock resolves the newest
+  # release, so this job re-runs the suite on the floor: the whole OTel family
+  # pinned to the 1.24.0 release, contrib packages at their matching 0.45b0
+  # (the locked opentelemetry-instrumentation needs a newer API), and
+  # setuptools for the pkg_resources that instrumentation 0.45b0 imports.
+  # `python -m pytest`, not `pytest`: the venv's pytest script runs the
+  # project interpreter directly and would never see the overlay. The first
+  # step prints the versions, which shows in the log that the overlay took.
+  otel-floor:
+    runs-on: ubuntu-latest
+    env:
+      OTEL_FLOOR: >-
+        --with opentelemetry-api==1.24.0
+        --with opentelemetry-sdk==1.24.0
+        --with opentelemetry-exporter-otlp-proto-http==1.24.0
+        --with opentelemetry-semantic-conventions==0.45b0
+        --with opentelemetry-instrumentation==0.45b0
+        --with setuptools<81
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          enable-cache: true
+          python-version: "3.10"
+      - run: uv sync --locked --group dev
+      - run: >-
+          uv run $OTEL_FLOOR python -c "import importlib.metadata as m;
+          print({p: m.version(p) for p in ('opentelemetry-api', 'opentelemetry-sdk',
+          'opentelemetry-exporter-otlp-proto-http')})"
+      - run: uv run $OTEL_FLOOR python -m pytest
+
   # Every instrumentation.REGISTRY entry must resolve against its real package —
   # enable_instrumentations() swallows ImportError, so a typo'd module/class name
   # would otherwise ship silently.

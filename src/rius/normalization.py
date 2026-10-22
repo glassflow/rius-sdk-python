@@ -109,7 +109,7 @@ from opentelemetry.sdk.trace import Event, ReadableSpan, Span, SpanProcessor
 from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
 from opentelemetry.trace import Link, StatusCode
 
-from ._attributes import replacement_attributes
+from ._attributes import rebuilt_item_attributes, replacement_attributes
 from ._media import (
     rebuild_native_parts,
     url_part,
@@ -1192,7 +1192,7 @@ def _stripped_events(span: ReadableSpan) -> tuple[Event, ...] | None:
     return tuple(
         event
         if attributes is None
-        else Event(event.name, replacement_attributes(event, attributes), event.timestamp)
+        else Event(event.name, rebuilt_item_attributes(event, attributes), event.timestamp)
         for event, attributes in rebuilt
     )
 
@@ -1211,7 +1211,10 @@ def _compaction_events(
     if not found.events or any(event.name == RIUS_COMPACTION_EVENT for event in span.events):
         return [], False
     timestamp = span.end_time if span.end_time is not None else span.start_time
-    events = [Event(RIUS_COMPACTION_EVENT, event, timestamp) for event in found.events]
+    events = [
+        Event(RIUS_COMPACTION_EVENT, rebuilt_item_attributes(None, event), timestamp)
+        for event in found.events
+    ]
     return events, found.compacted_context
 
 
@@ -1222,7 +1225,9 @@ def _stripped_links(span: ReadableSpan) -> tuple[Link, ...] | None:
     if all(attributes is None for _, attributes in rebuilt):
         return None
     return tuple(
-        link if attributes is None else Link(link.context, replacement_attributes(link, attributes))
+        link
+        if attributes is None
+        else Link(link.context, rebuilt_item_attributes(link, attributes))
         for link, attributes in rebuilt
     )
 

@@ -18,10 +18,21 @@ from opentelemetry.attributes import BoundedAttributes
 
 
 class _Dropping(Protocol):
-    """A span, event or link: anything the OTel SDK reports a dropped count for."""
+    """A span, event or link: anything that carries attributes and may drop some."""
 
     @property
-    def dropped_attributes(self) -> int: ...
+    def attributes(self) -> Any: ...
+
+
+def _dropped_count(item: _Dropping) -> int:
+    # OTel SDKs before 1.25 (events) and 1.27 (links) have no
+    # ``dropped_attributes`` property; the count lives only on the
+    # BoundedAttributes the SDK built.
+    count = getattr(item, "dropped_attributes", None)
+    if count is None:
+        attributes = item.attributes
+        count = attributes.dropped if isinstance(attributes, BoundedAttributes) else 0
+    return int(count)
 
 
 def replacement_attributes(span: _Dropping, attributes: Mapping[str, Any]) -> Mapping[str, Any]:
@@ -32,9 +43,27 @@ def replacement_attributes(span: _Dropping, attributes: Mapping[str, Any]) -> Ma
     The count is the OTel SDK's own and is carried unchanged: keys a rewrite
     removed on purpose (a mapped source, a masked value) were not dropped.
     """
-    dropped = span.dropped_attributes
+    dropped = _dropped_count(span)
     if not dropped:
         return attributes
+    return _carrying(attributes, dropped)
+
+
+def rebuilt_item_attributes(
+    item: _Dropping | None, attributes: Mapping[str, Any]
+) -> BoundedAttributes:
+    """Attributes for an event or link rebuilt at export time.
+
+    Always a ``BoundedAttributes``, unlike ``replacement_attributes``: the
+    OTLP encoder of OTel before 1.25 reads ``attributes.dropped`` straight off
+    every event and link, so a plain dict there fails the whole batch. ``item``
+    is the event or link being replaced, whose dropped count is carried; pass
+    ``None`` for a new one.
+    """
+    return _carrying(attributes, 0 if item is None else _dropped_count(item))
+
+
+def _carrying(attributes: Mapping[str, Any], dropped: int) -> BoundedAttributes:
     carried = BoundedAttributes(attributes=attributes, immutable=True)
     carried.dropped = dropped
     return carried

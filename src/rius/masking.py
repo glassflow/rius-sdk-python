@@ -26,7 +26,7 @@ from opentelemetry.sdk.trace import Event, ReadableSpan
 from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
 from opentelemetry.trace import Link, Status
 
-from ._attributes import replacement_attributes
+from ._attributes import rebuilt_item_attributes, replacement_attributes
 from ._serde import serialize
 from .semconv import (
     CONTENT_ATTRIBUTE_PREFIXED_SUFFIXES,
@@ -181,7 +181,9 @@ class MaskingSpanExporter(SpanExporter):
                 out.append(event)
                 continue
             changed = True
-            out.append(Event(event.name, new_attributes, event.timestamp))
+            out.append(
+                Event(event.name, rebuilt_item_attributes(event, new_attributes), event.timestamp)
+            )
         return tuple(out) if changed else None
 
     def _sanitize_links(self, links: Sequence[Link]) -> tuple[Link, ...] | None:
@@ -195,7 +197,7 @@ class MaskingSpanExporter(SpanExporter):
                 out.append(link)
                 continue
             changed = True
-            out.append(Link(link.context, new_attributes))
+            out.append(Link(link.context, rebuilt_item_attributes(link, new_attributes)))
         return tuple(out) if changed else None
 
     def _sanitize_mapping(

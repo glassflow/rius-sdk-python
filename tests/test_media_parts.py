@@ -1723,9 +1723,11 @@ def test_a_stripped_event_or_link_keeps_its_dropped_attribute_count() -> None:
     link = Link(SpanContext(trace_id=1, span_id=3, is_remote=False), attributes)
     out = _export(_span({"k": "v"}, events=(event,), links=(link,)))
     assert out.events[0].attributes == {"note": "[stripped image/png 8 bytes]"}
-    assert out.events[0].dropped_attributes == 1
+    # Read off the attributes, which every OTel version carries the count on
+    # (Event.dropped_attributes arrives in 1.25, Link's in 1.27).
+    assert out.events[0].attributes.dropped == 1
     assert out.links[0].attributes == {"note": "[stripped image/png 8 bytes]"}
-    assert out.links[0].dropped_attributes == 1
+    assert out.links[0].attributes.dropped == 1
 
 
 def test_a_span_with_no_media_is_exported_as_it_came() -> None:
