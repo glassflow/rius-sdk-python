@@ -25,7 +25,10 @@ from . import __version__
 from .semconv import TRACER_NAME
 
 _lock = threading.Lock()
-_active: trace.Tracer | None = None
+# The provider rides along with its tracer so withdraw() can compare
+# providers: OTel SDKs before 1.42 hand out a fresh tracer per get_tracer()
+# call, so asking the provider again would never match what was published.
+_active: tuple[trace.TracerProvider, trace.Tracer] | None = None
 
 
 def publish(provider: trace.TracerProvider) -> None:
@@ -33,7 +36,7 @@ def publish(provider: trace.TracerProvider) -> None:
     global _active
     tracer = provider.get_tracer(TRACER_NAME, __version__)
     with _lock:
-        _active = tracer
+        _active = (provider, tracer)
 
 
 def withdraw(provider: trace.TracerProvider) -> None:
@@ -44,20 +47,13 @@ def withdraw(provider: trace.TracerProvider) -> None:
     """
     global _active
     with _lock:
-        if _active is not None and _active is _tracer_of(provider):
+        if _active is not None and _active[0] is provider:
             _active = None
-
-
-def _tracer_of(provider: trace.TracerProvider) -> trace.Tracer:
-    # SDK providers cache tracers per (name, version), so this returns the
-    # same object publish() stored; the API's proxy provider does not, but a
-    # proxy is never what init() publishes.
-    return provider.get_tracer(TRACER_NAME, __version__)
 
 
 def sdk_tracer() -> trace.Tracer:
     """The tracer for SDK-created spans: the active client's, else the global."""
-    tracer = _active  # single attribute read; no lock needed on the hot path
-    if tracer is not None:
-        return tracer
+    active = _active  # single attribute read; no lock needed on the hot path
+    if active is not None:
+        return active[1]
     return trace.get_tracer(TRACER_NAME, __version__)
