@@ -20,6 +20,7 @@ from opentelemetry.sdk.trace.sampling import ParentBased, Sampler, TraceIdRatioB
 
 from . import __version__, _agent, _tracer
 from ._credential_headers import CredentialHeaderDroppingExporter
+from ._native_spans import NativeChatSpanDemoter
 from .aggregated_usage import WrappedCallTracker
 from .compaction import CompactedContextProcessor
 from .config import DEFAULT_ENDPOINT, GlassflowConfig, resolve_config
@@ -38,7 +39,7 @@ from .foreign import (
     bridge,
 )
 from .heartbeat import HeartbeatSender, OpenRootSpanTracker
-from .instrumentation import enable_instrumentations
+from .instrumentation import enable_instrumentations, instruments_for
 from .instrumentation import release as release_instrumentations
 from .masking import MaskingSpanExporter
 from .normalization import NormalizingSpanExporter, NormalizingSpanProcessor
@@ -803,6 +804,13 @@ def _do_init(
         batch_processor = BatchSpanProcessor(export_health)
         detector = ForeignParentDetector(foreign_global)
         pipeline.add_span_processor(detector)
+        # Ahead of everything that reads a span at start or end: the anthropic
+        # SDK's own chat span must reach normalization, the compaction flag
+        # and the pending snapshot already demoted, or it counts as a second
+        # LLM span next to OpenInference's.
+        pipeline.add_span_processor(
+            NativeChatSpanDemoter(lambda: instruments_for("anthropic", provider))
+        )
         # Everything that writes at on_start (normalization, the compaction
         # flag, the session, user and workspace stamps) is registered BEFORE
         # the pending processor: the pending snapshot is built from the

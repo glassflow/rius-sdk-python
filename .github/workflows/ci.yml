@@ -67,6 +67,30 @@ jobs:
           python -c "import importlib.metadata as m; print('mcp', m.version('mcp'))"
       - run: uv run --with "mcp>=1.28.1,<2" python -m pytest tests/test_mcp_instrumentation.py
 
+  # openai 3.x is in scope (the openai extra installs only the instrumentor,
+  # and langchain-openai accepts openai<4), but the lock cannot hold it:
+  # llama-index-llms-openai and litellm both cap openai<3. This job re-runs
+  # the suite with 3.x overlaid. The LlamaIndex span-context tests are left
+  # out because no released llama-index-llms-openai installs alongside 3.x.
+  # `python -m pytest` for the same reason as mcp-v1, and
+  # RIUS_EXPECT_OPENAI_MAJOR fails a test if the overlay stops reaching it.
+  openai-v3:
+    runs-on: ubuntu-latest
+    env:
+      RIUS_EXPECT_OPENAI_MAJOR: "3"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          enable-cache: true
+      - run: uv sync --locked --group dev
+      - run: >-
+          uv run --with "openai>=3,<4"
+          python -c "import importlib.metadata as m; print('openai', m.version('openai'))"
+      - run: >-
+          uv run --with "openai>=3,<4"
+          python -m pytest --ignore tests/test_llama_index_span_context.py
+
   # pyproject declares opentelemetry-*>=1.24 but the lock resolves the newest
   # release, so this job re-runs the suite on the floor: the whole OTel family
   # pinned to the 1.24.0 release, contrib packages at their matching 0.45b0

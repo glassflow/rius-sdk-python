@@ -259,6 +259,21 @@ Supported instruments: `openai`, `anthropic`, `langchain`, `llama-index`,
 `litellm`, and `mcp`. Content captured by instrumentors is covered by the same
 `mask` / `capture_content` controls as our own spans.
 
+From `anthropic` 1.14.0 the Anthropic SDK also starts a span of its own for
+each API call. While the `anthropic` instrument covers the call, rius exports
+the SDK's chat span as a plain client span (its HTTP and `anthropic.*`
+attributes, without the model, usage or message content), so each call counts
+once in tokens and cost. Without the instrument, the SDK's span is the call's
+LLM span. Two things to expect:
+
+- A top-level `messages.stream()` (outside any `@observe` or span of yours)
+  lands in two traces: the SDK starts its span outside the instrumentor's, so
+  the plain client span is the root of a trace with no LLM span. Inside a span
+  of yours, both are in its trace.
+- The client span keeps `gen_ai.conversation.id` when the SDK sets one. If you
+  set no `session_id`, the backend can group by that id, so the client span
+  may land in a different session from the LLM span.
+
 The `mcp` instrument is built in and has **no extra**: there is no third-party
 instrumentation to install, and an extra that installed `mcp` for you would
 break the rule above. If the [`mcp`](https://pypi.org/project/mcp/)

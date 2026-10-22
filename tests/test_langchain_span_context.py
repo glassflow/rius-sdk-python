@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import contextvars
+import importlib
 import json
 import socket
 from collections.abc import Iterator
@@ -84,6 +85,13 @@ def _sse_body() -> bytes:
     return "".join(events).encode()
 
 
+def _optional(module: str) -> list[Any]:
+    try:
+        return [importlib.import_module(module)]
+    except ImportError:
+        return []
+
+
 def _release_instrumentors() -> None:
     """Undo both instrumentors, so init() enables and binds them afresh.
 
@@ -100,20 +108,25 @@ def _release_instrumentors() -> None:
 def openai_answers(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     """Answer every OpenAI chat request, streamed or not, with usage."""
 
-    def answer(request: Any) -> Any:
-        assert str(request.url) == CHAT
-        if json.loads(request.content).get("stream"):
-            return httpx.Response(
-                200, headers={"content-type": "text/event-stream"}, content=_sse_body()
-            )
-        return httpx.Response(200, json=_completion())
+    def answering(http: Any) -> tuple[Any, Any]:
+        def answer(self: Any, request: Any) -> Any:
+            assert str(request.url) == CHAT
+            if json.loads(request.content).get("stream"):
+                return http.Response(
+                    200, headers={"content-type": "text/event-stream"}, content=_sse_body()
+                )
+            return http.Response(200, json=_completion())
 
-    monkeypatch.setattr(httpx.HTTPTransport, "handle_request", lambda self, req: answer(req))
+        async def answer_async(self: Any, request: Any) -> Any:
+            return answer(self, request)
 
-    async def answer_async(self: Any, request: Any) -> Any:
-        return answer(request)
+        return answer, answer_async
 
-    monkeypatch.setattr(httpx.AsyncHTTPTransport, "handle_async_request", answer_async)
+    # openai 3.x sends through httpx2, the 2.x line through httpx.
+    for http in (httpx, *_optional("httpx2")):
+        answer, answer_async = answering(http)
+        monkeypatch.setattr(http.HTTPTransport, "handle_request", answer)
+        monkeypatch.setattr(http.AsyncHTTPTransport, "handle_async_request", answer_async)
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
     def no_network(*args: Any, **kwargs: Any) -> Any:

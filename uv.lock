@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.10"
 resolution-markers = [
     "python_full_version >= '3.15'",
@@ -235,7 +235,7 @@ wheels = [
 
 [[package]]
 name = "anthropic"
-version = "1.14.0"
+version = "2.1.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
@@ -247,9 +247,9 @@ dependencies = [
     { name = "sniffio" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/0f/c2/be99fac19b24c22b00d2a63ac1756b203bd3058ff54a14028c43b9f33116/anthropic-1.14.0.tar.gz", hash = "sha256:d9284895864a8457ed87f0accc51fd488ad9743952e597c814e7dc9d78ac8e38", size = 1715378, upload-time = "2026-10-14T17:13:33.508Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/96/6d/b94f1ea6287bed4d76e1110fba99fc33d39af857e4191820485c1e3cb0da/anthropic-2.1.0.tar.gz", hash = "sha256:7533cc9035ef056159ec44f54e309de7b7d5ae329ff8f7df9da9ba05188d3c25", size = 1766577, upload-time = "2026-10-21T22:00:56.769Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/5d/66/c395049fa6bf20b7f244adc8b7466f86a416b11f03528fa325868483de3a/anthropic-1.14.0-py3-none-any.whl", hash = "sha256:abd787048378abfabeebbad917ae0f9eae1eb4dfaa0a754096b5eea02dcf8c12", size = 2043565, upload-time = "2026-10-14T17:13:35.513Z" },
+    { url = "https://files.pythonhosted.org/packages/02/f6/6c205e7e7fd2e6087692422b286fac4a2557ca60996b797276f23e03b431/anthropic-2.1.0-py3-none-any.whl", hash = "sha256:d776fa2ea9a07e20336a0668d1ef3a12357fdef75c895f54a050b3746b8e4de8", size = 2105866, upload-time = "2026-10-21T22:00:54.48Z" },
 ]
 
 [[package]]
@@ -2842,9 +2842,10 @@ wheels = [
 
 [[package]]
 name = "openinference-instrumentation-openai"
-version = "0.1.52"
+version = "0.1.65"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
+    { name = "anyio" },
     { name = "openinference-instrumentation" },
     { name = "openinference-semantic-conventions" },
     { name = "opentelemetry-api" },
@@ -2853,9 +2854,9 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "wrapt" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f2/90/c81c7426cb9dca075cef1b5fe16f58c68604b7518f7aaa14d837ec80fde3/openinference_instrumentation_openai-0.1.52.tar.gz", hash = "sha256:5a3dceb742209463e33ab2a4aa82f56bedfa20c25c738de28248509931044ea1", size = 23087, upload-time = "2026-06-11T17:13:35.517Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/bc/83/cb4fa924d602ddf47e495cfb776cb3c697955ca5d0363ed3dce565701bab/openinference_instrumentation_openai-0.1.65.tar.gz", hash = "sha256:86a83a656277165cc012c42e7bbc0569b7cf97b50081e11bd50cbd41f5c632de", size = 29859, upload-time = "2026-10-09T18:29:06.725Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/9b/ff/10d75f37dd006072db725d36a30b343386d6404526eeda877bbe37157abe/openinference_instrumentation_openai-0.1.52-py3-none-any.whl", hash = "sha256:aa96d41cb755e0d9b3d5a09331d991b7424c017c107d0bf196b03d3e5a7dc475", size = 30532, upload-time = "2026-06-11T17:13:34.327Z" },
+    { url = "https://files.pythonhosted.org/packages/10/ce/003b9366e7f01eb0b8373156a31c92c71ef44289d27e963e09ca7c581686/openinference_instrumentation_openai-0.1.65-py3-none-any.whl", hash = "sha256:aa29ae89aecfed1a705b3b91c8d631fc7cd2f136b31eafb3229d9cf464bf83f0", size = 37952, upload-time = "2026-10-09T18:29:05.017Z" },
 ]
 
 [[package]]
