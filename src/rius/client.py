@@ -54,6 +54,7 @@ from .semconv import (
     RIUS_MAIN_AGENT_VERSION,
     RIUS_SDK_GLOBAL_PROVIDER,
     SERVICE_INSTANCE_ID,
+    SERVICE_NAME,
     SERVICE_VERSION,
     TELEMETRY_DISTRO_NAME,
     TELEMETRY_DISTRO_VERSION,
@@ -693,7 +694,7 @@ def _do_init(
     # it); we identify as a distribution via telemetry.distro.*.
     resource = Resource.create(
         {
-            "service.name": config.service_name,
+            SERVICE_NAME: config.service_name,
             SERVICE_INSTANCE_ID: instance_id,
             # Only when known. Passing None would stamp the attribute with a
             # null OTel drops with a warning, and passing a placeholder would

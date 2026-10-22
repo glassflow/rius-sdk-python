@@ -130,9 +130,11 @@ from ._serde import (
 from .aggregated_usage import WrappedCallTracker, move_aggregated_usage
 from .compaction import CompactedContextProcessor
 from .semconv import (
+    EMBEDDING_MODEL_NAME,
     ERROR_TYPE,
     EXCEPTION_EVENT,
     EXCEPTION_TYPE,
+    GEN_AI_CLIENT_OPERATION_TIME_TO_FIRST_CHUNK,
     GEN_AI_CONVERSATION_COMPACTED,
     GEN_AI_INPUT_MESSAGES,
     GEN_AI_OPERATION_NAME,
@@ -157,24 +159,55 @@ from .semconv import (
     GEN_AI_RESPONSE_ID,
     GEN_AI_RESPONSE_MODEL,
     GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK,
+    GEN_AI_SYSTEM,
+    GEN_AI_SYSTEM_INSTRUCTIONS,
     GEN_AI_TOOL_DEFINITIONS,
     GEN_AI_TOOL_NAME,
     GEN_AI_USAGE_AUDIO_CACHE_READ_INPUT_TOKENS,
     GEN_AI_USAGE_AUDIO_INPUT_TOKENS,
     GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS,
+    GEN_AI_USAGE_CACHE_CREATION_INPUT_TOKENS,
     GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS,
     GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS,
+    GEN_AI_USAGE_DETAILS_AUDIO_CACHE_TOKENS,
+    GEN_AI_USAGE_DETAILS_AUDIO_CANDIDATES_TOKENS,
+    GEN_AI_USAGE_DETAILS_AUDIO_PROMPT_TOKENS,
+    GEN_AI_USAGE_DETAILS_AUDIO_RESPONSE_TOKENS,
+    GEN_AI_USAGE_DETAILS_CACHE_AUDIO_READ_TOKENS,
+    GEN_AI_USAGE_DETAILS_IMAGE_CACHE_TOKENS,
+    GEN_AI_USAGE_DETAILS_IMAGE_CANDIDATES_TOKENS,
+    GEN_AI_USAGE_DETAILS_IMAGE_PROMPT_TOKENS,
+    GEN_AI_USAGE_DETAILS_INPUT_AUDIO_TOKENS,
+    GEN_AI_USAGE_DETAILS_OUTPUT_AUDIO_TOKENS,
+    GEN_AI_USAGE_DETAILS_REASONING_TOKENS,
+    GEN_AI_USAGE_DETAILS_THINKING_TOKENS,
+    GEN_AI_USAGE_DETAILS_THOUGHTS_TOKENS,
     GEN_AI_USAGE_IMAGE_CACHE_READ_INPUT_TOKENS,
     GEN_AI_USAGE_IMAGE_INPUT_TOKENS,
     GEN_AI_USAGE_IMAGE_OUTPUT_TOKENS,
+    GEN_AI_USAGE_INPUT_TOKEN_DETAILS_AUDIO_TOKENS,
     GEN_AI_USAGE_INPUT_TOKENS,
     GEN_AI_USAGE_OUTPUT_TOKENS,
     GEN_AI_USAGE_REASONING_OUTPUT_TOKENS,
     INVOCATION_PARAMETERS_CONTENT_MEMBERS,
+    LLM_FINISH_REASON,
     LLM_INVOCATION_PARAMETERS,
+    LLM_PROVIDER,
+    LLM_REQUEST_MODEL_NAME,
+    LLM_RESPONSE_MODEL_NAME,
+    LLM_SYSTEM,
+    LLM_TOKEN_COUNT_COMPLETION,
+    LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO,
+    LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING,
+    LLM_TOKEN_COUNT_PROMPT,
+    LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO,
+    LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
+    LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE,
+    METADATA,
     OPENINFERENCE_SPAN_KIND,
     RIUS_COMPACTION_EVENT,
     RIUS_REQUEST_TOOL_CHOICE,
+    TOOL_NAME,
     SpanKind,
     kind_for_operation,
     operation_for_kind,
@@ -459,14 +492,6 @@ def first_chunk_from_event(span: ReadableSpan) -> dict[str, Any]:
     ):
         added[GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK] = max(first_token_ns - start_ns, 0) / 1e9
     return added
-
-
-#: The GenAI conventions' METRIC name for time to first chunk. pydantic-ai and
-#: the Vercel AI SDK's @ai-sdk/otel write it onto the chat span as an
-#: attribute, in seconds, with no first-token event. Spelled here rather than
-#: in semconv.py for the reason gen_ai.system is: a source spelling we map and
-#: never emit.
-GEN_AI_CLIENT_TIME_TO_FIRST_CHUNK = "gen_ai.client.operation.time_to_first_chunk"
 
 
 def first_chunk_from_metric(raw: Any) -> Mapping[str, Any]:
@@ -1101,9 +1126,8 @@ def compactions_from_output_value(attributes: Mapping[str, Any] | None) -> Provi
 
 #: The message keys whose parts a normalizer builds (the contract's
 #: ``raw_payloads.message_keys`` that hold semconv JSON). The system
-#: instructions are a source spelling here: read and rewritten, never emitted.
-_GEN_AI_SYSTEM_INSTRUCTIONS = "gen_ai.system_instructions"
-_NATIVE_MESSAGE_KEYS = (GEN_AI_INPUT_MESSAGES, GEN_AI_OUTPUT_MESSAGES, _GEN_AI_SYSTEM_INSTRUCTIONS)
+#: instructions are read and rewritten here, never emitted.
+_NATIVE_MESSAGE_KEYS = (GEN_AI_INPUT_MESSAGES, GEN_AI_OUTPUT_MESSAGES, GEN_AI_SYSTEM_INSTRUCTIONS)
 
 
 def native_media_messages(attributes: Mapping[str, Any] | None) -> dict[str, Any] | None:
@@ -1126,7 +1150,7 @@ def native_media_messages(attributes: Mapping[str, Any] | None) -> dict[str, Any
         raw = attributes.get(key)
         if not isinstance(raw, str):
             continue
-        fixed = rebuild_native_parts(raw, parts_only=key == _GEN_AI_SYSTEM_INSTRUCTIONS)
+        fixed = rebuild_native_parts(raw, parts_only=key == GEN_AI_SYSTEM_INSTRUCTIONS)
         if fixed != raw:
             if rebuilt is None:
                 rebuilt = dict(attributes)
@@ -1403,11 +1427,6 @@ def without_provider_route(model: str, provider: Any) -> str:
     return rest
 
 
-#: OpenInference's name for the API a client speaks. A source spelling, like
-#: ``gen_ai.system``: mapped, never emitted.
-LLM_SYSTEM = "llm.system"
-
-
 def provider_from_system(raw: Any) -> Mapping[str, Any]:
     """``llm.system`` kept, plus the provider it implies.
 
@@ -1583,10 +1602,6 @@ REQUEST_PARAMETER_GUARDS: Mapping[str, Callable[[Any], Any]] = {
     GEN_AI_REQUEST_STREAM_CURSOR: _text,  # string
 }
 
-
-#: OpenInference's run-metadata attribute. Read to recognise a LangChain run,
-#: never emitted, so spelled here rather than in semconv.py.
-METADATA = "metadata"
 
 #: The prefix LangChain gives its own run-metadata keys (ls_provider,
 #: ls_model_name, ls_integration, ...), in both its Python and JS releases.
@@ -1789,14 +1804,14 @@ OPENINFERENCE_RULES: tuple[AnyRule, ...] = (
     # set of keys we EMIT (and a CI check holds it against the upstream
     # registry, which has dropped the deprecated name). This is a source
     # spelling, like the llm.* ones.
-    Rule(("llm.provider", "gen_ai.system"), GEN_AI_PROVIDER_NAME, provider_name),
+    Rule((LLM_PROVIDER, GEN_AI_SYSTEM), GEN_AI_PROVIDER_NAME, provider_name),
     # Last resort, AFTER the rule above so a known host always wins: the API
     # the client speaks. Covers OpenAI clients pointed at a gateway.
     ExpandingRule(LLM_SYSTEM, provider_from_system),
     # Model. Only the anthropic instrumentor emits this unambiguous pair
     # (_wrappers.py:596, :603); see the omission note on llm.model_name.
-    Rule("llm.request.model_name", GEN_AI_REQUEST_MODEL, copy_value),
-    Rule("llm.response.model_name", GEN_AI_RESPONSE_MODEL, copy_value),
+    Rule(LLM_REQUEST_MODEL_NAME, GEN_AI_REQUEST_MODEL, copy_value),
+    Rule(LLM_RESPONSE_MODEL_NAME, GEN_AI_RESPONSE_MODEL, copy_value),
     # Tool identity. OpenInference writes the bare key only on TOOL spans (on
     # an LLM span the same name sits under llm.tools.N.tool.name instead), so
     # the rule needs no kind guard. A rule rather than an export pass because
@@ -1809,7 +1824,7 @@ OPENINFERENCE_RULES: tuple[AnyRule, ...] = (
     # tool name, and a wrong name silently groups unrelated calls — worse than
     # an absent one. A third-party span offers no better guarantee. (It could
     # not be a rule anyway: the span name is not an attribute.)
-    Rule("tool.name", GEN_AI_TOOL_NAME, nonempty_text),
+    Rule(TOOL_NAME, GEN_AI_TOOL_NAME, nonempty_text),
     # Why the model stopped. The source is a SCALAR and the canonical key is
     # an array (one entry per generation), so wrap rather than copy.
     #
@@ -1823,36 +1838,36 @@ OPENINFERENCE_RULES: tuple[AnyRule, ...] = (
     # fidelity and unify nothing. Grouping "stop" with "end_turn" is a
     # question for a reader who still has both, not for the SDK that would
     # destroy one of them.
-    Rule("llm.finish_reason", GEN_AI_RESPONSE_FINISH_REASONS, wrap_in_list),
+    Rule(LLM_FINISH_REASON, GEN_AI_RESPONSE_FINISH_REASONS, wrap_in_list),
     # Usage. to_int rather than copy: a count under a canonical key must be a
     # count, and a converter that SKIPs is how a wrongly-shaped value stays
     # off the wire.
-    Rule("llm.token_count.prompt", GEN_AI_USAGE_INPUT_TOKENS, to_int),
-    Rule("llm.token_count.completion", GEN_AI_USAGE_OUTPUT_TOKENS, to_int),
+    Rule(LLM_TOKEN_COUNT_PROMPT, GEN_AI_USAGE_INPUT_TOKENS, to_int),
+    Rule(LLM_TOKEN_COUNT_COMPLETION, GEN_AI_USAGE_OUTPUT_TOKENS, to_int),
     Rule(
-        "llm.token_count.prompt_details.cache_read",
+        LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ,
         GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS,
         to_int,
     ),
     Rule(
-        "llm.token_count.prompt_details.cache_write",
+        LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE,
         GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS,
         to_int,
     ),
     Rule(
-        "llm.token_count.completion_details.reasoning",
+        LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING,
         GEN_AI_USAGE_REASONING_OUTPUT_TOKENS,
         to_int,
     ),
     # The audio split of each count: a subset of it, never added to it, as
     # the per-modality usage keys are defined.
-    Rule("llm.token_count.prompt_details.audio", GEN_AI_USAGE_AUDIO_INPUT_TOKENS, to_int),
-    Rule("llm.token_count.completion_details.audio", GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS, to_int),
+    Rule(LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO, GEN_AI_USAGE_AUDIO_INPUT_TOKENS, to_int),
+    Rule(LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO, GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS, to_int),
     # @ai-sdk/otel's flattening of a provider's input_token_details on a
     # transcription span: the audio subset of the input, after the
     # OpenInference spelling and before pydantic-ai's, below.
     Rule(
-        "gen_ai.usage.input_token_details.audio_tokens",
+        GEN_AI_USAGE_INPUT_TOKEN_DETAILS_AUDIO_TOKENS,
         GEN_AI_USAGE_AUDIO_INPUT_TOKENS,
         to_int,
     ),
@@ -1870,7 +1885,7 @@ OPENINFERENCE_RULES: tuple[AnyRule, ...] = (
     # every Vercel AI SDK app), and the backend prices cache writes from the
     # canonical key alone. The rename is exact, so nothing is lost.
     Rule(
-        "gen_ai.usage.cache_creation.input_tokens",
+        GEN_AI_USAGE_CACHE_CREATION_INPUT_TOKENS,
         GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS,
         to_int,
     ),
@@ -1882,17 +1897,17 @@ OPENINFERENCE_RULES: tuple[AnyRule, ...] = (
     # go, as in the sink. Separate rules so one that won't parse does not
     # block the next.
     Rule(
-        "gen_ai.usage.details.reasoning_tokens",
+        GEN_AI_USAGE_DETAILS_REASONING_TOKENS,
         GEN_AI_USAGE_REASONING_OUTPUT_TOKENS,
         to_int,
     ),
     Rule(
-        "gen_ai.usage.details.thinking_tokens",
+        GEN_AI_USAGE_DETAILS_THINKING_TOKENS,
         GEN_AI_USAGE_REASONING_OUTPUT_TOKENS,
         to_int,
     ),
     Rule(
-        "gen_ai.usage.details.thoughts_tokens",
+        GEN_AI_USAGE_DETAILS_THOUGHTS_TOKENS,
         GEN_AI_USAGE_REASONING_OUTPUT_TOKENS,
         to_int,
     ),
@@ -1910,59 +1925,59 @@ OPENINFERENCE_RULES: tuple[AnyRule, ...] = (
     # rest of the namespace has no canonical key; its old audio_tokens is the
     # output audio count again, under no direction.
     Rule(
-        "gen_ai.usage.details.image_prompt_tokens",
+        GEN_AI_USAGE_DETAILS_IMAGE_PROMPT_TOKENS,
         GEN_AI_USAGE_IMAGE_INPUT_TOKENS,
         to_int,
     ),
     Rule(
-        "gen_ai.usage.details.image_cache_tokens",
+        GEN_AI_USAGE_DETAILS_IMAGE_CACHE_TOKENS,
         GEN_AI_USAGE_IMAGE_CACHE_READ_INPUT_TOKENS,
         to_int,
     ),
     Rule(
-        "gen_ai.usage.details.image_candidates_tokens",
+        GEN_AI_USAGE_DETAILS_IMAGE_CANDIDATES_TOKENS,
         GEN_AI_USAGE_IMAGE_OUTPUT_TOKENS,
         to_int,
     ),
     Rule(
-        "gen_ai.usage.details.input_audio_tokens",
+        GEN_AI_USAGE_DETAILS_INPUT_AUDIO_TOKENS,
         GEN_AI_USAGE_AUDIO_INPUT_TOKENS,
         to_int,
     ),
     Rule(
-        "gen_ai.usage.details.cache_audio_read_tokens",
+        GEN_AI_USAGE_DETAILS_CACHE_AUDIO_READ_TOKENS,
         GEN_AI_USAGE_AUDIO_CACHE_READ_INPUT_TOKENS,
         to_int,
     ),
     Rule(
-        "gen_ai.usage.details.output_audio_tokens",
+        GEN_AI_USAGE_DETAILS_OUTPUT_AUDIO_TOKENS,
         GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS,
         to_int,
     ),
     Rule(
-        "gen_ai.usage.details.audio_prompt_tokens",
+        GEN_AI_USAGE_DETAILS_AUDIO_PROMPT_TOKENS,
         GEN_AI_USAGE_AUDIO_INPUT_TOKENS,
         to_int,
     ),
     Rule(
-        "gen_ai.usage.details.audio_cache_tokens",
+        GEN_AI_USAGE_DETAILS_AUDIO_CACHE_TOKENS,
         GEN_AI_USAGE_AUDIO_CACHE_READ_INPUT_TOKENS,
         to_int,
     ),
     Rule(
-        "gen_ai.usage.details.audio_candidates_tokens",
+        GEN_AI_USAGE_DETAILS_AUDIO_CANDIDATES_TOKENS,
         GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS,
         to_int,
     ),
     Rule(
-        "gen_ai.usage.details.audio_response_tokens",
+        GEN_AI_USAGE_DETAILS_AUDIO_RESPONSE_TOKENS,
         GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS,
         to_int,
     ),
     # Time to first chunk under the conventions' metric name, which
     # pydantic-ai and @ai-sdk/otel write as a span attribute. The duration is
     # the whole signal: no first-token event is added.
-    ExpandingRule(GEN_AI_CLIENT_TIME_TO_FIRST_CHUNK, first_chunk_from_metric),
+    ExpandingRule(GEN_AI_CLIENT_OPERATION_TIME_TO_FIRST_CHUNK, first_chunk_from_metric),
     # The request bag: the dedicated model rules above take precedence over
     # its `model` member.
     ExpandingRule(
@@ -1978,7 +1993,7 @@ OPENINFERENCE_RULES: tuple[AnyRule, ...] = (
     # The openai instrumentor sets it from the response's `model`; OpenAI's
     # embedding models have no dated snapshots for a response to resolve to,
     # so it is the model asked for.
-    Rule("embedding.model_name", GEN_AI_REQUEST_MODEL, nonempty_text),
+    Rule(EMBEDDING_MODEL_NAME, GEN_AI_REQUEST_MODEL, nonempty_text),
 )
 
 #: Live in every process. See the module docstring before adding a rule.
