@@ -62,7 +62,10 @@ def loads_json(raw: str) -> Any:
     """``json.loads(raw)``, or ``UNREADABLE`` when the text cannot be read.
 
     ``json.loads`` raises ``ValueError`` on malformed text and
-    ``RecursionError`` on text nested past the interpreter's recursion limit.
+    ``RecursionError`` on text nested too deep for the decoder. How deep that
+    is depends on the interpreter (the recursion limit up to 3.11, the C
+    stack's limit from 3.12), so a deep text that does parse is read as any
+    other.
     Every reader of a value some other code produced goes through here, so
     neither escapes into the caller's code or costs an export batch.
     """

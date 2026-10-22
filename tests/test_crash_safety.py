@@ -42,34 +42,72 @@ from rius.normalization import (
     to_int,
 )
 
-# --- JSON nested past the interpreter's recursion limit --------------------------
+# --- JSON nested too deep for the decoder ------------------------------------------
 # json.loads raises RecursionError, not ValueError, on such a text. Every reader
 # of output.value caught only ValueError, so the error escaped from the span
 # processor into the caller's `with`, or failed the whole export batch.
+#
+# How deep is too deep depends on the interpreter: up to 3.11 the C decoder
+# stops at sys.getrecursionlimit(), from 3.12 at the C stack's own limit, so
+# 5000 levels parse there. The `too_deep` fixture makes the decoder raise on
+# every version; the deep-but-readable tests check what a parsed one gives.
 
 _DEEP = 5000
 
 
-def _deep_object(marker: str = "") -> str:
-    """A JSON object nested past the recursion limit, a compaction marker in it if asked."""
+def _nest(depth: int) -> str:
+    return "[" * depth + "]" * depth
+
+
+def _deep_object(marker: str = "", depth: int = _DEEP) -> str:
+    """A JSON object nesting ``depth`` arrays, a compaction marker in it if asked."""
     head = '{"type":"compaction","a":' if marker else '{"a":'
-    return head + "[" * _DEEP + "]" * _DEEP + "}"
+    return head + _nest(depth) + "}"
 
 
+@pytest.fixture
+def too_deep(monkeypatch: pytest.MonkeyPatch) -> None:
+    """json.loads raises RecursionError, as the decoder does past its limit,
+    on any text nesting ``_DEEP`` arrays."""
+    real = json.loads
+
+    def loads(s: Any, *args: Any, **kwargs: Any) -> Any:
+        if isinstance(s, str) and "[" * _DEEP in s:
+            raise RecursionError("maximum recursion depth exceeded while decoding a JSON array")
+        return real(s, *args, **kwargs)
+
+    monkeypatch.setattr(json, "loads", loads)
+
+
+def _compact_reply(depth: int) -> str:
+    """A ``POST /responses/compact`` reply with ``depth`` arrays nested in it."""
+    item = {"type": "compaction", "id": "cmp_1", "encrypted_content": "x"}
+    return (
+        '{"id":"resp_1","object":"response.compaction","output":'
+        + json.dumps([item])
+        + ',"a":'
+        + _nest(depth)
+        + "}"
+    )
+
+
+@pytest.mark.usefixtures("too_deep")
 def test_deep_json_is_no_compaction() -> None:
     assert compactions_in_response(_deep_object(marker="compaction")).events == []
 
 
+@pytest.mark.usefixtures("too_deep")
 def test_deep_json_is_no_compact_reply() -> None:
-    raw = '{"object":"response.compaction","a":' + "[" * _DEEP + "]" * _DEEP + "}"
-    assert is_compact_reply(raw) is False
+    assert is_compact_reply(_compact_reply(_DEEP)) is False
 
 
+@pytest.mark.usefixtures("too_deep")
 def test_deep_json_has_no_response_id() -> None:
     attributes = {"openinference.span.kind": "LLM", "output.value": _deep_object()}
     assert response_id_from_output_value(attributes) == {}
 
 
+@pytest.mark.usefixtures("too_deep")
 def test_deep_compaction_reply_does_not_raise_out_of_the_callers_block() -> None:
     inner = InMemorySpanExporter()
     client = init(span_exporter=inner, set_global=False, instruments=[], heartbeat=False)
@@ -78,7 +116,7 @@ def test_deep_compaction_reply_does_not_raise_out_of_the_callers_block() -> None
             "llm",
             attributes={
                 "openinference.span.kind": "LLM",
-                "output.value": _deep_object(marker="compaction"),
+                "output.value": _compact_reply(_DEEP),
             },
         ):
             pass
@@ -86,6 +124,32 @@ def test_deep_compaction_reply_does_not_raise_out_of_the_callers_block() -> None
     finally:
         client.shutdown()
     assert [s.name for s in inner.get_finished_spans()] == ["llm"]
+
+
+# A depth every supported decoder reads, well inside the recursion limit.
+_READABLE_DEPTH = 200
+
+
+def test_deep_but_readable_compact_reply_is_one() -> None:
+    raw = _compact_reply(_READABLE_DEPTH)
+    assert is_compact_reply(raw) is True
+    found = compactions_in_response(raw)
+    assert len(found.events) == 1
+    assert found.compacted_context is False
+
+
+def test_deep_but_readable_reply_keeps_its_response_id() -> None:
+    attributes = {"openinference.span.kind": "LLM", "output.value": _compact_reply(_READABLE_DEPTH)}
+    assert response_id_from_output_value(attributes) != {}
+
+
+def test_json_past_every_decoders_limit_does_not_raise() -> None:
+    # Deep enough that the real decoder raises on every supported version.
+    raw = _compact_reply(200_000)
+    assert is_compact_reply(raw) is False
+    assert compactions_in_response(raw).events == []
+    attributes = {"openinference.span.kind": "LLM", "output.value": raw}
+    assert response_id_from_output_value(attributes) == {}
 
 
 class _Collecting(SpanExporter):
@@ -100,6 +164,7 @@ class _Collecting(SpanExporter):
         pass
 
 
+@pytest.mark.usefixtures("too_deep")
 def test_deep_json_does_not_cost_the_rest_of_the_export_batch() -> None:
     from opentelemetry.sdk.trace import TracerProvider
 
