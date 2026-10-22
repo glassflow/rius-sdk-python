@@ -200,8 +200,12 @@ def test_scoped_span_keeps_the_exception_event_and_status_for_a_plain_error(
     (finished,) = exported_spans.get_finished_spans()
     assert finished.status.status_code == StatusCode.ERROR
     assert "boom" in (finished.status.description or "")
+    assert finished.attributes is not None
+    assert finished.attributes["error.type"] == "ValueError"
     events = [e for e in finished.events if e.name == "exception"]
     assert len(events) == 1  # recorded once, not by both OTel and the SDK
+    assert events[0].attributes is not None
+    assert events[0].attributes["exception.type"] == "ValueError"
 
 
 def test_manual_handles_record_an_unprintable_exception(
@@ -351,3 +355,32 @@ def test_keyed_base64_past_the_parser_depth_is_stripped_from_text() -> None:
 def test_shallow_text_keeps_a_long_word() -> None:
     word = "a" * 200
     assert word in serialize({"x": {"y": word}})
+
+
+def _nested(value: Any, depth: int) -> Any:
+    for _ in range(depth):
+        value = {"x": value}
+    return value
+
+
+@pytest.mark.parametrize(("outer", "inner"), [(1, 70), (40, 30)])
+def test_keyed_base64_past_the_parser_depth_inside_a_json_string_is_stripped(
+    outer: int, inner: int
+) -> None:
+    # The parser re-parses a JSON-looking string at the depth it sits at, so
+    # the depth inside the string adds to the depth around it.
+    data = base64.b64encode(os.urandom(3000)).decode()
+    value = _nested({"s": json.dumps(_nested(_image(data), inner))}, outer - 1)
+    assert data[:64] not in serialize(value)
+    assert data[:64] not in text_value(json.dumps(value))
+
+
+def test_a_json_string_within_the_parser_depth_keeps_a_long_word() -> None:
+    # More brackets than the parser depth in all, so the walk runs, but no
+    # path, the string's own depth included, nests past it.
+    word = "a" * 200
+    value = {
+        "a": _nested({"s": json.dumps(_nested({"w": word}, 20))}, 39),
+        "b": _nested(1, 30),
+    }
+    assert word in serialize(value)

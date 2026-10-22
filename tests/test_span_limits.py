@@ -357,3 +357,35 @@ def test_a_user_limit_still_wins_on_the_twenty_turn_span_and_the_drop_is_visible
     # The user's 128 applied, so the oldest keys went, and the export says so.
     assert span.dropped_attributes > 0
     assert "gen_ai.tool.definitions" not in attributes
+
+
+_COUNT_VALUES = (None, "", "  ", "abc", "-1", "unset")
+
+
+@pytest.mark.parametrize("global_value", (*_COUNT_VALUES, "50"))
+@pytest.mark.parametrize("span_value", (*_COUNT_VALUES, "30"))
+def test_init_survives_every_combination_of_count_values(
+    monkeypatch: pytest.MonkeyPatch, span_value: str | None, global_value: str | None
+) -> None:
+    # SpanLimits() parses both variables and raises on either one that is set
+    # but not a count, so init() must never leave an unusable one to OTel.
+    # A usable value keeps OTel's precedence: the span count, then the global.
+    for name, value in zip(_COUNT_ENV_VARS, (span_value, global_value), strict=True):
+        if value is not None:
+            monkeypatch.setenv(name, value)
+    client = _init(InMemorySpanExporter())
+    try:
+        expected = 30 if span_value == "30" else 50 if global_value == "50" else 4096
+        assert client._provider._span_limits.max_span_attributes == expected
+    finally:
+        client.shutdown()
+
+
+def test_an_unusable_span_count_beside_a_global_count_is_reported(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setenv("OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT", "abc")
+    monkeypatch.setenv("OTEL_ATTRIBUTE_COUNT_LIMIT", "50")
+    with caplog.at_level("WARNING", logger="rius.client"):
+        _init(InMemorySpanExporter()).shutdown()
+    assert "OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT" in caplog.text

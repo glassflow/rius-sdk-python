@@ -176,19 +176,33 @@ def _strip_media(text: str) -> str:
     return stripped
 
 
-#: A JSON string, whose brackets nest nothing.
-_JSON_STRING = re.compile(r'"(?:[^"\\]|\\.)*"', re.DOTALL)
-_BRACKET = re.compile(r"[\[\]{}]")
+#: A JSON string, or one bracket outside any.
+_STRING_OR_BRACKET = re.compile(r'"(?:[^"\\]|\\.)*"|[\[\]{}]', re.DOTALL)
 
 
 def _nests_past_parser_depth(text: str) -> bool:
+    """True when the parser may read past ``MAX_DEPTH`` somewhere in ``text``.
+
+    An upper bound, not the parser's exact depth: the parser re-parses a
+    JSON-looking string at the depth it sits at, so every opening bracket in a
+    string (at any level of escaping) counts on top of that depth, and its
+    closing brackets, which may close nothing, are not counted. A false
+    positive only applies the run fallback.
+    """
     if text.count("{") + text.count("[") <= MAX_DEPTH:
         return False  # the common case, without reading the text again
     depth = 0
-    for match in _BRACKET.finditer(_JSON_STRING.sub("", text)):
-        depth += 1 if match.group() in "[{" else -1
-        if depth > MAX_DEPTH:
-            return True
+    for match in _STRING_OR_BRACKET.finditer(text):
+        token = match.group()
+        if token[0] == '"':
+            if depth + token.count("{") + token.count("[") > MAX_DEPTH:
+                return True
+        elif token in "[{":
+            depth += 1
+            if depth > MAX_DEPTH:
+                return True
+        else:
+            depth -= 1
     return False
 
 

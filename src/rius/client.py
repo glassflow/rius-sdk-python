@@ -98,6 +98,26 @@ def _honoured_count(name: str) -> bool:
         return False
 
 
+def _unusable_count(name: str) -> bool:
+    """True when ``name`` is set but holds no count OTel honours.
+
+    ``SpanLimits()`` raises on such a value, or, for a blank one, reads it as
+    "no limit"; either way it is not the user's choice of a limit.
+    """
+    return name in os.environ and not _honoured_count(name)
+
+
+def _warn_unusable(name: str, fallback: str) -> None:
+    # A blank entry is routine in a container env; it is not worth a warning.
+    if os.environ[name].strip():
+        logger.warning(
+            "%s=%r is not a non-negative integer, so OpenTelemetry cannot use it; %s",
+            name,
+            os.environ[name],
+            fallback,
+        )
+
+
 def _span_limits() -> SpanLimits:
     """The provider's limits: ours for the attribute count, unless the user chose.
 
@@ -105,46 +125,45 @@ def _span_limits() -> SpanLimits:
     so passing ours unconditionally would silently override a user's
     ``OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT``. When either count variable holds a
     count OTel honours, OTel resolves everything itself, its own precedence
-    included. That is the TypeScript SDK's rule too. The one exception is a
-    valid span count beside an unusable global count, which ``SpanLimits()``
-    would raise on: the global count is then passed at OTel's default.
+    included (the span count, then the global count). That is the TypeScript
+    SDK's rule too.
 
     Anything else is not a choice of limit, and leaving it to OTel would be
-    wrong: a blank ``OTEL_ATTRIBUTE_COUNT_LIMIT`` gives spans 128, the very
-    eviction this limit exists to prevent, and a non-integer or negative one
-    makes ``SpanLimits()`` raise. The global count is therefore passed too,
-    at OTel's default, because ``SpanLimits`` parses that variable even when
-    the span count is explicit. (A bad ``OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT``
-    never gets here: OTel raises on it when ``opentelemetry.sdk.trace`` is
-    imported.)
+    wrong: ``SpanLimits()`` parses both variables whatever it is passed, and
+    raises on a set one that is no count (out of ``init()``), or reads a blank
+    one as "no limit". So each unusable variable is replaced by an explicit
+    value: the global count by OTel's default, the span count by the user's
+    global count when there is one and by ours when there is not.
     """
-    if any(_honoured_count(name) for name in _ATTRIBUTE_COUNT_ENV_VARS):
-        if _GLOBAL_COUNT_ENV_VAR not in os.environ or _honoured_count(_GLOBAL_COUNT_ENV_VAR):
-            return SpanLimits()
-        # The span count is the user's, but SpanLimits() also parses the
-        # global count and would raise on it out of init(). OTel's default
-        # for it keeps the user's span count and the warning says why.
-        logger.warning(
-            "%s=%r is not a non-negative integer, so OpenTelemetry cannot use it; "
-            "rius uses OpenTelemetry's default of %d for it instead.",
-            _GLOBAL_COUNT_ENV_VAR,
-            os.environ[_GLOBAL_COUNT_ENV_VAR],
-            _OTEL_DEFAULT_ATTRIBUTE_COUNT_LIMIT,
+    span_var, global_var = _ATTRIBUTE_COUNT_ENV_VARS
+    if not any(_honoured_count(name) for name in _ATTRIBUTE_COUNT_ENV_VARS):
+        for name in _ATTRIBUTE_COUNT_ENV_VARS:
+            if name in os.environ:
+                _warn_unusable(
+                    name,
+                    f"rius applies its span attribute count limit of "
+                    f"{DEFAULT_SPAN_ATTRIBUTE_COUNT_LIMIT} instead.",
+                )
+        return SpanLimits(
+            max_attributes=_OTEL_DEFAULT_ATTRIBUTE_COUNT_LIMIT,
+            max_span_attributes=DEFAULT_SPAN_ATTRIBUTE_COUNT_LIMIT,
         )
-        return SpanLimits(max_attributes=_OTEL_DEFAULT_ATTRIBUTE_COUNT_LIMIT)
-    for name in _ATTRIBUTE_COUNT_ENV_VARS:
-        if os.environ.get(name, "").strip():
-            logger.warning(
-                "%s=%r is not a non-negative integer, so OpenTelemetry cannot use it; "
-                "rius applies its span attribute count limit of %d instead.",
-                name,
-                os.environ[name],
-                DEFAULT_SPAN_ATTRIBUTE_COUNT_LIMIT,
-            )
-    return SpanLimits(
-        max_attributes=_OTEL_DEFAULT_ATTRIBUTE_COUNT_LIMIT,
-        max_span_attributes=DEFAULT_SPAN_ATTRIBUTE_COUNT_LIMIT,
-    )
+    # One count is the user's. Keep it, and replace only the unusable one.
+    limits: dict[str, int] = {}
+    if _unusable_count(global_var):
+        _warn_unusable(
+            global_var,
+            f"rius uses OpenTelemetry's default of {_OTEL_DEFAULT_ATTRIBUTE_COUNT_LIMIT} "
+            "for it instead.",
+        )
+        limits["max_attributes"] = _OTEL_DEFAULT_ATTRIBUTE_COUNT_LIMIT
+    if _unusable_count(span_var):
+        # The span count is not honoured, so the global count is: OTel's own
+        # fallback for an unset span count.
+        global_count = int(os.environ[global_var])
+        _warn_unusable(span_var, f"rius uses {global_var}={global_count} for spans instead.")
+        limits["max_span_attributes"] = global_count
+    return SpanLimits(**limits)
 
 
 _lock = threading.Lock()
