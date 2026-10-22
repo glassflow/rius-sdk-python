@@ -547,8 +547,8 @@ def error_type_from_exception_event(span: ReadableSpan) -> dict[str, Any]:
 
 
 #: OpenInference's indexed tool-definition family: ``llm.tools.{i}.tool.json_schema``.
-#: A source spelling, so it lives here rather than in ``semconv.py`` (the set
-#: of keys we emit), like the ``llm.*`` keys in the rule table below.
+#: A source spelling the registry has no constant for (a pattern over indexed
+#: keys, not one key), so it is spelled here.
 _LLM_TOOL_SCHEMA = re.compile(r"llm\.tools\.(\d+)\.tool\.json_schema")
 
 
@@ -658,8 +658,8 @@ def _bag_without_definitions(
 
 
 #: OpenInference's flattened message families and the canonical key each one
-#: is reassembled into. Source spellings, so they live here rather than in
-#: ``semconv.py``, like ``_LLM_TOOL_SCHEMA`` above.
+#: is reassembled into. Source spellings the registry generates no Python
+#: constant for, so they live here, like ``_LLM_TOOL_SCHEMA`` above.
 _MESSAGE_FAMILIES = (
     ("llm.input_messages.", GEN_AI_INPUT_MESSAGES),
     ("llm.output_messages.", GEN_AI_OUTPUT_MESSAGES),
@@ -1799,11 +1799,9 @@ OPENINFERENCE_RULES: tuple[AnyRule, ...] = (
     # Provider. One rule, two spellings, first present wins: llm.provider is
     # OpenInference's and the more specific (azure/aws/google rather than the
     # product); gen_ai.system is the deprecated GenAI key, which we map here
-    # and never emit.
-    # GEN_AI_SYSTEM is spelled here, not in semconv.py: that module is the
-    # set of keys we EMIT (and a CI check holds it against the upstream
-    # registry, which has dropped the deprecated name). This is a source
-    # spelling, like the llm.* ones.
+    # and never emit. Like the llm.* keys, both are source spellings: the
+    # registry names them so they are not typed here, and the upstream check
+    # skips them because we never emit them.
     Rule((LLM_PROVIDER, GEN_AI_SYSTEM), GEN_AI_PROVIDER_NAME, provider_name),
     # Last resort, AFTER the rule above so a known host always wins: the API
     # the client speaks. Covers OpenAI clients pointed at a gateway.
@@ -1876,8 +1874,8 @@ OPENINFERENCE_RULES: tuple[AnyRule, ...] = (
     # target where a span somehow carries both, and a separate rule rather
     # than a second source means an OpenInference count that won't parse
     # still lets a usable alternate through (a rule converts only its first
-    # present source). Spelled here rather than in semconv.py for the reason
-    # gen_ai.system is: they are source spellings we map and never emit.
+    # present source). Like gen_ai.system, they are source spellings we map
+    # and never emit.
     #
     # cache_creation is the cache-write count's name before the upstream
     # rename to cache_write. Permanent, not a transition aid: current
