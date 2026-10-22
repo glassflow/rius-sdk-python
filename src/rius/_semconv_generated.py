@@ -1,4 +1,4 @@
-# Vendored from rius-semconv v1.8.3 out/python/_semconv_generated.py by
+# Vendored from rius-semconv v1.9.0 out/python/_semconv_generated.py by
 # scripts/sync-semconv.sh. Do not edit: change the registry in rius-semconv.
 """Rius semantic conventions: the constants and tables, generated.
 
@@ -22,6 +22,11 @@ from enum import Enum
 TRACER_NAME = "rius"
 
 # --- Resource attribute keys ---
+# OTel standard logical service name. The SDKs write it into the resource
+# they build at init, from the configured service name. The backend falls
+# back to it when a process names no agent.
+SERVICE_NAME = "service.name"
+
 # OTel standard identity of one process lifetime (one uuid per client, minted
 # at init). The heartbeat payload's instance_id carries the SAME value, which
 # is what lets the backend join heartbeats to traces and count replicas.
@@ -311,6 +316,13 @@ GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS = "gen_ai.usage.audio.output_tokens"
 GEN_AI_USAGE_AUDIO_CACHE_READ_INPUT_TOKENS = "gen_ai.usage.audio.cache_read.input_tokens"
 GEN_AI_INPUT_MESSAGES = "gen_ai.input.messages"
 GEN_AI_OUTPUT_MESSAGES = "gen_ai.output.messages"
+
+# The system prompt, apart from the input messages. The TypeScript SDK
+# writes it when it normalizes a Vercel AI SDK span; the Python SDK reads
+# it from instrumentations that already speak the conventions
+# (pydantic-ai, @ai-sdk/otel) to make its media parts conformant. Content,
+# listed in CONTENT_ATTRIBUTES.
+GEN_AI_SYSTEM_INSTRUCTIONS = "gen_ai.system_instructions"
 GEN_AI_RESPONSE_FINISH_REASONS = "gen_ai.response.finish_reasons"
 GEN_AI_TOOL_NAME = "gen_ai.tool.name"
 
@@ -332,6 +344,15 @@ GEN_AI_TOOL_TYPE = "gen_ai.tool.type"
 # shapes differ; the backend reads names and sizes from either). Content,
 # not identity, so it is listed in CONTENT_ATTRIBUTES.
 GEN_AI_TOOL_DEFINITIONS = "gen_ai.tool.definitions"
+
+# The arguments the model passed to the tool. The TypeScript SDK writes it
+# from the Vercel AI SDK's ai.toolCall.args. Content, listed in
+# CONTENT_ATTRIBUTES.
+GEN_AI_TOOL_CALL_ARGUMENTS = "gen_ai.tool.call.arguments"
+
+# What the tool returned. Written as gen_ai.tool.call.arguments is, from
+# ai.toolCall.result. Content, listed in CONTENT_ATTRIBUTES.
+GEN_AI_TOOL_CALL_RESULT = "gen_ai.tool.call.result"
 
 # The index, collection or knowledge base a retrieval ran against. Identity,
 # set at span creation: it is what a retriever span is named after and the
@@ -373,6 +394,21 @@ ERROR_TYPE_TOOL_ERROR = "tool_error"
 # derives error.type from EXCEPTION_TYPE.
 EXCEPTION_EVENT = "exception"
 EXCEPTION_TYPE = "exception.type"
+
+# The exception's message, on the exception event record_exception()
+# writes. Read, never written by us directly: the SDKs strip it, with
+# EXCEPTION_STACKTRACE, when content capture is off, because providers
+# echo the rejected request into their error strings. Content, but not
+# in CONTENT_ATTRIBUTES: that list is matched against span attributes,
+# and the SDKs mask the exception event's attributes in a pass of their
+# own. exception.type stays, so a failure remains visible and
+# classifiable with capture off.
+EXCEPTION_MESSAGE = "exception.message"
+
+# The exception's stack trace, on the same event. Stripped with
+# EXCEPTION_MESSAGE, for the same reason: a trace's frames can quote the
+# provider's error string.
+EXCEPTION_STACKTRACE = "exception.stacktrace"
 
 # Deprecated: obsoleted, nothing replaces it; interim rounds stay identifiable by mcp.method.name.
 # MCP spec 2026-07-28: a tools/call round can end with an interim
@@ -610,6 +646,89 @@ LLM_INVOCATION_PARAMETERS = "llm.invocation_parameters"
 # the manual span helpers see nothing but the kind. A literal beats an empty
 # name.
 CHAIN_SPAN_NAME = "chain"
+
+# --- Normalizer source spellings ---
+# Keys other producers write that the normalizers read and rewrite (or
+# leave). The SDKs never emit them; the canonical key each becomes is the
+# one to write.
+# OpenInference's API flavor the client speaks ("openai" for any
+# OpenAI-compatible endpoint). The provider's last resort, read when
+# llm.provider is absent.
+LLM_SYSTEM = "llm.system"
+
+# OpenInference's hosting provider. Mapped to gen_ai.provider.name.
+LLM_PROVIDER = "llm.provider"
+
+# The provider key before the GenAI conventions renamed it
+# gen_ai.provider.name. Older instrumentations still send it; mapped to
+# gen_ai.provider.name, after llm.provider.
+GEN_AI_SYSTEM = "gen_ai.system"
+
+# OpenInference's unambiguous request model. Mapped to
+# gen_ai.request.model.
+LLM_REQUEST_MODEL_NAME = "llm.request.model_name"
+
+# OpenInference's unambiguous response model. Mapped to
+# gen_ai.response.model.
+LLM_RESPONSE_MODEL_NAME = "llm.response.model_name"
+
+# OpenInference's executed-tool name on TOOL spans. Mapped to
+# gen_ai.tool.name.
+TOOL_NAME = "tool.name"
+
+# OpenInference's single finish reason. Mapped to
+# gen_ai.response.finish_reasons, as a one-element list.
+LLM_FINISH_REASON = "llm.finish_reason"
+
+# OpenInference's model on EMBEDDING spans. Mapped to
+# gen_ai.request.model.
+EMBEDDING_MODEL_NAME = "embedding.model_name"
+
+# OpenInference's free-form metadata JSON (LangChain run metadata). Read
+# for the few facts it carries that a convention names; the key itself
+# stays on the span as written.
+METADATA = "metadata"
+
+# OpenInference's content type of output.value. Read to tell a JSON
+# provider response from plain text; left on the span.
+OUTPUT_MIME_TYPE = "output.mime_type"
+
+# The conventions' metric name for time to first chunk, which pydantic-ai
+# and @ai-sdk/otel write as a span attribute. Fills
+# gen_ai.response.time_to_first_chunk when the span carries no value.
+GEN_AI_CLIENT_OPERATION_TIME_TO_FIRST_CHUNK = "gen_ai.client.operation.time_to_first_chunk"
+
+# The Vercel AI SDK's operation id (ai.generateText.doGenerate and the
+# like), from which the TypeScript SDK derives the span kind and
+# gen_ai.operation.name.
+AI_OPERATION_ID = "ai.operationId"
+
+# OpenInference's token counts. Each key under it is a usage key, decided
+# in registry/usage_keys.yaml like the spellings below.
+LLM_TOKEN_COUNT_PREFIX = "llm.token_count."
+LLM_TOKEN_COUNT_PROMPT = "llm.token_count.prompt"
+LLM_TOKEN_COUNT_COMPLETION = "llm.token_count.completion"
+LLM_TOKEN_COUNT_TOTAL = "llm.token_count.total"
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ = "llm.token_count.prompt_details.cache_read"
+LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE = "llm.token_count.prompt_details.cache_write"
+LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO = "llm.token_count.prompt_details.audio"
+LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING = "llm.token_count.completion_details.reasoning"
+LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO = "llm.token_count.completion_details.audio"
+GEN_AI_USAGE_CACHE_CREATION_INPUT_TOKENS = "gen_ai.usage.cache_creation.input_tokens"
+GEN_AI_USAGE_INPUT_TOKEN_DETAILS_AUDIO_TOKENS = "gen_ai.usage.input_token_details.audio_tokens"
+GEN_AI_USAGE_DETAILS_REASONING_TOKENS = "gen_ai.usage.details.reasoning_tokens"
+GEN_AI_USAGE_DETAILS_THINKING_TOKENS = "gen_ai.usage.details.thinking_tokens"
+GEN_AI_USAGE_DETAILS_THOUGHTS_TOKENS = "gen_ai.usage.details.thoughts_tokens"
+GEN_AI_USAGE_DETAILS_IMAGE_PROMPT_TOKENS = "gen_ai.usage.details.image_prompt_tokens"
+GEN_AI_USAGE_DETAILS_IMAGE_CACHE_TOKENS = "gen_ai.usage.details.image_cache_tokens"
+GEN_AI_USAGE_DETAILS_IMAGE_CANDIDATES_TOKENS = "gen_ai.usage.details.image_candidates_tokens"
+GEN_AI_USAGE_DETAILS_INPUT_AUDIO_TOKENS = "gen_ai.usage.details.input_audio_tokens"
+GEN_AI_USAGE_DETAILS_CACHE_AUDIO_READ_TOKENS = "gen_ai.usage.details.cache_audio_read_tokens"
+GEN_AI_USAGE_DETAILS_OUTPUT_AUDIO_TOKENS = "gen_ai.usage.details.output_audio_tokens"
+GEN_AI_USAGE_DETAILS_AUDIO_PROMPT_TOKENS = "gen_ai.usage.details.audio_prompt_tokens"
+GEN_AI_USAGE_DETAILS_AUDIO_CACHE_TOKENS = "gen_ai.usage.details.audio_cache_tokens"
+GEN_AI_USAGE_DETAILS_AUDIO_CANDIDATES_TOKENS = "gen_ai.usage.details.audio_candidates_tokens"
+GEN_AI_USAGE_DETAILS_AUDIO_RESPONSE_TOKENS = "gen_ai.usage.details.audio_response_tokens"
 
 # --- Coding-agent plugin ---
 # Classified on the user's machine from the command line, which is never
@@ -1060,9 +1179,9 @@ CONTENT_ATTRIBUTES = frozenset(
         # Vercel AI SDK's @ai-sdk/otel among them, pinned 2026-09-14): the
         # system prompt and each tool call's input and output are content in
         # the same sense messages are. gen_ai.tool.call.id stays: identity.
-        "gen_ai.system_instructions",
-        "gen_ai.tool.call.arguments",
-        "gen_ai.tool.call.result",
+        GEN_AI_SYSTEM_INSTRUCTIONS,
+        GEN_AI_TOOL_CALL_ARGUMENTS,
+        GEN_AI_TOOL_CALL_RESULT,
         # OpenInference TOOL-kind spans carry the definition under these two
         # bare keys, sensitive for the reason gen_ai.tool.description is.
         "tool.description",
@@ -1393,6 +1512,7 @@ _NAME_TARGET_BY_KIND: dict[SpanKind, str] = {
 }
 
 __all__ = [
+    "AI_OPERATION_ID",
     "CC_CLAUDE_SESSION_ID",
     "CC_CONTINUED_FROM",
     "CC_SUBAGENT_DEPTH",
@@ -1430,13 +1550,17 @@ __all__ = [
     "CURSOR_TOOL_INTERRUPTED",
     "CURSOR_TURN_LOOP_COUNT",
     "CURSOR_TURN_STATUS",
+    "EMBEDDING_MODEL_NAME",
     "ERROR_TYPE",
     "ERROR_TYPE_TOOL_ERROR",
     "EXCEPTION_EVENT",
+    "EXCEPTION_MESSAGE",
+    "EXCEPTION_STACKTRACE",
     "EXCEPTION_TYPE",
     "GEN_AI_AGENT_ID",
     "GEN_AI_AGENT_NAME",
     "GEN_AI_AGENT_VERSION",
+    "GEN_AI_CLIENT_OPERATION_TIME_TO_FIRST_CHUNK",
     "GEN_AI_CONVERSATION_COMPACTED",
     "GEN_AI_DATA_SOURCE_ID",
     "GEN_AI_FIRST_TOKEN_EVENT",
@@ -1471,19 +1595,38 @@ __all__ = [
     "GEN_AI_RESPONSE_TIME_TO_FIRST_CHUNK",
     "GEN_AI_RETRIEVAL_DOCUMENTS",
     "GEN_AI_RETRIEVAL_TOP_K",
+    "GEN_AI_SYSTEM",
+    "GEN_AI_SYSTEM_INSTRUCTIONS",
+    "GEN_AI_TOOL_CALL_ARGUMENTS",
     "GEN_AI_TOOL_CALL_ID",
+    "GEN_AI_TOOL_CALL_RESULT",
     "GEN_AI_TOOL_DEFINITIONS",
     "GEN_AI_TOOL_NAME",
     "GEN_AI_TOOL_TYPE",
     "GEN_AI_USAGE_AUDIO_CACHE_READ_INPUT_TOKENS",
     "GEN_AI_USAGE_AUDIO_INPUT_TOKENS",
     "GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS",
+    "GEN_AI_USAGE_CACHE_CREATION_INPUT_TOKENS",
     "GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS",
     "GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS",
+    "GEN_AI_USAGE_DETAILS_AUDIO_CACHE_TOKENS",
+    "GEN_AI_USAGE_DETAILS_AUDIO_CANDIDATES_TOKENS",
+    "GEN_AI_USAGE_DETAILS_AUDIO_PROMPT_TOKENS",
+    "GEN_AI_USAGE_DETAILS_AUDIO_RESPONSE_TOKENS",
+    "GEN_AI_USAGE_DETAILS_CACHE_AUDIO_READ_TOKENS",
+    "GEN_AI_USAGE_DETAILS_IMAGE_CACHE_TOKENS",
+    "GEN_AI_USAGE_DETAILS_IMAGE_CANDIDATES_TOKENS",
+    "GEN_AI_USAGE_DETAILS_IMAGE_PROMPT_TOKENS",
+    "GEN_AI_USAGE_DETAILS_INPUT_AUDIO_TOKENS",
+    "GEN_AI_USAGE_DETAILS_OUTPUT_AUDIO_TOKENS",
+    "GEN_AI_USAGE_DETAILS_REASONING_TOKENS",
+    "GEN_AI_USAGE_DETAILS_THINKING_TOKENS",
+    "GEN_AI_USAGE_DETAILS_THOUGHTS_TOKENS",
     "GEN_AI_USAGE_IMAGE_CACHE_READ_INPUT_TOKENS",
     "GEN_AI_USAGE_IMAGE_INPUT_TOKENS",
     "GEN_AI_USAGE_IMAGE_OUTPUT_TOKENS",
     "GEN_AI_USAGE_INPUT_TOKENS",
+    "GEN_AI_USAGE_INPUT_TOKEN_DETAILS_AUDIO_TOKENS",
     "GEN_AI_USAGE_OUTPUT_TOKENS",
     "GEN_AI_USAGE_PREFIX",
     "GEN_AI_USAGE_REASONING_OUTPUT_TOKENS",
@@ -1493,12 +1636,28 @@ __all__ = [
     "HEADER_ATTRIBUTE_SEGMENTS",
     "INPUT_VALUE",
     "INVOCATION_PARAMETERS_CONTENT_MEMBERS",
+    "LLM_FINISH_REASON",
     "LLM_INVOCATION_PARAMETERS",
+    "LLM_PROVIDER",
+    "LLM_REQUEST_MODEL_NAME",
+    "LLM_RESPONSE_MODEL_NAME",
+    "LLM_SYSTEM",
+    "LLM_TOKEN_COUNT_COMPLETION",
+    "LLM_TOKEN_COUNT_COMPLETION_DETAILS_AUDIO",
+    "LLM_TOKEN_COUNT_COMPLETION_DETAILS_REASONING",
+    "LLM_TOKEN_COUNT_PREFIX",
+    "LLM_TOKEN_COUNT_PROMPT",
+    "LLM_TOKEN_COUNT_PROMPT_DETAILS_AUDIO",
+    "LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_READ",
+    "LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE",
+    "LLM_TOKEN_COUNT_TOTAL",
     "MCP_METHOD_NAME",
     "MCP_METHOD_TOOLS_CALL",
     "MCP_PROTOCOL_VERSION",
     "MCP_RESULT_TYPE",
+    "METADATA",
     "OPENINFERENCE_SPAN_KIND",
+    "OUTPUT_MIME_TYPE",
     "OUTPUT_VALUE",
     "PENDING_IDENTITY_ATTRIBUTES",
     "PENDING_IDENTITY_PREFIXES",
@@ -1546,6 +1705,7 @@ __all__ = [
     "RIUS_SDK_GLOBAL_PROVIDER",
     "RIUS_SPAN_PENDING",
     "SERVICE_INSTANCE_ID",
+    "SERVICE_NAME",
     "SERVICE_VERSION",
     "SESSION_ID",
     "SpanKind",
@@ -1553,6 +1713,7 @@ __all__ = [
     "TELEMETRY_DISTRO_NAME_CODING_AGENTS",
     "TELEMETRY_DISTRO_VERSION",
     "THIRD_PARTY_CONTENT_ATTRIBUTES",
+    "TOOL_NAME",
     "TRACER_NAME",
     "USER_ID",
     "VCS_REF_HEAD_NAME",
