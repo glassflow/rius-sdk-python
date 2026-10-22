@@ -28,7 +28,7 @@ import ast
 import json
 import math
 import re
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Mapping
 from typing import Any
 
 from ._media import MAX_DEPTH, replacement, strip_raw_payload
@@ -132,44 +132,43 @@ def _default(value: Any) -> str:
 # \uXXXX escapes, and no HTML escaping of < > & (Python never does that).
 # It is what TypeScript's JSON.stringify writes, so the same value produces the
 # same bytes whichever SDK recorded it.
-class _Encoder(json.JSONEncoder):
-    """Compact JSON whose non-finite numbers are what JSON.stringify writes.
-
-    NaN and the infinities are no JSON: inside a value they are ``null``, as
-    the TypeScript SDK's JSON.stringify writes them. A non-finite number on
-    its own is its name (``NaN``, ``Infinity``, ``-Infinity``), as the
-    TypeScript SDK writes a lone number with ``String``.
-    """
-
-    def iterencode(self, o: Any, _one_shot: bool = False) -> Iterator[str]:
-        if isinstance(o, float) and not math.isfinite(o):
-            return iter((_non_finite_name(o),))
-        encode: Iterator[str] = json.encoder._make_iterencode(  # type: ignore[attr-defined]
-            {} if self.check_circular else None,
-            self.default,
-            json.encoder.encode_basestring,
-            self.indent,
-            _finite_or_null,
-            self.key_separator,
-            self.item_separator,
-            self.sort_keys,
-            self.skipkeys,
-            _one_shot,
-        )(o, 0)
-        return encode
-
-
 def _non_finite_name(value: float) -> str:
     if value != value:
         return "NaN"
     return "Infinity" if value > 0 else "-Infinity"
 
 
-def _finite_or_null(value: float) -> str:
-    return float.__repr__(value) if math.isfinite(value) else "null"
+def _finite(value: Any, ancestors: list[int] | None = None) -> Any:
+    """``value`` with every NaN and infinity inside its mappings and arrays
+    replaced by ``None``, which JSON writes as null.
+
+    NaN and the infinities are no JSON; the TypeScript SDK's JSON.stringify
+    writes them as null, and so does this SDK. Only mappings, lists and
+    tuples are walked: anything else goes to the encoder's ``default`` as it
+    would have. A cycle is left as it is, for the encoder to report.
+    """
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
+    if not isinstance(value, (Mapping, list, tuple)):
+        return value
+    ancestors = [] if ancestors is None else ancestors
+    if id(value) in ancestors:
+        return value
+    ancestors.append(id(value))
+    try:
+        if isinstance(value, Mapping):
+            return {key: _finite(item, ancestors) for key, item in value.items()}
+        return [_finite(item, ancestors) for item in value]
+    finally:
+        ancestors.pop()
 
 
-_encoder = _Encoder(default=_default, separators=(",", ":"), ensure_ascii=False)
+# allow_nan=False: a NaN or an infinity inside a value raises instead of
+# writing the NaN / Infinity tokens, which are no JSON; _bounded_dumps then
+# encodes the value again with each of them null (see _finite).
+_encoder = json.JSONEncoder(
+    default=_default, separators=(",", ":"), ensure_ascii=False, allow_nan=False
+)
 
 # ensure_ascii=False writes a lone surrogate raw, and a string holding one
 # cannot be encoded as UTF-8: the OTLP exporter drops such an attribute. The
@@ -341,6 +340,20 @@ def serialize(value: Any) -> str:
 
 
 def _bounded_dumps(value: Any) -> str:
+    # A lone non-finite number is its name, as the TypeScript SDK writes a
+    # number with String(); inside a value it is null (see _finite).
+    if isinstance(value, float) and not math.isfinite(value):
+        return _non_finite_name(value)
+    try:
+        return _encode_within_budget(value)
+    except ValueError:
+        # The encoder refuses NaN and the infinities (allow_nan=False). Only
+        # then is the value walked to replace them; a cycle raises again and
+        # serialize falls back to repr, as it always has.
+        return _encode_within_budget(_finite(value))
+
+
+def _encode_within_budget(value: Any) -> str:
     # iterencode without _one_shot takes the pure-Python path, which yields
     # chunks lazily as it walks the value; the C encoder renders everything
     # first. A small payload costs a few extra microseconds this way; a large

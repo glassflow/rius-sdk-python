@@ -21,6 +21,14 @@ Each file holds an `about`, which says what a case's fields mean, and
 `cases`, each with a unique `name`. A field an SDK spells differently is named
 the Python way (`capture_content`, `service_name`); each SDK's test maps it.
 
+## Optional fields
+
+- `warns` (`env.json` only): whether resolving the case logs a warning.
+  `true` means at least one, `false` means none. The Python SDK reads WARNING
+  records on the `rius.config` logger, the TypeScript SDK `console.warn` calls.
+  A case without `warns` does not check warnings at all, so leave it out only
+  where the warning is not part of the contract.
+
 ## Tagged values
 
 JSON cannot hold some values a caller can pass. A case writes them as a

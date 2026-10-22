@@ -46,14 +46,21 @@ from .user import user
 
 
 def _structured(value: Any) -> bool:
-    """Whether ``value`` is a mapping or an array holding one.
+    """Whether ``value`` is a mapping or an array holding an array or a
+    mapping.
 
-    OpenTelemetry would export either as an OTLP kvlist (or drop the array as
-    inhomogeneous); everywhere else the SDK writes structure as JSON.
+    OpenTelemetry would export a mapping as an OTLP kvlist and a nested array
+    as a nested array value (or drop either, before 1.25); everywhere else
+    the SDK writes structure as JSON, and so does the TypeScript SDK. The
+    whole value is serialized once, whatever the inner array holds: walking
+    it first would turn ``[[1, b"a"]]`` into an array of the inner array's
+    JSON.
     """
     if isinstance(value, Mapping):
         return True
-    return isinstance(value, (list, tuple)) and any(_structured(item) for item in value)
+    return isinstance(value, (list, tuple)) and any(
+        isinstance(item, (list, tuple, Mapping)) for item in value
+    )
 
 
 def _is_bool(item: Any) -> bool:

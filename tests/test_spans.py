@@ -733,6 +733,8 @@ def test_set_attribute_keeps_primitive_arrays_native(
         ([["x"], ["y"]], '[["x"],["y"]]'),
         ([1, None, "é<&>"], '[1,null,"é<&>"]'),
         ((1, (2, b"ab")), '[1,[2,"[stripped unknown 2 bytes]"]]'),
+        ([[1, b"a"]], '[[1,"[stripped unknown 1 bytes]"]]'),
+        ([[b"a"]], '[["[stripped unknown 1 bytes]"]]'),
     ],
 )
 def test_set_attribute_writes_a_mixed_or_nested_array_as_one_json_string(

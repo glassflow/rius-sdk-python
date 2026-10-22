@@ -1242,11 +1242,13 @@ raw_payloads:
         serializes the whole value to under the rule above, every byte object
         a quoted marker and every array an array. The SDKs' own setters
         (set_attribute in Python, setAttribute in TypeScript) keep an array
-        whose elements, null aside, are all strings, all numbers or all
-        booleans, and write any other value that is not a primitive (a
-        mapping, a mixed or nested array, an array holding a mapping) as one
-        JSON encoding, byte objects as markers, in both languages, so only a
-        raw Python span still holds a mapping or a nested array. `{k: [1, bytes]}` is
+        whose elements, null aside, are all strings (a byte object among them
+        as its bare marker), all numbers or all booleans, and write any other
+        value that is not a primitive (a mapping, a mixed array, any array
+        holding an array or a mapping) as one JSON encoding, byte objects as
+        quoted markers, in both languages. Only a raw span walks a nested
+        array element by element: through a setter `[[1, bytes]]` is
+        `[[1,"[stripped unknown 1 bytes]"]]`, one string. `{k: [1, bytes]}` is
         `{"k":[1,"[stripped unknown 2 bytes]"]}` and `[1, [1, bytes]]` is
         `[1,[1,"[stripped unknown 1 bytes]"]]`, each encoded once, never
         holding a mixed array's own JSON as a string. The sink does the same
@@ -1305,7 +1307,7 @@ raw_payloads:
           output: {k: '[1,"[stripped unknown 2 bytes]"]'}
         - name: python_byte_object_beside_a_number_in_a_nested_array
           language: python
-          note: The inner array is its JSON, so the outer one is an array of strings.
+          note: 'On a raw span the inner array is its JSON, so the outer one is an array of strings. The SDK setter writes the whole array as one JSON encoding, byte objects as markers: [[1,"[stripped unknown 1 bytes]"]].'
           value: '[[1, b"a"]]'
           output: ['[1,"[stripped unknown 1 bytes]"]']
         - name: typescript_buffer_attribute
@@ -1341,7 +1343,7 @@ raw_payloads:
           output: '{"k":[1,"[stripped unknown 2 bytes]"]}'
         - name: typescript_byte_object_beside_a_number_in_a_nested_array
           language: typescript
-          note: The inner array is its JSON, so the outer one is an array of strings, which OpenTelemetry JS holds.
+          note: 'On a raw span the inner array is its JSON, so the outer one is an array of strings, which OpenTelemetry JS holds. The SDK setter writes the whole array as one JSON encoding, byte objects as markers: [[1,"[stripped unknown 1 bytes]"]].'
           value: '[[1, new Uint8Array(1)]]'
           output: ['[1,"[stripped unknown 1 bytes]"]']
         - name: typescript_byte_object_beside_a_number_in_an_array_beside_a_number

@@ -55,13 +55,6 @@ def _value(raw: Any) -> Any:
     return raw
 
 
-def _plain(value: Any) -> Any:
-    """An attribute value as JSON holds it: a tuple as a list."""
-    if isinstance(value, (tuple, list)):
-        return [_plain(item) for item in value]
-    return value
-
-
 class _Spans:
     """A client exporting to memory, read back one span at a time.
 
@@ -78,6 +71,26 @@ class _Spans:
         self.client.flush()
         (span,) = self.sink.get_finished_spans()
         return dict(span.attributes or {})
+
+
+def _mixes_int_and_float(values: list[Any]) -> bool:
+    numbers = [v for v in values if isinstance(v, (int, float)) and not isinstance(v, bool)]
+    return any(isinstance(v, int) for v in numbers) and any(isinstance(v, float) for v in numbers)
+
+
+def _same(got: Any, want: Any, int_as_float: bool = False) -> bool:
+    """``got`` equals ``want`` with its types: ``==`` alone takes True for 1
+    and 1 for 1.0. An int may be written as a float only inside an expected
+    array that mixes ints and floats, the one place the SDK makes it a float
+    so OpenTelemetry Python before 1.25 keeps the array."""
+    if isinstance(want, list):
+        if not isinstance(got, (list, tuple)) or len(got) != len(want):
+            return False
+        loose = _mixes_int_and_float(want)
+        return all(_same(g, w, loose) for g, w in zip(got, want, strict=True))
+    if int_as_float and type(want) is int and type(got) is float:
+        return got == want
+    return type(got) is type(want) and got == want
 
 
 @pytest.fixture
@@ -103,7 +116,8 @@ def test_set_attribute(case: dict[str, Any], exporter: _Spans) -> None:
     span = rius.start_span("s")
     span.set_attribute("k", _value(case["value"]))
     span.end()
-    assert _plain(exporter.attributes()["k"]) == case["expected"]
+    written = exporter.attributes()["k"]
+    assert _same(written, case["expected"]), (written, case["expected"])
 
 
 @pytest.mark.parametrize("case", _cases("messages"), ids=_ids("messages"))

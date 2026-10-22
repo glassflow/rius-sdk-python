@@ -1,5 +1,5 @@
 {
-  "about": "How an SDK's span setter (Observation.set_attribute / setAttribute on a span from start_span / startSpan) writes a value. A string, a number and a boolean is kept as it is. An array is kept as an array when, nulls aside, its elements (byte objects already their markers) are all strings, all numbers or all booleans; an empty array is kept too. Any other array (mixed types, a boolean beside a number, a nested array, a mapping inside) and any mapping is one JSON string: compact, non-ASCII kept, nothing HTML-escaped, encoded once (an array inside it stays an array in the JSON), byte objects as quoted markers. A byte object is its marker, `[stripped unknown <N> bytes]`, bare at the root and in an array of strings (registry/media_parts.yaml byte_objects.attribute_values). `value` uses the tagged forms README.md describes. `expected` is the attribute value the span holds, an array as a JSON array.",
+  "about": "How an SDK's span setter (Observation.set_attribute / setAttribute on a span from start_span / startSpan) writes a value. A string, a number and a boolean is kept as it is. An array is kept as an array when, nulls aside, its elements (byte objects already their markers) are all strings, all numbers or all booleans; an empty array is kept too. Any other array (mixed types, a boolean beside a number, any array holding an array or a mapping, whatever its own elements) and any mapping is one JSON string: compact, non-ASCII kept, nothing HTML-escaped, NaN and the infinities null (as JSON.stringify writes them), encoded once (an array inside it stays an array in the JSON), byte objects as quoted markers. A byte object is its marker, `[stripped unknown <N> bytes]`, bare at the root and in an array of strings and byte objects (registry/media_parts.yaml byte_objects.attribute_values). `value` uses the tagged forms README.md describes. `expected` is the attribute value the span holds, an array as a JSON array.",
   "cases": [
     {
       "name": "string",
@@ -128,9 +128,7 @@
           }
         ]
       ],
-      "expected": [
-        "[1,\"[stripped unknown 1 bytes]\"]"
-      ]
+      "expected": "[[1,\"[stripped unknown 1 bytes]\"]]"
     },
     {
       "name": "byte_object_in_a_mapping",
@@ -302,6 +300,49 @@
         }
       ],
       "expected": "[1,\"[stripped unknown 2 bytes]\"]"
+    },
+    {
+      "name": "non_finite_number_in_a_mixed_array_is_null",
+      "value": [
+        1,
+        {
+          "$number": "NaN"
+        },
+        "a"
+      ],
+      "expected": "[1,null,\"a\"]"
+    },
+    {
+      "name": "byte_object_in_a_nested_array",
+      "value": [
+        [
+          {
+            "$bytes": 1
+          }
+        ]
+      ],
+      "expected": "[[\"[stripped unknown 1 bytes]\"]]"
+    },
+    {
+      "name": "byte_object_in_a_mapping_in_an_array",
+      "value": [
+        {
+          "k": {
+            "$bytes": 2
+          }
+        }
+      ],
+      "expected": "[{\"k\":\"[stripped unknown 2 bytes]\"}]"
+    },
+    {
+      "name": "nested_mixed_array",
+      "value": [
+        [
+          1,
+          "a"
+        ]
+      ],
+      "expected": "[[1,\"a\"]]"
     }
   ]
 }
