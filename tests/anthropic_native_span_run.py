@@ -13,6 +13,7 @@ what that provider exports is printed under ``foreign``).
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import http.server
 import importlib.util
@@ -174,12 +175,38 @@ def main() -> None:
         messages.create(**request)
         messages.create(**request)
 
+    def async_messages() -> Any:
+        # A client per event loop: each case runs its own asyncio.run().
+        return anthropic.AsyncAnthropic(
+            api_key="test-key", base_url=f"http://127.0.0.1:{server.server_port}", max_retries=0
+        ).messages
+
+    async def _async_create() -> None:
+        await async_messages().create(**request)
+
+    async def _async_create_streamed() -> None:
+        async for _ in await async_messages().create(stream=True, **request):
+            pass
+
+    async def _async_stream_helper() -> None:
+        async with async_messages().stream(**request) as stream:
+            async for _ in stream:
+                pass
+
+    async def _async_not_found() -> None:
+        with contextlib.suppress(anthropic.NotFoundError):
+            await async_messages().create(**{**request, "model": "claude-nope"})
+
     cases = {
         "create": create,
         "create_streamed": create_streamed,
         "stream_helper": stream_helper,
         "not_found": not_found,
         "compaction": compaction,
+        "async_create": lambda: asyncio.run(_async_create()),
+        "async_create_streamed": lambda: asyncio.run(_async_create_streamed()),
+        "async_stream_helper": lambda: asyncio.run(_async_stream_helper()),
+        "async_not_found": lambda: asyncio.run(_async_not_found()),
     }
     if importlib.util.find_spec("botocore") is not None:
         # The Bedrock client goes through the same Messages resource, so

@@ -36,7 +36,10 @@ pytest.importorskip("openinference.instrumentation.anthropic")
 
 _RUNNER = Path(__file__).with_name("anthropic_native_span_run.py")
 _SCOPE = "com.anthropic.sdk.python"
-_CASES = ("create", "create_streamed", "stream_helper", "not_found")
+_SYNC_CASES = ("create", "create_streamed", "stream_helper", "not_found")
+# The same calls through AsyncAnthropic, which OpenInference wraps separately.
+_CASES = (*_SYNC_CASES, *(f"async_{case}" for case in _SYNC_CASES))
+_NOT_FOUND = ("not_found", "async_not_found")
 _SECRETS = ("secret-prompt-text", "secret-reply-text", "secret-system-text")
 _KEPT_GEN_AI = {"gen_ai.provider.name", "gen_ai.conversation.id"}
 
@@ -109,8 +112,9 @@ def test_one_call_exports_one_llm_span(case: str) -> None:
 
 
 @pytest.mark.integration
-def test_a_provider_404_has_one_error_type_the_exception_class() -> None:
-    spans = _run()["cases"]["not_found"]
+@pytest.mark.parametrize("case", _NOT_FOUND)
+def test_a_provider_404_has_one_error_type_the_exception_class(case: str) -> None:
+    spans = _run()["cases"][case]
     (llm,) = _llm(spans)
     assert llm["attributes"]["error.type"] in ("anthropic.NotFoundError", "NotFoundError")
 
@@ -151,7 +155,7 @@ def test_the_sdk_chat_span_is_a_plain_client_span(case: str) -> None:
 def test_argus_badges_and_prices_each_call_once(case: str) -> None:
     attributes = [s["attributes"] for s in _run()["cases"][case]]
     assert sum(_argus_badges_llm(a) for a in attributes) == 1
-    if case != "not_found":
+    if case not in _NOT_FOUND:
         assert sum(_argus_prices(a) for a in attributes) == 1
 
 
@@ -170,10 +174,11 @@ def test_a_bedrock_call_counts_once_and_its_sdk_span_keeps_its_provider() -> Non
 
 
 @pytest.mark.integration
-def test_the_demoted_404_keeps_its_http_failure() -> None:
+@pytest.mark.parametrize("case", _NOT_FOUND)
+def test_the_demoted_404_keeps_its_http_failure(case: str) -> None:
     if not _has_native_tracing():
         pytest.skip("this anthropic has no tracing of its own (it starts in 1.14.0)")
-    (native,) = _native(_run()["cases"]["not_found"])
+    (native,) = _native(_run()["cases"][case])
     assert native["attributes"]["http.response.status_code"] == 404
     assert native["attributes"]["error.type"] == "not_found_error"
     assert native["status"] == "ERROR"
@@ -236,7 +241,7 @@ def test_bridged_to_another_sdk_each_call_still_counts_once(case: str) -> None:
     run = _run(foreign=True)
     attributes = [s["attributes"] for s in run["cases"][case]]
     assert sum(_argus_badges_llm(a) for a in attributes) == 1
-    if case != "not_found":
+    if case not in _NOT_FOUND:
         assert sum(_argus_prices(a) for a in attributes) == 1
     if not _has_native_tracing():
         return
