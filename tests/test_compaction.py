@@ -446,17 +446,24 @@ def test_threads_sharing_the_flag_mark_exactly_one_span(pipeline: _Pipeline) -> 
     mark_compaction()
     workers = 16
     barrier = threading.Barrier(workers)
+    errors: list[BaseException] = []
 
     def call(index: int) -> None:
         barrier.wait()
-        context.run(pipeline.llm, f"llm-{index}")
+        try:
+            contexts[index].run(pipeline.llm, f"llm-{index}")
+        except BaseException as exc:  # surfaced below; a thread's error is otherwise lost
+            errors.append(exc)
 
-    context = contextvars.copy_context()
+    # One copy per thread: a Context can be entered by one thread at a time,
+    # and a second concurrent run() raises. Copies share the mark by reference.
+    contexts = [contextvars.copy_context() for _ in range(workers)]
     threads = [threading.Thread(target=call, args=(i,)) for i in range(workers)]
     for thread in threads:
         thread.start()
     for thread in threads:
         thread.join()
+    assert errors == []
     assert sum(_marked(pipeline, f"llm-{i}") for i in range(workers)) == 1
 
 
