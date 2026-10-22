@@ -54,8 +54,25 @@ def upstream_attributes() -> set[str]:
     return set(re.findall(r"`(gen_ai\.[a-z_.0-9]+)`", text))
 
 
-def emitted_attributes() -> dict[str, str]:
-    text = "".join(path.read_text() for path in SEMCONV)
+# The section of the vendored module that names the keys the normalizers READ
+# from other producers. They are never emitted, so they are not checked; the
+# section runs to the next heading. If the heading changes, nothing is skipped
+# and the check fails loudly rather than passing silently.
+SOURCE_SPELLINGS_HEADING = "# --- Normalizer source spellings ---"
+
+
+def _without_source_spellings(text: str) -> str:
+    start = text.find(SOURCE_SPELLINGS_HEADING)
+    if start < 0:
+        return text
+    end = text.find("\n# --- ", start + len(SOURCE_SPELLINGS_HEADING))
+    return text[:start] + (text[end:] if end >= 0 else "")
+
+
+def emitted_attributes(text: str | None = None) -> dict[str, str]:
+    if text is None:
+        text = "".join(path.read_text() for path in SEMCONV)
+    text = _without_source_spellings(text)
     consts = re.findall(r'^([A-Z][A-Z_0-9]*) = "([^"]+)"$', text, re.M)
     return {
         name: value

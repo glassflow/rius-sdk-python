@@ -43,7 +43,12 @@ from typing import Any
 from opentelemetry import context as otel_context
 from opentelemetry.sdk.trace import ReadableSpan, Span, SpanProcessor
 
-from .semconv import GEN_AI_USAGE_PREFIX, RIUS_AGGREGATED_USAGE_PREFIX, RIUS_SPAN_PENDING
+from .semconv import (
+    GEN_AI_USAGE_PREFIX,
+    LLM_TOKEN_COUNT_PREFIX,
+    RIUS_AGGREGATED_USAGE_PREFIX,
+    RIUS_SPAN_PENDING,
+)
 
 #: The tracer scope openinference-instrumentation-litellm starts its spans under.
 LITELLM_SCOPE = "openinference.instrumentation.litellm"
@@ -53,10 +58,6 @@ LANGCHAIN_SCOPE = "openinference.instrumentation.langchain"
 LLAMA_INDEX_SCOPE = "openinference.instrumentation.llama_index"
 #: The instrumentors whose spans wrap a call another instrumentor also records.
 WRAPPER_SCOPES = frozenset({LITELLM_SCOPE, LANGCHAIN_SCOPE, LLAMA_INDEX_SCOPE})
-
-#: OpenInference's usage family: the child's usage before normalization has
-#: renamed it. A child carrying either spelling repeats the call's usage.
-_LLM_TOKEN_COUNT_PREFIX = "llm.token_count."
 
 #: Upper bound on the spans remembered at once. A wrapper normally leaves the
 #: books when it is exported, milliseconds after it ends; the bound only
@@ -68,8 +69,10 @@ _MAX_TRACKED = 10_000
 def _has_usage(attributes: Mapping[str, Any] | None) -> bool:
     if not attributes:
         return False
+    # OpenInference's usage family is the child's usage before normalization
+    # has renamed it. A child carrying either spelling repeats the call's usage.
     return any(
-        key.startswith(GEN_AI_USAGE_PREFIX) or key.startswith(_LLM_TOKEN_COUNT_PREFIX)
+        key.startswith(GEN_AI_USAGE_PREFIX) or key.startswith(LLM_TOKEN_COUNT_PREFIX)
         for key in attributes
     )
 

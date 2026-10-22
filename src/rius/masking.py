@@ -35,6 +35,8 @@ from .semconv import (
     CONTENT_ATTRIBUTES,
     CONTENT_PREFIX_IDENTITY_ATTRIBUTES,
     EXCEPTION_EVENT,
+    EXCEPTION_MESSAGE,
+    EXCEPTION_STACKTRACE,
 )
 
 logger = logging.getLogger(__name__)
@@ -96,7 +98,7 @@ def is_content_key(key: str) -> bool:
 # attribute strip removes. exception.type deliberately stays: failures remain
 # visible and classifiable with content capture off (same policy as the
 # TypeScript SDK).
-_EXCEPTION_CONTENT_KEYS = frozenset({"exception.message", "exception.stacktrace"})
+_EXCEPTION_CONTENT_KEYS = frozenset({EXCEPTION_MESSAGE, EXCEPTION_STACKTRACE})
 # The status description is the same string once more: observe()/MCP write
 # str(exc) into it, and providers echo the rejected request. Not an attribute,
 # so it needs its own pass; this is the key= a mask sees for it.

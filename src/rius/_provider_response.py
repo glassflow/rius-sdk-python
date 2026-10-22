@@ -6,9 +6,8 @@ from collections.abc import Mapping
 from typing import Any
 
 from ._serde import loads_object
-from .semconv import OUTPUT_VALUE
+from .semconv import OUTPUT_MIME_TYPE, OUTPUT_VALUE
 
-OUTPUT_MIME_TYPE = "output.mime_type"
 JSON_MIME_TYPE = "application/json"
 
 #: What ``POST /responses/compact`` answers with. That call is the compaction
