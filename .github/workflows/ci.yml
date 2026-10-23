@@ -91,11 +91,11 @@ jobs:
           uv run --with "openai>=3,<4"
           python -m pytest --ignore tests/test_llama_index_span_context.py
 
-  # pyproject declares opentelemetry-*>=1.24 but the lock resolves the newest
+  # pyproject declares opentelemetry-*>=1.25 but the lock resolves the newest
   # release, so this job re-runs the suite on the floor: the whole OTel family
-  # pinned to the 1.24.0 release, contrib packages at their matching 0.45b0
+  # pinned to the 1.25.0 release, contrib packages at their matching 0.46b0
   # (the locked opentelemetry-instrumentation needs a newer API), and
-  # setuptools for the pkg_resources that instrumentation 0.45b0 imports.
+  # setuptools for the pkg_resources that instrumentation 0.46b0 imports.
   # `python -m pytest`, not `pytest`: the venv's pytest script runs the
   # project interpreter directly and would never see the overlay. The first
   # step prints the versions, which shows in the log that the overlay took.
@@ -103,11 +103,11 @@ jobs:
     runs-on: ubuntu-latest
     env:
       OTEL_FLOOR: >-
-        --with opentelemetry-api==1.24.0
-        --with opentelemetry-sdk==1.24.0
-        --with opentelemetry-exporter-otlp-proto-http==1.24.0
-        --with opentelemetry-semantic-conventions==0.45b0
-        --with opentelemetry-instrumentation==0.45b0
+        --with opentelemetry-api==1.25.0
+        --with opentelemetry-sdk==1.25.0
+        --with opentelemetry-exporter-otlp-proto-http==1.25.0
+        --with opentelemetry-semantic-conventions==0.46b0
+        --with opentelemetry-instrumentation==0.46b0
         --with setuptools<81
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

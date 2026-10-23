@@ -57,9 +57,8 @@ _CHAT = "chat"
 
 #: Not in the rius registry: the OpenTelemetry HTTP convention's key, written
 #: by the anthropic SDK on its span for the call's final response. Spelled
-#: here because opentelemetry.semconv.attributes, which names it, is newer
-#: than the opentelemetry-semantic-conventions 0.45b0 the supported
-#: opentelemetry-sdk 1.24.0 installs.
+#: here, not imported from opentelemetry.semconv.attributes, because
+#: opentelemetry-semantic-conventions is not a direct dependency of rius.
 _HTTP_RESPONSE_STATUS_CODE = "http.response.status_code"
 
 #: The class every Anthropic client, in Python and TypeScript alike, raises

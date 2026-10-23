@@ -341,7 +341,7 @@ class OwnPipeline(SpanProcessor):
     ``init()`` the old provider stays global and keeps starting third-party
     spans, which the new client receives through a bridge. OTel cannot remove
     a processor, so without this every such span also entered the old,
-    shut-down pipeline (on OTel 1.24 its batch processor logs "Already
+    shut-down pipeline (on OTel 1.25 its batch processor logs "Already
     shutdown, dropping span." once per span). ``shutdown`` shuts the pipeline
     down, then stops feeding it.
     """
