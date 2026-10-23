@@ -79,6 +79,30 @@
       }
     },
     {
+      "name": "capture_off_drops_the_anthropic_sdk_tool_run_content",
+      "capture_content": false,
+      "mask": null,
+      "span": {
+        "attributes": {
+          "gen_ai.operation.name": "execute_tool",
+          "gen_ai.tool.name": "get_weather",
+          "gen_ai.tool.call.id": "toolu_1",
+          "gen_ai.tool.call.arguments": "{\"city\":\"Paris\"}",
+          "anthropic.tool_result.content": "[{\"type\":\"text\",\"text\":\"sunny, 22C\"}]"
+        },
+        "events": []
+      },
+      "expected": {
+        "attributes": {
+          "gen_ai.operation.name": "execute_tool",
+          "gen_ai.tool.name": "get_weather",
+          "gen_ai.tool.call.id": "toolu_1"
+        },
+        "events": [],
+        "status": null
+      }
+    },
+    {
       "name": "capture_off_ignores_the_mask",
       "capture_content": false,
       "mask": {
