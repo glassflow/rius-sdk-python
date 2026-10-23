@@ -143,6 +143,13 @@ class RoutingSpanExporter(SpanExporter):
         self._retired: list[SpanExporter] = []
         self._warned_aliases: set[str] = set()
         self._failing_aliases: set[str | None] = set()
+        #: The destinations the last export failed on: an alias, or None for
+        #: the default destination (where an unregistered alias's spans go
+        #: too). One failure fails the whole export, so this is what tells
+        #: export health which destination to name. It relies on exports
+        #: through the router being serialised (one BatchSpanProcessor) and
+        #: is read right after ``inner.export()`` returns.
+        self.last_failed: frozenset[str | None] = frozenset()
         self._lock = threading.Lock()
 
     def register(self, alias: str, api_key: str) -> None:
@@ -174,12 +181,14 @@ class RoutingSpanExporter(SpanExporter):
             groups.setdefault(alias, []).append(span)
 
         self._shutdown_retired()
-        result = SpanExportResult.SUCCESS
+        failed: set[str | None] = set()
         for alias, group in groups.items():
             # One destination's failure is its own: a factory or exporter that
             # raises fails that group, never the other workspaces' spans.
+            exporter: SpanExporter | None = None
             try:
-                outcome = self._resolve(alias).export(group)
+                exporter = self._resolve(alias)
+                outcome = exporter.export(group)
             except Exception:
                 outcome = SpanExportResult.FAILURE
                 self._warn_failing(alias)
@@ -188,8 +197,9 @@ class RoutingSpanExporter(SpanExporter):
                 with self._lock:
                     self._failing_aliases.discard(alias)
             if outcome is not SpanExportResult.SUCCESS:
-                result = SpanExportResult.FAILURE
-        return result
+                failed.add(None if exporter is self._default else alias)
+        self.last_failed = frozenset(failed)
+        return SpanExportResult.FAILURE if failed else SpanExportResult.SUCCESS
 
     def _warn_failing(self, alias: str | None) -> None:
         with self._lock:

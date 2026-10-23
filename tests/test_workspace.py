@@ -288,6 +288,30 @@ def test_a_raising_destination_exporter_fails_only_its_own_group() -> None:
     result = routing.export([_stamped_span("acme", "a"), _stamped_span(None, "default")])
     assert result is SpanExportResult.FAILURE
     assert [s.name for s in default.get_finished_spans()] == ["default"]
+    assert routing.last_failed == {"acme"}
+
+
+def test_the_router_reports_which_destinations_failed() -> None:
+    # A FAILURE result is reported the same as a raise. An unregistered
+    # alias's spans go to the default destination, so its failure is the
+    # default's.
+    from rius.workspace import RoutingSpanExporter
+
+    class Failing(SpanExporter):
+        def export(self, spans):  # type: ignore[no-untyped-def]
+            return SpanExportResult.FAILURE
+
+    default = InMemorySpanExporter()
+    routing = RoutingSpanExporter(default, lambda key: Failing(), {"acme": "key-acme"})
+    routing.export([_stamped_span("acme", "a"), _stamped_span(None, "default")])
+    assert routing.last_failed == {"acme"}
+
+    routing.export([_stamped_span(None, "default")])
+    assert routing.last_failed == frozenset()
+
+    failing_default = RoutingSpanExporter(Failing(), lambda key: InMemorySpanExporter(), {})
+    failing_default.export([_stamped_span("unknown", "u")])
+    assert failing_default.last_failed == {None}
 
 
 # --- key rotation releases the exporter it replaced ---

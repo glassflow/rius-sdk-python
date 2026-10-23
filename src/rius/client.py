@@ -793,13 +793,14 @@ def _do_init(
         # Outermost wrapper so it observes the outcome of the whole chain
         # (masking included); client.flush() reads it for honest delivery
         # reporting.
-        # A caller's own exporter has no RIUS_ENDPOINT behind it to blame, but
-        # workspace destinations from the default factory still do.
-        managed_workspaces = routing is not None and workspace_exporter_factory is None
+        # A caller's own exporter or factory has no RIUS_ENDPOINT behind it to
+        # blame; the router reports which destination failed, so the warning
+        # names that one and hints at the key and endpoint only if it is ours.
         export_health = ExportOutcomeExporter(
             exporter,
-            endpoint=config.endpoint if span_exporter is None or managed_workspaces else None,
-            custom_exporter=span_exporter is not None and managed_workspaces,
+            endpoint=config.endpoint if span_exporter is None else None,
+            routing=routing,
+            workspace_endpoint=config.endpoint if workspace_exporter_factory is None else None,
         )
         batch_processor = BatchSpanProcessor(export_health)
         detector = ForeignParentDetector(foreign_global)

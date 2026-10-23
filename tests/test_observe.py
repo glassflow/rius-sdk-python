@@ -98,6 +98,30 @@ def test_generator_spans_iteration(exported_spans: InMemorySpanExporter) -> None
     assert spans[0].name == "gen"
 
 
+def test_generator_return_value_reaches_the_caller(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    # ``yield from`` and a manual next() loop both read the inner generator's
+    # return value off StopIteration; the wrapper must not swallow it.
+    @observe
+    def counted(n: int) -> Iterator[int]:
+        yield from range(n)
+        return n
+
+    def consume() -> Iterator[int]:
+        total = yield from counted(2)
+        yield total * 10
+
+    assert list(consume()) == [0, 1, 20]
+
+    stepped = counted(1)
+    assert next(stepped) == 0
+    with pytest.raises(StopIteration) as stop:
+        next(stepped)
+    assert stop.value.value == 1
+    assert len(exported_spans.get_finished_spans()) == 2
+
+
 def test_capture_flags_disable_io(exported_spans: InMemorySpanExporter) -> None:
     secret("hunter2")
     attrs = exported_spans.get_finished_spans()[0].attributes
