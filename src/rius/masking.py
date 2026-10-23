@@ -119,21 +119,32 @@ _ANTHROPIC_SDK_URL_CONTENT_KEYS = frozenset({URL_QUERY, URL_FULL})
 
 
 def _scheme_host_and_path(url: str) -> str | None:
-    """``url`` as its scheme, host and path, or None when nothing is left.
+    """``url`` as its scheme, host and path, or None when that is not safe to keep.
 
     Without its query and fragment, and without a user name or password
     before the host, which the URL convention says must never be recorded.
+    The user name and password go first, so a ``?`` or ``#`` inside them
+    cannot hide them from the cut. A URL that has an ``@`` where the host and
+    its credentials cannot be told apart is dropped: one without ``://``, one
+    with an ``@`` before it, or one whose authority (up to the first ``/``)
+    has both an ``@`` and a ``?`` or ``#``. So is one with nothing left.
     """
-    base = url.split("#", 1)[0].split("?", 1)[0]
-    authority = base.find("://")
-    if authority >= 0:
-        start = authority + 3
-        slash = base.find("/", start)
-        end = len(base) if slash < 0 else slash
-        at = base.rfind("@", start, end)
-        if at >= 0:
-            base = base[:start] + base[at + 1 :]
-    return base or None
+    sep = url.find("://")
+    if sep < 0:
+        if "@" in url:
+            return None
+    else:
+        if "@" in url[:sep]:
+            return None
+        start = sep + 3
+        slash = url.find("/", start)
+        end = len(url) if slash < 0 else slash
+        authority = url[start:end]
+        if "@" in authority:
+            if "?" in authority or "#" in authority:
+                return None
+            url = url[:start] + url[url.rfind("@", start, end) + 1 :]
+    return url.split("#", 1)[0].split("?", 1)[0] or None
 
 
 def _without_content(key: str, value: Any) -> Any:

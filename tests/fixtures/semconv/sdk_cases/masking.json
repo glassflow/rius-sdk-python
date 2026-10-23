@@ -1,5 +1,5 @@
 {
-  "about": "What an SDK's masking exporter (MaskingSpanExporter, between the span processors and the OTLP exporter) does to a span's content: its content attributes (registry content keys, e.g. input.value, gen_ai.input.messages), the exception.message and exception.stacktrace of an exception event, and the status description. Non-content attributes, exception.type and the status code always survive. `capture_content` false drops all content whatever the mask. With it true, `mask` (when given) runs over each content value with its key (status.description for the status): `returns` gives that value back, `format` gives the string with {key} and {value} filled in, `throws` raises. A mask that returns null or throws drops the value; a string, number or boolean it returns is kept as it is. `span` is the span as it ends (an ERROR status with `status` as its description when given); `expected` is what reaches the inner exporter: every attribute, the status description (null for none), and every event's attributes. `scope`, when given, is the instrumentation scope name of the span (another name otherwise). On a span whose scope starts with com.anthropic.sdk. (the Anthropic SDK's own spans), url.query and url.full are content too, as that SDK's content mode leaves query parameters it treats as content in them: `capture_content` false drops url.query and leaves url.full as its scheme, host and path: without its query, its fragment and any user name or password before the host, and dropped when that leaves nothing or it is not a string. A mask runs over both like any other content value. On any other scope they are not content.",
+  "about": "What an SDK's masking exporter (MaskingSpanExporter, between the span processors and the OTLP exporter) does to a span's content: its content attributes (registry content keys, e.g. input.value, gen_ai.input.messages), the exception.message and exception.stacktrace of an exception event, and the status description. Non-content attributes, exception.type and the status code always survive. `capture_content` false drops all content whatever the mask. With it true, `mask` (when given) runs over each content value with its key (status.description for the status): `returns` gives that value back, `format` gives the string with {key} and {value} filled in, `throws` raises. A mask that returns null or throws drops the value; a string, number or boolean it returns is kept as it is. `span` is the span as it ends (an ERROR status with `status` as its description when given); `expected` is what reaches the inner exporter: every attribute, the status description (null for none), and every event's attributes. `scope`, when given, is the instrumentation scope name of the span (another name otherwise). On a span whose scope starts with com.anthropic.sdk. (the Anthropic SDK's own spans), url.query and url.full are content too, as that SDK's content mode leaves query parameters it treats as content in them: `capture_content` false drops url.query and leaves url.full as its scheme, host and path: without its query, its fragment and any user name or password before the host (removed first, so a ? or # inside them does not hide them). url.full is dropped when it is not a string, when nothing is left, and when it has an @ where the host and the user name cannot be told apart: no ://, an @ before it, or an authority (up to the first /) with both an @ and a ? or #. A mask runs over both like any other content value. On any other scope they are not content.",
   "cases": [
     {
       "name": "capture_on_without_a_mask_keeps_everything",
@@ -322,6 +322,147 @@
       "expected": {
         "attributes": {
           "url.path": "/v1/organizations/users"
+        },
+        "events": [],
+        "status": null
+      }
+    },
+    {
+      "name": "capture_off_drops_an_anthropic_sdk_full_url_whose_userinfo_has_a_fragment_mark",
+      "capture_content": false,
+      "mask": null,
+      "scope": "com.anthropic.sdk.python",
+      "span": {
+        "attributes": {
+          "url.full": "https://user:pa#ss@api.anthropic.com/v1/organizations/users",
+          "url.path": "/v1/organizations/users"
+        },
+        "events": []
+      },
+      "expected": {
+        "attributes": {
+          "url.path": "/v1/organizations/users"
+        },
+        "events": [],
+        "status": null
+      }
+    },
+    {
+      "name": "capture_off_drops_an_anthropic_sdk_full_url_with_a_query_and_an_at_before_its_path",
+      "capture_content": false,
+      "mask": null,
+      "scope": "com.anthropic.sdk.python",
+      "span": {
+        "attributes": {
+          "url.full": "https://api.anthropic.com?email=jane@example.com",
+          "url.path": "/v1/organizations/users"
+        },
+        "events": []
+      },
+      "expected": {
+        "attributes": {
+          "url.path": "/v1/organizations/users"
+        },
+        "events": [],
+        "status": null
+      }
+    },
+    {
+      "name": "capture_off_drops_a_scheme_relative_anthropic_sdk_full_url_with_userinfo",
+      "capture_content": false,
+      "mask": null,
+      "scope": "com.anthropic.sdk.python",
+      "span": {
+        "attributes": {
+          "url.full": "//user:pass@api.anthropic.com/v1/organizations/users",
+          "url.path": "/v1/organizations/users"
+        },
+        "events": []
+      },
+      "expected": {
+        "attributes": {
+          "url.path": "/v1/organizations/users"
+        },
+        "events": [],
+        "status": null
+      }
+    },
+    {
+      "name": "capture_off_drops_an_anthropic_sdk_full_url_with_userinfo_and_no_scheme",
+      "capture_content": false,
+      "mask": null,
+      "scope": "com.anthropic.sdk.python",
+      "span": {
+        "attributes": {
+          "url.full": "user:pass@api.anthropic.com/v1/organizations/users",
+          "url.path": "/v1/organizations/users"
+        },
+        "events": []
+      },
+      "expected": {
+        "attributes": {
+          "url.path": "/v1/organizations/users"
+        },
+        "events": [],
+        "status": null
+      }
+    },
+    {
+      "name": "capture_off_drops_an_anthropic_sdk_full_url_with_one_slash_and_userinfo",
+      "capture_content": false,
+      "mask": null,
+      "scope": "com.anthropic.sdk.python",
+      "span": {
+        "attributes": {
+          "url.full": "https:/user:pass@api.anthropic.com/v1/organizations/users",
+          "url.path": "/v1/organizations/users"
+        },
+        "events": []
+      },
+      "expected": {
+        "attributes": {
+          "url.path": "/v1/organizations/users"
+        },
+        "events": [],
+        "status": null
+      }
+    },
+    {
+      "name": "capture_off_drops_an_anthropic_sdk_full_url_with_backslashes_and_userinfo",
+      "capture_content": false,
+      "mask": null,
+      "scope": "com.anthropic.sdk.python",
+      "span": {
+        "attributes": {
+          "url.full": "https:\\\\user:pass@api.anthropic.com/v1/organizations/users",
+          "url.path": "/v1/organizations/users"
+        },
+        "events": []
+      },
+      "expected": {
+        "attributes": {
+          "url.path": "/v1/organizations/users"
+        },
+        "events": [],
+        "status": null
+      }
+    },
+    {
+      "name": "capture_off_keeps_an_at_in_the_anthropic_sdk_full_url_path",
+      "capture_content": false,
+      "mask": null,
+      "scope": "com.anthropic.sdk.python",
+      "span": {
+        "attributes": {
+          "url.full": "https://api.anthropic.com/v1/files/a@b?x=1",
+          "url.path": "/v1/organizations/users"
+        },
+        "events": []
+      },
+      "expected": {
+        "attributes": {
+          "url.path": "/v1/organizations/users",
+          "url.full": "https://api.anthropic.com/v1/files/a@b"
         },
         "events": [],
         "status": null
