@@ -13,7 +13,7 @@ code, so the two SDKs agree with each other by agreeing with these files.
 | `values.json` | `input.value` / `output.value` of a generic span: a string as it is, anything else its compact JSON, numbers and booleans included. | `set_input` / `setInput`, `set_output` / `setOutput` |
 | `attributes.json` | A span attribute set by the SDK: primitives and homogeneous arrays of them kept; a mapping, a mixed or nested array, or an array holding a mapping one JSON encoding, byte objects as markers. | `set_attribute` / `setAttribute` |
 | `messages.json` | `gen_ai.input.messages`, `gen_ai.output.messages` and `rius.context.sizes`: a lone string or mapping is one message, a missing role is the default, a null role is kept and sized as `user`. | a generation's `set_input` / `set_output` |
-| `masking.json` | What reaches the exporter with content capture off, and with a mask that returns a value, returns null or throws: span attributes, `exception` event text and the status description. | `MaskingSpanExporter` |
+| `masking.json` | What reaches the exporter with content capture off, and with a mask that returns a value, returns null or throws: span attributes, `exception` event text, the status description, and the URL query of the Anthropic SDK's own spans. | `MaskingSpanExporter` |
 | `env.json` | `RIUS_*` variables: booleans (blank or unrecognised keeps the default), blank strings (unset), numbers (as Python's `float()` reads them, clamped to range). | `resolve_config()` / `resolveConfig({}, env)` |
 | `resource.json` | `OTEL_RESOURCE_ATTRIBUTES` merged under the SDK's own resource keys, and the `unknown_service` placeholder never stamped as an agent name. | `init()` |
 | `anthropic_error_type.json` | `error.type` on a span the Anthropic SDK made itself: the exception class it raises for the HTTP status, for the statuses every Anthropic client in both languages maps alike (400, 401, 403, 404, 409, 422, 429, and every 5xx but 503, 504 and 529); anything else kept. | the SDK's span normalization |
@@ -29,6 +29,12 @@ the Python way (`capture_content`, `service_name`); each SDK's test maps it.
   records on the `rius.config` logger, the TypeScript SDK `console.warn` calls.
   A case without `warns` does not check warnings at all, so leave it out only
   where the warning is not part of the contract.
+- `scope` (optional in `masking.json`; `anthropic_error_type.json` requires
+  it): the instrumentation scope name of the span the case exports. A
+  masking case without it uses a scope of the test's own, which no rule
+  matches. It matters for the Anthropic SDK's own spans (scope
+  `com.anthropic.sdk.<language>`), whose `url.query` and `url.full` are
+  content.
 
 ## Tagged values
 

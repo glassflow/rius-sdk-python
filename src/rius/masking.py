@@ -27,6 +27,7 @@ from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
 from opentelemetry.trace import Link, Status
 
 from ._attributes import rebuilt_item_attributes, replacement_attributes
+from ._native_spans import is_sdk_span
 from ._serde import serialize
 from .semconv import (
     CONTENT_ATTRIBUTE_PREFIXED_SUFFIXES,
@@ -37,6 +38,8 @@ from .semconv import (
     EXCEPTION_EVENT,
     EXCEPTION_MESSAGE,
     EXCEPTION_STACKTRACE,
+    URL_FULL,
+    URL_QUERY,
 )
 
 logger = logging.getLogger(__name__)
@@ -105,6 +108,56 @@ _EXCEPTION_CONTENT_KEYS = frozenset({EXCEPTION_MESSAGE, EXCEPTION_STACKTRACE})
 _STATUS_DESCRIPTION_KEY = "status.description"
 
 
+# The URL attributes that are content on the anthropic SDK's own spans only.
+# In its content mode the SDK keeps the query parameters it treats as content
+# (an email or path_prefix filter, and more that differ by endpoint) in
+# url.query and url.full; outside it, it leaves both off when the query has
+# one. Rius cannot tell which parameters an endpoint treats as content, so the
+# whole query is content there. On every other span they are an HTTP call's
+# URL, so they are not content keys.
+_ANTHROPIC_SDK_URL_CONTENT_KEYS = frozenset({URL_QUERY, URL_FULL})
+
+
+def _scheme_host_and_path(url: str) -> str | None:
+    """``url`` as its scheme, host and path, or None when that is not safe to keep.
+
+    Without its query and fragment, and without a user name or password
+    before the host, which the URL convention says must never be recorded.
+    The user name and password go first, so a ``?`` or ``#`` inside them
+    cannot hide them from the cut. A URL that has an ``@`` where the host and
+    its credentials cannot be told apart is dropped: one without ``://``, one
+    with an ``@`` before it, or one whose authority (up to the first ``/``)
+    has both an ``@`` and a ``?`` or ``#``. So is one with nothing left.
+    """
+    sep = url.find("://")
+    if sep < 0:
+        if "@" in url:
+            return None
+    else:
+        if "@" in url[:sep]:
+            return None
+        start = sep + 3
+        slash = url.find("/", start)
+        end = len(url) if slash < 0 else slash
+        authority = url[start:end]
+        if "@" in authority:
+            if "?" in authority or "#" in authority:
+                return None
+            url = url[:start] + url[url.rfind("@", start, end) + 1 :]
+    return url.split("#", 1)[0].split("?", 1)[0] or None
+
+
+def _without_content(key: str, value: Any) -> Any:
+    """What is left of a content attribute with content capture off, or None to drop it.
+
+    A string ``url.full`` keeps its scheme, host and path, since only the rest
+    of it is content. Every other key is dropped.
+    """
+    if key == URL_FULL and isinstance(value, str):
+        return _scheme_host_and_path(value)
+    return None
+
+
 class MaskingSpanExporter(SpanExporter):
     """Strip or redact content attributes before delegating to ``inner``."""
 
@@ -129,7 +182,12 @@ class MaskingSpanExporter(SpanExporter):
         # The privacy boundary is the whole span: content rides attributes,
         # event attributes (OTel GenAI's event-based shape, record_exception's
         # provider-echoed error strings), and link attributes alike.
-        new_attributes = self._sanitize_mapping(span.attributes)
+        new_attributes = self._sanitize_mapping(
+            span.attributes,
+            extra_content_keys=(
+                _ANTHROPIC_SDK_URL_CONTENT_KEYS if is_sdk_span(span) else frozenset()
+            ),
+        )
         new_events = self._sanitize_events(span.events)
         new_links = self._sanitize_links(span.links)
         new_status = self._sanitize_status(span.status)
@@ -224,7 +282,11 @@ class MaskingSpanExporter(SpanExporter):
         new_attributes = dict(attributes)
         for key in keys:
             if not self._capture_content:
-                del new_attributes[key]
+                kept = _without_content(key, new_attributes[key])
+                if kept is None:
+                    del new_attributes[key]
+                else:
+                    new_attributes[key] = kept
                 continue
             assert self._mask is not None  # guarded in export()
             try:

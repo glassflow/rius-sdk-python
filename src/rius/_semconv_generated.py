@@ -1,4 +1,4 @@
-# Vendored from rius-semconv v1.9.1 out/python/_semconv_generated.py by
+# Vendored from rius-semconv v1.9.2 out/python/_semconv_generated.py by
 # scripts/sync-semconv.sh. Do not edit: change the registry in rius-semconv.
 """Rius semantic conventions: the constants and tables, generated.
 
@@ -1166,11 +1166,15 @@ THIRD_PARTY_CONTENT_ATTRIBUTES = frozenset(
         # other keys that mode writes, gen_ai.system_instructions,
         # gen_ai.input.messages, gen_ai.output.messages and
         # gen_ai.tool.call.arguments are GenAI keys, listed under content.
-        # Three stay in clear on purpose: gen_ai.request.stop_sequences is a
-        # request parameter, and url.query and url.full are every HTTP span's
-        # URL, which a key-based list cannot mask for one SDK alone (in that
-        # mode they keep query parameters the SDK treats as content, such as
-        # email and path_prefix).
+        # gen_ai.request.stop_sequences stays in clear: a request parameter.
+        # url.query and url.full are not listed, as they are every HTTP span's
+        # URL, yet in that mode they keep query parameters the SDK treats as
+        # content (email and path_prefix among them, and more per endpoint). So
+        # the SDKs' masking exporters treat them as content on a span whose
+        # instrumentation scope starts with com.anthropic.sdk. only: with
+        # content capture off url.query is dropped and url.full loses its query,
+        # fragment and userinfo, and with a mask both run through it (see
+        # sdk_cases/masking.json).
         "anthropic.tool_result.content",
     }
 )

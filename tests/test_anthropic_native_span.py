@@ -288,6 +288,41 @@ def test_bridged_to_another_sdk_each_call_still_counts_once(case: str) -> None:
         assert theirs["attributes"]["error.type"] == "not_found_error"
 
 
+_PATH_PREFIX = "secret-path-prefix"
+_MEMORIES_PATH = "/v1/memory_stores/memstore_1/memories"
+
+
+def _memories_list_span(capture_content: bool) -> dict[str, Any]:
+    if not _has_native_tracing():
+        pytest.skip("this anthropic has no tracing of its own (it starts in 1.14.0)")
+    spans = _run(content_mode=True, capture_content=capture_content)["cases"].get("memories_list")
+    if spans is None:
+        pytest.skip("this anthropic has no memory stores")
+    (native,) = _native(spans)
+    return native
+
+
+@pytest.mark.integration
+def test_capture_off_drops_the_query_from_the_sdk_url() -> None:
+    # In its content mode the SDK keeps a query parameter it treats as content
+    # (path_prefix) in url.query and url.full. With capture_content=False
+    # neither may carry it; the URL without its query stays.
+    attributes = _memories_list_span(capture_content=False)["attributes"]
+    assert _PATH_PREFIX not in json.dumps(attributes), attributes
+    assert "url.query" not in attributes
+    assert attributes["url.path"] == _MEMORIES_PATH
+    assert attributes["url.full"].endswith(_MEMORIES_PATH)
+
+
+@pytest.mark.integration
+def test_with_capture_on_the_sdk_url_keeps_its_query() -> None:
+    # The same call with capture on: the SDK does write the query, so the test
+    # above is not passing on a run that never recorded it.
+    attributes = _memories_list_span(capture_content=True)["attributes"]
+    assert _PATH_PREFIX in attributes["url.query"]
+    assert _PATH_PREFIX in attributes["url.full"]
+
+
 _TOOL_RUNNER_CASES = ("tool_runner", "async_tool_runner")
 _TOOL_SECRETS = (*_SECRETS, "secret-tool-argument", "secret-tool-output")
 

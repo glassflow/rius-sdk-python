@@ -40,6 +40,9 @@ SYSTEM = "secret-system-text"
 TOOL_ARGUMENT = "secret-tool-argument"
 TOOL_OUTPUT = "secret-tool-output"
 TOOL_NAME = "lookup"
+#: A query parameter the SDK treats as content: in its content mode it keeps it
+#: in url.query and url.full.
+PATH_PREFIX = "/secret-path-prefix/"
 
 _MESSAGE: dict[str, Any] = {
     "id": "msg_1",
@@ -116,6 +119,15 @@ _ERRORS = {"claude-nope": (404, "not_found_error"), "claude-busy": (429, "rate_l
 
 
 class _Handler(http.server.BaseHTTPRequestHandler):
+    def do_GET(self) -> None:  # noqa: N802 (http.server API)
+        # Every list the runner calls gets an empty page.
+        body = json.dumps({"data": [], "next_page": None}).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
     def do_POST(self) -> None:  # noqa: N802 (http.server API)
         request = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))))
         # Bedrock names the model in the path, not the body.
@@ -229,9 +241,10 @@ def main() -> None:
         bridge_foreign_provider=bool(options.get("foreign")),
         heartbeat=False,
     )
-    messages = anthropic.Anthropic(
+    sync_client = anthropic.Anthropic(
         api_key="test-key", base_url=f"http://127.0.0.1:{server.server_port}", max_retries=0
-    ).messages
+    )
+    messages = sync_client.messages
     request: dict[str, Any] = {
         "model": "claude-sonnet-5",
         "max_tokens": 5,
@@ -298,6 +311,12 @@ def main() -> None:
         "async_stream_helper": lambda: asyncio.run(_async_stream_helper()),
         "async_not_found": lambda: asyncio.run(_async_not_found()),
     }
+    if hasattr(sync_client.beta, "memory_stores"):
+
+        def memories_list() -> None:
+            sync_client.beta.memory_stores.memories.list("memstore_1", path_prefix=PATH_PREFIX)
+
+        cases["memories_list"] = memories_list
     cases.update(_tool_runner_cases(f"http://127.0.0.1:{server.server_port}", request))
     if importlib.util.find_spec("botocore") is not None:
         # The Bedrock client goes through the same Messages resource, so

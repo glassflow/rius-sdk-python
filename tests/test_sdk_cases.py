@@ -174,7 +174,9 @@ def test_masking(case: dict[str, Any], caplog: pytest.LogCaptureFixture) -> None
     provider.add_span_processor(SimpleSpanProcessor(masking))
     given = case["span"]
     with caplog.at_level(logging.CRITICAL, logger="rius.masking"):
-        span = provider.get_tracer("cases").start_span("s", attributes=given["attributes"])
+        span = provider.get_tracer(case.get("scope", "cases")).start_span(
+            "s", attributes=given["attributes"]
+        )
         for event in given.get("events", []):
             span.add_event(event["name"], event["attributes"])
         if "status" in given:
