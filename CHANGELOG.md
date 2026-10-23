@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.5.2](https://github.com/glassflow/rius-sdk-python/compare/v1.5.1...v1.5.2) (2026-10-23)
+
+
+### Bug Fixes
+
+* **deps:** require opentelemetry-sdk 1.25 or later ([#232](https://github.com/glassflow/rius-sdk-python/issues/232)) ([1a9a6dc](https://github.com/glassflow/rius-sdk-python/commit/1a9a6dcfddc52766779f07ec0f2fb98cdd6017fc))
+* drop the Anthropic SDK's tool output with capture_content off ([#228](https://github.com/glassflow/rius-sdk-python/issues/228)) ([0bf96c6](https://github.com/glassflow/rius-sdk-python/commit/0bf96c648d19663b26131ae5be6aa75bcc08fbfe))
+* drop the Anthropic SDK's URL query with capture_content off ([#234](https://github.com/glassflow/rius-sdk-python/issues/234)) ([676bae1](https://github.com/glassflow/rius-sdk-python/commit/676bae1a16abb6717b89f2419c5c1a779f4273f0))
+* forward observe's generator return value and name the failing export destination ([#233](https://github.com/glassflow/rius-sdk-python/issues/233)) ([8ececbd](https://github.com/glassflow/rius-sdk-python/commit/8ececbd323cbd37ae90a74c03a115b7ae626bf8b))
+* name the Anthropic SDK's native span errors by exception class ([#229](https://github.com/glassflow/rius-sdk-python/issues/229)) ([84e4958](https://github.com/glassflow/rius-sdk-python/commit/84e4958cbc89af4c1a598e1919c5ceb81682b011))
+
 ## [1.5.1](https://github.com/glassflow/rius-sdk-python/compare/v1.5.0...v1.5.1) (2026-10-22)
 
 
