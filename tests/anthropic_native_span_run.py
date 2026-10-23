@@ -111,13 +111,18 @@ def _sse() -> bytes:
     return "".join(f"event: {n}\ndata: {json.dumps(d)}\n\n" for n, d in events).encode()
 
 
+#: The models the server fails, with the status and the error envelope's code.
+_ERRORS = {"claude-nope": (404, "not_found_error"), "claude-busy": (429, "rate_limit_error")}
+
+
 class _Handler(http.server.BaseHTTPRequestHandler):
     def do_POST(self) -> None:  # noqa: N802 (http.server API)
         request = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))))
         # Bedrock names the model in the path, not the body.
-        if request.get("model") == "claude-nope":
-            code, content_type = 404, "application/json"
-            error = {"type": "not_found_error", "message": "model: claude-nope"}
+        if request.get("model") in _ERRORS:
+            code, error_code = _ERRORS[request["model"]]
+            content_type = "application/json"
+            error = {"type": error_code, "message": f"model: {request['model']}"}
             body = json.dumps({"type": "error", "error": error}).encode()
         elif request.get("tools") and not _answers_a_tool_result(request):
             code, content_type = 200, "application/json"
@@ -250,6 +255,10 @@ def main() -> None:
         with contextlib.suppress(anthropic.NotFoundError):
             messages.create(**{**request, "model": "claude-nope"})
 
+    def rate_limited() -> None:
+        with contextlib.suppress(anthropic.RateLimitError):
+            messages.create(**{**request, "model": "claude-busy"})
+
     def compaction() -> None:
         rius.mark_compaction()
         messages.create(**request)
@@ -282,6 +291,7 @@ def main() -> None:
         "create_streamed": create_streamed,
         "stream_helper": stream_helper,
         "not_found": not_found,
+        "rate_limited": rate_limited,
         "compaction": compaction,
         "async_create": lambda: asyncio.run(_async_create()),
         "async_create_streamed": lambda: asyncio.run(_async_create_streamed()),

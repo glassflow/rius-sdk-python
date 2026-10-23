@@ -186,7 +186,30 @@ def test_the_demoted_404_keeps_its_http_failure(case: str) -> None:
         pytest.skip("this anthropic has no tracing of its own (it starts in 1.14.0)")
     (native,) = _native(_run()["cases"][case])
     assert native["attributes"]["http.response.status_code"] == 404
-    assert native["attributes"]["error.type"] == "not_found_error"
+    # Named as OpenInference's span names it, so both group as one failure.
+    assert native["attributes"]["error.type"] == "anthropic.NotFoundError"
+    assert native["status"] == "ERROR"
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("case", "status", "expected"),
+    [
+        ("not_found", 404, "anthropic.NotFoundError"),
+        ("async_not_found", 404, "anthropic.NotFoundError"),
+        ("rate_limited", 429, "anthropic.RateLimitError"),
+    ],
+)
+def test_without_openinference_the_sdk_span_names_the_exception_class(
+    case: str, status: int, expected: str
+) -> None:
+    # The SDK writes the API's error code (not_found_error); exported, it
+    # carries the class the SDK raised, as OpenInference's span would.
+    if not _has_native_tracing():
+        pytest.skip("this anthropic has no tracing of its own (it starts in 1.14.0)")
+    (native,) = _native(_run(instruments=())["cases"][case])
+    assert native["attributes"]["http.response.status_code"] == status
+    assert native["attributes"]["error.type"] == expected
     assert native["status"] == "ERROR"
 
 
@@ -259,6 +282,10 @@ def test_bridged_to_another_sdk_each_call_still_counts_once(case: str) -> None:
     assert theirs["attributes"]["gen_ai.operation.name"] == "chat"
     assert theirs["attributes"]["gen_ai.request.model"].startswith("claude-")
     assert "openinference.span.kind" not in theirs["attributes"]
+    if case in _NOT_FOUND:
+        # Renamed on the copy rius exports; the other provider's span keeps its own.
+        assert ours["attributes"]["error.type"] == "anthropic.NotFoundError"
+        assert theirs["attributes"]["error.type"] == "not_found_error"
 
 
 _TOOL_RUNNER_CASES = ("tool_runner", "async_tool_runner")
