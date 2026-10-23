@@ -116,6 +116,7 @@ from ._media import (
     rebuild_native_parts,
     url_part,
 )
+from ._native_spans import native_error_type
 from ._provider_compaction import ProviderCompactions, compactions_in_response
 from ._provider_response import response_json
 from ._serde import (
@@ -1327,6 +1328,12 @@ class NormalizingSpanExporter(SpanExporter):
             for key, value in event_attributes.items():
                 base.setdefault(key, value)
             new_attributes = base
+        # Replaces, unlike the passes above: the anthropic SDK's own value is
+        # the API's error code, which no other span uses for the failure.
+        renamed = native_error_type(span)
+        if renamed:
+            base = dict(span.attributes or {}) if new_attributes is None else new_attributes
+            new_attributes = {**base, **renamed}
         # Last, on the canonical keys: a LiteLLM span whose child recorded the
         # same call keeps its usage only as rius.aggregated_usage.*.
         if self._wrapped_calls is not None and self._wrapped_calls.take(span):

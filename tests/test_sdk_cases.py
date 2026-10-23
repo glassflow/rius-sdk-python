@@ -5,7 +5,8 @@ by scripts/sync-semconv-fixtures.sh. The TypeScript SDK runs the same cases, so
 both SDKs are held to one expected result for each: how input.value and
 output.value are written, how set_attribute encodes a value, how messages and
 rius.context.sizes are recorded, what the masking exporter keeps, how RIUS_*
-variables resolve and how the resource takes in OTEL_RESOURCE_ATTRIBUTES.
+variables resolve, how the resource takes in OTEL_RESOURCE_ATTRIBUTES and how
+error.type is named on the Anthropic SDK's own spans.
 Their README describes the format, including the tagged values JSON cannot
 hold (``{"$bytes": N}``, ``{"$number": "NaN"}``).
 """
@@ -109,6 +110,17 @@ def test_input_and_output_value(case: dict[str, Any], exporter: _Spans) -> None:
     attributes = exporter.attributes()
     assert attributes["input.value"] == case["expected"]
     assert attributes["output.value"] == case["expected"]
+
+
+@pytest.mark.parametrize("case", _cases("anthropic_error_type"), ids=_ids("anthropic_error_type"))
+def test_anthropic_error_type(case: dict[str, Any], exporter: _Spans) -> None:
+    # Through the client's whole pipeline, under the scope the case names.
+    span = exporter.client.get_tracer(case["scope"]).start_span(
+        "anthropic.messages.create", attributes=case["attributes"]
+    )
+    span.set_status(Status(StatusCode.ERROR))
+    span.end()
+    assert exporter.attributes()["error.type"] == case["expected"]
 
 
 @pytest.mark.parametrize("case", _cases("attributes"), ids=_ids("attributes"))

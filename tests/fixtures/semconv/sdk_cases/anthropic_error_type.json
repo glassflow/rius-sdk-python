@@ -1,0 +1,174 @@
+{
+  "about": "How an SDK names the error on a span the Anthropic SDK made itself (instrumentation scope com.anthropic.sdk. and anything after it, the Bedrock and Vertex clients included). That SDK sets error.type to the code in the API's error envelope (not_found_error) or, without one, the HTTP status. The SDK's normalization replaces it with the exception class the Anthropic SDK raises for the span's http.response.status_code, spelled as the SDKs spell an exception class elsewhere (anthropic.NotFoundError), so the same failure groups under one name whether or not the OpenInference instrumentation is on. Only the statuses every Anthropic client in both languages raises the same class for are mapped: 400, 401, 403, 404, 409, 422, 429 and 500. Any other status (413, 503, 504 and 529 raise different classes per client or language), a span with no status (a connection error, a timeout, an error event on a stream that opened with 200) and a span from any other scope keep error.type as it is. `scope` is the span's instrumentation scope name, `attributes` its attributes as it ends (an ERROR status), and `expected` the error.type it is exported with.",
+  "cases": [
+    {
+      "name": "bad_request",
+      "scope": "com.anthropic.sdk.python",
+      "attributes": {
+        "error.type": "invalid_request_error",
+        "http.response.status_code": 400
+      },
+      "expected": "anthropic.BadRequestError"
+    },
+    {
+      "name": "authentication",
+      "scope": "com.anthropic.sdk.python",
+      "attributes": {
+        "error.type": "authentication_error",
+        "http.response.status_code": 401
+      },
+      "expected": "anthropic.AuthenticationError"
+    },
+    {
+      "name": "permission_denied",
+      "scope": "com.anthropic.sdk.python",
+      "attributes": {
+        "error.type": "permission_error",
+        "http.response.status_code": 403
+      },
+      "expected": "anthropic.PermissionDeniedError"
+    },
+    {
+      "name": "not_found",
+      "scope": "com.anthropic.sdk.python",
+      "attributes": {
+        "error.type": "not_found_error",
+        "http.response.status_code": 404
+      },
+      "expected": "anthropic.NotFoundError"
+    },
+    {
+      "name": "conflict",
+      "scope": "com.anthropic.sdk.python",
+      "attributes": {
+        "error.type": "conflict_error",
+        "http.response.status_code": 409
+      },
+      "expected": "anthropic.ConflictError"
+    },
+    {
+      "name": "unprocessable_entity",
+      "scope": "com.anthropic.sdk.python",
+      "attributes": {
+        "error.type": "invalid_request_error",
+        "http.response.status_code": 422
+      },
+      "expected": "anthropic.UnprocessableEntityError"
+    },
+    {
+      "name": "rate_limit",
+      "scope": "com.anthropic.sdk.python",
+      "attributes": {
+        "error.type": "rate_limit_error",
+        "http.response.status_code": 429
+      },
+      "expected": "anthropic.RateLimitError"
+    },
+    {
+      "name": "internal_server_error",
+      "scope": "com.anthropic.sdk.python",
+      "attributes": {
+        "error.type": "api_error",
+        "http.response.status_code": 500
+      },
+      "expected": "anthropic.InternalServerError"
+    },
+    {
+      "name": "typescript_scope_is_mapped_too",
+      "scope": "com.anthropic.sdk.typescript",
+      "attributes": {
+        "error.type": "not_found_error",
+        "http.response.status_code": 404
+      },
+      "expected": "anthropic.NotFoundError"
+    },
+    {
+      "name": "platform_scope_is_mapped_too",
+      "scope": "com.anthropic.sdk.python.bedrock",
+      "attributes": {
+        "error.type": "rate_limit_error",
+        "http.response.status_code": 429
+      },
+      "expected": "anthropic.RateLimitError"
+    },
+    {
+      "name": "status_without_an_envelope_is_mapped_by_status",
+      "scope": "com.anthropic.sdk.python",
+      "attributes": {
+        "error.type": "404",
+        "http.response.status_code": 404
+      },
+      "expected": "anthropic.NotFoundError"
+    },
+    {
+      "name": "overloaded_is_left_as_it_is",
+      "scope": "com.anthropic.sdk.python",
+      "attributes": {
+        "error.type": "overloaded_error",
+        "http.response.status_code": 529
+      },
+      "expected": "overloaded_error"
+    },
+    {
+      "name": "service_unavailable_is_left_as_it_is",
+      "scope": "com.anthropic.sdk.python.vertex",
+      "attributes": {
+        "error.type": "api_error",
+        "http.response.status_code": 503
+      },
+      "expected": "api_error"
+    },
+    {
+      "name": "request_too_large_is_left_as_it_is",
+      "scope": "com.anthropic.sdk.python",
+      "attributes": {
+        "error.type": "request_too_large",
+        "http.response.status_code": 413
+      },
+      "expected": "request_too_large"
+    },
+    {
+      "name": "connection_error_has_no_status",
+      "scope": "com.anthropic.sdk.python",
+      "attributes": {
+        "error.type": "connection_error"
+      },
+      "expected": "connection_error"
+    },
+    {
+      "name": "client_timeout_has_no_status",
+      "scope": "com.anthropic.sdk.python",
+      "attributes": {
+        "error.type": "client_timeout_error"
+      },
+      "expected": "client_timeout_error"
+    },
+    {
+      "name": "error_event_on_an_ok_stream_is_left_as_it_is",
+      "scope": "com.anthropic.sdk.python",
+      "attributes": {
+        "error.type": "overloaded_error",
+        "http.response.status_code": 200
+      },
+      "expected": "overloaded_error"
+    },
+    {
+      "name": "another_scope_is_left_as_it_is",
+      "scope": "openinference.instrumentation.anthropic",
+      "attributes": {
+        "error.type": "not_found_error",
+        "http.response.status_code": 404
+      },
+      "expected": "not_found_error"
+    },
+    {
+      "name": "a_scope_that_only_starts_alike_is_left_as_it_is",
+      "scope": "com.anthropic.sdkx",
+      "attributes": {
+        "error.type": "not_found_error",
+        "http.response.status_code": 404
+      },
+      "expected": "not_found_error"
+    }
+  ]
+}
