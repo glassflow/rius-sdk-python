@@ -1,4 +1,4 @@
-# Vendored from rius-semconv a4bdb37 out/python/_semconv_generated.py by
+# Vendored from rius-semconv v1.9.1 out/python/_semconv_generated.py by
 # scripts/sync-semconv.sh. Do not edit: change the registry in rius-semconv.
 """Rius semantic conventions: the constants and tables, generated.
 
@@ -1162,10 +1162,15 @@ THIRD_PARTY_CONTENT_ATTRIBUTES = frozenset(
         # anthropic 2.1.0 (anthropic/lib/_tracing/_attributes.py) and
         # @anthropic-ai/sdk 1.1.0 (lib/internal/tracing/attributes.js), whose
         # native spans are on by default. In their content mode the tool
-        # runner's execute_tool span carries the tool's output here. The other
-        # keys that mode writes (gen_ai.system_instructions,
-        # gen_ai.input.messages, gen_ai.output.messages,
-        # gen_ai.tool.call.arguments) are GenAI keys, listed under content.
+        # runner's execute_tool span carries the tool's output here. Of the
+        # other keys that mode writes, gen_ai.system_instructions,
+        # gen_ai.input.messages, gen_ai.output.messages and
+        # gen_ai.tool.call.arguments are GenAI keys, listed under content.
+        # Three stay in clear on purpose: gen_ai.request.stop_sequences is a
+        # request parameter, and url.query and url.full are every HTTP span's
+        # URL, which a key-based list cannot mask for one SDK alone (in that
+        # mode they keep query parameters the SDK treats as content, such as
+        # email and path_prefix).
         "anthropic.tool_result.content",
     }
 )
