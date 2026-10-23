@@ -50,11 +50,17 @@ def _run(
     content_mode: bool = False,
     partial_spans: bool = False,
     foreign: bool = False,
+    capture_content: bool = True,
 ) -> dict[str, Any]:
     env = {**os.environ}
     if content_mode:
         env["ANTHROPIC_OPEN_TELEMETRY_TRACES_CONTENT_MODE"] = "content"
-    options = {"instruments": list(instruments), "partial_spans": partial_spans, "foreign": foreign}
+    options = {
+        "instruments": list(instruments),
+        "partial_spans": partial_spans,
+        "foreign": foreign,
+        "capture_content": capture_content,
+    }
     done = subprocess.run(
         [sys.executable, str(_RUNNER), json.dumps(options)],
         capture_output=True,
@@ -253,6 +259,50 @@ def test_bridged_to_another_sdk_each_call_still_counts_once(case: str) -> None:
     assert theirs["attributes"]["gen_ai.operation.name"] == "chat"
     assert theirs["attributes"]["gen_ai.request.model"].startswith("claude-")
     assert "openinference.span.kind" not in theirs["attributes"]
+
+
+_TOOL_RUNNER_CASES = ("tool_runner", "async_tool_runner")
+_TOOL_SECRETS = (*_SECRETS, "secret-tool-argument", "secret-tool-output")
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("case", _TOOL_RUNNER_CASES)
+def test_capture_off_drops_the_tool_runner_content_from_every_span(case: str) -> None:
+    # In its content mode the SDK records the tool's arguments and output on
+    # its execute_tool span, and the conversation on its chat spans. With
+    # capture_content=False none of it may leave the process.
+    if not _has_native_tracing():
+        pytest.skip("this anthropic has no tracing of its own (it starts in 1.14.0)")
+    spans = _run(content_mode=True, capture_content=False)["cases"].get(case)
+    if spans is None:
+        pytest.skip("this anthropic has no tool runner")
+    for span in spans:
+        text = json.dumps([span["attributes"], span["events"]])
+        assert not [s for s in _TOOL_SECRETS if s in text], (span["name"], span["attributes"])
+    tools = [
+        s for s in _native(spans) if s["attributes"].get("gen_ai.operation.name") == "execute_tool"
+    ]
+    (tool,) = tools
+    assert tool["attributes"]["gen_ai.tool.name"] == "lookup"
+    assert tool["attributes"]["gen_ai.tool.call.id"] == "toolu_1"
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("case", _TOOL_RUNNER_CASES)
+def test_with_capture_on_the_tool_runner_content_is_kept(case: str) -> None:
+    # The same run with capture on: the SDK's execute_tool span does carry the
+    # tool's arguments and output under its own keys, so the test above is not
+    # passing on a run that never recorded them.
+    if not _has_native_tracing():
+        pytest.skip("this anthropic has no tracing of its own (it starts in 1.14.0)")
+    spans = _run(content_mode=True)["cases"].get(case)
+    if spans is None:
+        pytest.skip("this anthropic has no tool runner")
+    (tool,) = [
+        s for s in _native(spans) if s["attributes"].get("gen_ai.operation.name") == "execute_tool"
+    ]
+    assert "secret-tool-output" in tool["attributes"]["anthropic.tool_result.content"]
+    assert "secret-tool-argument" in tool["attributes"]["gen_ai.tool.call.arguments"]
 
 
 # --- the processor on its own -------------------------------------------------

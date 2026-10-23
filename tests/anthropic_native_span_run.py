@@ -9,6 +9,10 @@ Usage: ``python anthropic_native_span_run.py '<json options>'`` with
 ``instruments`` (list), ``capture_content`` (bool), ``partial_spans`` (bool) and
 ``foreign`` (bool: another provider holds the global and rius bridges to it;
 what that provider exports is printed under ``foreign``).
+
+A request with tools is answered with a ``tool_use`` block until the
+conversation carries a ``tool_result``, then with text, so the tool runner
+runs the tool once.
 """
 
 from __future__ import annotations
@@ -33,6 +37,9 @@ import rius
 PROMPT = "secret-prompt-text"
 REPLY = "secret-reply-text"
 SYSTEM = "secret-system-text"
+TOOL_ARGUMENT = "secret-tool-argument"
+TOOL_OUTPUT = "secret-tool-output"
+TOOL_NAME = "lookup"
 
 _MESSAGE: dict[str, Any] = {
     "id": "msg_1",
@@ -44,6 +51,30 @@ _MESSAGE: dict[str, Any] = {
     "stop_sequence": None,
     "usage": {"input_tokens": 10, "output_tokens": 5},
 }
+
+
+_TOOL_USE: dict[str, Any] = {
+    **_MESSAGE,
+    "id": "msg_tool",
+    "content": [
+        {
+            "type": "tool_use",
+            "id": "toolu_1",
+            "name": TOOL_NAME,
+            "input": {"query": TOOL_ARGUMENT},
+        }
+    ],
+    "stop_reason": "tool_use",
+}
+
+
+def _answers_a_tool_result(request: dict[str, Any]) -> bool:
+    return any(
+        isinstance(block, dict) and block.get("type") == "tool_result"
+        for message in request.get("messages", [])
+        if isinstance(message.get("content"), list)
+        for block in message["content"]
+    )
 
 
 def _sse() -> bytes:
@@ -88,6 +119,9 @@ class _Handler(http.server.BaseHTTPRequestHandler):
             code, content_type = 404, "application/json"
             error = {"type": "not_found_error", "message": "model: claude-nope"}
             body = json.dumps({"type": "error", "error": error}).encode()
+        elif request.get("tools") and not _answers_a_tool_result(request):
+            code, content_type = 200, "application/json"
+            body = json.dumps(_TOOL_USE).encode()
         elif request.get("stream"):
             code, content_type, body = 200, "text/event-stream", _sse()
         else:
@@ -120,6 +154,52 @@ def _span(span: ReadableSpan) -> dict[str, Any]:
             for e in span.events
         ],
         "status": span.status.status_code.name,
+    }
+
+
+def _tool_runner_cases(base_url: str, request: dict[str, Any]) -> dict[str, Any]:
+    """The tool runner, sync and async, running one ``@beta_tool`` to its final answer."""
+    if not hasattr(anthropic, "beta_tool") or not hasattr(anthropic, "beta_async_tool"):
+        return {}
+    options: dict[str, Any] = {"api_key": "test-key", "base_url": base_url, "max_retries": 0}
+    if not hasattr(anthropic.Anthropic(**options).beta.messages, "tool_runner"):
+        return {}
+    tool_request = {**request, "max_tokens": 64}
+
+    @anthropic.beta_tool
+    def lookup(query: str) -> str:
+        """Look something up.
+
+        Args:
+            query: what to look up.
+        """
+        return TOOL_OUTPUT
+
+    def tool_runner() -> None:
+        runner = anthropic.Anthropic(**options).beta.messages.tool_runner(
+            tools=[lookup], **tool_request
+        )
+        assert runner.until_done().content[-1].text == REPLY
+
+    async def _async_tool_runner() -> None:
+        @anthropic.beta_async_tool
+        async def lookup(query: str) -> str:
+            """Look something up.
+
+            Args:
+                query: what to look up.
+            """
+            return TOOL_OUTPUT
+
+        runner = anthropic.AsyncAnthropic(**options).beta.messages.tool_runner(
+            tools=[lookup], **tool_request
+        )
+        final = await runner.until_done()
+        assert final.content[-1].text == REPLY
+
+    return {
+        "tool_runner": tool_runner,
+        "async_tool_runner": lambda: asyncio.run(_async_tool_runner()),
     }
 
 
@@ -208,6 +288,7 @@ def main() -> None:
         "async_stream_helper": lambda: asyncio.run(_async_stream_helper()),
         "async_not_found": lambda: asyncio.run(_async_not_found()),
     }
+    cases.update(_tool_runner_cases(f"http://127.0.0.1:{server.server_port}", request))
     if importlib.util.find_spec("botocore") is not None:
         # The Bedrock client goes through the same Messages resource, so
         # OpenInference wraps it too; its own span has a platform scope
