@@ -997,6 +997,7 @@ dependencies = [
     { name = "opentelemetry-api" },
     { name = "opentelemetry-exporter-otlp-proto-http" },
     { name = "opentelemetry-sdk" },
+    { name = "opentelemetry-semantic-conventions" },
 ]
 
 [package.optional-dependencies]
@@ -1059,6 +1060,7 @@ requires-dist = [
     { name = "opentelemetry-api", specifier = ">=1.25.0" },
     { name = "opentelemetry-exporter-otlp-proto-http", specifier = ">=1.25.0" },
     { name = "opentelemetry-sdk", specifier = ">=1.25.0" },
+    { name = "opentelemetry-semantic-conventions", specifier = ">=0.46b0" },
 ]
 provides-extras = ["anthropic", "instruments", "langchain", "litellm", "llama-index", "openai"]
 

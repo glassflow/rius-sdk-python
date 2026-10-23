@@ -38,6 +38,7 @@ from .semconv import (
     ERROR_TYPE,
     GEN_AI_OPERATION_NAME,
     GEN_AI_PROVIDER_NAME,
+    HTTP_RESPONSE_STATUS_CODE,
     OPENINFERENCE_SPAN_KIND,
 )
 
@@ -54,12 +55,6 @@ _GEN_AI_PREFIX = "gen_ai."
 _KEPT_GEN_AI = frozenset({GEN_AI_PROVIDER_NAME, _GEN_AI_CONVERSATION_ID})
 _CHAT = "chat"
 
-
-#: Not in the rius registry: the OpenTelemetry HTTP convention's key, written
-#: by the anthropic SDK on its span for the call's final response. Spelled
-#: here, not imported from opentelemetry.semconv.attributes, because
-#: opentelemetry-semantic-conventions is not a direct dependency of rius.
-_HTTP_RESPONSE_STATUS_CODE = "http.response.status_code"
 
 #: The class every Anthropic client, in Python and TypeScript alike, raises
 #: for a 4xx status. Any other 4xx (413 among them) raises a class that
@@ -113,7 +108,7 @@ def native_error_type(span: ReadableSpan) -> dict[str, Any]:
     attributes = span.attributes or {}
     if ERROR_TYPE not in attributes:
         return {}
-    status = attributes.get(_HTTP_RESPONSE_STATUS_CODE)
+    status = attributes.get(HTTP_RESPONSE_STATUS_CODE)
     if not isinstance(status, int) or isinstance(status, bool):
         return {}
     name = _exception_class(status)
