@@ -178,7 +178,7 @@ import rius
 
 # Every processor a shut-down client still feeds. OpenTelemetry cannot remove
 # a processor from a provider, so the first client's pipeline stays on the
-# global provider; on OTel 1.24 its batch processor then logs "Already
+# global provider; on OTel 1.25 its batch processor then logs "Already
 # shutdown, dropping span." for every third-party span.
 shut = []  # the processors themselves: an id() could be reused
 fed_after_shutdown = []

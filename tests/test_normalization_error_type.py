@@ -280,6 +280,7 @@ def test_a_real_provider_404_names_the_sdk_exception_class_not_the_error_body(
     (event,) = [e for e in span.events if e.name == EXCEPTION_EVENT]
     attributes = span.attributes or {}
     assert attributes[ERROR_TYPE] == (event.attributes or {})[EXCEPTION_TYPE]
-    # Module-qualified on current OpenTelemetry, the bare name on the 1.24 floor.
-    assert attributes[ERROR_TYPE] in (f"{cls.__module__}.{cls.__qualname__}", cls.__name__)
+    # Module-qualified, as the Anthropic SDK's native span names it. OTel
+    # releases before 1.25 recorded the bare class name instead.
+    assert attributes[ERROR_TYPE] == f"{cls.__module__}.{cls.__qualname__}"
     assert cls.__name__ == "NotFoundError"

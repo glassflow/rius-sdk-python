@@ -15,6 +15,9 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
+from opentelemetry.semconv.attributes.http_attributes import (
+    HTTP_RESPONSE_STATUS_CODE as HTTP_RESPONSE_STATUS_CODE,
+)
 from opentelemetry.trace import Span
 from opentelemetry.trace import SpanKind as OtelSpanKind
 
