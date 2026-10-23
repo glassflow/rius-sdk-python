@@ -146,7 +146,9 @@ class RoutingSpanExporter(SpanExporter):
         #: The destinations the last export failed on: an alias, or None for
         #: the default destination (where an unregistered alias's spans go
         #: too). One failure fails the whole export, so this is what tells
-        #: export health which destination to name.
+        #: export health which destination to name. It relies on exports
+        #: through the router being serialised (one BatchSpanProcessor) and
+        #: is read right after ``inner.export()`` returns.
         self.last_failed: frozenset[str | None] = frozenset()
         self._lock = threading.Lock()
 

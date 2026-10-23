@@ -153,15 +153,16 @@ class TestExportOutcomeExporter:
         *,
         endpoint: str | None,
         workspace_endpoint: str | None,
+        aliases: tuple[str, ...] = ("acme",),
     ):  # noqa: ANN202
         from rius.export_health import ExportOutcomeExporter
         from rius.workspace import RoutingSpanExporter
 
-        workspace_exporter = _FlakyExporter(workspace_script)
+        # One scripted exporter per workspace key, each with its own copy.
         routing = RoutingSpanExporter(
             _FlakyExporter(default_script),
-            lambda key: workspace_exporter,
-            routes={"acme": "key-acme"},
+            lambda key: _FlakyExporter(list(workspace_script)),
+            routes={alias: f"key-{alias}" for alias in aliases},
         )
         wrapper = ExportOutcomeExporter(
             routing, endpoint=endpoint, routing=routing, workspace_endpoint=workspace_endpoint
@@ -226,6 +227,65 @@ class TestExportOutcomeExporter:
         assert "configured span_exporter" in msg
         assert "workspace_exporter_factory" in msg and "'acme'" in msg
         assert DEFAULT_ENDPOINT not in msg and "RIUS_API_KEY" not in msg
+
+    def test_a_newly_failing_destination_warns_again(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        # A revoked workspace key never lets the export succeed again, so
+        # warn-once must not hide a second destination failing later.
+        from opentelemetry.sdk.trace.export import SpanExportResult
+
+        wrapper = self._routed(
+            [SpanExportResult.FAILURE, SpanExportResult.FAILURE],
+            [SpanExportResult.FAILURE] * 3,
+            endpoint=DEFAULT_ENDPOINT,
+            workspace_endpoint=DEFAULT_ENDPOINT,
+        )
+        with caplog.at_level(logging.WARNING, logger="rius.export_health"):
+            wrapper.export(_spans("acme"))
+            wrapper.export(_spans(None, "acme"))
+            wrapper.export(_spans(None, "acme"))
+        warnings = [r.getMessage() for r in caplog.records]
+        assert len(warnings) == 2
+        assert "workspace 'acme'" in warnings[0]
+        assert "default destination" in warnings[1] and "'acme'" not in warnings[1]
+
+    def test_a_failing_custom_default_beside_managed_workspaces_gets_no_key_hint(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        from opentelemetry.sdk.trace.export import SpanExportResult
+
+        wrapper = self._routed(
+            [SpanExportResult.FAILURE],
+            [SpanExportResult.SUCCESS],
+            endpoint=None,
+            workspace_endpoint=DEFAULT_ENDPOINT,
+        )
+        with caplog.at_level(logging.WARNING, logger="rius.export_health"):
+            wrapper.export(_spans(None, "acme"))
+        [msg] = [r.getMessage() for r in caplog.records]
+        assert "configured span_exporter failed" in msg
+        assert "acme" not in msg
+        assert "RIUS_API_KEY" not in msg and "RIUS_ENDPOINT" not in msg
+
+    def test_managed_default_and_workspaces_failing_share_one_hint(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        from opentelemetry.sdk.trace.export import SpanExportResult
+
+        wrapper = self._routed(
+            [SpanExportResult.FAILURE],
+            [SpanExportResult.FAILURE],
+            endpoint=DEFAULT_ENDPOINT,
+            workspace_endpoint=DEFAULT_ENDPOINT,
+            aliases=("acme", "beta"),
+        )
+        with caplog.at_level(logging.WARNING, logger="rius.export_health"):
+            wrapper.export(_spans(None, "acme", "beta"))
+        [msg] = [r.getMessage() for r in caplog.records]
+        assert f"the default destination at {DEFAULT_ENDPOINT} failed" in msg
+        assert f"workspaces 'acme', 'beta' at {DEFAULT_ENDPOINT} failed" in msg
+        assert "Check RIUS_API_KEY, each failed workspace's API key and RIUS_ENDPOINT" in msg
 
 
 def _spans(*aliases: str | None) -> list[object]:

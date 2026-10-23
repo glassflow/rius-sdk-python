@@ -108,7 +108,8 @@ class ExportOutcomeExporter(SpanExporter):
     ``span_exporter`` when it is None) and each failed workspace (managed at
     ``workspace_endpoint``, or the caller's ``workspace_exporter_factory``
     when it is None). Only a managed destination gets the key and endpoint
-    hint.
+    hint. A destination that starts failing after the warning warns again,
+    naming only itself, so a workspace that never recovers cannot hide it.
     """
 
     def __init__(
@@ -124,6 +125,10 @@ class ExportOutcomeExporter(SpanExporter):
         self._routing = routing
         self._workspace_endpoint = workspace_endpoint
         self._warned = False
+        # Routed destinations a warning has named since the last success: a
+        # destination that starts failing later warns again, since a revoked
+        # workspace key may keep the export from ever succeeding.
+        self._warned_destinations: frozenset[str | None] = frozenset()
         self.last_export_failed = False
 
     def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
@@ -138,9 +143,13 @@ class ExportOutcomeExporter(SpanExporter):
                 logger.info("span export%s recovered", self._destination())
             self.last_export_failed = False
             self._warned = False
+            self._warned_destinations = frozenset()
             return result
         self.last_export_failed = True
-        if self._warned:
+        newly_failed: frozenset[str | None] = frozenset()
+        if self._routing is not None and error is None:
+            newly_failed = self._routing.last_failed - self._warned_destinations
+        if self._warned and not newly_failed:
             logger.debug(
                 "span export%s failed again", self._destination(), exc_info=error is not None
             )
@@ -158,7 +167,8 @@ class ExportOutcomeExporter(SpanExporter):
                 exc_info=error,
             )
         elif self._routing is not None:
-            failed = self._routing.last_failed
+            failed = newly_failed
+            self._warned_destinations |= failed
             logger.warning(
                 "span export failed: %s; their spans are not being delivered. %s%s",
                 "; ".join(self._failed_destinations(failed)) or "a destination failed",
@@ -185,29 +195,32 @@ class ExportOutcomeExporter(SpanExporter):
         named = []
         if None in failed:
             if self._endpoint is None:
-                named.append("the configured span_exporter returned FAILURE")
+                named.append("the configured span_exporter failed")
             else:
-                named.append(f"the default destination at {self._endpoint} returned FAILURE")
-        aliases = ", ".join(repr(alias) for alias in sorted(a for a in failed if a is not None))
+                named.append(f"the default destination at {self._endpoint} failed")
+        aliases = sorted(alias for alias in failed if alias is not None)
         if aliases:
+            plural = "s" if len(aliases) > 1 else ""
+            noun = f"workspace{plural}"
+            listed = ", ".join(repr(alias) for alias in aliases)
             if self._workspace_endpoint is None:
                 named.append(
-                    f"the workspace_exporter_factory exporter for workspace {aliases} failed"
+                    f"the workspace_exporter_factory exporter{plural} for {noun} {listed} failed"
                 )
             else:
-                named.append(f"workspace {aliases} at {self._workspace_endpoint} failed")
+                named.append(f"{noun} {listed} at {self._workspace_endpoint} failed")
         return named
 
     def _routed_hint(self, failed: frozenset[str | None]) -> str:
-        keys = []
+        checks = []
         if None in failed and self._endpoint is not None:
-            keys.append("RIUS_API_KEY")
+            checks.append("RIUS_API_KEY")
         if any(alias is not None for alias in failed) and self._workspace_endpoint is not None:
-            keys.append("each failed workspace's API key")
-        if not keys:
+            checks.append("each failed workspace's API key")
+        if not checks:
             return ""
         return (
-            f"Check {' and '.join(keys)} and RIUS_ENDPOINT (the OTLP exporter's own log "
+            f"Check {', '.join(checks)} and RIUS_ENDPOINT (the OTLP exporter's own log "
             "line above has the HTTP status). "
         )
 
