@@ -18,6 +18,8 @@ from collections.abc import Mapping
 from opentelemetry.semconv.attributes.http_attributes import (
     HTTP_RESPONSE_STATUS_CODE as HTTP_RESPONSE_STATUS_CODE,
 )
+from opentelemetry.semconv.attributes.url_attributes import URL_FULL as URL_FULL
+from opentelemetry.semconv.attributes.url_attributes import URL_QUERY as URL_QUERY
 from opentelemetry.trace import Span
 from opentelemetry.trace import SpanKind as OtelSpanKind
 

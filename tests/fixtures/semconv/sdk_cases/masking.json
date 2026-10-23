@@ -1,5 +1,5 @@
 {
-  "about": "What an SDK's masking exporter (MaskingSpanExporter, between the span processors and the OTLP exporter) does to a span's content: its content attributes (registry content keys, e.g. input.value, gen_ai.input.messages), the exception.message and exception.stacktrace of an exception event, and the status description. Non-content attributes, exception.type and the status code always survive. `capture_content` false drops all content whatever the mask. With it true, `mask` (when given) runs over each content value with its key (status.description for the status): `returns` gives that value back, `format` gives the string with {key} and {value} filled in, `throws` raises. A mask that returns null or throws drops the value; a string, number or boolean it returns is kept as it is. `span` is the span as it ends (an ERROR status with `status` as its description when given); `expected` is what reaches the inner exporter: every attribute, the status description (null for none), and every event's attributes.",
+  "about": "What an SDK's masking exporter (MaskingSpanExporter, between the span processors and the OTLP exporter) does to a span's content: its content attributes (registry content keys, e.g. input.value, gen_ai.input.messages), the exception.message and exception.stacktrace of an exception event, and the status description. Non-content attributes, exception.type and the status code always survive. `capture_content` false drops all content whatever the mask. With it true, `mask` (when given) runs over each content value with its key (status.description for the status): `returns` gives that value back, `format` gives the string with {key} and {value} filled in, `throws` raises. A mask that returns null or throws drops the value; a string, number or boolean it returns is kept as it is. `span` is the span as it ends (an ERROR status with `status` as its description when given); `expected` is what reaches the inner exporter: every attribute, the status description (null for none), and every event's attributes. `scope`, when given, is the instrumentation scope name of the span (another name otherwise). On a span whose scope starts with com.anthropic.sdk. (the Anthropic SDK's own spans), url.query and url.full are content too, as that SDK's content mode leaves query parameters it treats as content in them: `capture_content` false drops url.query and leaves url.full without its query and fragment, and a mask runs over both like any other content value. On any other scope they are not content.",
   "cases": [
     {
       "name": "capture_on_without_a_mask_keeps_everything",
@@ -98,6 +98,171 @@
           "gen_ai.operation.name": "execute_tool",
           "gen_ai.tool.name": "get_weather",
           "gen_ai.tool.call.id": "toolu_1"
+        },
+        "events": [],
+        "status": null
+      }
+    },
+    {
+      "name": "capture_off_drops_the_anthropic_sdk_url_query",
+      "capture_content": false,
+      "mask": null,
+      "scope": "com.anthropic.sdk.python",
+      "span": {
+        "attributes": {
+          "http.request.method": "GET",
+          "url.scheme": "https",
+          "url.path": "/v1/organizations/users",
+          "url.query": "email=jane%40example.com&limit=20",
+          "url.full": "https://api.anthropic.com/v1/organizations/users?email=jane%40example.com&limit=20",
+          "server.address": "api.anthropic.com"
+        },
+        "events": []
+      },
+      "expected": {
+        "attributes": {
+          "http.request.method": "GET",
+          "url.scheme": "https",
+          "url.path": "/v1/organizations/users",
+          "url.full": "https://api.anthropic.com/v1/organizations/users",
+          "server.address": "api.anthropic.com"
+        },
+        "events": [],
+        "status": null
+      }
+    },
+    {
+      "name": "capture_on_keeps_the_anthropic_sdk_url_query",
+      "capture_content": true,
+      "mask": null,
+      "scope": "com.anthropic.sdk.python",
+      "span": {
+        "attributes": {
+          "http.request.method": "GET",
+          "url.scheme": "https",
+          "url.path": "/v1/organizations/users",
+          "url.query": "email=jane%40example.com&limit=20",
+          "url.full": "https://api.anthropic.com/v1/organizations/users?email=jane%40example.com&limit=20",
+          "server.address": "api.anthropic.com"
+        },
+        "events": []
+      },
+      "expected": {
+        "attributes": {
+          "http.request.method": "GET",
+          "url.scheme": "https",
+          "url.path": "/v1/organizations/users",
+          "url.query": "email=jane%40example.com&limit=20",
+          "url.full": "https://api.anthropic.com/v1/organizations/users?email=jane%40example.com&limit=20",
+          "server.address": "api.anthropic.com"
+        },
+        "events": [],
+        "status": null
+      }
+    },
+    {
+      "name": "mask_sees_the_anthropic_sdk_url_query_and_full_url",
+      "capture_content": true,
+      "mask": {
+        "format": "{key}:{value}"
+      },
+      "scope": "com.anthropic.sdk.python",
+      "span": {
+        "attributes": {
+          "http.request.method": "GET",
+          "url.scheme": "https",
+          "url.path": "/v1/organizations/users",
+          "url.query": "email=jane%40example.com&limit=20",
+          "url.full": "https://api.anthropic.com/v1/organizations/users?email=jane%40example.com&limit=20",
+          "server.address": "api.anthropic.com"
+        },
+        "events": []
+      },
+      "expected": {
+        "attributes": {
+          "http.request.method": "GET",
+          "url.scheme": "https",
+          "url.path": "/v1/organizations/users",
+          "url.query": "url.query:email=jane%40example.com&limit=20",
+          "url.full": "url.full:https://api.anthropic.com/v1/organizations/users?email=jane%40example.com&limit=20",
+          "server.address": "api.anthropic.com"
+        },
+        "events": [],
+        "status": null
+      }
+    },
+    {
+      "name": "capture_off_strips_a_fragment_from_the_anthropic_sdk_full_url",
+      "capture_content": false,
+      "mask": null,
+      "scope": "com.anthropic.sdk.typescript",
+      "span": {
+        "attributes": {
+          "url.full": "https://api.anthropic.com/v1/models#section"
+        },
+        "events": []
+      },
+      "expected": {
+        "attributes": {
+          "url.full": "https://api.anthropic.com/v1/models"
+        },
+        "events": [],
+        "status": null
+      }
+    },
+    {
+      "name": "capture_off_keeps_the_url_query_of_another_scope",
+      "capture_content": false,
+      "mask": null,
+      "scope": "@opentelemetry/instrumentation-undici",
+      "span": {
+        "attributes": {
+          "http.request.method": "GET",
+          "url.scheme": "https",
+          "url.path": "/v1/organizations/users",
+          "url.query": "email=jane%40example.com&limit=20",
+          "url.full": "https://api.anthropic.com/v1/organizations/users?email=jane%40example.com&limit=20",
+          "server.address": "api.anthropic.com"
+        },
+        "events": []
+      },
+      "expected": {
+        "attributes": {
+          "http.request.method": "GET",
+          "url.scheme": "https",
+          "url.path": "/v1/organizations/users",
+          "url.query": "email=jane%40example.com&limit=20",
+          "url.full": "https://api.anthropic.com/v1/organizations/users?email=jane%40example.com&limit=20",
+          "server.address": "api.anthropic.com"
+        },
+        "events": [],
+        "status": null
+      }
+    },
+    {
+      "name": "capture_off_keeps_the_url_query_of_a_lookalike_scope",
+      "capture_content": false,
+      "mask": null,
+      "scope": "com.anthropic.sdkx",
+      "span": {
+        "attributes": {
+          "http.request.method": "GET",
+          "url.scheme": "https",
+          "url.path": "/v1/organizations/users",
+          "url.query": "email=jane%40example.com&limit=20",
+          "url.full": "https://api.anthropic.com/v1/organizations/users?email=jane%40example.com&limit=20",
+          "server.address": "api.anthropic.com"
+        },
+        "events": []
+      },
+      "expected": {
+        "attributes": {
+          "http.request.method": "GET",
+          "url.scheme": "https",
+          "url.path": "/v1/organizations/users",
+          "url.query": "email=jane%40example.com&limit=20",
+          "url.full": "https://api.anthropic.com/v1/organizations/users?email=jane%40example.com&limit=20",
+          "server.address": "api.anthropic.com"
         },
         "events": [],
         "status": null

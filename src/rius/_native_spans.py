@@ -82,7 +82,8 @@ def _exception_class(status: int) -> str | None:
     return _EXCEPTION_CLASS_BY_STATUS.get(status)
 
 
-def _is_sdk_span(span: ReadableSpan) -> bool:
+def is_sdk_span(span: ReadableSpan) -> bool:
+    """Whether the anthropic SDK made ``span`` itself, whatever its operation."""
     scope = span.instrumentation_scope
     return scope is not None and scope.name.startswith(ANTHROPIC_SDK_SCOPE_PREFIX)
 
@@ -103,7 +104,7 @@ def native_error_type(span: ReadableSpan) -> dict[str, Any]:
     no exception event on this span, so there is no ``exception.type`` to
     keep in step.
     """
-    if not _is_sdk_span(span):
+    if not is_sdk_span(span):
         return {}
     attributes = span.attributes or {}
     if ERROR_TYPE not in attributes:
@@ -131,7 +132,7 @@ def demoted_attributes(attributes: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _is_sdk_chat_span(span: ReadableSpan) -> bool:
-    if not _is_sdk_span(span):
+    if not is_sdk_span(span):
         return False
     return (span.attributes or {}).get(GEN_AI_OPERATION_NAME) == _CHAT
 
