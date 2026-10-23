@@ -362,8 +362,11 @@ def observe(
                                 item = gen.send(pending[1])
                             else:
                                 item = gen.throw(pending[1])
-                        except StopIteration:
-                            break
+                        except StopIteration as stop:
+                            # The inner generator's return value is the
+                            # wrapper's, so ``yield from`` callers still get it.
+                            # (An async generator cannot return a value.)
+                            return stop.value
                         finally:
                             otel_context.detach(token)
                         try:

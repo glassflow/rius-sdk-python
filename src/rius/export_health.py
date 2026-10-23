@@ -24,6 +24,8 @@ from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
 if TYPE_CHECKING:
     from opentelemetry.sdk.trace import ReadableSpan
 
+    from .workspace import RoutingSpanExporter
+
 logger = logging.getLogger(__name__)
 
 ProbeTransport = Callable[[str, "dict[str, str] | None"], int]
@@ -99,18 +101,28 @@ class ExportOutcomeExporter(SpanExporter):
     set comes from the OTLP exporter, so the warning points at the key and
     endpoint; ``endpoint=None`` means the caller passed its own
     ``span_exporter``, and the warning blames that instead.
-    ``custom_exporter=True`` with ``endpoint`` set means both: the caller's
-    exporter sits beside workspace destinations that export to ``endpoint``.
-    One failing destination fails the whole routed export, so the warning
-    names both and keeps the key and endpoint hint.
+
+    With workspace ``routing``, one failing destination fails the whole
+    export, so the warning names the destinations the router reports as
+    failed: the default one (managed at ``endpoint``, or the caller's
+    ``span_exporter`` when it is None) and each failed workspace (managed at
+    ``workspace_endpoint``, or the caller's ``workspace_exporter_factory``
+    when it is None). Only a managed destination gets the key and endpoint
+    hint.
     """
 
     def __init__(
-        self, inner: SpanExporter, *, endpoint: str | None, custom_exporter: bool = False
+        self,
+        inner: SpanExporter,
+        *,
+        endpoint: str | None,
+        routing: RoutingSpanExporter | None = None,
+        workspace_endpoint: str | None = None,
     ) -> None:
         self._inner = inner
         self._endpoint = endpoint
-        self._custom_exporter = custom_exporter
+        self._routing = routing
+        self._workspace_endpoint = workspace_endpoint
         self._warned = False
         self.last_export_failed = False
 
@@ -145,19 +157,18 @@ class ExportOutcomeExporter(SpanExporter):
                 repeats,
                 exc_info=error,
             )
+        elif self._routing is not None:
+            failed = self._routing.last_failed
+            logger.warning(
+                "span export failed: %s; their spans are not being delivered. %s%s",
+                "; ".join(self._failed_destinations(failed)) or "a destination failed",
+                self._routed_hint(failed),
+                repeats,
+            )
         elif self._endpoint is None:
             logger.warning(
                 "span export failed: the configured span_exporter returned FAILURE; "
                 "traces are not being delivered. %s",
-                repeats,
-            )
-        elif self._custom_exporter:
-            logger.warning(
-                "span export failed: the configured span_exporter or a workspace "
-                "destination at %s returned FAILURE; traces are not being delivered. "
-                "Check that exporter, each workspace API key and RIUS_ENDPOINT (the "
-                "OTLP exporter's own log line above has the HTTP status). %s",
-                self._endpoint,
                 repeats,
             )
         else:
@@ -170,10 +181,41 @@ class ExportOutcomeExporter(SpanExporter):
             )
         return result
 
+    def _failed_destinations(self, failed: frozenset[str | None]) -> list[str]:
+        named = []
+        if None in failed:
+            if self._endpoint is None:
+                named.append("the configured span_exporter returned FAILURE")
+            else:
+                named.append(f"the default destination at {self._endpoint} returned FAILURE")
+        aliases = ", ".join(repr(alias) for alias in sorted(a for a in failed if a is not None))
+        if aliases:
+            if self._workspace_endpoint is None:
+                named.append(
+                    f"the workspace_exporter_factory exporter for workspace {aliases} failed"
+                )
+            else:
+                named.append(f"workspace {aliases} at {self._workspace_endpoint} failed")
+        return named
+
+    def _routed_hint(self, failed: frozenset[str | None]) -> str:
+        keys = []
+        if None in failed and self._endpoint is not None:
+            keys.append("RIUS_API_KEY")
+        if any(alias is not None for alias in failed) and self._workspace_endpoint is not None:
+            keys.append("each failed workspace's API key")
+        if not keys:
+            return ""
+        return (
+            f"Check {' and '.join(keys)} and RIUS_ENDPOINT (the OTLP exporter's own log "
+            "line above has the HTTP status). "
+        )
+
     def _destination(self) -> str:
-        # With a caller's exporter in the chain the endpoint is not the
-        # whole destination, so naming it alone would mislead.
-        if self._endpoint is None or self._custom_exporter:
+        # With a caller's exporter or workspace routing in the chain the
+        # endpoint is not the whole destination, so naming it alone would
+        # mislead.
+        if self._endpoint is None or self._routing is not None:
             return ""
         return f" to {self._endpoint}"
 

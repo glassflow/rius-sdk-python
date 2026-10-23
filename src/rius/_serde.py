@@ -216,9 +216,10 @@ def _strip_media(text: str) -> str:
 
     The parser gives up past ``MAX_DEPTH`` arrays and objects, so such a text
     is not JSON to it and only its data URLs are found: a keyed image's base64
-    would survive. The fallback is ``_cut_past_budget``'s, and the same
-    SDK-local guard: only a text that deep is not byte-identical with the
-    TypeScript SDK's.
+    would survive. The fallback is ``_cut_past_budget``'s: every run of the
+    base64 alphabet long enough to be media is replaced, along with any long
+    word of the same alphabet. The TypeScript SDK's ``stripMedia`` applies the
+    same guard, so both write the same text, a text this deep included.
     """
     stripped = strip_raw_payload(text)
     if _nests_past_parser_depth(stripped):
