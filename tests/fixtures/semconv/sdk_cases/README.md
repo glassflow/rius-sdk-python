@@ -29,9 +29,10 @@ the Python way (`capture_content`, `service_name`); each SDK's test maps it.
   records on the `rius.config` logger, the TypeScript SDK `console.warn` calls.
   A case without `warns` does not check warnings at all, so leave it out only
   where the warning is not part of the contract.
-- `scope` (`masking.json` only): the instrumentation scope name of the span
-  the case exports. A case without it uses a scope of the test's own, which
-  no rule matches. It matters for the Anthropic SDK's own spans (scope
+- `scope` (optional in `masking.json`; `anthropic_error_type.json` requires
+  it): the instrumentation scope name of the span the case exports. A
+  masking case without it uses a scope of the test's own, which no rule
+  matches. It matters for the Anthropic SDK's own spans (scope
   `com.anthropic.sdk.<language>`), whose `url.query` and `url.full` are
   content.
 

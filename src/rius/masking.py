@@ -118,14 +118,32 @@ _STATUS_DESCRIPTION_KEY = "status.description"
 _ANTHROPIC_SDK_URL_CONTENT_KEYS = frozenset({URL_QUERY, URL_FULL})
 
 
+def _scheme_host_and_path(url: str) -> str | None:
+    """``url`` as its scheme, host and path, or None when nothing is left.
+
+    Without its query and fragment, and without a user name or password
+    before the host, which the URL convention says must never be recorded.
+    """
+    base = url.split("#", 1)[0].split("?", 1)[0]
+    authority = base.find("://")
+    if authority >= 0:
+        start = authority + 3
+        slash = base.find("/", start)
+        end = len(base) if slash < 0 else slash
+        at = base.rfind("@", start, end)
+        if at >= 0:
+            base = base[:start] + base[at + 1 :]
+    return base or None
+
+
 def _without_content(key: str, value: Any) -> Any:
     """What is left of a content attribute with content capture off, or None to drop it.
 
-    ``url.full`` keeps its scheme, host and path, since only its query and
-    fragment are content. Every other key is dropped.
+    A string ``url.full`` keeps its scheme, host and path, since only the rest
+    of it is content. Every other key is dropped.
     """
     if key == URL_FULL and isinstance(value, str):
-        return value.split("#", 1)[0].split("?", 1)[0]
+        return _scheme_host_and_path(value)
     return None
 
 
