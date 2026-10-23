@@ -173,7 +173,7 @@ def _tool_runner_cases(base_url: str, request: dict[str, Any]) -> dict[str, Any]
         Args:
             query: what to look up.
         """
-        return f"{TOOL_OUTPUT} for {query}"
+        return TOOL_OUTPUT
 
     def tool_runner() -> None:
         runner = anthropic.Anthropic(**options).beta.messages.tool_runner(
@@ -189,7 +189,7 @@ def _tool_runner_cases(base_url: str, request: dict[str, Any]) -> dict[str, Any]
             Args:
                 query: what to look up.
             """
-            return f"{TOOL_OUTPUT} for {query}"
+            return TOOL_OUTPUT
 
         runner = anthropic.AsyncAnthropic(**options).beta.messages.tool_runner(
             tools=[lookup], **tool_request

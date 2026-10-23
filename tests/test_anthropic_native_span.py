@@ -288,17 +288,21 @@ def test_capture_off_drops_the_tool_runner_content_from_every_span(case: str) ->
 
 
 @pytest.mark.integration
-def test_with_capture_on_the_tool_runner_content_is_kept() -> None:
-    # The same run with capture on: the markers do reach the spans, so the
-    # test above is not passing on a run that never recorded them.
+@pytest.mark.parametrize("case", _TOOL_RUNNER_CASES)
+def test_with_capture_on_the_tool_runner_content_is_kept(case: str) -> None:
+    # The same run with capture on: the SDK's execute_tool span does carry the
+    # tool's arguments and output under its own keys, so the test above is not
+    # passing on a run that never recorded them.
     if not _has_native_tracing():
         pytest.skip("this anthropic has no tracing of its own (it starts in 1.14.0)")
-    spans = _run(content_mode=True)["cases"].get("tool_runner")
+    spans = _run(content_mode=True)["cases"].get(case)
     if spans is None:
         pytest.skip("this anthropic has no tool runner")
-    text = json.dumps([[s["attributes"], s["events"]] for s in spans])
-    assert "secret-tool-output" in text
-    assert "secret-tool-argument" in text
+    (tool,) = [
+        s for s in _native(spans) if s["attributes"].get("gen_ai.operation.name") == "execute_tool"
+    ]
+    assert "secret-tool-output" in tool["attributes"]["anthropic.tool_result.content"]
+    assert "secret-tool-argument" in tool["attributes"]["gen_ai.tool.call.arguments"]
 
 
 # --- the processor on its own -------------------------------------------------
