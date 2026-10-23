@@ -56,12 +56,15 @@ _CHAT = "chat"
 
 
 #: Not in the rius registry: the OpenTelemetry HTTP convention's key, written
-#: by the anthropic SDK on its span for the call's final response.
+#: by the anthropic SDK on its span for the call's final response. Spelled
+#: here because opentelemetry.semconv.attributes, which names it, is newer
+#: than the opentelemetry-semantic-conventions 0.45b0 the supported
+#: opentelemetry-sdk 1.24.0 installs.
 _HTTP_RESPONSE_STATUS_CODE = "http.response.status_code"
 
 #: The class every Anthropic client, in Python and TypeScript alike, raises
-#: for a status. Other statuses (413, 503, 504, 529) raise a class that
-#: differs by client or language, so they keep the SDK's own error.type.
+#: for a 4xx status. Any other 4xx (413 among them) raises a class that
+#: differs by client or language, so it keeps the SDK's own error.type.
 _EXCEPTION_CLASS_BY_STATUS = {
     400: "anthropic.BadRequestError",
     401: "anthropic.AuthenticationError",
@@ -70,8 +73,19 @@ _EXCEPTION_CLASS_BY_STATUS = {
     409: "anthropic.ConflictError",
     422: "anthropic.UnprocessableEntityError",
     429: "anthropic.RateLimitError",
-    500: "anthropic.InternalServerError",
 }
+
+#: Every other 5xx raises this class in every client; these raise one that
+#: differs by client or language (ServiceUnavailableError, Vertex's
+#: DeadlineExceededError, OverloadedError), so they keep the SDK's error.type.
+_INTERNAL_SERVER_ERROR = "anthropic.InternalServerError"
+_UNMAPPED_5XX = frozenset({503, 504, 529})
+
+
+def _exception_class(status: int) -> str | None:
+    if 500 <= status <= 599:
+        return None if status in _UNMAPPED_5XX else _INTERNAL_SERVER_ERROR
+    return _EXCEPTION_CLASS_BY_STATUS.get(status)
 
 
 def _is_sdk_span(span: ReadableSpan) -> bool:
@@ -103,7 +117,7 @@ def native_error_type(span: ReadableSpan) -> dict[str, Any]:
     status = attributes.get(_HTTP_RESPONSE_STATUS_CODE)
     if not isinstance(status, int) or isinstance(status, bool):
         return {}
-    name = _EXCEPTION_CLASS_BY_STATUS.get(status)
+    name = _exception_class(status)
     return {} if name is None else {ERROR_TYPE: name}
 
 

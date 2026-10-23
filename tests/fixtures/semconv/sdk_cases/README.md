@@ -16,7 +16,7 @@ code, so the two SDKs agree with each other by agreeing with these files.
 | `masking.json` | What reaches the exporter with content capture off, and with a mask that returns a value, returns null or throws: span attributes, `exception` event text and the status description. | `MaskingSpanExporter` |
 | `env.json` | `RIUS_*` variables: booleans (blank or unrecognised keeps the default), blank strings (unset), numbers (as Python's `float()` reads them, clamped to range). | `resolve_config()` / `resolveConfig({}, env)` |
 | `resource.json` | `OTEL_RESOURCE_ATTRIBUTES` merged under the SDK's own resource keys, and the `unknown_service` placeholder never stamped as an agent name. | `init()` |
-| `anthropic_error_type.json` | `error.type` on a span the Anthropic SDK made itself: the exception class it raises for the HTTP status, for the statuses every Anthropic client in both languages maps alike; anything else kept. | the SDK's span normalization |
+| `anthropic_error_type.json` | `error.type` on a span the Anthropic SDK made itself: the exception class it raises for the HTTP status, for the statuses every Anthropic client in both languages maps alike (400, 401, 403, 404, 409, 422, 429, and every 5xx but 503, 504 and 529); anything else kept. | the SDK's span normalization |
 
 Each file holds an `about`, which says what a case's fields mean, and
 `cases`, each with a unique `name`. A field an SDK spells differently is named
