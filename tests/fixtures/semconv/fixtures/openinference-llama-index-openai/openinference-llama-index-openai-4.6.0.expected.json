@@ -1,8 +1,8 @@
 {
   "normalizer": {
     "package": "glassflow-rius",
-    "version": "1.3.1",
-    "commit": "37031ebe5580a65805e097fb065f23fa9241102c"
+    "version": "1.5.3",
+    "commit": "bf45a2a6f718f0f82967f00407ee70622608624a"
   },
   "recordings": [
     {
@@ -101,18 +101,6 @@
                       }
                     ]
                   }
-                }
-              },
-              {
-                "key": "gen_ai.usage.audio.input_tokens",
-                "value": {
-                  "intValue": "0"
-                }
-              },
-              {
-                "key": "gen_ai.usage.audio.output_tokens",
-                "value": {
-                  "intValue": "0"
                 }
               },
               {
@@ -270,18 +258,6 @@
                 "key": "gen_ai.response.id",
                 "value": {
                   "stringValue": "chatcmpl-rec1"
-                }
-              },
-              {
-                "key": "gen_ai.usage.audio.input_tokens",
-                "value": {
-                  "intValue": "0"
-                }
-              },
-              {
-                "key": "gen_ai.usage.audio.output_tokens",
-                "value": {
-                  "intValue": "0"
                 }
               },
               {
@@ -469,18 +445,6 @@
                 }
               },
               {
-                "key": "gen_ai.usage.audio.input_tokens",
-                "value": {
-                  "intValue": "0"
-                }
-              },
-              {
-                "key": "gen_ai.usage.audio.output_tokens",
-                "value": {
-                  "intValue": "0"
-                }
-              },
-              {
                 "key": "gen_ai.usage.cache_read.input_tokens",
                 "value": {
                   "intValue": "16"
@@ -642,18 +606,6 @@
                 "key": "gen_ai.response.time_to_first_chunk",
                 "value": {
                   "doubleValue": 0.001
-                }
-              },
-              {
-                "key": "gen_ai.usage.audio.input_tokens",
-                "value": {
-                  "intValue": "0"
-                }
-              },
-              {
-                "key": "gen_ai.usage.audio.output_tokens",
-                "value": {
-                  "intValue": "0"
                 }
               },
               {
@@ -927,18 +879,6 @@
                 }
               },
               {
-                "key": "gen_ai.usage.audio.input_tokens",
-                "value": {
-                  "intValue": "0"
-                }
-              },
-              {
-                "key": "gen_ai.usage.audio.output_tokens",
-                "value": {
-                  "intValue": "0"
-                }
-              },
-              {
                 "key": "gen_ai.usage.cache_read.input_tokens",
                 "value": {
                   "intValue": "16"
@@ -1093,18 +1033,6 @@
                 "key": "gen_ai.tool.definitions",
                 "value": {
                   "stringValue": "[{\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"description\":\"get_weather(city: 'str') -> 'str'\\nCurrent weather for a city.\",\"parameters\":{\"properties\":{\"city\":{\"title\":\"City\",\"type\":\"string\"}},\"required\":[\"city\"],\"type\":\"object\",\"additionalProperties\":false},\"strict\":false}}]"
-                }
-              },
-              {
-                "key": "gen_ai.usage.audio.input_tokens",
-                "value": {
-                  "intValue": "0"
-                }
-              },
-              {
-                "key": "gen_ai.usage.audio.output_tokens",
-                "value": {
-                  "intValue": "0"
                 }
               },
               {
@@ -1383,18 +1311,6 @@
                 }
               },
               {
-                "key": "gen_ai.usage.audio.input_tokens",
-                "value": {
-                  "intValue": "0"
-                }
-              },
-              {
-                "key": "gen_ai.usage.audio.output_tokens",
-                "value": {
-                  "intValue": "0"
-                }
-              },
-              {
                 "key": "gen_ai.usage.cache_read.input_tokens",
                 "value": {
                   "intValue": "16"
@@ -1555,18 +1471,6 @@
                 "key": "gen_ai.tool.definitions",
                 "value": {
                   "stringValue": "[{\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"description\":\"get_weather(city: 'str') -> 'str'\\nCurrent weather for a city.\",\"parameters\":{\"properties\":{\"city\":{\"title\":\"City\",\"type\":\"string\"}},\"required\":[\"city\"],\"type\":\"object\",\"additionalProperties\":false},\"strict\":false}}]"
-                }
-              },
-              {
-                "key": "gen_ai.usage.audio.input_tokens",
-                "value": {
-                  "intValue": "0"
-                }
-              },
-              {
-                "key": "gen_ai.usage.audio.output_tokens",
-                "value": {
-                  "intValue": "0"
                 }
               },
               {

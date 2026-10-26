@@ -3,7 +3,8 @@
 ``tests/fixtures/semconv/usage_keys.yaml`` is rius-semconv's
 ``registry/usage_keys.yaml``, synced by scripts/sync-semconv-fixtures.sh. Every
 row it says the Python SDK maps must be a rule of ``DEFAULT_TABLE`` with that
-target, and no row it says is ignored may be one.
+target, and no row it says is ignored may be one. The breakdowns the exporter
+drops at 0 are exactly the rows it marks ``omit_zero``.
 """
 
 from __future__ import annotations
@@ -13,7 +14,8 @@ from typing import Any
 
 import yaml
 
-from rius.normalization import DEFAULT_TABLE, Rule
+from rius.normalization import DEFAULT_TABLE, USAGE_BREAKDOWN_SUFFIXES, Rule
+from rius.semconv import GEN_AI_USAGE_PREFIX
 
 REGISTRY = Path(__file__).parent / "fixtures" / "semconv" / "usage_keys.yaml"
 
@@ -46,3 +48,9 @@ def test_every_row_the_python_sdk_maps_is_a_rule_with_its_target() -> None:
 def test_no_ignored_row_is_a_rule_source() -> None:
     ignored = {row["key"] for row in _rows() if row.get("decision") == "ignored" and "key" in row}
     assert not ignored & set(_targets())
+
+
+def test_the_zero_dropped_breakdowns_are_the_rows_marked_omit_zero() -> None:
+    omitted = {row["key"] for row in _rows() if row.get("omit_zero") is True}
+    assert omitted, "no row is marked omit_zero: is usage_keys.yaml synced?"
+    assert {GEN_AI_USAGE_PREFIX + suffix for suffix in USAGE_BREAKDOWN_SUFFIXES} == omitted
