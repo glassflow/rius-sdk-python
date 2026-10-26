@@ -18,10 +18,12 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.trace import SpanContext
 
 from rius import init
-from rius.normalization import DEFAULT_TABLE
+from rius.normalization import DEFAULT_TABLE, NormalizingSpanExporter
 from rius.semconv import (
     GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS,
     GEN_AI_USAGE_REASONING_OUTPUT_TOKENS,
@@ -63,6 +65,16 @@ def _normalize(attributes: dict[str, Any]) -> dict[str, Any]:
     return dict(attributes) if out is None else out
 
 
+def _exported(attributes: dict[str, Any]) -> dict[str, Any]:
+    context = SpanContext(trace_id=1, span_id=2, is_remote=False)
+    sink = InMemorySpanExporter()
+    NormalizingSpanExporter(sink).export(
+        [ReadableSpan(name="s", context=context, attributes=attributes)]
+    )
+    [out] = sink.get_finished_spans()
+    return dict(out.attributes or {})
+
+
 @pytest.mark.parametrize(("source", "target"), ALTERNATES)
 def test_the_spelling_is_mapped_and_deleted(source: str, target: str) -> None:
     assert _normalize({source: 7}) == {target: 7}
@@ -74,9 +86,12 @@ def test_native_wins_and_the_source_still_goes(source: str, target: str) -> None
 
 
 @pytest.mark.parametrize(("source", "target"), ALTERNATES)
-def test_zero_is_a_real_count(source: str, target: str) -> None:
-    out = _normalize({source: 0})
-    assert out == {target: 0}
+def test_a_zero_is_dropped_at_export_which_the_conventions_recommend_only_when_non_zero(
+    source: str, target: str
+) -> None:
+    # The table still maps it; the export drops the zero breakdown it mapped.
+    assert _normalize({source: 0}) == {target: 0}
+    assert _exported({source: 0}) == {}
 
 
 @pytest.mark.parametrize(("source", "target"), ALTERNATES)
@@ -141,6 +156,7 @@ def test_a_pydantic_ai_span_leaves_the_sdk_canonical() -> None:
         client.shutdown()
     attributes = dict(span.attributes or {})
     assert attributes[GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS] == 40
-    assert attributes[GEN_AI_USAGE_REASONING_OUTPUT_TOKENS] == 0
+    # A zero breakdown is not recorded, and its source goes with it.
+    assert GEN_AI_USAGE_REASONING_OUTPUT_TOKENS not in attributes
     assert CACHE_CREATION not in attributes
     assert DETAILS_REASONING not in attributes

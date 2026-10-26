@@ -189,7 +189,11 @@ from .semconv import (
     GEN_AI_USAGE_INPUT_TOKEN_DETAILS_AUDIO_TOKENS,
     GEN_AI_USAGE_INPUT_TOKENS,
     GEN_AI_USAGE_OUTPUT_TOKENS,
+    GEN_AI_USAGE_PREFIX,
     GEN_AI_USAGE_REASONING_OUTPUT_TOKENS,
+    GEN_AI_USAGE_TEXT_CACHE_READ_INPUT_TOKENS,
+    GEN_AI_USAGE_TEXT_INPUT_TOKENS,
+    GEN_AI_USAGE_TEXT_OUTPUT_TOKENS,
     INVOCATION_PARAMETERS_CONTENT_MEMBERS,
     LLM_FINISH_REASON,
     LLM_INVOCATION_PARAMETERS,
@@ -206,6 +210,7 @@ from .semconv import (
     LLM_TOKEN_COUNT_PROMPT_DETAILS_CACHE_WRITE,
     METADATA,
     OPENINFERENCE_SPAN_KIND,
+    RIUS_AGGREGATED_USAGE_PREFIX,
     RIUS_COMPACTION_EVENT,
     RIUS_REQUEST_TOOL_CHOICE,
     TOOL_NAME,
@@ -1061,6 +1066,61 @@ def drop_embedding_vectors(attributes: Mapping[str, Any] | None) -> dict[str, An
     return rebuilt
 
 
+#: The usage breakdowns the conventions recommend only when available and
+#: non-zero: the cache and reasoning subsets and the per-modality counts, as
+#: suffixes after ``gen_ai.usage.``. The input and output totals are not among
+#: them; they are reported even at 0.
+USAGE_BREAKDOWN_SUFFIXES: tuple[str, ...] = tuple(
+    key[len(GEN_AI_USAGE_PREFIX) :]
+    for key in (
+        GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS,
+        GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS,
+        GEN_AI_USAGE_REASONING_OUTPUT_TOKENS,
+        GEN_AI_USAGE_TEXT_INPUT_TOKENS,
+        GEN_AI_USAGE_TEXT_OUTPUT_TOKENS,
+        GEN_AI_USAGE_TEXT_CACHE_READ_INPUT_TOKENS,
+        GEN_AI_USAGE_IMAGE_INPUT_TOKENS,
+        GEN_AI_USAGE_IMAGE_OUTPUT_TOKENS,
+        GEN_AI_USAGE_IMAGE_CACHE_READ_INPUT_TOKENS,
+        GEN_AI_USAGE_AUDIO_INPUT_TOKENS,
+        GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS,
+        GEN_AI_USAGE_AUDIO_CACHE_READ_INPUT_TOKENS,
+    )
+)
+
+_ZERO_DROP_KEYS = tuple(
+    prefix + suffix
+    for prefix in (GEN_AI_USAGE_PREFIX, RIUS_AGGREGATED_USAGE_PREFIX)
+    for suffix in USAGE_BREAKDOWN_SUFFIXES
+)
+
+
+def _is_zero(value: Any) -> bool:
+    """The number 0, as the TypeScript SDK's ``=== 0``: never a bool or a string."""
+    return type(value) in (int, float) and value == 0
+
+
+def drop_zero_usage_breakdowns(attributes: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    """The attributes without a usage breakdown whose count is 0.
+
+    Returns the rebuilt dict, or None when there is no zero to drop. Under
+    ``gen_ai.usage.*`` and under the ``rius.aggregated_usage.*`` a run's usage
+    moves to. Whoever wrote it, the producer natively or the table mapping a
+    dialect's count: the source of a mapped one is already gone, so the zero
+    leaves the span entirely. Only the number 0; a count of another shape is
+    the producer's and stays.
+    """
+    if not attributes:
+        return None
+    drop = [key for key in _ZERO_DROP_KEYS if key in attributes and _is_zero(attributes[key])]
+    if not drop:
+        return None
+    rebuilt = dict(attributes)
+    for key in drop:
+        del rebuilt[key]
+    return rebuilt
+
+
 def _llm_response_json(attributes: Mapping[str, Any]) -> str | None:
     """``output.value`` of an LLM span, when it can be the provider's JSON response object.
 
@@ -1283,6 +1343,13 @@ class NormalizingSpanExporter(SpanExporter):
 
     def _normalized(self, span: ReadableSpan) -> ReadableSpan:
         new_attributes = self._table.normalize(span.attributes)
+        # After the table, which maps the dialects' usage onto the canonical
+        # keys, so a zero it mapped goes with the native ones.
+        zeroless = drop_zero_usage_breakdowns(
+            span.attributes if new_attributes is None else new_attributes
+        )
+        if zeroless is not None:
+            new_attributes = zeroless
         # After the table, on its output: the table has already taken the
         # request knobs out of the bag, so what this pass re-serializes is
         # the remainder, and it never has to re-derive what the table did.
