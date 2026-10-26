@@ -1,7 +1,7 @@
 {
   "normalizer": {
     "package": "rius sink",
-    "commit": "1ce2851d0f38c56ff17c0103c5dde032953db00d"
+    "commit": "a8b08582654846f56fca09de8bd39a8792e8de5e"
   },
   "recordings": [
     {
@@ -50,7 +50,6 @@
             "gen_ai.usage.cache_read.input_tokens": "10",
             "gen_ai.usage.input_tokens": "42",
             "gen_ai.usage.output_tokens": "7",
-            "gen_ai.usage.reasoning.output_tokens": "0",
             "llm.headers": "None",
             "llm.request.reasoning_effort": "[]",
             "llm.request.type": "chat",
@@ -58,6 +57,7 @@
             "openinference.span.kind": "LLM"
           },
           "Cost": 0.00016250000000000002,
+          "CostFallbacks": null,
           "ContextWindowTokens": 128000,
           "ContextShares": {
             "current_turn": 1,
@@ -125,6 +125,7 @@
             "openinference.span.kind": "LLM"
           },
           "Cost": 0.00005000000000000001,
+          "CostFallbacks": null,
           "ContextWindowTokens": 128000,
           "ContextShares": {
             "current_turn": 1,
@@ -204,7 +205,6 @@
             "gen_ai.usage.cache_read.input_tokens": "10",
             "gen_ai.usage.input_tokens": "42",
             "gen_ai.usage.output_tokens": "7",
-            "gen_ai.usage.reasoning.output_tokens": "0",
             "llm.headers": "None",
             "llm.request.functions.0.description": "Get the weather for a city",
             "llm.request.functions.0.name": "get_weather",
@@ -215,6 +215,7 @@
             "openinference.span.kind": "LLM"
           },
           "Cost": 0.00016250000000000002,
+          "CostFallbacks": null,
           "ContextWindowTokens": 128000,
           "ContextShares": {
             "current_turn": 4,
@@ -276,7 +277,6 @@
             "gen_ai.usage.cache_read.input_tokens": "10",
             "gen_ai.usage.input_tokens": "42",
             "gen_ai.usage.output_tokens": "7",
-            "gen_ai.usage.reasoning.output_tokens": "0",
             "llm.headers": "None",
             "llm.request.functions.0.description": "Get the weather for a city",
             "llm.request.functions.0.name": "get_weather",
@@ -287,6 +287,7 @@
             "openinference.span.kind": "LLM"
           },
           "Cost": 0.00016250000000000002,
+          "CostFallbacks": null,
           "ContextWindowTokens": 128000,
           "ContextShares": {
             "tool:get_weather": 38,
@@ -348,6 +349,7 @@
             "openinference.span.kind": "LLM"
           },
           "Cost": null,
+          "CostFallbacks": null,
           "ContextWindowTokens": null,
           "ContextShares": null,
           "InputMessages": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"hi\"}]}]",
@@ -411,7 +413,6 @@
             "gen_ai.request.model": "text-embedding-3-small",
             "gen_ai.request.stream": "false",
             "gen_ai.response.model": "text-embedding-3-small",
-            "gen_ai.usage.cache_read.input_tokens": "0",
             "gen_ai.usage.input_tokens": "4",
             "llm.headers": "None",
             "llm.request.type": "embedding",
@@ -419,6 +420,7 @@
             "openinference.span.kind": "EMBEDDING"
           },
           "Cost": 8e-8,
+          "CostFallbacks": null,
           "ContextWindowTokens": 8191,
           "ContextShares": {
             "current_turn": 3,
@@ -483,6 +485,7 @@
             "openinference.span.kind": "LLM"
           },
           "Cost": 0.00023775,
+          "CostFallbacks": null,
           "ContextWindowTokens": 200000,
           "ContextShares": {
             "current_turn": 0,
@@ -540,8 +543,6 @@
             "gen_ai.request.stream": "true",
             "gen_ai.response.id": "msg_rec1",
             "gen_ai.response.model": "claude-sonnet-4-5-20250929",
-            "gen_ai.usage.cache_read.input_tokens": "0",
-            "gen_ai.usage.cache_write.input_tokens": "0",
             "gen_ai.usage.input_tokens": "12",
             "gen_ai.usage.output_tokens": "3",
             "llm.request.type": "completion",
@@ -549,6 +550,7 @@
             "openinference.span.kind": "LLM"
           },
           "Cost": 0.000081,
+          "CostFallbacks": null,
           "ContextWindowTokens": 200000,
           "ContextShares": {
             "current_turn": 0,
@@ -616,6 +618,7 @@
             "openinference.span.kind": "LLM"
           },
           "Cost": 0.00023775,
+          "CostFallbacks": null,
           "ContextWindowTokens": 200000,
           "ContextShares": {
             "current_turn": 4,
@@ -683,6 +686,7 @@
             "openinference.span.kind": "LLM"
           },
           "Cost": 0.00023775,
+          "CostFallbacks": null,
           "ContextWindowTokens": 200000,
           "ContextShares": {
             "tool:get_weather": 35,
@@ -742,6 +746,7 @@
             "traceloop.workflow.name": "weather_workflow"
           },
           "Cost": null,
+          "CostFallbacks": null,
           "ContextWindowTokens": null,
           "ContextShares": null,
           "InputMessages": "",
@@ -790,6 +795,7 @@
             "traceloop.workflow.name": "weather_agent"
           },
           "Cost": null,
+          "CostFallbacks": null,
           "ContextWindowTokens": null,
           "ContextShares": null,
           "InputMessages": "",
@@ -839,6 +845,7 @@
             "traceloop.workflow.name": "weather_agent"
           },
           "Cost": null,
+          "CostFallbacks": null,
           "ContextWindowTokens": null,
           "ContextShares": null,
           "InputMessages": "",
@@ -886,6 +893,7 @@
             "traceloop.workflow.name": "weather_agent"
           },
           "Cost": null,
+          "CostFallbacks": null,
           "ContextWindowTokens": null,
           "ContextShares": null,
           "InputMessages": "",
@@ -940,7 +948,6 @@
             "gen_ai.usage.cache_read.input_tokens": "10",
             "gen_ai.usage.input_tokens": "42",
             "gen_ai.usage.output_tokens": "7",
-            "gen_ai.usage.reasoning.output_tokens": "0",
             "llm.headers": "None",
             "llm.request.reasoning_effort": "[]",
             "llm.request.type": "chat",
@@ -950,6 +957,7 @@
             "traceloop.workflow.name": "weather_agent"
           },
           "Cost": 0.00016250000000000002,
+          "CostFallbacks": null,
           "ContextWindowTokens": 128000,
           "ContextShares": {
             "current_turn": 2,
@@ -1011,7 +1019,6 @@
             "gen_ai.usage.cache_read.input_tokens": "10",
             "gen_ai.usage.input_tokens": "42",
             "gen_ai.usage.output_tokens": "7",
-            "gen_ai.usage.reasoning.output_tokens": "0",
             "llm.headers": "None",
             "llm.request.reasoning_effort": "[]",
             "llm.request.type": "chat",
@@ -1020,6 +1027,7 @@
             "traceloop.workflow.name": "weather_workflow"
           },
           "Cost": 0.00016250000000000002,
+          "CostFallbacks": null,
           "ContextWindowTokens": 128000,
           "ContextShares": {
             "cached_prefix": 10,
@@ -1081,7 +1089,6 @@
             "gen_ai.usage.cache_read.input_tokens": "10",
             "gen_ai.usage.input_tokens": "42",
             "gen_ai.usage.output_tokens": "7",
-            "gen_ai.usage.reasoning.output_tokens": "0",
             "llm.headers": "None",
             "llm.request.reasoning_effort": "[]",
             "llm.request.type": "chat",
@@ -1090,6 +1097,7 @@
             "traceloop.workflow.name": "weather_workflow"
           },
           "Cost": 0.00016250000000000002,
+          "CostFallbacks": null,
           "ContextWindowTokens": 128000,
           "ContextShares": {
             "current_turn": 6,

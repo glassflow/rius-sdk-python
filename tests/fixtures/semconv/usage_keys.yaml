@@ -43,6 +43,13 @@
 #   type       int, double or string (a usage object written whole as
 #              JSON). A key without it is an int count; the keys under a
 #              prefix without it may hold any type.
+#   omit_zero  For a canonical gen_ai.usage.* key: true when the conventions
+#              recommend it only when available and non-zero (the cache and
+#              reasoning subsets and the per-modality counts). Every
+#              normalizer drops it at 0, under gen_ai.usage.* and under the
+#              rius.aggregated_usage.* a run's usage moves to, and a mapped
+#              source whose count was 0 goes with it. The input and output
+#              totals are reported even at 0, so they never take it.
 #
 # `producers` names who writes the keys no convention defines, by key prefix.
 # tools/to_weaver.py files each such key under model/inputs/<producer>.yaml
@@ -77,28 +84,40 @@ keys:
     decision: canonical
   - key: gen_ai.usage.cache_read.input_tokens
     decision: canonical
+    omit_zero: true
   - key: gen_ai.usage.cache_write.input_tokens
     decision: canonical
+    omit_zero: true
   - key: gen_ai.usage.reasoning.output_tokens
     decision: canonical
+    omit_zero: true
   - key: gen_ai.usage.text.input_tokens
     decision: canonical
+    omit_zero: true
   - key: gen_ai.usage.text.output_tokens
     decision: canonical
+    omit_zero: true
   - key: gen_ai.usage.text.cache_read.input_tokens
     decision: canonical
+    omit_zero: true
   - key: gen_ai.usage.image.input_tokens
     decision: canonical
+    omit_zero: true
   - key: gen_ai.usage.image.output_tokens
     decision: canonical
+    omit_zero: true
   - key: gen_ai.usage.image.cache_read.input_tokens
     decision: canonical
+    omit_zero: true
   - key: gen_ai.usage.audio.input_tokens
     decision: canonical
+    omit_zero: true
   - key: gen_ai.usage.audio.output_tokens
     decision: canonical
+    omit_zero: true
   - key: gen_ai.usage.audio.cache_read.input_tokens
     decision: canonical
+    omit_zero: true
   - prefix: rius.aggregated_usage.
     decision: canonical
     reason: |

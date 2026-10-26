@@ -1,7 +1,7 @@
 {
   "normalizer": {
     "package": "rius sink",
-    "commit": "1ce2851d0f38c56ff17c0103c5dde032953db00d"
+    "commit": "a8b08582654846f56fca09de8bd39a8792e8de5e"
   },
   "recordings": [
     {
@@ -40,6 +40,7 @@
             "session.id": "00000000-0000-0000-0000-000000000001"
           },
           "Cost": null,
+          "CostFallbacks": null,
           "ContextWindowTokens": null,
           "ContextShares": null,
           "InputMessages": "",
@@ -85,6 +86,7 @@
             "session.id": "00000000-0000-0000-0000-000000000001"
           },
           "Cost": null,
+          "CostFallbacks": null,
           "ContextWindowTokens": null,
           "ContextShares": null,
           "InputMessages": "",
@@ -130,6 +132,7 @@
             "session.id": "00000000-0000-0000-0000-000000000001"
           },
           "Cost": null,
+          "CostFallbacks": null,
           "ContextWindowTokens": null,
           "ContextShares": null,
           "InputMessages": "",
@@ -175,6 +178,7 @@
             "session.id": "00000000-0000-0000-0000-000000000001"
           },
           "Cost": null,
+          "CostFallbacks": null,
           "ContextWindowTokens": null,
           "ContextShares": null,
           "InputMessages": "",
@@ -213,8 +217,6 @@
           },
           "SpanAttributes": {
             "gen_ai.agent.name": "record",
-            "gen_ai.usage.cache_read.input_tokens": "0",
-            "gen_ai.usage.cache_write.input_tokens": "0",
             "lmnr.span.instrumentation_source": "python",
             "lmnr.span.language_version": "python@3.12",
             "lmnr.span.sdk_version": "0.7.64",
@@ -222,6 +224,7 @@
             "session.id": "00000000-0000-0000-0000-000000000001"
           },
           "Cost": null,
+          "CostFallbacks": null,
           "ContextWindowTokens": null,
           "ContextShares": null,
           "InputMessages": "",
@@ -279,6 +282,7 @@
             "session.id": "00000000-0000-0000-0000-000000000001"
           },
           "Cost": 0.0012799999999999999,
+          "CostFallbacks": null,
           "ContextWindowTokens": 128000,
           "ContextShares": {
             "current_turn": 14,
@@ -331,6 +335,7 @@
             "session.id": "00000000-0000-0000-0000-000000000001"
           },
           "Cost": null,
+          "CostFallbacks": null,
           "ContextWindowTokens": null,
           "ContextShares": null,
           "InputMessages": "",
@@ -376,6 +381,7 @@
             "session.id": "00000000-0000-0000-0000-000000000001"
           },
           "Cost": null,
+          "CostFallbacks": null,
           "ContextWindowTokens": null,
           "ContextShares": null,
           "InputMessages": "",
@@ -414,8 +420,6 @@
           },
           "SpanAttributes": {
             "gen_ai.agent.name": "record",
-            "gen_ai.usage.cache_read.input_tokens": "0",
-            "gen_ai.usage.cache_write.input_tokens": "0",
             "lmnr.span.instrumentation_source": "python",
             "lmnr.span.language_version": "python@3.12",
             "lmnr.span.sdk_version": "0.7.64",
@@ -423,6 +427,7 @@
             "session.id": "00000000-0000-0000-0000-000000000001"
           },
           "Cost": null,
+          "CostFallbacks": null,
           "ContextWindowTokens": null,
           "ContextShares": null,
           "InputMessages": "",
@@ -480,6 +485,7 @@
             "session.id": "00000000-0000-0000-0000-000000000001"
           },
           "Cost": 0.00133,
+          "CostFallbacks": null,
           "ContextWindowTokens": 128000,
           "ContextShares": {
             "system": 42,
@@ -533,6 +539,7 @@
             "session.id": "00000000-0000-0000-0000-000000000001"
           },
           "Cost": null,
+          "CostFallbacks": null,
           "ContextWindowTokens": null,
           "ContextShares": null,
           "InputMessages": "",
@@ -584,6 +591,7 @@
             "session.id": "00000000-0000-0000-0000-000000000001"
           },
           "Cost": null,
+          "CostFallbacks": null,
           "ContextWindowTokens": null,
           "ContextShares": null,
           "InputMessages": "",
@@ -641,6 +649,7 @@
             "session.id": "00000000-0000-0000-0000-000000000001"
           },
           "Cost": null,
+          "CostFallbacks": null,
           "ContextWindowTokens": null,
           "ContextShares": null,
           "InputMessages": "",
@@ -687,6 +696,7 @@
             "session.id": "00000000-0000-0000-0000-000000000001"
           },
           "Cost": null,
+          "CostFallbacks": null,
           "ContextWindowTokens": null,
           "ContextShares": null,
           "InputMessages": "",
@@ -745,6 +755,7 @@
             "session.id": "00000000-0000-0000-0000-000000000001"
           },
           "Cost": null,
+          "CostFallbacks": null,
           "ContextWindowTokens": null,
           "ContextShares": null,
           "InputMessages": "",
@@ -803,6 +814,7 @@
             "session.id": "00000000-0000-0000-0000-000000000001"
           },
           "Cost": null,
+          "CostFallbacks": null,
           "ContextWindowTokens": null,
           "ContextShares": null,
           "InputMessages": "",
@@ -867,6 +879,7 @@
             "session.id": "00000000-0000-0000-0000-000000000001"
           },
           "Cost": null,
+          "CostFallbacks": null,
           "ContextWindowTokens": 128000,
           "ContextShares": null,
           "InputMessages": "[{\"role\":\"system\",\"parts\":[{\"type\":\"text\",\"content\":\"\u003cSOUL\u003e\\nYou are OpenHands agent, a helpful AI assistant that can interact with a computer to solve tasks.\\n\u003c/SOUL\u003e\\n\\n\u003cROLE\u003e\\n* Your primary role is to assist users ...\u003c15068 chars truncated\u003e\"}]},{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"Print 'hello from openhands' in the terminal, then finish.\"}]}]",
@@ -937,6 +950,7 @@
             "session.id": "00000000-0000-0000-0000-000000000001"
           },
           "Cost": null,
+          "CostFallbacks": null,
           "ContextWindowTokens": null,
           "ContextShares": null,
           "InputMessages": "",
@@ -982,6 +996,7 @@
             "session.id": "00000000-0000-0000-0000-000000000001"
           },
           "Cost": null,
+          "CostFallbacks": null,
           "ContextWindowTokens": null,
           "ContextShares": null,
           "InputMessages": "",
@@ -1027,6 +1042,7 @@
             "session.id": "00000000-0000-0000-0000-000000000001"
           },
           "Cost": null,
+          "CostFallbacks": null,
           "ContextWindowTokens": null,
           "ContextShares": null,
           "InputMessages": "",
@@ -1072,6 +1088,7 @@
             "session.id": "00000000-0000-0000-0000-000000000001"
           },
           "Cost": null,
+          "CostFallbacks": null,
           "ContextWindowTokens": null,
           "ContextShares": null,
           "InputMessages": "",
@@ -1110,8 +1127,6 @@
           },
           "SpanAttributes": {
             "gen_ai.agent.name": "record",
-            "gen_ai.usage.cache_read.input_tokens": "0",
-            "gen_ai.usage.cache_write.input_tokens": "0",
             "lmnr.span.instrumentation_source": "python",
             "lmnr.span.language_version": "python@3.12",
             "lmnr.span.sdk_version": "0.7.64",
@@ -1119,6 +1134,7 @@
             "session.id": "00000000-0000-0000-0000-000000000001"
           },
           "Cost": null,
+          "CostFallbacks": null,
           "ContextWindowTokens": null,
           "ContextShares": null,
           "InputMessages": "",
@@ -1167,6 +1183,7 @@
             "session.id": "00000000-0000-0000-0000-000000000001"
           },
           "Cost": null,
+          "CostFallbacks": null,
           "ContextWindowTokens": null,
           "ContextShares": null,
           "InputMessages": "",
@@ -1212,6 +1229,7 @@
             "session.id": "00000000-0000-0000-0000-000000000001"
           },
           "Cost": null,
+          "CostFallbacks": null,
           "ContextWindowTokens": null,
           "ContextShares": null,
           "InputMessages": "",
@@ -1251,7 +1269,6 @@
           "SpanAttributes": {
             "gen_ai.agent.name": "record",
             "gen_ai.usage.cache_read.input_tokens": "1024",
-            "gen_ai.usage.cache_write.input_tokens": "0",
             "lmnr.span.instrumentation_source": "python",
             "lmnr.span.language_version": "python@3.12",
             "lmnr.span.sdk_version": "0.7.64",
@@ -1259,6 +1276,7 @@
             "session.id": "00000000-0000-0000-0000-000000000001"
           },
           "Cost": null,
+          "CostFallbacks": null,
           "ContextWindowTokens": null,
           "ContextShares": {
             "cached_prefix": 1024,
@@ -1310,6 +1328,7 @@
             "session.id": "00000000-0000-0000-0000-000000000001"
           },
           "Cost": null,
+          "CostFallbacks": null,
           "ContextWindowTokens": null,
           "ContextShares": null,
           "InputMessages": "",
@@ -1360,6 +1379,7 @@
             "session.id": "00000000-0000-0000-0000-000000000001"
           },
           "Cost": null,
+          "CostFallbacks": null,
           "ContextWindowTokens": null,
           "ContextShares": null,
           "InputMessages": "",
@@ -1405,6 +1425,7 @@
             "session.id": "00000000-0000-0000-0000-000000000001"
           },
           "Cost": null,
+          "CostFallbacks": null,
           "ContextWindowTokens": null,
           "ContextShares": null,
           "InputMessages": "",
@@ -1450,6 +1471,7 @@
             "session.id": "00000000-0000-0000-0000-000000000001"
           },
           "Cost": null,
+          "CostFallbacks": null,
           "ContextWindowTokens": null,
           "ContextShares": null,
           "InputMessages": "",
@@ -1495,6 +1517,7 @@
             "session.id": "00000000-0000-0000-0000-000000000001"
           },
           "Cost": null,
+          "CostFallbacks": null,
           "ContextWindowTokens": null,
           "ContextShares": null,
           "InputMessages": "",
@@ -1533,8 +1556,6 @@
           },
           "SpanAttributes": {
             "gen_ai.agent.name": "billing-agent",
-            "gen_ai.usage.cache_read.input_tokens": "0",
-            "gen_ai.usage.cache_write.input_tokens": "0",
             "lmnr.span.instrumentation_source": "python",
             "lmnr.span.language_version": "python@3.12",
             "lmnr.span.sdk_version": "0.7.64",
@@ -1542,6 +1563,7 @@
             "session.id": "00000000-0000-0000-0000-000000000001"
           },
           "Cost": null,
+          "CostFallbacks": null,
           "ContextWindowTokens": null,
           "ContextShares": null,
           "InputMessages": "",
@@ -1599,6 +1621,7 @@
             "session.id": "00000000-0000-0000-0000-000000000001"
           },
           "Cost": 0.0012799999999999999,
+          "CostFallbacks": null,
           "ContextWindowTokens": 128000,
           "ContextShares": {
             "current_turn": 14,
@@ -1651,6 +1674,7 @@
             "session.id": "00000000-0000-0000-0000-000000000001"
           },
           "Cost": null,
+          "CostFallbacks": null,
           "ContextWindowTokens": null,
           "ContextShares": null,
           "InputMessages": "",
@@ -1696,6 +1720,7 @@
             "session.id": "00000000-0000-0000-0000-000000000001"
           },
           "Cost": null,
+          "CostFallbacks": null,
           "ContextWindowTokens": null,
           "ContextShares": null,
           "InputMessages": "",
@@ -1734,8 +1759,6 @@
           },
           "SpanAttributes": {
             "gen_ai.agent.name": "billing-agent",
-            "gen_ai.usage.cache_read.input_tokens": "0",
-            "gen_ai.usage.cache_write.input_tokens": "0",
             "lmnr.span.instrumentation_source": "python",
             "lmnr.span.language_version": "python@3.12",
             "lmnr.span.sdk_version": "0.7.64",
@@ -1743,6 +1766,7 @@
             "session.id": "00000000-0000-0000-0000-000000000001"
           },
           "Cost": null,
+          "CostFallbacks": null,
           "ContextWindowTokens": null,
           "ContextShares": null,
           "InputMessages": "",
@@ -1800,6 +1824,7 @@
             "session.id": "00000000-0000-0000-0000-000000000001"
           },
           "Cost": 0.00133,
+          "CostFallbacks": null,
           "ContextWindowTokens": 128000,
           "ContextShares": {
             "system": 42,
@@ -1853,6 +1878,7 @@
             "session.id": "00000000-0000-0000-0000-000000000001"
           },
           "Cost": null,
+          "CostFallbacks": null,
           "ContextWindowTokens": null,
           "ContextShares": null,
           "InputMessages": "",
@@ -1903,6 +1929,7 @@
             "session.id": "00000000-0000-0000-0000-000000000001"
           },
           "Cost": null,
+          "CostFallbacks": null,
           "ContextWindowTokens": null,
           "ContextShares": null,
           "InputMessages": "",
@@ -1948,6 +1975,7 @@
             "session.id": "00000000-0000-0000-0000-000000000001"
           },
           "Cost": null,
+          "CostFallbacks": null,
           "ContextWindowTokens": null,
           "ContextShares": null,
           "InputMessages": "",
@@ -1993,6 +2021,7 @@
             "session.id": "00000000-0000-0000-0000-000000000001"
           },
           "Cost": null,
+          "CostFallbacks": null,
           "ContextWindowTokens": null,
           "ContextShares": null,
           "InputMessages": "",
@@ -2038,6 +2067,7 @@
             "session.id": "00000000-0000-0000-0000-000000000001"
           },
           "Cost": null,
+          "CostFallbacks": null,
           "ContextWindowTokens": null,
           "ContextShares": null,
           "InputMessages": "",
@@ -2088,6 +2118,7 @@
             "session.id": "00000000-0000-0000-0000-000000000001"
           },
           "Cost": null,
+          "CostFallbacks": null,
           "ContextWindowTokens": null,
           "ContextShares": null,
           "InputMessages": "",
@@ -2133,6 +2164,7 @@
             "session.id": "00000000-0000-0000-0000-000000000001"
           },
           "Cost": null,
+          "CostFallbacks": null,
           "ContextWindowTokens": null,
           "ContextShares": null,
           "InputMessages": "",
@@ -2178,6 +2210,7 @@
             "session.id": "00000000-0000-0000-0000-000000000001"
           },
           "Cost": null,
+          "CostFallbacks": null,
           "ContextWindowTokens": null,
           "ContextShares": null,
           "InputMessages": "",
@@ -2223,6 +2256,7 @@
             "session.id": "00000000-0000-0000-0000-000000000001"
           },
           "Cost": null,
+          "CostFallbacks": null,
           "ContextWindowTokens": null,
           "ContextShares": null,
           "InputMessages": "",

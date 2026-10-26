@@ -1,8 +1,8 @@
 {
   "normalizer": {
     "package": "@glassflow-ai/rius",
-    "version": "1.4.1",
-    "commit": "62979d546ba2b8b14396e5d5007e06c7e61af320"
+    "version": "1.8.0",
+    "commit": "3904e75dd5270bfa9cb30f0287dc2abbc2f68fdc"
   },
   "recordings": [
     {
@@ -732,12 +732,6 @@
                 }
               },
               {
-                "key": "rius.aggregated_usage.cache_read.input_tokens",
-                "value": {
-                  "intValue": "0"
-                }
-              },
-              {
                 "key": "rius.aggregated_usage.input_tokens",
                 "value": {
                   "intValue": "115"
@@ -747,12 +741,6 @@
                 "key": "rius.aggregated_usage.output_tokens",
                 "value": {
                   "intValue": "66"
-                }
-              },
-              {
-                "key": "rius.aggregated_usage.reasoning.output_tokens",
-                "value": {
-                  "intValue": "0"
                 }
               }
             ],
@@ -795,12 +783,6 @@
                 "key": "openinference.span.kind",
                 "value": {
                   "stringValue": "CHAIN"
-                }
-              },
-              {
-                "key": "rius.aggregated_usage.reasoning.output_tokens",
-                "value": {
-                  "intValue": "0"
                 }
               }
             ],
@@ -900,12 +882,6 @@
                 }
               },
               {
-                "key": "gen_ai.usage.cache_read.input_tokens",
-                "value": {
-                  "intValue": "0"
-                }
-              },
-              {
                 "key": "gen_ai.usage.input_tokens",
                 "value": {
                   "intValue": "24"
@@ -915,12 +891,6 @@
                 "key": "gen_ai.usage.output_tokens",
                 "value": {
                   "intValue": "51"
-                }
-              },
-              {
-                "key": "gen_ai.usage.reasoning.output_tokens",
-                "value": {
-                  "intValue": "0"
                 }
               },
               {
@@ -1036,12 +1006,6 @@
                 "value": {
                   "stringValue": "CHAIN"
                 }
-              },
-              {
-                "key": "rius.aggregated_usage.reasoning.output_tokens",
-                "value": {
-                  "intValue": "0"
-                }
               }
             ],
             "status": {}
@@ -1140,12 +1104,6 @@
                 }
               },
               {
-                "key": "gen_ai.usage.cache_read.input_tokens",
-                "value": {
-                  "intValue": "0"
-                }
-              },
-              {
                 "key": "gen_ai.usage.input_tokens",
                 "value": {
                   "intValue": "91"
@@ -1155,12 +1113,6 @@
                 "key": "gen_ai.usage.output_tokens",
                 "value": {
                   "intValue": "15"
-                }
-              },
-              {
-                "key": "gen_ai.usage.reasoning.output_tokens",
-                "value": {
-                  "intValue": "0"
                 }
               },
               {
