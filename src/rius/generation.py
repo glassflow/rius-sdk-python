@@ -301,6 +301,9 @@ class Generation:
                 A subset of ``output_tokens``, never in addition to it:
                 providers already include reasoning tokens in the output
                 total, so pass both as reported and do no arithmetic.
+
+        A cache or reasoning count of 0 is not recorded; the totals are, at 0
+        too.
         """
         if input_tokens is not None:
             total = input_tokens
@@ -309,13 +312,15 @@ class Generation:
             self._span.set_attribute(GEN_AI_USAGE_INPUT_TOKENS, total)
         if output_tokens is not None:
             self._span.set_attribute(GEN_AI_USAGE_OUTPUT_TOKENS, output_tokens)
-        if cache_read_input_tokens is not None:
+        # The totals are recorded even at 0; the GenAI conventions recommend
+        # the breakdowns only when available and non-zero, so a 0 is left off.
+        if cache_read_input_tokens:
             self._span.set_attribute(GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS, cache_read_input_tokens)
-        if cache_write_input_tokens is not None:
+        if cache_write_input_tokens:
             self._span.set_attribute(
                 GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS, cache_write_input_tokens
             )
-        if reasoning_output_tokens is not None:
+        if reasoning_output_tokens:
             self._span.set_attribute(GEN_AI_USAGE_REASONING_OUTPUT_TOKENS, reasoning_output_tokens)
 
     def record_first_token(self) -> None:
