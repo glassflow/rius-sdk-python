@@ -1107,8 +1107,11 @@ def drop_zero_usage_breakdowns(attributes: Mapping[str, Any] | None) -> dict[str
     ``gen_ai.usage.*`` and under the ``rius.aggregated_usage.*`` a run's usage
     moves to. Whoever wrote it, the producer natively or the table mapping a
     dialect's count: the source of a mapped one is already gone, so the zero
-    leaves the span entirely. Only the number 0; a count of another shape is
-    the producer's and stays.
+    leaves the span entirely. Only the number 0 (``-0.0`` included; NaN is
+    not 0); a count of another shape is the producer's and stays.
+
+    Runs on every exported span, the SDK's own generations included: a
+    breakdown ``set_usage`` wrote and a later call set to 0 leaves here too.
     """
     if not attributes:
         return None
@@ -1344,7 +1347,8 @@ class NormalizingSpanExporter(SpanExporter):
     def _normalized(self, span: ReadableSpan) -> ReadableSpan:
         new_attributes = self._table.normalize(span.attributes)
         # After the table, which maps the dialects' usage onto the canonical
-        # keys, so a zero it mapped goes with the native ones.
+        # keys, so a zero it mapped goes with the native ones. On every span,
+        # the SDK's own generations included, not only third-party ones.
         zeroless = drop_zero_usage_breakdowns(
             span.attributes if new_attributes is None else new_attributes
         )
