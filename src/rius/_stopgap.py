@@ -40,9 +40,14 @@ def needs_context(span: Any) -> bool:
     """Whether ``span`` exists and is not already the current span.
 
     None: no span was started for this call. Current already: the instrumentor
-    made it current itself (a fixed release), so there is nothing to do.
+    made it current itself (a fixed release), so there is nothing to do. The
+    spans are compared by their context, not identity: an instrumentor may make
+    a proxy of its span current (llama-index 4.6.1 does).
     """
-    return span is not None and trace.get_current_span() is not span
+    if span is None:
+        return False
+    current = trace.get_current_span()
+    return current is not span and current.get_span_context() != span.get_span_context()
 
 
 def under(span: Any) -> Any:
