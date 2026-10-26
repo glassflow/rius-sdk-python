@@ -95,7 +95,7 @@ logger = logging.getLogger(__name__)
 
 #: The instrumentor releases whose span handling was read and found as this
 #: module expects. A later release may have reshaped it; it is left alone.
-VERIFIED_VERSIONS = ("4.4.3", "4.6.0")
+VERIFIED_VERSIONS = ("4.4.3", "4.6.1")
 
 #: The methods whose result is a stream that makes the provider request later.
 _STREAM_METHODS = ("stream_chat", "stream_complete", "astream_chat", "astream_complete")

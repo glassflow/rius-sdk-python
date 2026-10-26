@@ -213,6 +213,15 @@ def test_chat_nests_and_counts_once(exported: Exported) -> None:
     assert _nothing_current()
 
 
+def test_a_call_leaves_the_context_as_it_found_it(exported: Exported) -> None:
+    # An instrumentor that makes its span current itself (4.6.1 does, through a
+    # proxy of the span) must not get a second attach from us: detached out of
+    # order, it would leave the instrumentor's context behind.
+    before = otel_context.get_current()
+    _llm().chat(MESSAGES)
+    assert otel_context.get_current() is before
+
+
 def test_complete_nests_and_counts_once(exported: Exported) -> None:
     assert _llm().complete("Capital of France?").text == "Paris."
 
@@ -634,18 +643,18 @@ def test_uninstall_restores_everything(openai_answers: Answers) -> None:
         (VERIFIED_VERSIONS[0], True),
         (VERIFIED_VERSIONS[1], True),
         ("4.4.2", False),
-        ("4.6.1", False),
+        ("4.6.2", False),
         ("5.0.0", False),
         ("4.5.0", True),
         ("4.6", True),
         # A pre-release comes before its release, a post-release after it.
-        ("4.6.0rc1", True),
-        ("4.6.0.dev0", True),
+        ("4.6.1rc1", True),
+        ("4.6.1.dev0", True),
         ("4.4.3rc1", False),
         ("4.4.3.post1", True),
-        ("4.6.0.post1", False),
-        ("4.6.0post1", False),
-        ("4.6.0+local", False),
+        ("4.6.1.post1", False),
+        ("4.6.1post1", False),
+        ("4.6.1+local", False),
         ("not-a-version", False),
     ],
 )

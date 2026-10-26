@@ -63,7 +63,7 @@ logger = logging.getLogger(__name__)
 #: The instrumentor releases whose tracer internals were read and found as
 #: this module expects. A later release may have reshaped them; it is left
 #: alone.
-VERIFIED_VERSIONS = ("0.1.67", "0.1.79")
+VERIFIED_VERSIONS = ("0.1.67", "0.1.80")
 
 #: The instrumentor's tracer the hooks look spans up in. Set by install().
 _tracer: Any = None

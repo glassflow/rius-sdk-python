@@ -14,6 +14,7 @@ import json
 import os
 import socket
 from collections.abc import Iterator
+from importlib.metadata import version
 from typing import Any
 
 import pytest
@@ -187,6 +188,10 @@ def test_the_stream_span_does_not_stay_current_for_the_caller(
         pass
 
 
+@pytest.mark.skipif(
+    not _verified(version("openinference-instrumentation-litellm")),
+    reason="the stopgap stays out of releases past the verified ones (0.1.51 nests by itself)",
+)
 def test_a_re_init_does_not_stack_the_wrappers(openai_answers: None) -> None:
     def start() -> None:
         init(
