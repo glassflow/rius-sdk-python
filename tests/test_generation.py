@@ -79,12 +79,65 @@ def test_cm_usage_cache_tokens_omitted_are_absent(exported_spans: InMemorySpanEx
     assert "gen_ai.usage.cache_write.input_tokens" not in attrs
 
 
-def test_cm_usage_cache_tokens_zero_recorded(exported_spans: InMemorySpanExporter) -> None:
+def test_cm_usage_cache_tokens_zero_omitted(exported_spans: InMemorySpanExporter) -> None:
+    """The breakdowns are recommended only when non-zero; the totals stay at 0."""
     with start_as_current_generation("chat") as gen:
-        gen.set_usage(cache_read_input_tokens=0, cache_write_input_tokens=0)
+        gen.set_usage(
+            input_tokens=0, output_tokens=0, cache_read_input_tokens=0, cache_write_input_tokens=0
+        )
     attrs = exported_spans.get_finished_spans()[0].attributes
+    assert "gen_ai.usage.cache_read.input_tokens" not in attrs
+    assert "gen_ai.usage.cache_write.input_tokens" not in attrs
+    assert attrs["gen_ai.usage.input_tokens"] == 0
+    assert attrs["gen_ai.usage.output_tokens"] == 0
+
+
+def test_cm_usage_keeps_a_non_zero_cache_count_beside_a_zero_one(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    with start_as_current_generation("chat") as gen:
+        gen.set_usage(input_tokens=100, cache_read_input_tokens=0, cache_write_input_tokens=40)
+    attrs = exported_spans.get_finished_spans()[0].attributes
+    assert "gen_ai.usage.cache_read.input_tokens" not in attrs
+    assert attrs["gen_ai.usage.cache_write.input_tokens"] == 40
+
+
+def test_cm_usage_a_later_zero_clears_an_earlier_count(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    """A repeated call is last-write-wins, so a breakdown never outlives the
+    total it is a subset of."""
+    with start_as_current_generation("chat", provider="anthropic") as gen:
+        gen.set_usage(
+            input_tokens=10,
+            output_tokens=20,
+            cache_read_input_tokens=50,
+            cache_write_input_tokens=30,
+            reasoning_output_tokens=5,
+        )
+        gen.set_usage(
+            input_tokens=10,
+            output_tokens=20,
+            cache_read_input_tokens=0,
+            cache_write_input_tokens=0,
+            reasoning_output_tokens=0,
+        )
+    attrs = exported_spans.get_finished_spans()[0].attributes
+    assert attrs["gen_ai.usage.input_tokens"] == 10
     assert attrs["gen_ai.usage.cache_read.input_tokens"] == 0
     assert attrs["gen_ai.usage.cache_write.input_tokens"] == 0
+    assert attrs["gen_ai.usage.reasoning.output_tokens"] == 0
+
+
+def test_cm_usage_a_first_zero_followed_by_nothing_stays_absent(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    with start_as_current_generation("chat") as gen:
+        gen.set_usage(input_tokens=10, cache_read_input_tokens=0, reasoning_output_tokens=0)
+        gen.set_usage(output_tokens=5)
+    attrs = exported_spans.get_finished_spans()[0].attributes
+    assert "gen_ai.usage.cache_read.input_tokens" not in attrs
+    assert "gen_ai.usage.reasoning.output_tokens" not in attrs
 
 
 def test_cm_usage_reasoning_tokens(exported_spans: InMemorySpanExporter) -> None:
@@ -101,11 +154,12 @@ def test_cm_usage_reasoning_tokens_omitted_absent(exported_spans: InMemorySpanEx
     assert "gen_ai.usage.reasoning.output_tokens" not in attrs
 
 
-def test_cm_usage_reasoning_tokens_zero_recorded(exported_spans: InMemorySpanExporter) -> None:
+def test_cm_usage_reasoning_tokens_zero_omitted(exported_spans: InMemorySpanExporter) -> None:
     with start_as_current_generation("chat") as gen:
-        gen.set_usage(reasoning_output_tokens=0)
+        gen.set_usage(output_tokens=5, reasoning_output_tokens=0)
     attrs = exported_spans.get_finished_spans()[0].attributes
-    assert attrs["gen_ai.usage.reasoning.output_tokens"] == 0
+    assert "gen_ai.usage.reasoning.output_tokens" not in attrs
+    assert attrs["gen_ai.usage.output_tokens"] == 5
 
 
 def test_anthropic_input_tokens_summed_with_cache(exported_spans: InMemorySpanExporter) -> None:
@@ -139,6 +193,17 @@ def test_anthropic_input_tokens_unchanged_without_cache(
         gen.set_usage(input_tokens=100, output_tokens=5)
     attrs = exported_spans.get_finished_spans()[0].attributes
     assert attrs["gen_ai.usage.input_tokens"] == 100
+
+
+def test_anthropic_input_tokens_unchanged_with_zero_cache_counts(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    with start_as_current_generation("chat", provider="anthropic") as gen:
+        gen.set_usage(input_tokens=10, cache_read_input_tokens=0, cache_write_input_tokens=0)
+    attrs = exported_spans.get_finished_spans()[0].attributes
+    assert attrs["gen_ai.usage.input_tokens"] == 10
+    assert "gen_ai.usage.cache_read.input_tokens" not in attrs
+    assert "gen_ai.usage.cache_write.input_tokens" not in attrs
 
 
 def test_non_anthropic_input_tokens_never_summed(exported_spans: InMemorySpanExporter) -> None:

@@ -20,6 +20,7 @@ from rius.normalization import (
     GEN_AI_USAGE_AUDIO_CACHE_READ_INPUT_TOKENS,
     GEN_AI_USAGE_AUDIO_INPUT_TOKENS,
     GEN_AI_USAGE_AUDIO_OUTPUT_TOKENS,
+    PROVIDER_RENAME_RULES,
     openinference_invocation_parameters,
 )
 from rius.semconv import (
@@ -274,8 +275,10 @@ def test_an_unparseable_token_count_maps_to_nothing() -> None:
         ("openai", "openai"),
         ("anthropic", "anthropic"),
         # registry spelling differs from OpenInference's enum value
-        ("mistralai", "mistral_ai"),
+        ("mistralai", "mistral"),
         ("xai", "x_ai"),
+        # the registry's own spelling before it renamed Mistral's value
+        ("mistral_ai", "mistral"),
         # no unambiguous registry value: verbatim, because the enum is open
         ("azure", "azure"),
         ("aws", "aws"),
@@ -296,6 +299,7 @@ def test_provider_spellings(source_value: str, expected: str) -> None:
         ("az.ai.inference", "azure.ai.inference"),
         ("az.ai.openai", "azure.ai.openai"),
         ("xai", "x_ai"),
+        ("mistral_ai", "mistral"),
     ],
 )
 def test_legacy_gen_ai_system_is_mapped_and_never_emitted(source_value: str, expected: str) -> None:
@@ -313,7 +317,7 @@ def test_llm_provider_wins_over_legacy_gen_ai_system() -> None:
         ("openai", "openai"),
         ("anthropic", "anthropic"),
         ("cohere", "cohere"),
-        ("mistralai", "mistral_ai"),
+        ("mistralai", "mistral"),
         ("vertexai", "gcp.vertex_ai"),
     ],
 )
@@ -350,6 +354,73 @@ def test_native_provider_wins_over_llm_system() -> None:
     assert _normalize(attributes) == attributes
 
 
+# @ai-sdk/otel writes gen_ai.provider.name itself, under the registry's former
+# Mistral spelling, so the native key is rewritten in place.
+@pytest.mark.parametrize("native", ["mistral_ai", "  Mistral_AI  "])
+def test_a_native_former_provider_spelling_is_rewritten(native: str) -> None:
+    assert _normalize({GEN_AI_PROVIDER_NAME: native}) == {GEN_AI_PROVIDER_NAME: "mistral"}
+
+
+def test_a_native_former_provider_spelling_wins_over_llm_provider_renamed() -> None:
+    out = _normalize({GEN_AI_PROVIDER_NAME: "mistral_ai", "llm.provider": "openai"})
+    assert out == {GEN_AI_PROVIDER_NAME: "mistral"}
+
+
+@pytest.mark.parametrize("native", ["mistral", "mistralai", "xai", "vertex_ai", "openai", 7])
+def test_any_other_native_provider_is_left_as_written(native: Any) -> None:
+    assert DEFAULT_TABLE.normalize({GEN_AI_PROVIDER_NAME: native}) is None
+
+
+@pytest.mark.parametrize(("native", "expected"), [("mistral_ai", "mistral"), ("openai", "openai")])
+def test_normalize_never_drops_a_native_provider(native: str, expected: str) -> None:
+    """The native key is a rename-rule source, so normalize() removes it and
+    only that rule's output puts it back; other rules firing must not lose it."""
+    out = _normalize(
+        {GEN_AI_PROVIDER_NAME: native, "llm.provider": "anthropic", "llm.token_count.prompt": 10}
+    )
+    assert out[GEN_AI_PROVIDER_NAME] == expected
+    assert out[GEN_AI_USAGE_INPUT_TOKENS] == 10
+    assert "llm.provider" not in out
+
+
+def test_the_provider_rename_is_the_last_rule() -> None:
+    """Order is contract: the TS SDK and the sink list the rules in the same
+    sequence. The rename is last, so what the rules above produced is
+    already current and passes through."""
+    assert DEFAULT_TABLE.rules[-len(PROVIDER_RENAME_RULES) :] == PROVIDER_RENAME_RULES
+    assert [rule.sources for rule in PROVIDER_RENAME_RULES] == [(GEN_AI_PROVIDER_NAME,)]
+
+
+def test_a_native_former_provider_spelling_is_rewritten_at_span_start() -> None:
+    """The processor writes the rename onto the live span, so a pending
+    snapshot names the provider as the ended span does."""
+    assert DEFAULT_TABLE.additions({GEN_AI_PROVIDER_NAME: "mistral_ai"}) == {
+        GEN_AI_PROVIDER_NAME: "mistral"
+    }
+
+
+def test_a_start_generation_provider_is_renamed_on_the_pending_and_ended_span() -> None:
+    from rius import _tracer, start_generation
+
+    exporter = InMemorySpanExporter()
+    client = init(
+        span_exporter=exporter,
+        set_global=False,
+        service_name="test-svc",
+        instruments=[],
+        partial_spans=True,
+    )
+    try:
+        _tracer.publish(client._provider)
+        start_generation("chat", provider="mistral_ai").end()
+        client.flush()
+        spans = exporter.get_finished_spans()
+    finally:
+        client.shutdown()
+    assert len(spans) == 2, "expected a pending snapshot and the ended span"
+    assert [span.attributes[GEN_AI_PROVIDER_NAME] for span in spans] == ["mistral", "mistral"]
+
+
 # --- LangChain's ls_provider ------------------------------------------------
 
 
@@ -375,7 +446,7 @@ _JS_LANGCHAIN_BAG = json.dumps({"model": "gpt-4o-mini", "temperature": 0.2, "str
     [
         ("openai", "openai"),
         ("anthropic", "anthropic"),
-        ("mistralai", "mistral_ai"),
+        ("mistralai", "mistral"),
         ("google_vertexai", "google_vertexai"),
     ],
 )
@@ -452,6 +523,7 @@ def test_no_provider_without_a_named_ls_provider(metadata: str) -> None:
         ("anthropic", "anthropic/claude-haiku-4-5-20251001", "claude-haiku-4-5-20251001"),
         # compared under the registry's spelling
         ("vertex_ai", "vertex_ai/gemini-2.5-flash", "gemini-2.5-flash"),
+        ("mistralai", "mistral/mistral-small-latest", "mistral-small-latest"),
         # a prefix naming anyone else is part of the name
         ("openai", "openai/google/gemini-2.5-flash", "google/gemini-2.5-flash"),
         ("openai", "google/gemini-2.5-flash", "google/gemini-2.5-flash"),
@@ -479,6 +551,38 @@ def test_a_native_provider_strips_a_mapped_model() -> None:
         LLM_INVOCATION_PARAMETERS: json.dumps({"model": "openai/gpt-4o-mini"}),
     }
     assert _normalize(raw)[GEN_AI_REQUEST_MODEL] == "gpt-4o-mini"
+
+
+def test_a_native_former_provider_spelling_strips_under_its_new_name() -> None:
+    raw = {
+        GEN_AI_PROVIDER_NAME: "mistral_ai",
+        LLM_INVOCATION_PARAMETERS: json.dumps({"model": "mistral/mistral-small-latest"}),
+    }
+    out = _normalize(raw)
+    assert out[GEN_AI_PROVIDER_NAME] == "mistral"
+    assert out[GEN_AI_REQUEST_MODEL] == "mistral-small-latest"
+
+
+def test_a_native_former_provider_spelling_strips_under_its_new_name_at_span_start() -> None:
+    """The processor writes the model at start; by export it reads as native
+    and is never stripped again, so the start-time strip must be right."""
+    from opentelemetry.sdk.trace import TracerProvider
+
+    from rius.normalization import NormalizingSpanProcessor
+
+    provider = TracerProvider()
+    provider.add_span_processor(NormalizingSpanProcessor())
+    span = provider.get_tracer("test").start_span(
+        "chat",
+        attributes={
+            GEN_AI_PROVIDER_NAME: "mistral_ai",
+            LLM_INVOCATION_PARAMETERS: json.dumps({"model": "mistral/mistral-small-latest"}),
+        },
+    )
+    live = dict(span.attributes or {})  # type: ignore[attr-defined]
+    span.end()
+    assert live[GEN_AI_PROVIDER_NAME] == "mistral"
+    assert live[GEN_AI_REQUEST_MODEL] == "mistral-small-latest"
 
 
 def test_a_native_model_is_never_stripped() -> None:
@@ -691,7 +795,7 @@ def test_the_shipped_table_normalizes_a_span() -> None:
         (span,) = exporter.get_finished_spans()
     finally:
         client.shutdown()
-    assert span.attributes[GEN_AI_PROVIDER_NAME] == "mistral_ai"
+    assert span.attributes[GEN_AI_PROVIDER_NAME] == "mistral"
     assert span.attributes[GEN_AI_USAGE_INPUT_TOKENS] == 10
     assert span.attributes[GEN_AI_REQUEST_MODEL] == "m"
     assert json.loads(span.attributes[LLM_INVOCATION_PARAMETERS]) == {"user": "u"}
