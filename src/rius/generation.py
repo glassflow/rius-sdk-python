@@ -302,8 +302,9 @@ class Generation:
                 providers already include reasoning tokens in the output
                 total, so pass both as reported and do no arithmetic.
 
-        A cache or reasoning count of 0 is not recorded; the totals are, at 0
-        too.
+        A cache or reasoning count of 0 is not recorded unless an earlier call
+        already recorded that count, which the 0 then overwrites; the totals
+        are recorded at 0 too.
         """
         if input_tokens is not None:
             total = input_tokens
@@ -313,15 +314,19 @@ class Generation:
         if output_tokens is not None:
             self._span.set_attribute(GEN_AI_USAGE_OUTPUT_TOKENS, output_tokens)
         # The totals are recorded even at 0; the GenAI conventions recommend
-        # the breakdowns only when available and non-zero, so a 0 is left off.
-        if cache_read_input_tokens:
-            self._span.set_attribute(GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS, cache_read_input_tokens)
-        if cache_write_input_tokens:
-            self._span.set_attribute(
-                GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS, cache_write_input_tokens
-            )
-        if reasoning_output_tokens:
-            self._span.set_attribute(GEN_AI_USAGE_REASONING_OUTPUT_TOKENS, reasoning_output_tokens)
+        # the breakdowns only when available and non-zero, so a 0 is left off,
+        # unless an earlier call recorded that breakdown: then the 0 overwrites
+        # it, so a breakdown never outlives the total it is a subset of.
+        # Only the SDK span exposes its attributes; any other span reads as
+        # carrying none.
+        recorded = getattr(self._span, "attributes", None) or {}
+        for key, count in (
+            (GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS, cache_read_input_tokens),
+            (GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS, cache_write_input_tokens),
+            (GEN_AI_USAGE_REASONING_OUTPUT_TOKENS, reasoning_output_tokens),
+        ):
+            if count is not None and (count or key in recorded):
+                self._span.set_attribute(key, count)
 
     def record_first_token(self) -> None:
         """Mark the arrival of the first streamed token.
