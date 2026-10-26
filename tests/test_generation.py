@@ -102,31 +102,38 @@ def test_cm_usage_keeps_a_non_zero_cache_count_beside_a_zero_one(
     assert attrs["gen_ai.usage.cache_write.input_tokens"] == 40
 
 
-def test_cm_usage_a_later_zero_clears_an_earlier_count(
-    exported_spans: InMemorySpanExporter,
-) -> None:
+def test_cm_usage_a_later_zero_clears_an_earlier_count() -> None:
     """A repeated call is last-write-wins, so a breakdown never outlives the
-    total it is a subset of."""
-    with start_as_current_generation("chat", provider="anthropic") as gen:
-        gen.set_usage(
-            input_tokens=10,
-            output_tokens=20,
-            cache_read_input_tokens=50,
-            cache_write_input_tokens=30,
-            reasoning_output_tokens=5,
-        )
-        gen.set_usage(
-            input_tokens=10,
-            output_tokens=20,
-            cache_read_input_tokens=0,
-            cache_write_input_tokens=0,
-            reasoning_output_tokens=0,
-        )
-    attrs = exported_spans.get_finished_spans()[0].attributes
+    total it is a subset of. The later zeros then leave at export, as every
+    zero breakdown does, so the exported span carries none of them."""
+    from rius import init
+
+    inner = InMemorySpanExporter()
+    client = init(span_exporter=inner, set_global=False, instruments=[])
+    gen = Generation(client.get_tracer().start_span("chat"))
+    gen.set_usage(
+        input_tokens=10,
+        output_tokens=20,
+        cache_read_input_tokens=50,
+        cache_write_input_tokens=30,
+        reasoning_output_tokens=5,
+    )
+    gen.set_usage(
+        input_tokens=10,
+        output_tokens=20,
+        cache_read_input_tokens=0,
+        cache_write_input_tokens=0,
+        reasoning_output_tokens=0,
+    )
+    gen.end()
+    client.flush()
+    attrs = inner.get_finished_spans()[0].attributes
+    assert attrs is not None
     assert attrs["gen_ai.usage.input_tokens"] == 10
-    assert attrs["gen_ai.usage.cache_read.input_tokens"] == 0
-    assert attrs["gen_ai.usage.cache_write.input_tokens"] == 0
-    assert attrs["gen_ai.usage.reasoning.output_tokens"] == 0
+    assert attrs["gen_ai.usage.output_tokens"] == 20
+    assert "gen_ai.usage.cache_read.input_tokens" not in attrs
+    assert "gen_ai.usage.cache_write.input_tokens" not in attrs
+    assert "gen_ai.usage.reasoning.output_tokens" not in attrs
 
 
 def test_cm_usage_a_first_zero_followed_by_nothing_stays_absent(

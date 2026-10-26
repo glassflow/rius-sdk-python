@@ -1,4 +1,4 @@
-"""Zero usage breakdowns leave a third-party span at export.
+"""Zero usage breakdowns leave every span at export.
 
 The GenAI conventions recommend the usage breakdowns (the cache and reasoning
 subsets and the per-modality counts) only when available and non-zero, and
@@ -9,6 +9,7 @@ a mapped one's source goes with it.
 
 from __future__ import annotations
 
+import math
 from typing import Any
 
 import pytest
@@ -89,8 +90,16 @@ def test_only_the_number_zero_is_dropped(value: Any) -> None:
     assert _exported({key: value}) == {key: value}
 
 
-def test_a_zero_float_is_dropped() -> None:
-    assert _exported({"gen_ai.usage.cache_read.input_tokens": 0.0}) == {}
+@pytest.mark.parametrize("value", [0.0, -0.0])
+def test_a_zero_float_is_dropped(value: float) -> None:
+    assert _exported({"gen_ai.usage.cache_read.input_tokens": value}) == {}
+
+
+def test_nan_is_no_zero_and_stays() -> None:
+    key = "gen_ai.usage.cache_read.input_tokens"
+    exported = _exported({key: math.nan})
+    assert list(exported) == [key]
+    assert math.isnan(exported[key])
 
 
 def test_a_zero_under_a_key_that_is_no_breakdown_stays() -> None:
