@@ -371,6 +371,18 @@ def test_any_other_native_provider_is_left_as_written(native: Any) -> None:
     assert DEFAULT_TABLE.normalize({GEN_AI_PROVIDER_NAME: native}) is None
 
 
+@pytest.mark.parametrize(("native", "expected"), [("mistral_ai", "mistral"), ("openai", "openai")])
+def test_normalize_never_drops_a_native_provider(native: str, expected: str) -> None:
+    """The native key is a rename-rule source, so normalize() removes it and
+    only that rule's output puts it back; other rules firing must not lose it."""
+    out = _normalize(
+        {GEN_AI_PROVIDER_NAME: native, "llm.provider": "anthropic", "llm.token_count.prompt": 10}
+    )
+    assert out[GEN_AI_PROVIDER_NAME] == expected
+    assert out[GEN_AI_USAGE_INPUT_TOKENS] == 10
+    assert "llm.provider" not in out
+
+
 def test_the_provider_rename_is_the_last_rule() -> None:
     """Order is contract: the TS SDK and the sink list the rules in the same
     sequence. The rename is last, so what the rules above produced is
@@ -549,6 +561,28 @@ def test_a_native_former_provider_spelling_strips_under_its_new_name() -> None:
     out = _normalize(raw)
     assert out[GEN_AI_PROVIDER_NAME] == "mistral"
     assert out[GEN_AI_REQUEST_MODEL] == "mistral-small-latest"
+
+
+def test_a_native_former_provider_spelling_strips_under_its_new_name_at_span_start() -> None:
+    """The processor writes the model at start; by export it reads as native
+    and is never stripped again, so the start-time strip must be right."""
+    from opentelemetry.sdk.trace import TracerProvider
+
+    from rius.normalization import NormalizingSpanProcessor
+
+    provider = TracerProvider()
+    provider.add_span_processor(NormalizingSpanProcessor())
+    span = provider.get_tracer("test").start_span(
+        "chat",
+        attributes={
+            GEN_AI_PROVIDER_NAME: "mistral_ai",
+            LLM_INVOCATION_PARAMETERS: json.dumps({"model": "mistral/mistral-small-latest"}),
+        },
+    )
+    live = dict(span.attributes or {})  # type: ignore[attr-defined]
+    span.end()
+    assert live[GEN_AI_PROVIDER_NAME] == "mistral"
+    assert live[GEN_AI_REQUEST_MODEL] == "mistral-small-latest"
 
 
 def test_a_native_model_is_never_stripped() -> None:
