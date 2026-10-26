@@ -1405,17 +1405,28 @@ class NormalizingSpanExporter(SpanExporter):
 #: They pass through verbatim, which is allowed — the attribute's values are
 #: "well-known", not closed, and langchain already forwards any
 #: ``ls_provider`` string it is given (``_tracer.py:1076``).
+#:
+#: The registry's own former spellings of a provider value. Unlike the
+#: aliases below they are rewritten even under a native
+#: ``gen_ai.provider.name`` (see ``PROVIDER_RENAME_RULES``): an
+#: instrumentation written against the earlier registry, @ai-sdk/otel among
+#: them, still emits them.
+PROVIDER_NAME_RENAMES: Mapping[str, str] = {
+    "mistral_ai": "mistral",
+}
+
 PROVIDER_NAME_ALIASES: Mapping[str, str] = {
     # OpenInference enum values (openinference.semconv.trace)
     "mistralai": "mistral",
     "xai": "x_ai",
     "vertexai": "gcp.vertex_ai",
     # legacy gen_ai.system values
-    "mistral_ai": "mistral",
     "vertex_ai": "gcp.vertex_ai",
     "gemini": "gcp.gemini",
     "az.ai.inference": "azure.ai.inference",
     "az.ai.openai": "azure.ai.openai",
+    # the registry's own former spellings
+    **PROVIDER_NAME_RENAMES,
 }
 
 
@@ -1425,6 +1436,18 @@ def provider_name(values: list[Any]) -> Any:
     if not isinstance(value, str):
         return SKIP
     return PROVIDER_NAME_ALIASES.get(value.strip().lower(), value)
+
+
+def renamed_provider(raw: Any) -> Mapping[str, Any]:
+    """A native ``gen_ai.provider.name`` under the registry's current spelling, in place.
+
+    Only a former spelling of the registry's own changes; anything else is the
+    producer's and stays as written. Always returns the key, so the rule
+    rewrites its own source and never deletes it.
+    """
+    if not isinstance(raw, str):
+        return {GEN_AI_PROVIDER_NAME: raw}
+    return {GEN_AI_PROVIDER_NAME: PROVIDER_NAME_RENAMES.get(raw.strip().lower(), raw)}
 
 
 def without_provider_route(model: str, provider: Any) -> str:
@@ -2015,7 +2038,17 @@ OPENINFERENCE_RULES: tuple[AnyRule, ...] = (
     Rule(EMBEDDING_MODEL_NAME, GEN_AI_REQUEST_MODEL, nonempty_text),
 )
 
+#: A native provider value the registry has renamed since its producer was
+#: written, under the new name. Last, so a value the rules above produced is
+#: already current and passes through. An ``ExpandingRule`` returning its own
+#: source, so the processor writes it at start and a pending snapshot shows
+#: the same name the ended span does.
+PROVIDER_RENAME_RULES: tuple[AnyRule, ...] = (
+    ExpandingRule(GEN_AI_PROVIDER_NAME, renamed_provider),
+)
+
 #: Live in every process. See the module docstring before adding a rule.
 #: Taxonomy first: it is the only family whose rules are pure additions, and
-#: putting it ahead of the mapping rules keeps the order easy to read.
-DEFAULT_TABLE = NormalizationTable(TAXONOMY_RULES + OPENINFERENCE_RULES)
+#: putting it ahead of the mapping rules keeps the order easy to read. The
+#: provider rename is last, so what the rules above produced is current.
+DEFAULT_TABLE = NormalizationTable(TAXONOMY_RULES + OPENINFERENCE_RULES + PROVIDER_RENAME_RULES)
