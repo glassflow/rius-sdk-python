@@ -274,8 +274,10 @@ def test_an_unparseable_token_count_maps_to_nothing() -> None:
         ("openai", "openai"),
         ("anthropic", "anthropic"),
         # registry spelling differs from OpenInference's enum value
-        ("mistralai", "mistral_ai"),
+        ("mistralai", "mistral"),
         ("xai", "x_ai"),
+        # the registry's own spelling before it renamed Mistral's value
+        ("mistral_ai", "mistral"),
         # no unambiguous registry value: verbatim, because the enum is open
         ("azure", "azure"),
         ("aws", "aws"),
@@ -296,6 +298,7 @@ def test_provider_spellings(source_value: str, expected: str) -> None:
         ("az.ai.inference", "azure.ai.inference"),
         ("az.ai.openai", "azure.ai.openai"),
         ("xai", "x_ai"),
+        ("mistral_ai", "mistral"),
     ],
 )
 def test_legacy_gen_ai_system_is_mapped_and_never_emitted(source_value: str, expected: str) -> None:
@@ -313,7 +316,7 @@ def test_llm_provider_wins_over_legacy_gen_ai_system() -> None:
         ("openai", "openai"),
         ("anthropic", "anthropic"),
         ("cohere", "cohere"),
-        ("mistralai", "mistral_ai"),
+        ("mistralai", "mistral"),
         ("vertexai", "gcp.vertex_ai"),
     ],
 )
@@ -375,7 +378,7 @@ _JS_LANGCHAIN_BAG = json.dumps({"model": "gpt-4o-mini", "temperature": 0.2, "str
     [
         ("openai", "openai"),
         ("anthropic", "anthropic"),
-        ("mistralai", "mistral_ai"),
+        ("mistralai", "mistral"),
         ("google_vertexai", "google_vertexai"),
     ],
 )
@@ -691,7 +694,7 @@ def test_the_shipped_table_normalizes_a_span() -> None:
         (span,) = exporter.get_finished_spans()
     finally:
         client.shutdown()
-    assert span.attributes[GEN_AI_PROVIDER_NAME] == "mistral_ai"
+    assert span.attributes[GEN_AI_PROVIDER_NAME] == "mistral"
     assert span.attributes[GEN_AI_USAGE_INPUT_TOKENS] == 10
     assert span.attributes[GEN_AI_REQUEST_MODEL] == "m"
     assert json.loads(span.attributes[LLM_INVOCATION_PARAMETERS]) == {"user": "u"}

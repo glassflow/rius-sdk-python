@@ -1389,8 +1389,14 @@ class NormalizingSpanExporter(SpanExporter):
 #: renamed. The pairs come from the registry itself
 #: (``opentelemetry.semconv._incubating.attributes.gen_ai_attributes``), whose
 #: ``GenAiSystemValues`` members carry "Deprecated: Replaced by ``X``"
-#: docstrings, and whose ``GenAiProviderNameValues`` spells xAI ``x_ai`` and
-#: Mistral ``mistral_ai`` against OpenInference's ``xai`` / ``mistralai``.
+#: docstrings, and whose ``GenAiProviderNameValues`` spells xAI ``x_ai``
+#: against OpenInference's ``xai``.
+#:
+#: Mistral is the exception: the GenAI registry has since renamed its value
+#: from ``mistral_ai`` to ``mistral``, ahead of that Python package, which still
+#: spells it ``mistral_ai``. Both ``mistral_ai`` and OpenInference's
+#: ``mistralai`` map to ``mistral``, so an instrumentation that still writes
+#: the old value reads the same as one that writes the new.
 #:
 #: Only renames of the SAME provider are listed. OpenInference's ``azure``,
 #: ``aws`` and ``google`` are NOT translated: each covers several registry
@@ -1401,10 +1407,11 @@ class NormalizingSpanExporter(SpanExporter):
 #: ``ls_provider`` string it is given (``_tracer.py:1076``).
 PROVIDER_NAME_ALIASES: Mapping[str, str] = {
     # OpenInference enum values (openinference.semconv.trace)
-    "mistralai": "mistral_ai",
+    "mistralai": "mistral",
     "xai": "x_ai",
     "vertexai": "gcp.vertex_ai",
     # legacy gen_ai.system values
+    "mistral_ai": "mistral",
     "vertex_ai": "gcp.vertex_ai",
     "gemini": "gcp.gemini",
     "az.ai.inference": "azure.ai.inference",
