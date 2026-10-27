@@ -132,18 +132,22 @@ def _edit_events(payload: Mapping[str, Any]) -> Iterator[dict[str, Any]]:
         yield event
 
 
+def _size_after(later: list[Mapping[str, Any]]) -> int | None:
+    sampled = next((it for it in later if it.get("type") != _COMPACTION_TYPE), None)
+    return _size(sampled.get("input_tokens")) if sampled is not None else None
+
+
 def _summary_events(payload: Mapping[str, Any]) -> Iterator[dict[str, Any]]:
     usage = payload.get("usage")
     iterations = list(_members(usage.get("iterations") if isinstance(usage, dict) else None))
     # The compaction iteration is the one that read the context being
-    # compacted. The size left behind is what the last sampling iteration read.
-    before_sizes = [
-        _size(iteration.get("input_tokens"))
-        for iteration in iterations
+    # compacted. What it left behind is what the first sampling iteration after
+    # it read, so a compaction nothing sampled after has no size left to report.
+    sizes = [
+        (_size(iteration.get("input_tokens")), _size_after(iterations[index + 1 :]))
+        for index, iteration in enumerate(iterations)
         if iteration.get("type") == _COMPACTION_TYPE
     ]
-    sampled = [it for it in iterations if it.get("type") != _COMPACTION_TYPE]
-    after = _size(sampled[-1].get("input_tokens")) if sampled else None
     blocks = [b for b in _members(payload.get("content")) if b.get("type") == _COMPACTION_TYPE]
     for position, block in enumerate(blocks):
         summary = block.get("content")
@@ -151,7 +155,7 @@ def _summary_events(payload: Mapping[str, Any]) -> Iterator[dict[str, Any]]:
         # as a no-op, so nothing was compacted.
         if not isinstance(summary, str):
             continue
-        before = before_sizes[position] if position < len(before_sizes) else None
+        before, after = sizes[position] if position < len(sizes) else (None, None)
         event = _provider_event(RIUS_COMPACTION_KIND_SUMMARIZE)
         _set(event, RIUS_COMPACTION_TOKENS_BEFORE, before)
         _set(event, RIUS_COMPACTION_TOKENS_AFTER, after)

@@ -324,7 +324,7 @@ def test_each_compaction_block_is_sized_from_its_own_compaction_iteration() -> N
     assert [e[RIUS_COMPACTION_TOKENS_BEFORE] for e in events] == [9000, 7000]
 
 
-def test_the_size_left_behind_is_what_the_last_sampling_iteration_read() -> None:
+def test_the_size_left_behind_is_what_the_first_sampling_iteration_after_it_read() -> None:
     body = _anthropic(
         content=[_compaction_block()],
         iterations=[
@@ -334,8 +334,58 @@ def test_the_size_left_behind_is_what_the_last_sampling_iteration_read() -> None
         ],
     )
     (event,) = _events(_export(_llm(body)))
-    assert event[RIUS_COMPACTION_TOKENS_AFTER] == 400
-    assert event[RIUS_COMPACTION_TOKENS_DROPPED] == 8600
+    assert event[RIUS_COMPACTION_TOKENS_AFTER] == 800
+    assert event[RIUS_COMPACTION_TOKENS_DROPPED] == 8200
+
+
+_ITERATION_PARITY = [
+    pytest.param(
+        1,
+        [("compaction", 180000), ("message", 23000)],
+        [(180000, 23000)],
+        id="one compaction then one sampling",
+    ),
+    pytest.param(
+        2,
+        [("compaction", 180000), ("compaction", 90000), ("message", 23000)],
+        [(180000, 23000), (90000, 23000)],
+        id="both compactions precede the one sampling iteration",
+    ),
+    pytest.param(
+        2,
+        [("message", 1000), ("compaction", 900), ("message", 300), ("compaction", 800)],
+        [(900, 300), (800, None)],
+        id="each compaction takes the sampling iteration that follows it",
+    ),
+    pytest.param(
+        1,
+        [("message", 1), ("compaction", 500), ("message", 70)],
+        [(500, 70)],
+        id="a sampling iteration before the compaction is not its after",
+    ),
+    pytest.param(
+        1,
+        [("message", 1), ("compaction", 500)],
+        [(500, None)],
+        id="no sampling iteration follows the compaction",
+    ),
+]
+
+
+@pytest.mark.parametrize(("blocks", "iterations", "expected"), _ITERATION_PARITY)
+def test_tokens_before_and_after_match_the_typescript_sdk(
+    blocks: int,
+    iterations: list[tuple[str, int]],
+    expected: list[tuple[int, int | None]],
+) -> None:
+    body = _anthropic(
+        content=[_compaction_block(f"summary {n}") for n in range(blocks)],
+        iterations=[_iteration(kind, size) for kind, size in iterations],
+    )
+    events = _events(_export(_llm(body)))
+    assert [
+        (e[RIUS_COMPACTION_TOKENS_BEFORE], e.get(RIUS_COMPACTION_TOKENS_AFTER)) for e in events
+    ] == (expected)
 
 
 def test_a_thinking_edit_never_reports_a_tool_result_count() -> None:

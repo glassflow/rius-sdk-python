@@ -535,3 +535,18 @@ def test_it_is_part_of_the_public_api() -> None:
 def test_the_operation_is_pinned_and_the_taxonomy_files_it_as_a_chain_step() -> None:
     assert OPERATION_COMPACTION == "compaction"
     assert kind_for_operation(OPERATION_COMPACTION) == SpanKind.CHAIN.value
+
+
+def test_init_wires_the_late_span_mark_to_the_exporter() -> None:
+    inner = InMemorySpanExporter()
+    client = init(span_exporter=inner, set_global=False)
+    try:
+        mark_compaction()
+        with client.get_tracer().start_as_current_span("late") as span:
+            span.set_attribute(OPENINFERENCE_SPAN_KIND, "LLM")
+        client.flush()
+    finally:
+        client.shutdown()
+
+    (late,) = [s for s in inner.get_finished_spans() if s.name == "late"]
+    assert _attrs(late).get(GEN_AI_CONVERSATION_COMPACTED) is True
