@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.5](https://github.com/glassflow/rius-sdk-python/compare/v1.5.4...v1.5.5) (2026-10-27)
+
+
+### Bug Fixes
+
+* take compaction tokens.after from the first call after each compaction (RIUS-1577) ([#248](https://github.com/glassflow/rius-sdk-python/issues/248)) ([05fc435](https://github.com/glassflow/rius-sdk-python/commit/05fc4356f4f2071525468e9eecb7c7ab5ec7ac1b))
+* warn when the endpoint sends traces over plain http (RIUS-1687) ([#250](https://github.com/glassflow/rius-sdk-python/issues/250)) ([486946e](https://github.com/glassflow/rius-sdk-python/commit/486946e629e7f7d30220a76e715e4dfbd7bed081))
+
 ## [1.5.4](https://github.com/glassflow/rius-sdk-python/compare/v1.5.3...v1.5.4) (2026-10-27)
 
 
