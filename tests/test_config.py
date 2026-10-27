@@ -304,7 +304,13 @@ def _plaintext_warnings(caplog: pytest.LogCaptureFixture) -> list[str]:
 
 @pytest.mark.parametrize(
     "endpoint",
-    ["http://collector.internal:4318", "HTTP://ingest.example.com", "http://10.0.0.5:4318"],
+    [
+        "http://collector.internal:4318",
+        "HTTP://ingest.example.com",
+        "http://10.0.0.5:4318",
+        # Resolvers send subdomains of localhost to DNS, which may answer remotely.
+        "http://agent.localhost:4318",
+    ],
 )
 def test_a_remote_http_endpoint_warns_that_traffic_is_unencrypted(
     endpoint: str, caplog: pytest.LogCaptureFixture
@@ -331,10 +337,14 @@ def test_an_http_endpoint_from_the_env_warns_too(
         "https://collector.internal:4318",
         "http://localhost:4318",
         "http://LOCALHOST:4318",
-        "http://agent.localhost:4318",
         "http://127.0.0.1:8787",
         "http://127.5.5.5",
         "http://[::1]:4318",
+        "http://localhost.:4318",
+        "http://127.0.0.1.:4318",
+        "http://127.1:4318",
+        "http://2130706433",
+        "http://[::ffff:127.0.0.1]:4318",
     ],
 )
 def test_https_and_loopback_endpoints_do_not_warn(
@@ -354,3 +364,38 @@ def test_the_plaintext_warning_never_logs_credentials(caplog: pytest.LogCaptureF
     for secret in ("hunter2", "user:", "t0k", "gf_secret"):
         assert secret not in message
     assert "collector.internal" in message
+
+
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        "http://gf_SECRETKEY:x?y@collector.internal",
+        "http://user:ab/cd@collector.internal",
+        "http://tok/en@collector.internal",
+    ],
+)
+def test_userinfo_the_parser_splits_early_is_never_logged_as_the_host(
+    endpoint: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    with caplog.at_level(logging.WARNING, logger="rius.config"):
+        resolve_config(endpoint=endpoint)
+    [message] = _plaintext_warnings(caplog)
+    for secret in ("secretkey", "SECRETKEY", "user", "tok"):
+        assert secret not in message
+
+
+def test_an_endpoint_without_a_host_still_reads_cleanly(caplog: pytest.LogCaptureFixture) -> None:
+    with caplog.at_level(logging.WARNING, logger="rius.config"):
+        resolve_config(endpoint="http:/collector")
+    [message] = _plaintext_warnings(caplog)
+    assert "  " not in message
+
+
+def test_a_disabled_sdk_does_not_warn(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    with caplog.at_level(logging.WARNING, logger="rius.config"):
+        resolve_config(endpoint="http://collector.internal:4318", disabled=True)
+        monkeypatch.setenv("RIUS_DISABLED", "true")
+        resolve_config(endpoint="http://collector.internal:4318")
+    assert _plaintext_warnings(caplog) == []

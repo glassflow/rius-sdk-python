@@ -10,6 +10,7 @@ import ipaddress
 import logging
 import math
 import os
+import socket
 from dataclasses import dataclass, field
 from urllib.parse import urlsplit
 
@@ -164,21 +165,35 @@ class GlassflowConfig:
 
 
 def _is_loopback_host(host: str) -> bool:
-    if host == "localhost" or host.endswith(".localhost"):
+    # A trailing dot names the same host (``localhost.``), as in DNS. Only
+    # ``localhost`` itself counts: resolvers send ``*.localhost`` to DNS,
+    # which may answer with a remote address.
+    host = host.removesuffix(".")
+    if host == "localhost":
         return True
     try:
-        return ipaddress.ip_address(host).is_loopback
+        address = ipaddress.ip_address(host)
     except ValueError:
+        pass
+    else:
+        # Older Pythons don't count ::ffff:127.0.0.1 as loopback; ask the
+        # embedded IPv4 address directly.
+        mapped = getattr(address, "ipv4_mapped", None)
+        return address.is_loopback or (mapped is not None and mapped.is_loopback)
+    # Legacy IPv4 forms (127.1, 2130706433, 0x7f.1) that ipaddress rejects but
+    # the socket layer still connects to, as the WHATWG URL parser does.
+    try:
+        return socket.inet_aton(host)[0] == 127
+    except OSError:
         return False
 
 
 def _warn_if_plaintext(endpoint: str) -> None:
     """Warn when traces and the API key would leave the machine unencrypted.
 
-    A warning, not a refusal: plain HTTP to a collector inside the same
-    cluster or private network is a legitimate setup, and refusing it would
-    break those. Loopback stays silent so local testing is quiet. Only the
-    host is logged, never userinfo, path or query, which can hold secrets.
+    A warning, not a refusal, so a misconfigured endpoint never stops the
+    agent. Loopback stays quiet. Only the host is logged, never userinfo,
+    path or query, which can hold secrets.
     """
     try:
         parts = urlsplit(endpoint)
@@ -187,9 +202,14 @@ def _warn_if_plaintext(endpoint: str) -> None:
         return
     if parts.scheme.lower() != "http" or _is_loopback_host(host):
         return
+    # Userinfo holding an unencoded "/", "?" or "#" ends the host early, so
+    # the parsed "host" is the start of the credential. Name no host then.
+    rest = endpoint.split("://", 1)[-1]
+    if not host or ("@" in rest and "@" not in parts.netloc):
+        host = "<host not shown>"
     logger.warning(
         "rius endpoint %s uses http://: traces, prompt content and the API key are sent "
-        "unencrypted. Use an https:// endpoint unless this host is on a trusted network.",
+        "unencrypted. Use an https:// endpoint.",
         host,
     )
 
@@ -343,11 +363,12 @@ def resolve_config(
         The resolved, immutable ``GlassflowConfig``.
     """
     resolved_endpoint = endpoint or os.getenv(ENV_ENDPOINT) or DEFAULT_ENDPOINT
-    _warn_if_plaintext(resolved_endpoint)
     resolved_api_key = api_key if api_key is not None else os.getenv(ENV_API_KEY)
     resolved_service_name = service_name or os.getenv(ENV_SERVICE_NAME) or DEFAULT_SERVICE_NAME
     resolved_service_version = service_version or os.getenv(ENV_SERVICE_VERSION) or None
     resolved_disabled = _env_bool(ENV_DISABLED, default=False) if disabled is None else disabled
+    if not resolved_disabled:
+        _warn_if_plaintext(resolved_endpoint)
     resolved_sample_rate = _clamp_sample_rate(
         _env_float(ENV_SAMPLE_RATE, default=1.0)
         if sample_rate is None
