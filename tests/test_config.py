@@ -287,3 +287,70 @@ def test_an_unparseable_numeric_env_keeps_the_default_and_warns(
 def resolve_config_without(monkeypatch: pytest.MonkeyPatch, name: str) -> Any:
     monkeypatch.delenv(name)
     return resolve_config()
+
+
+# ---------------------------------------------------------------------------
+# Plain-HTTP endpoints
+# ---------------------------------------------------------------------------
+
+
+def _plaintext_warnings(caplog: pytest.LogCaptureFixture) -> list[str]:
+    return [
+        r.getMessage()
+        for r in caplog.records
+        if r.levelno == logging.WARNING and "unencrypted" in r.getMessage()
+    ]
+
+
+@pytest.mark.parametrize(
+    "endpoint",
+    ["http://collector.internal:4318", "HTTP://ingest.example.com", "http://10.0.0.5:4318"],
+)
+def test_a_remote_http_endpoint_warns_that_traffic_is_unencrypted(
+    endpoint: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    with caplog.at_level(logging.WARNING, logger="rius.config"):
+        resolve_config(endpoint=endpoint, api_key="gf_secret")
+    [message] = _plaintext_warnings(caplog)
+    assert "https://" in message
+
+
+def test_an_http_endpoint_from_the_env_warns_too(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setenv("RIUS_ENDPOINT", "http://collector.internal:4318")
+    with caplog.at_level(logging.WARNING, logger="rius.config"):
+        resolve_config()
+    assert len(_plaintext_warnings(caplog)) == 1
+
+
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        DEFAULT_ENDPOINT,
+        "https://collector.internal:4318",
+        "http://localhost:4318",
+        "http://LOCALHOST:4318",
+        "http://agent.localhost:4318",
+        "http://127.0.0.1:8787",
+        "http://127.5.5.5",
+        "http://[::1]:4318",
+    ],
+)
+def test_https_and_loopback_endpoints_do_not_warn(
+    endpoint: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    with caplog.at_level(logging.WARNING, logger="rius.config"):
+        resolve_config(endpoint=endpoint, api_key="gf_secret")
+    assert _plaintext_warnings(caplog) == []
+
+
+def test_the_plaintext_warning_never_logs_credentials(caplog: pytest.LogCaptureFixture) -> None:
+    with caplog.at_level(logging.WARNING, logger="rius.config"):
+        resolve_config(
+            endpoint="http://user:hunter2@collector.internal/otlp?token=t0k", api_key="gf_secret"
+        )
+    [message] = _plaintext_warnings(caplog)
+    for secret in ("hunter2", "user:", "t0k", "gf_secret"):
+        assert secret not in message
+    assert "collector.internal" in message

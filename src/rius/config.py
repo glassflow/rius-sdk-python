@@ -6,10 +6,12 @@ variables > built-in defaults.
 
 from __future__ import annotations
 
+import ipaddress
 import logging
 import math
 import os
 from dataclasses import dataclass, field
+from urllib.parse import urlsplit
 
 logger = logging.getLogger(__name__)
 
@@ -161,6 +163,37 @@ class GlassflowConfig:
         return self.endpoint.rstrip("/") + "/v1/heartbeat"
 
 
+def _is_loopback_host(host: str) -> bool:
+    if host == "localhost" or host.endswith(".localhost"):
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
+def _warn_if_plaintext(endpoint: str) -> None:
+    """Warn when traces and the API key would leave the machine unencrypted.
+
+    A warning, not a refusal: plain HTTP to a collector inside the same
+    cluster or private network is a legitimate setup, and refusing it would
+    break those. Loopback stays silent so local testing is quiet. Only the
+    host is logged, never userinfo, path or query, which can hold secrets.
+    """
+    try:
+        parts = urlsplit(endpoint)
+        host = (parts.hostname or "").lower()
+    except ValueError:
+        return
+    if parts.scheme.lower() != "http" or _is_loopback_host(host):
+        return
+    logger.warning(
+        "rius endpoint %s uses http://: traces, prompt content and the API key are sent "
+        "unencrypted. Use an https:// endpoint unless this host is on a trusted network.",
+        host,
+    )
+
+
 def _clamp_sample_rate(value: float) -> float:
     """Clamp to [0.0, 1.0]; an out-of-range value must degrade, not crash init()."""
     if 0.0 <= value <= 1.0:
@@ -310,6 +343,7 @@ def resolve_config(
         The resolved, immutable ``GlassflowConfig``.
     """
     resolved_endpoint = endpoint or os.getenv(ENV_ENDPOINT) or DEFAULT_ENDPOINT
+    _warn_if_plaintext(resolved_endpoint)
     resolved_api_key = api_key if api_key is not None else os.getenv(ENV_API_KEY)
     resolved_service_name = service_name or os.getenv(ENV_SERVICE_NAME) or DEFAULT_SERVICE_NAME
     resolved_service_version = service_version or os.getenv(ENV_SERVICE_VERSION) or None
