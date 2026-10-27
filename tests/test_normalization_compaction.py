@@ -292,8 +292,9 @@ def test_a_compaction_block_without_iterations_carries_no_sizes() -> None:
 
 
 def test_the_message_after_the_compaction_is_not_the_compaction_itself() -> None:
-    # With only the compaction iteration there is no "after" to report; the
-    # last iteration is that same compaction, not a size of what it left.
+    # With only the compaction iteration there is no sampling iteration after
+    # it, so no "after" to report: the compaction iteration is not a size of
+    # what it left.
     body = _anthropic(content=[_compaction_block()], iterations=[_iteration("compaction", 9000)])
     (event,) = _events(_export(_llm(body)))
     assert event[RIUS_COMPACTION_TOKENS_BEFORE] == 9000
