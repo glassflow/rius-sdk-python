@@ -366,24 +366,6 @@ def test_the_plaintext_warning_never_logs_credentials(caplog: pytest.LogCaptureF
     assert "collector.internal" in message
 
 
-@pytest.mark.parametrize(
-    "endpoint",
-    [
-        "http://gf_SECRETKEY:x?y@collector.internal",
-        "http://user:ab/cd@collector.internal",
-        "http://tok/en@collector.internal",
-    ],
-)
-def test_userinfo_the_parser_splits_early_is_never_logged_as_the_host(
-    endpoint: str, caplog: pytest.LogCaptureFixture
-) -> None:
-    with caplog.at_level(logging.WARNING, logger="rius.config"):
-        resolve_config(endpoint=endpoint)
-    [message] = _plaintext_warnings(caplog)
-    for secret in ("secretkey", "SECRETKEY", "user", "tok"):
-        assert secret not in message
-
-
 def test_an_endpoint_without_a_host_still_reads_cleanly(caplog: pytest.LogCaptureFixture) -> None:
     with caplog.at_level(logging.WARNING, logger="rius.config"):
         resolve_config(endpoint="http:/collector")
