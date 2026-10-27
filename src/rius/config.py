@@ -202,11 +202,8 @@ def _warn_if_plaintext(endpoint: str) -> None:
         return
     if parts.scheme.lower() != "http" or _is_loopback_host(host):
         return
-    # Userinfo holding an unencoded "/", "?" or "#" ends the host early, so
-    # the parsed "host" is the start of the credential. Name no host then.
-    rest = endpoint.split("://", 1)[-1]
-    if not host or ("@" in rest and "@" not in parts.netloc):
-        host = "<host not shown>"
+    if not host:
+        host = "<no host>"
     logger.warning(
         "rius endpoint %s uses http://: traces, prompt content and the API key are sent "
         "unencrypted. Use an https:// endpoint.",
