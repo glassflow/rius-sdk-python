@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.5.4](https://github.com/glassflow/rius-sdk-python/compare/v1.5.3...v1.5.4) (2026-10-27)
+
+
+### Bug Fixes
+
+* align Mistral provider name and zero usage counts with GenAI semconv ([#244](https://github.com/glassflow/rius-sdk-python/issues/244)) ([9af0aa5](https://github.com/glassflow/rius-sdk-python/commit/9af0aa5ae9ab664e11905f6b751f9fefd38f3146))
+* drop zero usage breakdowns from third-party spans ([#246](https://github.com/glassflow/rius-sdk-python/issues/246)) ([039aa40](https://github.com/glassflow/rius-sdk-python/commit/039aa4025b7011e200fe18575617f517fdda4f0a))
+* re-pin rius-semconv to v1.10.0 ([#247](https://github.com/glassflow/rius-sdk-python/issues/247)) ([57b8f87](https://github.com/glassflow/rius-sdk-python/commit/57b8f876101d9cd8fa7fecbe1c501ea6f98219ee))
+
 ## [1.5.3](https://github.com/glassflow/rius-sdk-python/compare/v1.5.2...v1.5.3) (2026-10-26)
 
 

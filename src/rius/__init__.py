@@ -1,6 +1,6 @@
 """GlassFlow SDK: OpenTelemetry-native tracing for AI agents and LLM apps."""
 
-__version__ = "1.5.3"  # x-release-please-version
+__version__ = "1.5.4"  # x-release-please-version
 
 from .client import GlassflowClient, build_span_exporter, get_tracer, init, register_workspace
 from .compaction import mark_compaction
