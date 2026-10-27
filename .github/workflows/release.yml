@@ -68,7 +68,7 @@ jobs:
             -H "Authorization: Bearer $TOKEN" \
             -H "Accept: application/vnd.github+json" \
             https://api.github.com/repos/glassflow/glassflow-docs/dispatches \
-            -d "{\"event_type\":\"sdk-release\",\"client_payload\":{\"version\":\"$version\"}}"
+            -d "$(jq -n --arg v "$version" '{event_type:"sdk-release",client_payload:{sdk:"python",version:$v}}')"
 
   # Announce on Slack AFTER the PyPI publish succeeds, so the channel only
   # ever sees releases that actually shipped. A separate `on: release`
