@@ -88,7 +88,7 @@ variables:
 
 | Argument       | Environment variable     | Default                        | Description                                                          |
 | -------------- | ------------------------ | ------------------------------ | -------------------------------------------------------------------- |
-| `endpoint`     | `RIUS_ENDPOINT`     | `https://ingest.eu.console.rius-glassflow.com` | Base OTLP endpoint. Traces are sent to `<endpoint>/v1/traces`.       |
+| `endpoint`     | `RIUS_ENDPOINT`     | `https://ingest.eu.console.rius-glassflow.com` | Base OTLP endpoint. Traces are sent to `<endpoint>/v1/traces`. Use `https://`: an `http://` endpoint sends traces and the API key unencrypted, and logs a warning. |
 | `api_key`      | `RIUS_API_KEY`      | none                           | Injected as an `Authorization: Bearer <key>` header on every export. |
 | `service_name` | `RIUS_SERVICE_NAME` | `unknown_service`              | Sets the OpenTelemetry `service.name` resource attribute.            |
 | `service_version` | `RIUS_SERVICE_VERSION` | none                       | Sets `service.version` on the resource. Unset leaves it off, so `OTEL_RESOURCE_ATTRIBUTES` can supply it. |
