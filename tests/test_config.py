@@ -371,6 +371,7 @@ def test_an_endpoint_without_a_host_still_reads_cleanly(caplog: pytest.LogCaptur
         resolve_config(endpoint="http:/collector")
     [message] = _plaintext_warnings(caplog)
     assert "  " not in message
+    assert "<no host>" in message
 
 
 def test_a_disabled_sdk_does_not_warn(
