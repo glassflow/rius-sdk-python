@@ -49,6 +49,9 @@ _PING_TIMEOUT_S = 3.0
 # process exit hostage, so it gets a tighter budget than regular pings (a
 # missed stopped ping just reports as gone instead of stopped — acceptable).
 _FINAL_PING_TIMEOUT_S = 1.0
+# Spike: cap on a heartbeat response body. Advisories are a few short
+# messages; anything larger is not an answer this SDK understands.
+_MAX_RESPONSE_BYTES = 64 * 1024
 
 # os.register_at_fork callbacks can NEVER be unregistered, so per-sender
 # registration would leak a callback + sender reference for every init()
@@ -125,7 +128,7 @@ class OpenRootSpanTracker(SpanProcessor):
         return True
 
 
-def _http_transport(url: str, headers: dict[str, str]) -> Callable[[dict[str, Any], float], None]:
+def _http_transport(url: str, headers: dict[str, str]) -> Callable[[dict[str, Any], float], Any]:
     """Default transport: a plain POST with a per-call timeout, no retries.
 
     TLS certificate verification is urllib's default and is deliberately not
@@ -133,15 +136,23 @@ def _http_transport(url: str, headers: dict[str, str]) -> Callable[[dict[str, An
     unverified endpoints.
     """
 
-    def send(payload: dict[str, Any], timeout: float) -> None:
+    def send(payload: dict[str, Any], timeout: float) -> Any:
         request = urllib.request.Request(
             url,
             data=json.dumps(payload).encode("utf-8"),
             headers={"Content-Type": "application/json", **headers},
             method="POST",
         )
-        with urllib.request.urlopen(request, timeout=timeout):
-            pass  # 2xx is success; the body is ignored by contract
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            # 2xx is success. A 204 carries nothing; a 200 may carry
+            # advisories (spike), returned parsed for the sender to hand on.
+            body = response.read(_MAX_RESPONSE_BYTES + 1)
+        if not body or len(body) > _MAX_RESPONSE_BYTES:
+            return None
+        try:
+            return json.loads(body)
+        except ValueError:
+            return None
 
     return send
 
@@ -162,8 +173,10 @@ class HeartbeatSender:
         ping_timeout: float = _PING_TIMEOUT_S,
         final_ping_timeout: float = _FINAL_PING_TIMEOUT_S,
         foreign_parent_spans: Callable[[], int] | None = None,
+        on_response: Callable[[Any], None] | None = None,
     ) -> None:
         self._interval = interval
+        self._on_response = on_response
         self._foreign_parent_spans = foreign_parent_spans
         self._agent_name = agent_name
         self._tracker = tracker
@@ -171,7 +184,7 @@ class HeartbeatSender:
         self._final_ping_timeout = final_ping_timeout
         if transport is not None:
             # Injected transports (tests) take the payload only.
-            self._send: Callable[[dict[str, Any], float], None] = lambda p, _t: transport(p)
+            self._send: Callable[[dict[str, Any], float], Any] = lambda p, _t: transport(p)
         else:
             self._send = _http_transport(url, headers)
         # Injected: the same id rides spans as the service.instance.id
@@ -200,6 +213,7 @@ class HeartbeatSender:
         # instance_id (same pattern the OTel exporter uses).
         _active_senders.add(self)
         _install_fork_hook()
+        logger.info("rius heartbeat started: instance_id=%s", self._instance_id)
 
     def stop(self) -> None:
         """Stop the thread and send the final ``stopped`` ping. Idempotent.
@@ -248,6 +262,11 @@ class HeartbeatSender:
             "open_traces": open_ids[:OPEN_TRACES_CAP],
             "open_trace_count": len(open_ids),
         }
+        if self._on_response is not None:
+            # Spike capability flag: the receiver only answers with a body
+            # when the SDK says it reads one. Unknown fields are ignored by
+            # older receivers, so this needs no payload version bump.
+            payload["accepts"] = ["advisories"]
         if self._foreign_parent_spans is not None:
             # Cumulative for this instance: spans whose local parent came from
             # another in-process provider rius does not receive (RIUS-1070).
@@ -262,10 +281,16 @@ class HeartbeatSender:
     def _send_ping(self, *, stopped: bool = False) -> None:
         timeout = self._final_ping_timeout if stopped else self._ping_timeout
         try:
-            self._send(self._build_payload(stopped=stopped), timeout)
+            response = self._send(self._build_payload(stopped=stopped), timeout)
         except Exception as exc:  # noqa: BLE001 — never raises into user code
             if not self._delivery_warned:
                 self._delivery_warned = True
                 logger.warning("heartbeat delivery failed (%s); further failures log at DEBUG", exc)
             else:
                 logger.debug("heartbeat delivery failed: %s", exc)
+            return
+        if response is not None and self._on_response is not None:
+            try:
+                self._on_response(response)
+            except Exception:  # noqa: BLE001 — never raises into user code
+                logger.debug("heartbeat response handling failed", exc_info=True)

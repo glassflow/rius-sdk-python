@@ -18,7 +18,7 @@ from opentelemetry.sdk.trace import SpanLimits, SynchronousMultiSpanProcessor, T
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, SpanExporter
 from opentelemetry.sdk.trace.sampling import ParentBased, Sampler, TraceIdRatioBased
 
-from . import __version__, _agent, _tracer
+from . import __version__, _agent, _tracer, advisories
 from ._credential_headers import CredentialHeaderDroppingExporter
 from ._native_spans import NativeChatSpanDemoter
 from .aggregated_usage import WrappedCallTracker
@@ -879,6 +879,7 @@ def _do_init(
             tracker=tracker,
             transport=heartbeat_transport,
             foreign_parent_spans=None if detector is None else (lambda: detector.count),
+            on_response=advisories.accept,
         )
         sender.start()
 

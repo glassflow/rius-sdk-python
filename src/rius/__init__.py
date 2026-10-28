@@ -2,6 +2,7 @@
 
 __version__ = "1.5.4"  # x-release-please-version
 
+from .advisories import drain_advisories
 from .client import GlassflowClient, build_span_exporter, get_tracer, init, register_workspace
 from .compaction import mark_compaction
 from .config import GlassflowConfig, resolve_config
@@ -23,6 +24,7 @@ __all__ = [
     "SpanKind",
     "__version__",
     "build_span_exporter",
+    "drain_advisories",
     "get_tracer",
     "init",
     "mark_compaction",
