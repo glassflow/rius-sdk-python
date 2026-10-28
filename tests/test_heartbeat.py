@@ -474,6 +474,27 @@ def test_a_sender_without_a_secret_sends_no_secret_header() -> None:
         thread.join(timeout=5)
 
 
+def test_a_caller_header_cannot_replace_the_secret() -> None:
+    server, thread, received = _serve_heartbeats()
+    instance_id, secret = mint_instance_identity()
+    try:
+        for name in ("Rius-Instance-Secret", "rius-instance-secret", "RIUS-INSTANCE-SECRET"):
+            sender = HeartbeatSender(
+                url=f"http://127.0.0.1:{server.server_port}/v1/heartbeat",
+                headers={"Authorization": "Bearer test-key", name: "caller-value"},
+                interval=3600.0,
+                agent_name="e2e-agent",
+                instance_id=instance_id,
+                instance_secret=secret,
+                tracker=OpenRootSpanTracker(),
+            )
+            sender._send_ping()  # noqa: SLF001
+            assert received[-1][1].get_all("Rius-Instance-Secret") == [secret], name
+    finally:
+        server.shutdown()
+        thread.join(timeout=5)
+
+
 def test_fork_reset_mints_a_new_secret_and_its_id() -> None:
     instance_id, secret = mint_instance_identity()
     sender = HeartbeatSender(

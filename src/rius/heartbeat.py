@@ -170,8 +170,13 @@ def _http_transport(
     replaces it.
     """
 
+    # The body is JSON whatever the caller's headers say, and the secret is
+    # ours: a caller header with either name is dropped, in any letter case.
+    reserved = {"content-type", INSTANCE_SECRET_HEADER.lower()}
+    caller_headers = {k: v for k, v in headers.items() if k.lower() not in reserved}
+
     def send(payload: dict[str, Any], timeout: float) -> None:
-        request_headers = {"Content-Type": "application/json", **headers}
+        request_headers = {"Content-Type": "application/json", **caller_headers}
         current = secret()
         if current is not None:
             request_headers[INSTANCE_SECRET_HEADER] = current
