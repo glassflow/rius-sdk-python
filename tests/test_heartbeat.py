@@ -11,9 +11,11 @@ from __future__ import annotations
 import base64
 import json
 import logging
+import os
 import re
 import threading
 import uuid
+import warnings
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Any
 
@@ -22,7 +24,12 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 
 from rius import init
 from rius.config import resolve_config
-from rius.heartbeat import HeartbeatSender, OpenRootSpanTracker
+from rius.heartbeat import (
+    HeartbeatSender,
+    OpenRootSpanTracker,
+    derive_instance_id,
+    mint_instance_identity,
+)
 
 # ---------------------------------------------------------------------------
 # Config surface
@@ -386,47 +393,180 @@ def _serve_heartbeats() -> tuple[HTTPServer, threading.Thread, list[tuple[dict[s
     return server, thread, received
 
 
-def test_every_ping_carries_the_same_instance_secret() -> None:
+def _decode_secret(secret: str) -> bytes:
+    return base64.urlsafe_b64decode(secret + "=" * (-len(secret) % 4))
+
+
+def test_instance_id_derivation_matches_the_receiver() -> None:
+    # Same vector as argus-core heartbeat/secret_test.go and the TS SDK.
+    assert derive_instance_id(bytes(range(32))) == "630dcd29-66c4-8366-9112-5448bbb25b4f"
+
+
+def test_minted_identity_is_a_secret_and_the_id_it_derives() -> None:
+    instance_id, secret = mint_instance_identity()
+    raw = _decode_secret(secret)
+    assert len(raw) == 32 and "=" not in secret
+    assert instance_id == derive_instance_id(raw)
+    assert uuid.UUID(instance_id).version == 8
+    assert mint_instance_identity() != (instance_id, secret)
+
+
+def test_init_uses_the_derived_id_for_spans_and_heartbeats(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("RIUS_HEARTBEAT", raising=False)
+    client = init(
+        set_global=False,
+        service_name="svc",
+        span_exporter=InMemorySpanExporter(),
+        heartbeat_transport=[].append,
+    )
+    try:
+        sender = client._heartbeat  # noqa: SLF001
+        assert sender is not None
+        resource_id = client._provider.resource.attributes["service.instance.id"]  # noqa: SLF001
+        assert sender.instance_id == resource_id
+        assert sender.instance_id == derive_instance_id(_decode_secret(sender._secret or ""))  # noqa: SLF001
+    finally:
+        client.shutdown()
+
+
+def test_every_ping_including_the_final_one_carries_the_secret() -> None:
     server, thread, received = _serve_heartbeats()
+    instance_id, secret = mint_instance_identity()
     try:
         sender = HeartbeatSender(
             url=f"http://127.0.0.1:{server.server_port}/v1/heartbeat",
             headers={"Authorization": "Bearer test-key"},
             interval=3600.0,
             agent_name="e2e-agent",
-            instance_id=str(uuid.uuid4()),
+            instance_id=instance_id,
+            instance_secret=secret,
             tracker=OpenRootSpanTracker(),
         )
-        sender._send_ping()  # noqa: SLF001
-        sender._send_ping()  # noqa: SLF001
-        secrets_sent = [headers.get("Rius-Instance-Secret") for _, headers in received]
-        assert len(secrets_sent) == 2
-        assert secrets_sent[0] is not None
-        assert secrets_sent[0] == secrets_sent[1]
-        # 32 random bytes, unpadded base64url, as the receiver requires.
-        assert "=" not in secrets_sent[0]
-        assert len(base64.urlsafe_b64decode(secrets_sent[0] + "=")) == 32
-        # The secret is a header only: never in the body.
-        assert secrets_sent[0] not in json.dumps(received[0][0])
+        sender.start()
+        sender.stop()
+        assert [payload.get("stopped", False) for payload, _ in received] == [False, True]
+        assert [headers.get("Rius-Instance-Secret") for _, headers in received] == [secret, secret]
+        for payload, _ in received:
+            assert payload["instance_id"] == instance_id
+            assert secret not in json.dumps(payload)
     finally:
         server.shutdown()
         thread.join(timeout=5)
 
 
-def test_each_sender_mints_its_own_secret() -> None:
-    a, b = _sender([]), _sender([])
-    assert a._secret != b._secret  # noqa: SLF001
+def test_a_sender_without_a_secret_sends_no_secret_header() -> None:
+    server, thread, received = _serve_heartbeats()
+    try:
+        sender = HeartbeatSender(
+            url=f"http://127.0.0.1:{server.server_port}/v1/heartbeat",
+            headers={},
+            interval=3600.0,
+            agent_name="e2e-agent",
+            instance_id=str(uuid.uuid4()),
+            tracker=OpenRootSpanTracker(),
+        )
+        sender._send_ping()  # noqa: SLF001
+        assert received[0][1].get("Rius-Instance-Secret") is None
+    finally:
+        server.shutdown()
+        thread.join(timeout=5)
 
 
-def test_forked_child_mints_a_new_secret() -> None:
-    sender = _sender([])
-    parent_id, parent_secret = sender.instance_id, sender._secret  # noqa: SLF001
+def test_fork_reset_mints_a_new_secret_and_its_id() -> None:
+    instance_id, secret = mint_instance_identity()
+    sender = HeartbeatSender(
+        url="https://ingest.example.com/v1/heartbeat",
+        headers={},
+        interval=3600.0,
+        agent_name="a",
+        instance_id=instance_id,
+        instance_secret=secret,
+        tracker=OpenRootSpanTracker(),
+        transport=[].append,
+    )
     sender._reset_in_child()  # noqa: SLF001
     try:
-        assert sender.instance_id != parent_id
-        assert sender._secret != parent_secret  # noqa: SLF001
+        assert sender._secret not in (None, secret)  # noqa: SLF001
+        assert sender.instance_id == derive_instance_id(_decode_secret(sender._secret or ""))  # noqa: SLF001
     finally:
         sender.stop()
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="needs os.fork")
+def test_a_real_fork_gives_the_child_its_own_derived_identity() -> None:
+    instance_id, secret = mint_instance_identity()
+    sender = HeartbeatSender(
+        url="https://ingest.example.com/v1/heartbeat",
+        headers={},
+        interval=3600.0,
+        agent_name="a",
+        instance_id=instance_id,
+        instance_secret=secret,
+        tracker=OpenRootSpanTracker(),
+        transport=[].append,
+    )
+    sender.start()
+    read_fd, write_fd = os.pipe()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)  # fork with live threads
+        pid = os.fork()
+    if pid == 0:  # pragma: no cover — runs in the child
+        os.close(read_fd)
+        child_secret = sender._secret or ""  # noqa: SLF001
+        ok = (
+            sender.instance_id != instance_id
+            and child_secret != secret
+            and sender.instance_id == derive_instance_id(_decode_secret(child_secret))
+        )
+        os.write(write_fd, b"1" if ok else b"0")
+        os._exit(0)
+    os.close(write_fd)
+    try:
+        assert os.read(read_fd, 1) == b"1"
+        os.waitpid(pid, 0)
+        assert sender.instance_id == instance_id  # the parent keeps its own
+    finally:
+        os.close(read_fd)
+        sender.stop()
+
+
+def test_a_refused_secret_warns_specifically_and_never_logs_it(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    class Refuse(BaseHTTPRequestHandler):
+        def do_POST(self) -> None:  # noqa: N802 — http.server API
+            self.rfile.read(int(self.headers["Content-Length"]))
+            self.send_response(403)
+            self.end_headers()
+
+        def log_message(self, *args: Any) -> None:
+            pass
+
+    server = HTTPServer(("127.0.0.1", 0), Refuse)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    instance_id, secret = mint_instance_identity()
+    try:
+        sender = HeartbeatSender(
+            url=f"http://127.0.0.1:{server.server_port}/v1/heartbeat",
+            headers={},
+            interval=3600.0,
+            agent_name="a",
+            instance_id=instance_id,
+            instance_secret=secret,
+            tracker=OpenRootSpanTracker(),
+        )
+        with caplog.at_level(logging.DEBUG, logger="rius"):
+            sender._send_ping()  # noqa: SLF001
+            sender._send_ping()  # noqa: SLF001
+        refused = [r for r in caplog.records if "instance secret" in r.getMessage()]
+        assert len(refused) == 1 and refused[0].levelno == logging.WARNING
+        assert all(secret not in r.getMessage() for r in caplog.records)
+    finally:
+        server.shutdown()
+        thread.join(timeout=5)
 
 
 # ---------------------------------------------------------------------------
