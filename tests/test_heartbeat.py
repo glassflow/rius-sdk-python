@@ -8,6 +8,7 @@ agent_name defaults to service_name).
 
 from __future__ import annotations
 
+import base64
 import json
 import logging
 import re
@@ -364,6 +365,68 @@ def test_http_transport_end_to_end() -> None:
     finally:
         server.shutdown()
         thread.join(timeout=5)
+
+
+def _serve_heartbeats() -> tuple[HTTPServer, threading.Thread, list[tuple[dict[str, Any], Any]]]:
+    received: list[tuple[dict[str, Any], Any]] = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self) -> None:  # noqa: N802 — http.server API
+            body = self.rfile.read(int(self.headers["Content-Length"]))
+            received.append((json.loads(body), self.headers))
+            self.send_response(204)
+            self.end_headers()
+
+        def log_message(self, *args: Any) -> None:  # silence test output
+            pass
+
+    server = HTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    return server, thread, received
+
+
+def test_every_ping_carries_the_same_instance_secret() -> None:
+    server, thread, received = _serve_heartbeats()
+    try:
+        sender = HeartbeatSender(
+            url=f"http://127.0.0.1:{server.server_port}/v1/heartbeat",
+            headers={"Authorization": "Bearer test-key"},
+            interval=3600.0,
+            agent_name="e2e-agent",
+            instance_id=str(uuid.uuid4()),
+            tracker=OpenRootSpanTracker(),
+        )
+        sender._send_ping()  # noqa: SLF001
+        sender._send_ping()  # noqa: SLF001
+        secrets_sent = [headers.get("Rius-Instance-Secret") for _, headers in received]
+        assert len(secrets_sent) == 2
+        assert secrets_sent[0] is not None
+        assert secrets_sent[0] == secrets_sent[1]
+        # 32 random bytes, unpadded base64url, as the receiver requires.
+        assert "=" not in secrets_sent[0]
+        assert len(base64.urlsafe_b64decode(secrets_sent[0] + "=")) == 32
+        # The secret is a header only: never in the body.
+        assert secrets_sent[0] not in json.dumps(received[0][0])
+    finally:
+        server.shutdown()
+        thread.join(timeout=5)
+
+
+def test_each_sender_mints_its_own_secret() -> None:
+    a, b = _sender([]), _sender([])
+    assert a._secret != b._secret  # noqa: SLF001
+
+
+def test_forked_child_mints_a_new_secret() -> None:
+    sender = _sender([])
+    parent_id, parent_secret = sender.instance_id, sender._secret  # noqa: SLF001
+    sender._reset_in_child()  # noqa: SLF001
+    try:
+        assert sender.instance_id != parent_id
+        assert sender._secret != parent_secret  # noqa: SLF001
+    finally:
+        sender.stop()
 
 
 # ---------------------------------------------------------------------------

@@ -19,14 +19,20 @@ Contract highlights (the spec is normative; this module implements it):
   misinformation), and delivery problems warn once per process.
 - ``fork()``: the child re-arms with a NEW ``instance_id``, so one identity
   never speaks for two processes.
+- Every ping carries a per-instance secret in the ``Rius-Instance-Secret``
+  header, minted here and never stored or logged. The receiver pins the
+  instance to it on the first ping, so another holder of the same workspace
+  key cannot speak for this instance. A forked child mints its own.
 """
 
 from __future__ import annotations
 
 import atexit
+import base64
 import json
 import logging
 import os
+import secrets
 import threading
 import urllib.request
 import uuid
@@ -125,19 +131,38 @@ class OpenRootSpanTracker(SpanProcessor):
         return True
 
 
-def _http_transport(url: str, headers: dict[str, str]) -> Callable[[dict[str, Any], float], None]:
+# Header and size of the per-instance secret; the receiver accepts 32 to 64
+# bytes of unpadded base64url.
+INSTANCE_SECRET_HEADER = "Rius-Instance-Secret"
+_INSTANCE_SECRET_BYTES = 32
+
+
+def _mint_secret() -> str:
+    return (
+        base64.urlsafe_b64encode(secrets.token_bytes(_INSTANCE_SECRET_BYTES)).rstrip(b"=").decode()
+    )
+
+
+def _http_transport(
+    url: str, headers: dict[str, str], secret: Callable[[], str]
+) -> Callable[[dict[str, Any], float], None]:
     """Default transport: a plain POST with a per-call timeout, no retries.
 
     TLS certificate verification is urllib's default and is deliberately not
     configurable here: a liveness signal must not become a reason to accept
-    unverified endpoints.
+    unverified endpoints. ``secret`` is read per ping because a forked child
+    replaces it.
     """
 
     def send(payload: dict[str, Any], timeout: float) -> None:
         request = urllib.request.Request(
             url,
             data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json", **headers},
+            headers={
+                "Content-Type": "application/json",
+                **headers,
+                INSTANCE_SECRET_HEADER: secret(),
+            },
             method="POST",
         )
         with urllib.request.urlopen(request, timeout=timeout):
@@ -173,12 +198,15 @@ class HeartbeatSender:
             # Injected transports (tests) take the payload only.
             self._send: Callable[[dict[str, Any], float], None] = lambda p, _t: transport(p)
         else:
-            self._send = _http_transport(url, headers)
+            self._send = _http_transport(url, headers, lambda: self._secret)
         # Injected: the same id rides spans as the service.instance.id
         # resource attribute, which is what lets the backend join heartbeats
         # to traces. Only _reset_in_child mints a fresh one (a forked child
         # is a new process lifetime).
         self._instance_id = instance_id
+        # Proves this process is the instance; minted here, never persisted,
+        # logged or put in the payload. Replaced together with the id on fork.
+        self._secret = _mint_secret()
         self._stop_event = threading.Event()
         self._stopped = False
         self._lock = threading.Lock()
@@ -229,6 +257,7 @@ class HeartbeatSender:
         if self._stopped:
             return
         self._instance_id = str(uuid.uuid4())
+        self._secret = _mint_secret()
         self._stop_event = threading.Event()
         self.start()
 
