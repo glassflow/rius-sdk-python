@@ -281,7 +281,11 @@ class HeartbeatSender:
     def _reset_in_child(self) -> None:  # pragma: no cover — fork-only path
         if self._stopped:
             return
-        self._instance_id, self._secret = mint_instance_identity()
+        if self._secret is None:
+            # A legacy sender stays legacy: it has no way to send a secret.
+            self._instance_id = str(uuid.uuid4())
+        else:
+            self._instance_id, self._secret = mint_instance_identity()
         self._stop_event = threading.Event()
         self.start()
 

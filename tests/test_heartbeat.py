@@ -418,8 +418,9 @@ def test_init_uses_the_derived_id_for_spans_and_heartbeats(
     client = init(
         set_global=False,
         service_name="svc",
+        api_key="k",
+        endpoint="http://127.0.0.1:1",
         span_exporter=InMemorySpanExporter(),
-        heartbeat_transport=[].append,
     )
     try:
         sender = client._heartbeat  # noqa: SLF001
@@ -429,6 +430,47 @@ def test_init_uses_the_derived_id_for_spans_and_heartbeats(
         assert sender.instance_id == derive_instance_id(_decode_secret(sender._secret or ""))  # noqa: SLF001
     finally:
         client.shutdown()
+
+
+def test_a_custom_transport_pings_as_a_legacy_instance(monkeypatch: pytest.MonkeyPatch) -> None:
+    # It is handed the payload only, so it could never send the secret, and a
+    # derived id without its secret is refused on every ping.
+    monkeypatch.delenv("RIUS_HEARTBEAT", raising=False)
+    client = init(
+        set_global=False,
+        service_name="svc",
+        span_exporter=InMemorySpanExporter(),
+        heartbeat_transport=[].append,
+    )
+    try:
+        sender = client._heartbeat  # noqa: SLF001
+        assert sender is not None
+        assert sender._secret is None  # noqa: SLF001
+        assert uuid.UUID(sender.instance_id).version == 4
+        resource_id = client._provider.resource.attributes["service.instance.id"]  # noqa: SLF001
+        assert sender.instance_id == resource_id
+    finally:
+        client.shutdown()
+
+
+def test_fork_reset_keeps_a_legacy_sender_legacy() -> None:
+    sender = HeartbeatSender(
+        url="http://unused",
+        headers={},
+        interval=3600.0,
+        agent_name="a",
+        instance_id=str(uuid.uuid4()),
+        tracker=OpenRootSpanTracker(),
+        transport=lambda payload: None,
+    )
+    before = sender.instance_id
+    try:
+        sender._reset_in_child()  # noqa: SLF001
+        assert sender.instance_id != before
+        assert sender._secret is None  # noqa: SLF001
+        assert uuid.UUID(sender.instance_id).version == 4
+    finally:
+        sender.stop()
 
 
 def test_every_ping_including_the_final_one_carries_the_secret() -> None:
