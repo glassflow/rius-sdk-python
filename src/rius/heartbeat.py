@@ -19,14 +19,22 @@ Contract highlights (the spec is normative; this module implements it):
   misinformation), and delivery problems warn once per process.
 - ``fork()``: the child re-arms with a NEW ``instance_id``, so one identity
   never speaks for two processes.
+- The ``instance_id`` is derived from a per-instance secret
+  (:func:`mint_instance_identity`), and every ping carries that secret in the
+  ``Rius-Instance-Secret`` header. The receiver checks the derivation, so
+  another holder of the same workspace key cannot speak for this instance.
+  The secret is never stored or logged. A forked child mints its own pair.
 """
 
 from __future__ import annotations
 
 import atexit
+import base64
+import hashlib
 import json
 import logging
 import os
+import secrets
 import threading
 import urllib.request
 import uuid
@@ -125,19 +133,57 @@ class OpenRootSpanTracker(SpanProcessor):
         return True
 
 
-def _http_transport(url: str, headers: dict[str, str]) -> Callable[[dict[str, Any], float], None]:
+# Header and size of the per-instance secret; the receiver accepts 32 to 64
+# bytes of unpadded base64url.
+INSTANCE_SECRET_HEADER = "Rius-Instance-Secret"
+_INSTANCE_SECRET_BYTES = 32
+
+
+def derive_instance_id(secret: bytes) -> str:
+    """The instance id a secret certifies: SHA-256's first 16 bytes as a v8 UUID.
+
+    Must match ``heartbeat.DeriveInstanceID`` in argus-core byte for byte.
+    """
+    digest = bytearray(hashlib.sha256(secret).digest()[:16])
+    digest[6] = (digest[6] & 0x0F) | 0x80  # version 8
+    digest[8] = (digest[8] & 0x3F) | 0x80  # RFC 9562 variant
+    return str(uuid.UUID(bytes=bytes(digest)))
+
+
+def mint_instance_identity() -> tuple[str, str]:
+    """A fresh ``(instance_id, secret)`` pair; the id is derived from the secret.
+
+    The secret is 32 random bytes, unpadded base64url, as sent in the header.
+    """
+    raw = secrets.token_bytes(_INSTANCE_SECRET_BYTES)
+    return derive_instance_id(raw), base64.urlsafe_b64encode(raw).rstrip(b"=").decode()
+
+
+def _http_transport(
+    url: str, headers: dict[str, str], secret: Callable[[], str | None]
+) -> Callable[[dict[str, Any], float], None]:
     """Default transport: a plain POST with a per-call timeout, no retries.
 
     TLS certificate verification is urllib's default and is deliberately not
     configurable here: a liveness signal must not become a reason to accept
-    unverified endpoints.
+    unverified endpoints. ``secret`` is read per ping because a forked child
+    replaces it.
     """
 
+    # The body is JSON whatever the caller's headers say, and the secret is
+    # ours: a caller header with either name is dropped, in any letter case.
+    reserved = {"content-type", INSTANCE_SECRET_HEADER.lower()}
+    caller_headers = {k: v for k, v in headers.items() if k.lower() not in reserved}
+
     def send(payload: dict[str, Any], timeout: float) -> None:
+        request_headers = {"Content-Type": "application/json", **caller_headers}
+        current = secret()
+        if current is not None:
+            request_headers[INSTANCE_SECRET_HEADER] = current
         request = urllib.request.Request(
             url,
             data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json", **headers},
+            headers=request_headers,
             method="POST",
         )
         with urllib.request.urlopen(request, timeout=timeout):
@@ -158,6 +204,7 @@ class HeartbeatSender:
         agent_name: str,
         instance_id: str,
         tracker: OpenRootSpanTracker,
+        instance_secret: str | None = None,
         transport: Callable[[dict[str, Any]], None] | None = None,
         ping_timeout: float = _PING_TIMEOUT_S,
         final_ping_timeout: float = _FINAL_PING_TIMEOUT_S,
@@ -173,12 +220,18 @@ class HeartbeatSender:
             # Injected transports (tests) take the payload only.
             self._send: Callable[[dict[str, Any], float], None] = lambda p, _t: transport(p)
         else:
-            self._send = _http_transport(url, headers)
+            self._send = _http_transport(url, headers, lambda: self._secret)
         # Injected: the same id rides spans as the service.instance.id
         # resource attribute, which is what lets the backend join heartbeats
         # to traces. Only _reset_in_child mints a fresh one (a forked child
         # is a new process lifetime).
         self._instance_id = instance_id
+        # The secret instance_id is derived from (mint_instance_identity); it
+        # proves this process is the instance. Never persisted, logged or put
+        # in the payload. None (tests, custom senders) sends no header, which
+        # the receiver accepts only for ids that are not derived.
+        self._secret = instance_secret
+        self._refusal_warned = False
         self._stop_event = threading.Event()
         self._stopped = False
         self._lock = threading.Lock()
@@ -228,7 +281,11 @@ class HeartbeatSender:
     def _reset_in_child(self) -> None:  # pragma: no cover — fork-only path
         if self._stopped:
             return
-        self._instance_id = str(uuid.uuid4())
+        if self._secret is None:
+            # A legacy sender stays legacy: it has no way to send a secret.
+            self._instance_id = str(uuid.uuid4())
+        else:
+            self._instance_id, self._secret = mint_instance_identity()
         self._stop_event = threading.Event()
         self.start()
 
@@ -264,6 +321,18 @@ class HeartbeatSender:
         try:
             self._send(self._build_payload(stopped=stopped), timeout)
         except Exception as exc:  # noqa: BLE001 — never raises into user code
+            if getattr(exc, "code", None) == 403 and not self._refusal_warned:
+                # The one refusal a user can act on: something rewrote the
+                # instance id or this header between the SDK and the receiver.
+                self._refusal_warned = True
+                logger.warning(
+                    "rius heartbeat refused (403): the receiver did not accept this "
+                    "instance secret for instance_id %s; check that nothing overrides "
+                    "the instance id or strips the %s header",
+                    self._instance_id,
+                    INSTANCE_SECRET_HEADER,
+                )
+                return
             if not self._delivery_warned:
                 self._delivery_warned = True
                 logger.warning("heartbeat delivery failed (%s); further failures log at DEBUG", exc)

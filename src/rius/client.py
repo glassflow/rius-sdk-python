@@ -38,7 +38,7 @@ from .foreign import (
     ResourceAdoptingExporter,
     bridge,
 )
-from .heartbeat import HeartbeatSender, OpenRootSpanTracker
+from .heartbeat import HeartbeatSender, OpenRootSpanTracker, mint_instance_identity
 from .instrumentation import enable_instrumentations, instruments_for
 from .instrumentation import release as release_instrumentations
 from .masking import MaskingSpanExporter
@@ -689,7 +689,16 @@ def _do_init(
     # spans keep this (ancestor) id while its heartbeat re-arms with a fresh
     # one; deployments needing exact per-worker span identity should init()
     # after fork.
-    instance_id = str(uuid.uuid4())
+    # Derived from a per-instance secret the heartbeat presents, so another
+    # holder of the workspace key cannot ping as this instance. A custom
+    # transport is handed the payload only and could never send the secret,
+    # so it pings as a legacy instance: liveness as before, never hints.
+    instance_id: str
+    instance_secret: str | None
+    if heartbeat_transport is None:
+        instance_id, instance_secret = mint_instance_identity()
+    else:
+        instance_id, instance_secret = str(uuid.uuid4()), None
     agent_name = _agent.named_agent(config.agent_name)
     # telemetry.sdk.* is reserved for the OTel SDK itself (Resource.create fills
     # it); we identify as a distribution via telemetry.distro.*.
@@ -876,6 +885,7 @@ def _do_init(
             interval=config.heartbeat_interval,
             agent_name=config.agent_name,
             instance_id=instance_id,
+            instance_secret=instance_secret,
             tracker=tracker,
             transport=heartbeat_transport,
             foreign_parent_spans=None if detector is None else (lambda: detector.count),
