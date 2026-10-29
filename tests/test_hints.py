@@ -10,11 +10,14 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import threading
+import time
 import uuid
+import warnings
 from collections import deque
-from collections.abc import Iterator
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from collections.abc import Callable, Iterator
+from http.server import BaseHTTPRequestHandler, HTTPServer, ThreadingHTTPServer
 from typing import Any
 
 import pytest
@@ -133,12 +136,14 @@ def _sender(
     inbox: HintInbox | None = None,
     tracker: OpenRootSpanTracker | None = None,
     agent_name: str = "agent",
+    interval: float = 3600.0,
+    url: str | None = None,
 ) -> HeartbeatSender:
     instance_id, secret = mint_instance_identity()
     return HeartbeatSender(
-        url=endpoint.url,
+        url=url or endpoint.url,
         headers={"Authorization": "Bearer k"},
-        interval=3600.0,
+        interval=interval,
         agent_name=agent_name,
         instance_id=instance_id,
         instance_secret=secret,
@@ -160,6 +165,15 @@ def _inbox(tracker: OpenRootSpanTracker, **kwargs: Any) -> HintInbox:
 
 def _ids(hints: list[Hint]) -> list[str]:
     return [hint.id for hint in hints]
+
+
+def _eventually(condition: Callable[[], bool], timeout: float = 5.0) -> bool:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if condition():
+            return True
+        time.sleep(0.01)
+    return condition()
 
 
 # ---------------------------------------------------------------------------
@@ -358,6 +372,59 @@ def test_a_stopped_pings_body_is_ignored(endpoint: _Endpoint) -> None:
     assert inbox.drain(None) == []
 
 
+class _SlowBody(BaseHTTPRequestHandler):
+    """Answers 200 with a large body whose bulk arrives only after a pause."""
+
+    pause = 1.5
+
+    def do_POST(self) -> None:  # noqa: N802 — http.server API
+        self.rfile.read(int(self.headers["Content-Length"]))
+        self.send_response(200)
+        self.send_header("Content-Length", str(1_000_000))
+        self.end_headers()
+        try:
+            self.wfile.write(b"{" + b" " * 15)
+            self.wfile.flush()
+            time.sleep(self.pause)
+            self.wfile.write(b" " * (1_000_000 - 16))
+        except OSError:
+            pass  # the client closed without reading, as it should
+
+    def log_message(self, *args: Any) -> None:  # silence test output
+        pass
+
+
+@pytest.fixture
+def slow_body_url() -> Iterator[str]:
+    server = ThreadingHTTPServer(("127.0.0.1", 0), _SlowBody)
+    server.daemon_threads = True
+    thread = threading.Thread(
+        target=server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True
+    )
+    thread.start()
+    yield f"http://127.0.0.1:{server.server_port}/v1/heartbeat"
+    server.shutdown()
+    thread.join(timeout=5)
+
+
+def _timed(call: Callable[[], None]) -> float:
+    started = time.monotonic()
+    call()
+    return time.monotonic() - started
+
+
+def test_the_body_is_read_only_by_a_hints_ping(endpoint: _Endpoint, slow_body_url: str) -> None:
+    hints_off = _sender(endpoint, url=slow_body_url)
+    hints_on = _sender(endpoint, url=slow_body_url, inbox=_inbox(_open()))
+    # Hints off and the stopped ping close the response without reading it,
+    # exactly as before hints existed.
+    assert _timed(hints_off._send_ping) < 1.0  # noqa: SLF001
+    assert _timed(lambda: hints_off._send_ping(stopped=True)) < 1.0  # noqa: SLF001
+    assert _timed(lambda: hints_on._send_ping(stopped=True)) < 1.0  # noqa: SLF001
+    # The control: a hints ping does read, so it waits for the slow body.
+    assert _timed(hints_on._send_ping) >= 1.0  # noqa: SLF001
+
+
 # ---------------------------------------------------------------------------
 # Rules: de-duplication, own traces, budget, queue
 # ---------------------------------------------------------------------------
@@ -450,6 +517,17 @@ def test_a_full_queue_drops_the_oldest_with_a_debug_log(
     assert inbox.acks_to_send() == [_hint_id(1), _hint_id(2), _hint_id(3)]
 
 
+def test_queued_hints_of_a_finished_run_are_pruned_before_they_take_a_slot() -> None:
+    open_now = [TRACE_A]
+    inbox = HintInbox(open_traces=lambda: open_now, max_queued=2)
+    inbox.accept(_body(_wire_hint(1)))
+    inbox.accept(_body(_wire_hint(2, TRACE_A)))
+    open_now.clear()  # run A ends before anyone drained its hint
+    inbox.accept(_body(_wire_hint(3)))
+    assert _ids(inbox.drain(None)) == [_hint_id(1), _hint_id(3)]
+    assert inbox.drain(TRACE_A) == []
+
+
 def test_a_hint_that_fails_verification_is_dropped_and_acked() -> None:
     inbox = _inbox(_open(), verify=lambda raw: raw["id"] != _hint_id(1))
     inbox.accept(_body(_wire_hint(1), _wire_hint(2)))
@@ -473,8 +551,9 @@ def test_on_hint_is_called_once_per_newly_accepted_hint(endpoint: _Endpoint) -> 
     sender.start()
     endpoint.wait_for(1)
     sender._send_ping()  # noqa: SLF001
+    assert _eventually(lambda: len(seen) == 1)
     sender.stop()
-    assert seen == [(_hint_id(1), "rius-heartbeat")]
+    assert seen == [(_hint_id(1), "rius-hint-callback")]
 
 
 def test_an_on_hint_exception_is_logged_and_never_breaks_the_ping(
@@ -489,10 +568,75 @@ def test_an_on_hint_exception_is_logged_and_never_breaks_the_ping(
     with caplog.at_level(logging.DEBUG, logger="rius"):
         sender._send_ping()  # noqa: SLF001
         sender._send_ping()  # noqa: SLF001
+        assert _eventually(lambda: sum("on_hint" in r.getMessage() for r in caplog.records) == 2)
     assert _ids(inbox.drain(None)) == [_hint_id(1), _hint_id(2)]
     assert endpoint.payloads()[1]["acked"] == [_hint_id(1), _hint_id(2)]
-    assert any("on_hint" in r.getMessage() for r in caplog.records)
     assert not any("heartbeat delivery failed" in r.getMessage() for r in caplog.records)
+
+
+def test_a_blocking_on_hint_never_delays_a_ping_or_stop(endpoint: _Endpoint) -> None:
+    entered, release = threading.Event(), threading.Event()
+
+    def block(hint: Hint) -> None:
+        entered.set()
+        release.wait(10)
+
+    sender = _sender(endpoint, inbox=_inbox(_open(), on_hint=block), interval=0.05)
+    endpoint.reply(200, _body(_wire_hint(1), _wire_hint(2)))
+    sender.start()
+    try:
+        assert entered.wait(5)
+        pinged = len(endpoint.requests)
+        endpoint.wait_for(pinged + 3, timeout=2)  # pings go on while it blocks
+        assert _timed(sender.stop) < 1.0
+    finally:
+        release.set()
+
+
+def test_an_on_hint_raising_system_exit_leaves_pings_and_callbacks_running(
+    endpoint: _Endpoint,
+) -> None:
+    calls: list[str] = []
+
+    def exit_on_first(hint: Hint) -> None:
+        calls.append(hint.id)
+        if hint.id == _hint_id(1):
+            raise SystemExit(1)
+
+    sender = _sender(endpoint, inbox=_inbox(_open(), on_hint=exit_on_first), interval=0.05)
+    endpoint.reply(200, _body(_wire_hint(1)))
+    endpoint.reply(200, _body(_wire_hint(2)))
+    sender.start()
+    try:
+        endpoint.wait_for(5)
+        assert _eventually(lambda: calls == [_hint_id(1), _hint_id(2)])
+    finally:
+        sender.stop()
+
+
+def test_a_full_callback_queue_drops_the_oldest_hand_off(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    entered, release = threading.Event(), threading.Event()
+    calls: list[str] = []
+
+    def block_on_first(hint: Hint) -> None:
+        calls.append(hint.id)
+        if hint.id == _hint_id(1):
+            entered.set()
+            release.wait(10)
+
+    inbox = _inbox(_open(), on_hint=block_on_first, max_pending_callbacks=2)
+    with caplog.at_level(logging.DEBUG, logger="rius.hints"):
+        inbox.accept(_body(_wire_hint(1)))
+        assert entered.wait(5)
+        inbox.accept(_body(_wire_hint(2), _wire_hint(3), _wire_hint(4)))
+        release.set()
+        assert _eventually(lambda: len(calls) == 3)
+    assert calls == [_hint_id(1), _hint_id(3), _hint_id(4)]
+    assert any(_hint_id(2) in r.getMessage() for r in caplog.records)
+    # The queue for drain_hints is separate and keeps every hint.
+    assert len(inbox.drain(None)) == 4
 
 
 # ---------------------------------------------------------------------------
@@ -585,6 +729,66 @@ def test_a_forked_child_forgets_the_parents_hints_acks_and_ids(endpoint: _Endpoi
         sender.stop()
 
 
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="needs os.fork")
+def test_a_real_fork_resets_the_inbox_and_its_callback_worker(endpoint: _Endpoint) -> None:
+    calls: list[str] = []
+    inbox = _inbox(_open(), on_hint=lambda hint: calls.append(hint.id))
+    sender = _sender(endpoint, inbox=inbox)
+    endpoint.reply(200, _body(_wire_hint(1)))
+    sender.start()
+    try:
+        assert _eventually(lambda: calls == [_hint_id(1)])
+        assert inbox.acks_to_send() == [_hint_id(1)]
+        read_fd, write_fd = os.pipe()
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)  # fork with live threads
+            pid = os.fork()
+        if pid == 0:  # pragma: no cover — runs in the child
+            os.close(read_fd)
+            ok = inbox.drain(None) == [] and inbox.acks_to_send() == []
+            inbox.accept(_body(_wire_hint(1)))  # new to the child
+            ok = ok and _ids(inbox.drain(None)) == [_hint_id(1)]
+            ok = ok and _eventually(lambda: calls == [_hint_id(1), _hint_id(1)])
+            os.write(write_fd, b"1" if ok else b"0")
+            os._exit(0)
+        os.close(write_fd)
+        try:
+            assert os.read(read_fd, 1) == b"1"
+            os.waitpid(pid, 0)
+            assert _ids(inbox.drain(None)) == [_hint_id(1)]  # the parent keeps its own
+        finally:
+            os.close(read_fd)
+    finally:
+        sender.stop()
+
+
+def test_drain_and_accept_running_together_lose_and_duplicate_nothing() -> None:
+    inbox = _inbox(_open(), max_queued=10_000)
+    total = 3000
+    fed = threading.Event()
+    drained: list[list[Hint]] = [[], []]
+
+    def feed() -> None:
+        for start in range(0, total, 50):
+            inbox.accept(_body(*(_wire_hint(n) for n in range(start, start + 50))))
+        fed.set()
+
+    def drain(into: list[Hint]) -> None:
+        while not fed.is_set():
+            into.extend(inbox.drain(None))
+        into.extend(inbox.drain(None))
+
+    threads = [threading.Thread(target=feed)] + [
+        threading.Thread(target=drain, args=(into,)) for into in drained
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=30)
+    got = sorted(_ids(drained[0] + drained[1]))
+    assert got == [_hint_id(n) for n in range(total)]
+
+
 # ---------------------------------------------------------------------------
 # init() wiring and the public drain
 # ---------------------------------------------------------------------------
@@ -602,11 +806,11 @@ def _hint_client(endpoint: _Endpoint, **kwargs: Any) -> rius.GlassflowClient:
     )
 
 
-def test_a_custom_transport_keeps_hints_off_and_says_why_at_debug(
+def test_a_custom_transport_keeps_hints_off_and_says_why(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     sent: list[dict[str, Any]] = []
-    with caplog.at_level(logging.DEBUG, logger="rius"):
+    with caplog.at_level(logging.WARNING, logger="rius"):
         client = init(
             set_global=False,
             service_name="svc",
@@ -623,6 +827,47 @@ def test_a_custom_transport_keeps_hints_off_and_says_why_at_debug(
     messages = [r.getMessage() for r in caplog.records if "hints" in r.getMessage()]
     assert len(messages) == 1
     assert "heartbeat_transport" in messages[0]
+
+
+@pytest.mark.parametrize(
+    ("options", "reason"),
+    [
+        ({"heartbeat": False, "api_key": "k"}, "heartbeat is off"),
+        ({"heartbeat": True, "disabled": True, "api_key": "k"}, "disabled"),
+        ({"heartbeat": True}, "credentials"),
+    ],
+    ids=["heartbeat-off", "kill-switch", "no-credentials"],
+)
+def test_hints_asked_for_but_off_warn_once_with_the_reason(
+    options: dict[str, Any],
+    reason: str,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    monkeypatch.delenv("RIUS_API_KEY", raising=False)
+    with caplog.at_level(logging.WARNING, logger="rius"):
+        client = init(
+            set_global=False,
+            service_name="svc",
+            endpoint="http://127.0.0.1:1",
+            hints=True,
+            span_exporter=InMemorySpanExporter(),
+            **options,
+        )
+    client.shutdown()
+    messages = [r.getMessage() for r in caplog.records if "hints" in r.getMessage()]
+    assert len(messages) == 1, messages
+    assert reason in messages[0]
+    assert caplog.records[0].levelno == logging.WARNING
+
+
+def test_hints_that_are_on_warn_nothing(
+    endpoint: _Endpoint, caplog: pytest.LogCaptureFixture
+) -> None:
+    with caplog.at_level(logging.WARNING, logger="rius"):
+        client = _hint_client(endpoint, set_global=False, hints=True)
+    client.shutdown()
+    assert not [r for r in caplog.records if "hints" in r.getMessage()]
 
 
 def test_hints_off_by_default_in_init(endpoint: _Endpoint, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -653,6 +898,7 @@ def test_init_on_hint_and_drain_by_the_current_trace(endpoint: _Endpoint) -> Non
             )
             assert client._heartbeat is not None  # noqa: SLF001
             client._heartbeat._send_ping()  # noqa: SLF001
+            assert _eventually(lambda: len(received) == 3)
             assert _ids(received) == [_hint_id(1), _hint_id(2), _hint_id(3)]
             with tracer.start_as_current_span("model call"):
                 assert _ids(client.drain_hints()) == [_hint_id(1), _hint_id(3)]

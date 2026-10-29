@@ -55,6 +55,9 @@ _DEFAULT_MAX_QUEUED = 32
 # it; an id lost here only means the hint comes back, is recognised as a
 # duplicate and is acked again.
 _MAX_PENDING_ACKS = 1024
+# Hints waiting for the on_hint callback; a callback that falls this far
+# behind loses the oldest hand-offs (the hints themselves stay queued).
+_MAX_PENDING_CALLBACKS = 32
 _TRACE_ID = re.compile(r"[0-9a-f]{32}")
 
 ParamValue = str | int | float | bool
@@ -156,6 +159,82 @@ def _to_hint(raw: Mapping[str, Any]) -> Hint | None:
     )
 
 
+class _CallbackWorker:
+    """Runs ``on_hint`` on its own daemon thread, never on the heartbeat thread.
+
+    A callback that blocks or raises (``SystemExit`` included) can then never
+    delay or stop a liveness ping. Hand-offs wait in a bounded queue that drops
+    the oldest. The thread starts on the first hand-off; nothing ever joins
+    it, so it never holds up shutdown.
+    """
+
+    def __init__(self, callback: Callable[[Hint], object], max_pending: int) -> None:
+        self._callback = callback
+        self._max_pending = max_pending
+        self._warned = False
+        self._fresh()
+
+    def _fresh(self) -> None:
+        self._ready = threading.Condition()
+        self._pending: deque[Hint] = deque()
+        self._thread: threading.Thread | None = None
+        self._closed = False
+
+    def submit(self, hint: Hint) -> None:
+        with self._ready:
+            if self._closed:
+                return
+            self._pending.append(hint)
+            while len(self._pending) > self._max_pending:
+                dropped = self._pending.popleft()
+                logger.debug(
+                    "rius on_hint is behind; skipped it for the oldest hint %s", dropped.id
+                )
+            if self._thread is None:
+                self._thread = threading.Thread(
+                    target=self._run, name="rius-hint-callback", daemon=True
+                )
+                self._thread.start()
+            self._ready.notify()
+
+    def _run(self) -> None:
+        ready = self._ready
+        while True:
+            with ready:
+                while not self._pending and not self._closed:
+                    ready.wait()
+                if self._closed or ready is not self._ready:
+                    return
+                hint = self._pending.popleft()
+            self._call(hint)
+
+    def _call(self, hint: Hint) -> None:
+        try:
+            self._callback(hint)
+        except BaseException as exc:  # noqa: BLE001 — SystemExit must not end the worker
+            if self._warned:
+                logger.debug("rius on_hint raised for hint %s: %r", hint.id, exc)
+            else:
+                self._warned = True
+                logger.warning(
+                    "rius on_hint raised for hint %s (%r); the hint is still queued. "
+                    "Further on_hint errors log at DEBUG",
+                    hint.id,
+                    exc,
+                )
+
+    def close(self) -> None:
+        """Stop taking hand-offs and let the thread exit. Does not wait for it."""
+        with self._ready:
+            self._closed = True
+            self._pending.clear()
+            self._ready.notify()
+
+    def reset(self) -> None:
+        """A forked child has no worker thread: start over, on fresh locks."""
+        self._fresh()
+
+
 class HintInbox:
     """One client's hints: the queue, the ids it has seen, and the acks to send.
 
@@ -171,13 +250,15 @@ class HintInbox:
         max_queued: int = _DEFAULT_MAX_QUEUED,
         on_hint: Callable[[Hint], object] | None = None,
         verify: Callable[[Mapping[str, Any]], bool] = verify_hint,
+        max_pending_callbacks: int = _MAX_PENDING_CALLBACKS,
     ) -> None:
         self._open_traces = open_traces
         self._per_trace = per_trace
         self._max_queued = max_queued
-        self._on_hint = on_hint
+        self._callbacks = (
+            None if on_hint is None else _CallbackWorker(on_hint, max_pending_callbacks)
+        )
         self._verify = verify
-        self._on_hint_warned = False
         self._lock = threading.Lock()
         self._queue: deque[Hint] = deque()
         self._seen: OrderedDict[str, None] = OrderedDict()
@@ -194,16 +275,24 @@ class HintInbox:
         except Exception as exc:  # noqa: BLE001 — the hint path never breaks a ping
             logger.debug("rius hints: could not process a heartbeat response: %s", exc)
             return
-        for hint in accepted:
-            self._notify(hint)
+        if self._callbacks is not None:
+            for hint in accepted:
+                self._callbacks.submit(hint)
 
     def _accept(self, raw_hints: list[Any]) -> list[Hint]:
         open_traces = {t.lower() for t in self._open_traces()}
         accepted: list[Hint] = []
         with self._lock:
-            # The budget is per run: forget the counts of runs that have ended.
+            # The budget is per run: forget the counts of runs that have ended,
+            # and their undrained hints, which nobody will read and which would
+            # otherwise take queue slots from live ones.
             for trace_id in [t for t in self._accepted_per_trace if t not in open_traces]:
                 del self._accepted_per_trace[trace_id]
+            live = deque(h for h in self._queue if h.trace_id is None or h.trace_id in open_traces)
+            if len(live) < len(self._queue):
+                pruned = len(self._queue) - len(live)
+                logger.debug("rius hints: pruned %d undrained hints of finished runs", pruned)
+                self._queue = live
             for raw in raw_hints:
                 if not isinstance(raw, dict) or not isinstance(raw.get("id"), str):
                     continue  # nothing to ack it by
@@ -251,23 +340,6 @@ class HintInbox:
         while len(self._pending_acks) > _MAX_PENDING_ACKS:
             self._pending_acks.popitem(last=False)
 
-    def _notify(self, hint: Hint) -> None:
-        if self._on_hint is None:
-            return
-        try:
-            self._on_hint(hint)
-        except Exception as exc:  # noqa: BLE001 — a callback bug never breaks the ping
-            if self._on_hint_warned:
-                logger.debug("rius on_hint raised for hint %s: %r", hint.id, exc)
-            else:
-                self._on_hint_warned = True
-                logger.warning(
-                    "rius on_hint raised for hint %s (%r); the hint is still queued. "
-                    "Further on_hint errors log at DEBUG",
-                    hint.id,
-                    exc,
-                )
-
     def acks_to_send(self) -> list[str]:
         """The ids for the next ping's ``acked``: at most 16, oldest first.
 
@@ -297,11 +369,18 @@ class HintInbox:
         at the fork, and it would never be released in the child.
         """
         self._lock = threading.Lock()
+        if self._callbacks is not None:
+            self._callbacks.reset()
         self._queue.clear()
         self._seen.clear()
         self._accepted_per_trace.clear()
         self._pending_acks.clear()
         self._skip_acks_once = False
+
+    def close(self) -> None:
+        """Stop handing hints to ``on_hint``, without waiting for its thread."""
+        if self._callbacks is not None:
+            self._callbacks.close()
 
     # -- agent side ---------------------------------------------------------
 

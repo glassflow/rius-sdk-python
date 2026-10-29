@@ -164,10 +164,10 @@ def mint_instance_identity() -> tuple[str, str]:
     return derive_instance_id(raw), base64.urlsafe_b64encode(raw).rstrip(b"=").decode()
 
 
-# A transport sends one encoded payload and returns the response body, or
-# None when it has none to give (an injected transport, or a body over the
-# read cap). Any non-2xx raises.
-_Transport = Callable[[bytes, float], bytes | None]
+# A transport sends one encoded payload and, when asked to read, returns the
+# response body; None when it has none to give (not asked, an injected
+# transport, or a body over the read cap). Any non-2xx raises.
+_Transport = Callable[[bytes, float, bool], bytes | None]
 
 
 def _encode(payload: dict[str, Any]) -> bytes:
@@ -191,7 +191,7 @@ def _http_transport(
     reserved = {"content-type", INSTANCE_SECRET_HEADER.lower()}
     caller_headers = {k: v for k, v in headers.items() if k.lower() not in reserved}
 
-    def send(body: bytes, timeout: float) -> bytes | None:
+    def send(body: bytes, timeout: float, read: bool) -> bytes | None:
         request_headers = {"Content-Type": "application/json", **caller_headers}
         current = secret()
         if current is not None:
@@ -202,9 +202,13 @@ def _http_transport(
             headers=request_headers,
             method="POST",
         )
+        if not read:
+            with urllib.request.urlopen(request, timeout=timeout):
+                pass  # 2xx is success; the body is not read
+            return None
         with urllib.request.urlopen(request, timeout=timeout) as response:
-            # 2xx is liveness success. A body (hints) is read up to the cap; one
-            # byte more tells an over-cap body, which counts as none.
+            # 2xx is liveness success. The body (hints) is read up to the cap;
+            # one byte more tells an over-cap body, which counts as none.
             data: bytes = response.read(MAX_RESPONSE_BYTES + 1)
         return data if len(data) <= MAX_RESPONSE_BYTES else None
 
@@ -236,16 +240,18 @@ class HeartbeatSender:
         self._tracker = tracker
         self._ping_timeout = ping_timeout
         self._final_ping_timeout = final_ping_timeout
-        self._send_payload: Callable[[dict[str, Any], float], bytes | None]
+        self._send_payload: Callable[[dict[str, Any], float, bool], bytes | None]
         if transport is not None:
             # Injected transports (tests) take the payload only and return no body.
-            def send_to_injected(payload: dict[str, Any], _timeout: float) -> None:
+            def send_to_injected(payload: dict[str, Any], _timeout: float, _read: bool) -> None:
                 transport(payload)
 
             self._send_payload = send_to_injected
         else:
             http = _http_transport(url, headers, lambda: self._secret)
-            self._send_payload = lambda payload, timeout: http(_encode(payload), timeout)
+            self._send_payload = lambda payload, timeout, read: http(
+                _encode(payload), timeout, read
+            )
         # Injected: the same id rides spans as the service.instance.id
         # resource attribute, which is what lets the backend join heartbeats
         # to traces. Only _reset_in_child mints a fresh one (a forked child
@@ -300,6 +306,8 @@ class HeartbeatSender:
         if self._thread is not None:
             self._thread.join(timeout=self._ping_timeout + 1.0)
         self._send_ping(stopped=True)
+        if self._hints is not None:
+            self._hints.close()  # never waits for an on_hint still running
 
     def _run(self) -> None:
         self._send_ping()
@@ -377,7 +385,9 @@ class HeartbeatSender:
         try:
             payload = self._build_payload(stopped=stopped)
             acked = self._add_acks(payload)
-            body = self._send_payload(payload, timeout)
+            # Only a hints ping reads the body; the stopped one's is ignored.
+            read = self._hints is not None and not stopped
+            body = self._send_payload(payload, timeout, read)
         except Exception as exc:  # noqa: BLE001 — never raises into user code
             if self._hints is not None and getattr(exc, "code", None) == 413:
                 self._hints.request_too_large()
@@ -386,7 +396,6 @@ class HeartbeatSender:
         if self._hints is not None:
             self._hints.acks_delivered(acked)
             if not stopped:
-                # A stopped ping's body is ignored: the process is exiting.
                 self._hints.accept(body)
 
     def _delivery_failed(self, exc: Exception) -> None:

@@ -913,12 +913,9 @@ def _do_init(
             "Authorization header in headers)"
         )
     inbox: HintInbox | None = None
-    if config.hints and heartbeat_transport is not None:
-        logger.debug(
-            "rius hints are off: a custom heartbeat_transport is handed the payload "
-            "only, so it cannot authenticate the instance, and hints are delivered "
-            "only to authenticated pings"
-        )
+    hints_off_because = _why_hints_are_off(config, heartbeat_transport, can_authenticate)
+    if config.hints and hints_off_because is not None:
+        logger.warning("rius hints were requested but are off: %s", hints_off_because)
     if config.heartbeat and not config.disabled and can_authenticate:
         tracker = OpenRootSpanTracker()
         pipeline.add_span_processor(tracker)
@@ -953,6 +950,26 @@ def _do_init(
     if set_global:
         _current_client = client
     return client
+
+
+def _why_hints_are_off(
+    config: GlassflowConfig,
+    heartbeat_transport: Callable[[dict[str, Any]], None] | None,
+    can_authenticate: bool,
+) -> str | None:
+    """Why hints cannot run with this configuration, or None when they can."""
+    if config.disabled:
+        return "rius is disabled (the kill switch is on)"
+    if not config.heartbeat:
+        return "the heartbeat is off, and hints ride on its response"
+    if heartbeat_transport is not None:
+        return (
+            "a custom heartbeat_transport is handed the payload only, so it cannot "
+            "authenticate the instance, and hints are delivered only to authenticated pings"
+        )
+    if not can_authenticate:
+        return "no credentials (set api_key or an Authorization header), so no heartbeat runs"
+    return None
 
 
 def _foreign_global_name() -> str | None:
