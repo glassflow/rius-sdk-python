@@ -414,9 +414,11 @@ def init(
             with a ``heartbeat_transport`` hints stay off.
         hints_per_trace: The most hints accepted for one run
             (``RIUS_HINTS_PER_TRACE``, default 3); later ones are dropped.
-        on_hint: Called once with each newly accepted ``Hint``, on the
-            heartbeat thread. Keep it short; an exception it raises is logged
-            and the hint stays queued for ``drain_hints()``.
+        on_hint: Called once with each newly accepted ``Hint``, on a
+            dedicated daemon thread, so it can never delay a heartbeat. If it
+            falls behind, the oldest pending calls are skipped. An exception
+            it raises is logged, and the hint stays queued for
+            ``drain_hints()`` either way.
         agent_name: Identity both heartbeats and spans group under, stamped
             on the resource as ``gen_ai.main_agent.name`` AND, unchanged, as
             ``gen_ai.agent.name``; defaults to ``service_name``. The
