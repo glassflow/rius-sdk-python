@@ -39,6 +39,7 @@ from .foreign import (
     bridge,
 )
 from .heartbeat import HeartbeatSender, OpenRootSpanTracker, mint_instance_identity
+from .hints import Hint, HintInbox, current_trace_id
 from .instrumentation import enable_instrumentations, instruments_for
 from .instrumentation import release as release_instrumentations
 from .masking import MaskingSpanExporter
@@ -222,8 +223,10 @@ class GlassflowClient:
         connectivity_thread: threading.Thread | None = None,
         routing: RoutingSpanExporter | None = None,
         bridge: Bridge | None = None,
+        hints: HintInbox | None = None,
     ) -> None:
         self._provider = provider
+        self._hints = hints
         self._bridge = bridge
         self.config = config
         self._heartbeat = heartbeat
@@ -249,6 +252,18 @@ class GlassflowClient:
                 "(an empty dict is fine) to opt in before registering destinations"
             )
         self._routing.register(alias, api_key)
+
+    def drain_hints(self, trace_id: str | None = None) -> list[Hint]:
+        """Remove and return the hints received for a run, oldest first.
+
+        Returns the hints for ``trace_id`` (default: the trace of the current
+        span context) plus the hints about the instance as a whole. Outside
+        any span, only the instance-wide ones. Always empty when hints are
+        off (``init(hints=True)`` / ``RIUS_HINTS`` turns them on).
+        """
+        if self._hints is None:
+            return []
+        return self._hints.drain(trace_id if trace_id is not None else current_trace_id())
 
     def get_tracer(self, name: str = TRACER_NAME) -> trace.Tracer:
         """Return a tracer bound to this client's provider.
@@ -315,6 +330,9 @@ def init(
     span_exporter: SpanExporter | None = None,
     heartbeat: bool | None = None,
     heartbeat_interval: float | None = None,
+    hints: bool | None = None,
+    hints_per_trace: int | None = None,
+    on_hint: Callable[[Hint], object] | None = None,
     agent_name: str | None = None,
     main_agent_id: str | None = None,
     main_agent_description: str | None = None,
@@ -389,6 +407,16 @@ def init(
         heartbeat_interval: Seconds between pings (default 15, clamped to
             ``[5, 300]``). The server fixes stale at 30s and gone at 60s
             since the last ping, so keep this well under 30s.
+        hints: Ask Rius for hints on the heartbeat response (``RIUS_HINTS``;
+            off by default). A hint is a short note about a problem Rius
+            detected in one of this process's open runs; read them with
+            ``drain_hints()``. Needs the heartbeat and its default transport:
+            with a ``heartbeat_transport`` hints stay off.
+        hints_per_trace: The most hints accepted for one run
+            (``RIUS_HINTS_PER_TRACE``, default 3); later ones are dropped.
+        on_hint: Called once with each newly accepted ``Hint``, on the
+            heartbeat thread. Keep it short; an exception it raises is logged
+            and the hint stays queued for ``drain_hints()``.
         agent_name: Identity both heartbeats and spans group under, stamped
             on the resource as ``gen_ai.main_agent.name`` AND, unchanged, as
             ``gen_ai.agent.name``; defaults to ``service_name``. The
@@ -490,6 +518,9 @@ def init(
             span_exporter=span_exporter,
             heartbeat=heartbeat,
             heartbeat_interval=heartbeat_interval,
+            hints=hints,
+            hints_per_trace=hints_per_trace,
+            on_hint=on_hint,
             agent_name=agent_name,
             main_agent_id=main_agent_id,
             main_agent_description=main_agent_description,
@@ -645,6 +676,9 @@ def _do_init(
     span_exporter: SpanExporter | None,
     heartbeat: bool | None,
     heartbeat_interval: float | None,
+    hints: bool | None,
+    hints_per_trace: int | None,
+    on_hint: Callable[[Hint], object] | None,
     agent_name: str | None,
     main_agent_id: str | None,
     main_agent_description: str | None,
@@ -671,6 +705,8 @@ def _do_init(
         capture_content=capture_content,
         heartbeat=heartbeat,
         heartbeat_interval=heartbeat_interval,
+        hints=hints,
+        hints_per_trace=hints_per_trace,
         agent_name=agent_name,
         main_agent_id=main_agent_id,
         main_agent_description=main_agent_description,
@@ -876,9 +912,20 @@ def _do_init(
             "rius heartbeat not started: no credentials (set api_key or an "
             "Authorization header in headers)"
         )
+    inbox: HintInbox | None = None
+    if config.hints and heartbeat_transport is not None:
+        logger.debug(
+            "rius hints are off: a custom heartbeat_transport is handed the payload "
+            "only, so it cannot authenticate the instance, and hints are delivered "
+            "only to authenticated pings"
+        )
     if config.heartbeat and not config.disabled and can_authenticate:
         tracker = OpenRootSpanTracker()
         pipeline.add_span_processor(tracker)
+        if config.hints and heartbeat_transport is None:
+            inbox = HintInbox(
+                tracker.open_trace_ids, per_trace=config.hints_per_trace, on_hint=on_hint
+            )
         sender = HeartbeatSender(
             url=config.heartbeat_endpoint,
             headers=config.headers,
@@ -889,6 +936,7 @@ def _do_init(
             tracker=tracker,
             transport=heartbeat_transport,
             foreign_parent_spans=None if detector is None else (lambda: detector.count),
+            hints=inbox,
         )
         sender.start()
 
@@ -900,6 +948,7 @@ def _do_init(
         connectivity_thread=connectivity_thread,
         routing=routing,
         bridge=bridged,
+        hints=inbox,
     )
     if set_global:
         _current_client = client
@@ -960,6 +1009,19 @@ def _register_global(
         else "it is not an OpenTelemetry SDK TracerProvider",
     )
     return None
+
+
+def drain_hints(trace_id: str | None = None) -> list[Hint]:
+    """Remove and return the global client's hints for a run, oldest first.
+
+    See :meth:`GlassflowClient.drain_hints`. Empty when no global ``init()`` is
+    active or hints are off.
+    """
+    with _lock:
+        client = _current_client
+    if client is None or client._is_shutdown:
+        return []
+    return client.drain_hints(trace_id)
 
 
 def get_tracer(name: str = TRACER_NAME) -> trace.Tracer:

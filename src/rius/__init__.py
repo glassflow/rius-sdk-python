@@ -2,11 +2,19 @@
 
 __version__ = "1.5.5"  # x-release-please-version
 
-from .client import GlassflowClient, build_span_exporter, get_tracer, init, register_workspace
+from .client import (
+    GlassflowClient,
+    build_span_exporter,
+    drain_hints,
+    get_tracer,
+    init,
+    register_workspace,
+)
 from .compaction import mark_compaction
 from .config import GlassflowConfig, resolve_config
 from .export_health import ProbeTransport
 from .generation import Generation, start_as_current_generation, start_generation
+from .hints import Hint
 from .observe import observe
 from .semconv import SpanKind
 from .session import session
@@ -18,11 +26,13 @@ __all__ = [
     "Generation",
     "GlassflowClient",
     "GlassflowConfig",
+    "Hint",
     "Observation",
     "ProbeTransport",
     "SpanKind",
     "__version__",
     "build_span_exporter",
+    "drain_hints",
     "get_tracer",
     "init",
     "mark_compaction",
