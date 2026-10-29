@@ -34,6 +34,8 @@ ENV_SAMPLE_RATE = "RIUS_SAMPLE_RATE"
 ENV_CAPTURE_CONTENT = "RIUS_CAPTURE_CONTENT"
 ENV_HEARTBEAT = "RIUS_HEARTBEAT"
 ENV_HEARTBEAT_INTERVAL = "RIUS_HEARTBEAT_INTERVAL"
+ENV_HINTS = "RIUS_HINTS"
+ENV_HINTS_PER_TRACE = "RIUS_HINTS_PER_TRACE"
 ENV_AGENT_NAME = "RIUS_AGENT_NAME"
 ENV_MAIN_AGENT_ID = "RIUS_MAIN_AGENT_ID"
 ENV_MAIN_AGENT_DESCRIPTION = "RIUS_MAIN_AGENT_DESCRIPTION"
@@ -53,6 +55,9 @@ DEFAULT_HEARTBEAT_INTERVAL = 15.0
 # Debounce for partial spans: 0 = emit immediately at span start;
 # N>0 = emit only if the span is still open after N seconds. Beyond 60s a
 # "live" view stops being live, so larger values are clamped.
+# The most hints accepted for one run (trace); later ones are dropped and acked.
+DEFAULT_HINTS_PER_TRACE = 3
+
 PARTIAL_SPANS_DELAY_MIN = 0.0
 PARTIAL_SPANS_DELAY_MAX = 60.0
 
@@ -98,6 +103,17 @@ def _env_float(name: str, *, default: float) -> float:
     return _finite(name, value, default)
 
 
+def _env_int(name: str, *, default: int) -> int:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    try:
+        return int(raw.strip())
+    except ValueError:
+        logger.warning("%s=%r is not an integer; using the default (%s).", name, raw, default)
+        return default
+
+
 def _finite(name: str, value: float, default: float) -> float:
     """``default`` for NaN and the infinities, which a min/max clamp lets through.
 
@@ -135,6 +151,10 @@ class GlassflowConfig:
     capture_content: bool = True
     heartbeat: bool = True
     heartbeat_interval: float = DEFAULT_HEARTBEAT_INTERVAL
+    # Opt-in: ask for hints on the heartbeat response (needs the heartbeat
+    # and its default transport).
+    hints: bool = False
+    hints_per_trace: int = DEFAULT_HINTS_PER_TRACE
     agent_name: str = DEFAULT_SERVICE_NAME
     # The rest of the main agent's identity: the agent this PROCESS is. Only
     # the name has an older counterpart (``agent_name``, above, which these
@@ -250,6 +270,13 @@ def _clamp_heartbeat_interval(value: float) -> float:
     return clamped
 
 
+def _non_negative_hints_per_trace(value: int) -> int:
+    if value >= 0:
+        return value
+    logger.warning("hints_per_trace %s is negative; using 0", value)
+    return 0
+
+
 def resolve_config(
     *,
     endpoint: str | None = None,
@@ -270,6 +297,8 @@ def resolve_config(
     partial_spans_delay: float | None = None,
     session_id: str | None = None,
     bridge_foreign_provider: bool | None = None,
+    hints: bool | None = None,
+    hints_per_trace: int | None = None,
 ) -> GlassflowConfig:
     """Resolve SDK configuration from arguments, environment, then defaults.
 
@@ -355,6 +384,11 @@ def resolve_config(
             Off by default: rius then exports that SDK's spans, which is
             consent the caller gives explicitly. Off, rius keeps to its own
             provider and flags the parents it never receives.
+        hints: Ask Rius for hints on the heartbeat response (``RIUS_HINTS``).
+            Off by default. Needs the heartbeat and its default transport.
+        hints_per_trace: The most hints accepted for one run
+            (``RIUS_HINTS_PER_TRACE``, default 3); later ones are dropped. A
+            negative value means 0.
 
     Returns:
         The resolved, immutable ``GlassflowConfig``.
@@ -380,6 +414,12 @@ def resolve_config(
         _env_float(ENV_HEARTBEAT_INTERVAL, default=DEFAULT_HEARTBEAT_INTERVAL)
         if heartbeat_interval is None
         else _finite("heartbeat_interval", heartbeat_interval, DEFAULT_HEARTBEAT_INTERVAL)
+    )
+    resolved_hints = _env_bool(ENV_HINTS, default=False) if hints is None else hints
+    resolved_hints_per_trace = _non_negative_hints_per_trace(
+        _env_int(ENV_HINTS_PER_TRACE, default=DEFAULT_HINTS_PER_TRACE)
+        if hints_per_trace is None
+        else hints_per_trace
     )
     resolved_agent_name = agent_name or os.getenv(ENV_AGENT_NAME) or resolved_service_name
     resolved_main_agent_id = main_agent_id or os.getenv(ENV_MAIN_AGENT_ID) or None
@@ -418,6 +458,8 @@ def resolve_config(
         capture_content=resolved_capture_content,
         heartbeat=resolved_heartbeat,
         heartbeat_interval=resolved_heartbeat_interval,
+        hints=resolved_hints,
+        hints_per_trace=resolved_hints_per_trace,
         agent_name=resolved_agent_name,
         main_agent_id=resolved_main_agent_id,
         main_agent_description=resolved_main_agent_description,

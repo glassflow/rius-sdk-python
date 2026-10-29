@@ -24,6 +24,10 @@ Contract highlights (the spec is normative; this module implements it):
   ``Rius-Instance-Secret`` header. The receiver checks the derivation, so
   another holder of the same workspace key cannot speak for this instance.
   The secret is never stored or logged. A forked child mints its own pair.
+- Hints (opt-in): with a :class:`~rius.hints.HintInbox`, an authenticated
+  sender asks for hints with ``accepts``, acks the ones it processed with
+  ``acked``, and hands each response body to the inbox. The hint path never
+  fails or delays a ping.
 """
 
 from __future__ import annotations
@@ -47,6 +51,7 @@ from opentelemetry.context import Context
 from opentelemetry.sdk.trace import ReadableSpan, Span, SpanProcessor
 
 from . import __version__
+from .hints import ACCEPTED_FORMATS, MAX_REQUEST_BYTES, MAX_RESPONSE_BYTES, HintInbox
 
 logger = logging.getLogger(__name__)
 
@@ -159,9 +164,20 @@ def mint_instance_identity() -> tuple[str, str]:
     return derive_instance_id(raw), base64.urlsafe_b64encode(raw).rstrip(b"=").decode()
 
 
+# A transport sends one encoded payload and, when asked to read, returns the
+# response body; None when it has none to give (not asked, an injected
+# transport, or a body over the read cap). Any non-2xx raises.
+_Transport = Callable[[bytes, float, bool], bytes | None]
+
+
+def _encode(payload: dict[str, Any]) -> bytes:
+    """The request body exactly as sent, so its size can be checked first."""
+    return json.dumps(payload).encode("utf-8")
+
+
 def _http_transport(
     url: str, headers: dict[str, str], secret: Callable[[], str | None]
-) -> Callable[[dict[str, Any], float], None]:
+) -> _Transport:
     """Default transport: a plain POST with a per-call timeout, no retries.
 
     TLS certificate verification is urllib's default and is deliberately not
@@ -175,19 +191,26 @@ def _http_transport(
     reserved = {"content-type", INSTANCE_SECRET_HEADER.lower()}
     caller_headers = {k: v for k, v in headers.items() if k.lower() not in reserved}
 
-    def send(payload: dict[str, Any], timeout: float) -> None:
+    def send(body: bytes, timeout: float, read: bool) -> bytes | None:
         request_headers = {"Content-Type": "application/json", **caller_headers}
         current = secret()
         if current is not None:
             request_headers[INSTANCE_SECRET_HEADER] = current
         request = urllib.request.Request(
             url,
-            data=json.dumps(payload).encode("utf-8"),
+            data=body,
             headers=request_headers,
             method="POST",
         )
-        with urllib.request.urlopen(request, timeout=timeout):
-            pass  # 2xx is success; the body is ignored by contract
+        if not read:
+            with urllib.request.urlopen(request, timeout=timeout):
+                pass  # 2xx is success; the body is not read
+            return None
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            # 2xx is liveness success. The body (hints) is read up to the cap;
+            # one byte more tells an over-cap body, which counts as none.
+            data: bytes = response.read(MAX_RESPONSE_BYTES + 1)
+        return data if len(data) <= MAX_RESPONSE_BYTES else None
 
     return send
 
@@ -209,6 +232,7 @@ class HeartbeatSender:
         ping_timeout: float = _PING_TIMEOUT_S,
         final_ping_timeout: float = _FINAL_PING_TIMEOUT_S,
         foreign_parent_spans: Callable[[], int] | None = None,
+        hints: HintInbox | None = None,
     ) -> None:
         self._interval = interval
         self._foreign_parent_spans = foreign_parent_spans
@@ -216,11 +240,18 @@ class HeartbeatSender:
         self._tracker = tracker
         self._ping_timeout = ping_timeout
         self._final_ping_timeout = final_ping_timeout
+        self._send_payload: Callable[[dict[str, Any], float, bool], bytes | None]
         if transport is not None:
-            # Injected transports (tests) take the payload only.
-            self._send: Callable[[dict[str, Any], float], None] = lambda p, _t: transport(p)
+            # Injected transports (tests) take the payload only and return no body.
+            def send_to_injected(payload: dict[str, Any], _timeout: float, _read: bool) -> None:
+                transport(payload)
+
+            self._send_payload = send_to_injected
         else:
-            self._send = _http_transport(url, headers, lambda: self._secret)
+            http = _http_transport(url, headers, lambda: self._secret)
+            self._send_payload = lambda payload, timeout, read: http(
+                _encode(payload), timeout, read
+            )
         # Injected: the same id rides spans as the service.instance.id
         # resource attribute, which is what lets the backend join heartbeats
         # to traces. Only _reset_in_child mints a fresh one (a forked child
@@ -231,6 +262,9 @@ class HeartbeatSender:
         # in the payload. None (tests, custom senders) sends no header, which
         # the receiver accepts only for ids that are not derived.
         self._secret = instance_secret
+        # Hints are delivered only to an authenticated ping, which needs the
+        # default transport (it sends the secret) and a derived id.
+        self._hints = hints if transport is None and instance_secret is not None else None
         self._refusal_warned = False
         self._stop_event = threading.Event()
         self._stopped = False
@@ -272,6 +306,8 @@ class HeartbeatSender:
         if self._thread is not None:
             self._thread.join(timeout=self._ping_timeout + 1.0)
         self._send_ping(stopped=True)
+        if self._hints is not None:
+            self._hints.close()  # never waits for an on_hint still running
 
     def _run(self) -> None:
         self._send_ping()
@@ -286,6 +322,10 @@ class HeartbeatSender:
             self._instance_id = str(uuid.uuid4())
         else:
             self._instance_id, self._secret = mint_instance_identity()
+        if self._hints is not None:
+            # The queue, the pending acks and the ids seen were the parent
+            # instance's; the child is a new instance.
+            self._hints.reset()
         self._stop_event = threading.Event()
         self.start()
 
@@ -314,27 +354,65 @@ class HeartbeatSender:
         if stopped:
             # Present-and-true only on the final ping; false is never sent.
             payload["stopped"] = True
+        if self._hints is not None:
+            payload["accepts"] = list(ACCEPTED_FORMATS)
+            payload["acked"] = []
         return payload
+
+    def _add_acks(self, payload: dict[str, Any]) -> list[str]:
+        """Put the pending acks in ``payload`` and return the ids it carries.
+
+        Drops the newest ids until the encoded request is within
+        ``MAX_REQUEST_BYTES``; those wait for a later ping. Never raises: on
+        any error the ping goes out with no acks.
+        """
+        if self._hints is None:
+            return []
+        try:
+            acked = self._hints.acks_to_send()
+            while acked:
+                payload["acked"] = acked
+                if len(_encode(payload)) <= MAX_REQUEST_BYTES:
+                    return acked
+                acked = acked[:-1]
+        except Exception as exc:  # noqa: BLE001 — an ack never costs a ping
+            logger.debug("rius hints: could not add acks to the heartbeat: %s", exc)
+        payload["acked"] = []
+        return []
 
     def _send_ping(self, *, stopped: bool = False) -> None:
         timeout = self._final_ping_timeout if stopped else self._ping_timeout
         try:
-            self._send(self._build_payload(stopped=stopped), timeout)
+            payload = self._build_payload(stopped=stopped)
+            acked = self._add_acks(payload)
+            # Only a hints ping reads the body; the stopped one's is ignored.
+            read = self._hints is not None and not stopped
+            body = self._send_payload(payload, timeout, read)
         except Exception as exc:  # noqa: BLE001 — never raises into user code
-            if getattr(exc, "code", None) == 403 and not self._refusal_warned:
-                # The one refusal a user can act on: something rewrote the
-                # instance id or this header between the SDK and the receiver.
-                self._refusal_warned = True
-                logger.warning(
-                    "rius heartbeat refused (403): the receiver did not accept this "
-                    "instance secret for instance_id %s; check that nothing overrides "
-                    "the instance id or strips the %s header",
-                    self._instance_id,
-                    INSTANCE_SECRET_HEADER,
-                )
-                return
-            if not self._delivery_warned:
-                self._delivery_warned = True
-                logger.warning("heartbeat delivery failed (%s); further failures log at DEBUG", exc)
-            else:
-                logger.debug("heartbeat delivery failed: %s", exc)
+            if self._hints is not None and getattr(exc, "code", None) == 413:
+                self._hints.request_too_large()
+            self._delivery_failed(exc)
+            return
+        if self._hints is not None:
+            self._hints.acks_delivered(acked)
+            if not stopped:
+                self._hints.accept(body)
+
+    def _delivery_failed(self, exc: Exception) -> None:
+        if getattr(exc, "code", None) == 403 and not self._refusal_warned:
+            # The one refusal a user can act on: something rewrote the
+            # instance id or this header between the SDK and the receiver.
+            self._refusal_warned = True
+            logger.warning(
+                "rius heartbeat refused (403): the receiver did not accept this "
+                "instance secret for instance_id %s; check that nothing overrides "
+                "the instance id or strips the %s header",
+                self._instance_id,
+                INSTANCE_SECRET_HEADER,
+            )
+            return
+        if not self._delivery_warned:
+            self._delivery_warned = True
+            logger.warning("heartbeat delivery failed (%s); further failures log at DEBUG", exc)
+        else:
+            logger.debug("heartbeat delivery failed: %s", exc)
