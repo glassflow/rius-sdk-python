@@ -7,6 +7,8 @@ arrived beside OpenInference's: two spans normalized as LLM per call, tokens
 and cost counted twice, a second ``error.type`` spelled ``not_found_error``,
 and an unflagged duplicate after ``mark_compaction()``. When rius registered
 that instrumentor, the SDK's chat span is exported as a plain client span.
+From openinference-instrumentation-anthropic 3.2.0, OpenInference stops the
+SDK from starting that chat span at all, so the demotion has nothing to do.
 
 These run each scenario in a fresh interpreter (``anthropic_native_span_run.py``):
 the global provider is set once per process, and with ``set_global=False``,
@@ -82,8 +84,34 @@ def _native(spans: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [s for s in spans if s["scope"] == _SCOPE]
 
 
-def _has_native_tracing() -> bool:
+def _sdk_traces() -> bool:
+    """Whether this anthropic starts spans of its own (from 1.14.0), seen without OpenInference."""
+    return bool(_native(_run(instruments=())["cases"]["create"]))
+
+
+def _openinference_leaves_the_sdk_chat_span() -> bool:
+    """Whether the SDK's chat span still starts beside OpenInference's.
+
+    From openinference-instrumentation-anthropic 3.2.0 it does not: OpenInference
+    stops the SDK from starting a chat span for a call it traces, so there is
+    nothing to demote. The SDK's tool-runner and other API spans still start.
+    """
     return bool(_native(_run()["cases"]["create"]))
+
+
+_NO_SDK_TRACING = "this anthropic has no tracing of its own (it starts in 1.14.0)"
+_SDK_CHAT_SPAN_LEFT = "this OpenInference leaves the SDK's chat span; the demotion tests cover it"
+_NO_SDK_CHAT_SPAN = (
+    "OpenInference stops the SDK's chat span (3.2.0 on): nothing to demote; "
+    "see test_openinference_that_stops_the_sdk_chat_span_leaves_one_llm_span"
+)
+
+
+def _needs_the_sdk_chat_span() -> None:
+    if not _sdk_traces():
+        pytest.skip(_NO_SDK_TRACING)
+    if not _openinference_leaves_the_sdk_chat_span():
+        pytest.skip(_NO_SDK_CHAT_SPAN)
 
 
 _ARGUS_USAGE = tuple(
@@ -137,8 +165,7 @@ def test_after_mark_compaction_only_the_next_call_is_flagged_and_has_no_duplicat
 @pytest.mark.integration
 @pytest.mark.parametrize("case", [*_CASES, "compaction"])
 def test_the_sdk_chat_span_is_a_plain_client_span(case: str) -> None:
-    if not _has_native_tracing():
-        pytest.skip("this anthropic has no tracing of its own (it starts in 1.14.0)")
+    _needs_the_sdk_chat_span()
     spans = _run()["cases"][case]
     native = _native(spans)
     assert native, "the SDK's span is kept, demoted, not dropped"
@@ -182,8 +209,7 @@ def test_a_bedrock_call_counts_once_and_its_sdk_span_keeps_its_provider() -> Non
 @pytest.mark.integration
 @pytest.mark.parametrize("case", _NOT_FOUND)
 def test_the_demoted_404_keeps_its_http_failure(case: str) -> None:
-    if not _has_native_tracing():
-        pytest.skip("this anthropic has no tracing of its own (it starts in 1.14.0)")
+    _needs_the_sdk_chat_span()
     (native,) = _native(_run()["cases"][case])
     assert native["attributes"]["http.response.status_code"] == 404
     # Named as OpenInference's span names it, so both group as one failure.
@@ -205,8 +231,8 @@ def test_without_openinference_the_sdk_span_names_the_exception_class(
 ) -> None:
     # The SDK writes the API's error code (not_found_error); exported, it
     # carries the class the SDK raised, as OpenInference's span would.
-    if not _has_native_tracing():
-        pytest.skip("this anthropic has no tracing of its own (it starts in 1.14.0)")
+    if not _sdk_traces():
+        pytest.skip(_NO_SDK_TRACING)
     (native,) = _native(_run(instruments=())["cases"][case])
     assert native["attributes"]["http.response.status_code"] == status
     assert native["attributes"]["error.type"] == expected
@@ -217,8 +243,7 @@ def test_without_openinference_the_sdk_span_names_the_exception_class(
 def test_the_stream_helper_span_in_a_trace_of_its_own_is_demoted_too() -> None:
     # The SDK's span for messages.stream() has no parent: it is not under
     # OpenInference's span, so nothing keyed on parentage can catch it.
-    if not _has_native_tracing():
-        pytest.skip("this anthropic has no tracing of its own (it starts in 1.14.0)")
+    _needs_the_sdk_chat_span()
     spans = _run()["cases"]["stream_helper"]
     (native,) = _native(spans)
     assert native["parent_id"] is None
@@ -227,8 +252,7 @@ def test_the_stream_helper_span_in_a_trace_of_its_own_is_demoted_too() -> None:
 
 @pytest.mark.integration
 def test_no_content_survives_on_the_demoted_span() -> None:
-    if not _has_native_tracing():
-        pytest.skip("this anthropic has no tracing of its own (it starts in 1.14.0)")
+    _needs_the_sdk_chat_span()
     run = _run(content_mode=True)
     for case in _CASES:
         for span in _native(run["cases"][case]):
@@ -240,8 +264,7 @@ def test_no_content_survives_on_the_demoted_span() -> None:
 
 @pytest.mark.integration
 def test_the_pending_snapshot_of_the_sdk_span_is_not_an_llm_span() -> None:
-    if not _has_native_tracing():
-        pytest.skip("this anthropic has no tracing of its own (it starts in 1.14.0)")
+    _needs_the_sdk_chat_span()
     spans = _run(partial_spans=True)["cases"]["create"]
     pending = [s for s in _native(spans) if s["attributes"].get("rius.span.pending")]
     assert pending
@@ -252,8 +275,8 @@ def test_the_pending_snapshot_of_the_sdk_span_is_not_an_llm_span() -> None:
 
 @pytest.mark.integration
 def test_without_openinference_the_sdk_span_stays_the_llm_span() -> None:
-    if not _has_native_tracing():
-        pytest.skip("this anthropic has no tracing of its own (it starts in 1.14.0)")
+    if not _sdk_traces():
+        pytest.skip(_NO_SDK_TRACING)
     run = _run(instruments=())
     for case in _CASES:
         (llm,) = _llm(run["cases"][case])
@@ -272,7 +295,7 @@ def test_bridged_to_another_sdk_each_call_still_counts_once(case: str) -> None:
     assert sum(_argus_badges_llm(a) for a in attributes) == 1
     if case not in _NOT_FOUND:
         assert sum(_argus_prices(a) for a in attributes) == 1
-    if not _has_native_tracing():
+    if not (_sdk_traces() and _openinference_leaves_the_sdk_chat_span()):
         return
     (ours,) = _native(run["cases"][case])
     assert "gen_ai.request.model" not in ours["attributes"]
@@ -288,13 +311,31 @@ def test_bridged_to_another_sdk_each_call_still_counts_once(case: str) -> None:
         assert theirs["attributes"]["error.type"] == "not_found_error"
 
 
+@pytest.mark.integration
+@pytest.mark.parametrize("case", [*_CASES, "compaction", "rate_limited"])
+def test_openinference_that_stops_the_sdk_chat_span_leaves_one_llm_span(case: str) -> None:
+    # The SDK traces on its own, but OpenInference (3.2.0 on) keeps it from
+    # starting a chat span for the calls it traces: no duplicate to demote.
+    if not _sdk_traces():
+        pytest.skip(_NO_SDK_TRACING)
+    if _openinference_leaves_the_sdk_chat_span():
+        pytest.skip(_SDK_CHAT_SPAN_LEFT)
+    spans = _run()["cases"][case]
+    # Any SDK span at all, not just one named chat: the demoter strips the
+    # operation name, so a chat span that leaked would no longer carry it.
+    assert _native(spans) == []
+    assert [s["scope"] for s in _llm(spans)] == ["openinference.instrumentation.anthropic"] * (
+        2 if case == "compaction" else 1
+    )
+
+
 _PATH_PREFIX = "secret-path-prefix"
 _MEMORIES_PATH = "/v1/memory_stores/memstore_1/memories"
 
 
 def _memories_list_span(capture_content: bool) -> dict[str, Any]:
-    if not _has_native_tracing():
-        pytest.skip("this anthropic has no tracing of its own (it starts in 1.14.0)")
+    if not _sdk_traces():
+        pytest.skip(_NO_SDK_TRACING)
     spans = _run(content_mode=True, capture_content=capture_content)["cases"].get("memories_list")
     if spans is None:
         pytest.skip("this anthropic has no memory stores")
@@ -333,8 +374,8 @@ def test_capture_off_drops_the_tool_runner_content_from_every_span(case: str) ->
     # In its content mode the SDK records the tool's arguments and output on
     # its execute_tool span, and the conversation on its chat spans. With
     # capture_content=False none of it may leave the process.
-    if not _has_native_tracing():
-        pytest.skip("this anthropic has no tracing of its own (it starts in 1.14.0)")
+    if not _sdk_traces():
+        pytest.skip(_NO_SDK_TRACING)
     spans = _run(content_mode=True, capture_content=False)["cases"].get(case)
     if spans is None:
         pytest.skip("this anthropic has no tool runner")
@@ -355,8 +396,8 @@ def test_with_capture_on_the_tool_runner_content_is_kept(case: str) -> None:
     # The same run with capture on: the SDK's execute_tool span does carry the
     # tool's arguments and output under its own keys, so the test above is not
     # passing on a run that never recorded them.
-    if not _has_native_tracing():
-        pytest.skip("this anthropic has no tracing of its own (it starts in 1.14.0)")
+    if not _sdk_traces():
+        pytest.skip(_NO_SDK_TRACING)
     spans = _run(content_mode=True)["cases"].get(case)
     if spans is None:
         pytest.skip("this anthropic has no tool runner")
