@@ -36,6 +36,15 @@ from typing import Any
 from opentelemetry import trace
 
 from .config import DEFAULT_HINTS_PER_TRACE
+from .semconv import (
+    RIUS_HINT_CHANNEL,
+    RIUS_HINT_CHANNEL_CALLBACK,
+    RIUS_HINT_CHANNEL_DRAIN,
+    RIUS_HINT_CODE,
+    RIUS_HINT_DELIVERED_EVENT,
+    RIUS_HINT_ID,
+    RIUS_HINT_TEMPLATE_VERSION,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -100,6 +109,41 @@ def current_trace_id() -> str | None:
     if not context.is_valid:
         return None
     return format(context.trace_id, "032x")
+
+
+RootSpanLookup = Callable[[str], "trace.Span | None"]
+
+
+def _no_root_span(trace_id: str) -> trace.Span | None:
+    return None
+
+
+def record_delivery(hint: Hint, channel: str, root_span: RootSpanLookup) -> None:
+    """Record ``rius.hint.delivered`` for a hint the SDK has just handed over.
+
+    The event goes on the root span of the hint's run while that run is open.
+    A hint with no run goes on the current span of the thread handing it over,
+    so an instance-wide hint given to ``on_hint`` (on its own thread, with no
+    current span) records nothing. Carries the hint's identity, never its text.
+    Never raises.
+    """
+    try:
+        run = hint.trace_id
+        span = root_span(run) if run is not None else trace.get_current_span()
+        # A root that ended a moment ago, before the tracker saw it end.
+        if span is None or not span.is_recording():
+            return
+        span.add_event(
+            RIUS_HINT_DELIVERED_EVENT,
+            {
+                RIUS_HINT_ID: hint.id,
+                RIUS_HINT_CODE: hint.code,
+                RIUS_HINT_TEMPLATE_VERSION: hint.template_version,
+                RIUS_HINT_CHANNEL: channel,
+            },
+        )
+    except Exception as exc:  # noqa: BLE001 — recording a delivery never breaks one
+        logger.debug("rius hints: could not record the delivery of %s: %s", hint.id, exc)
 
 
 def parse_response(body: bytes | None) -> list[Any]:
@@ -168,9 +212,15 @@ class _CallbackWorker:
     it, so it never holds up shutdown.
     """
 
-    def __init__(self, callback: Callable[[Hint], object], max_pending: int) -> None:
+    def __init__(
+        self,
+        callback: Callable[[Hint], object],
+        max_pending: int,
+        root_span: RootSpanLookup = _no_root_span,
+    ) -> None:
         self._callback = callback
         self._max_pending = max_pending
+        self._root_span = root_span
         self._warned = False
         self._fresh()
 
@@ -209,6 +259,7 @@ class _CallbackWorker:
             self._call(hint)
 
     def _call(self, hint: Hint) -> None:
+        record_delivery(hint, RIUS_HINT_CHANNEL_CALLBACK, self._root_span)
         try:
             self._callback(hint)
         except BaseException as exc:  # noqa: BLE001 — SystemExit must not end the worker
@@ -251,12 +302,14 @@ class HintInbox:
         on_hint: Callable[[Hint], object] | None = None,
         verify: Callable[[Mapping[str, Any]], bool] = verify_hint,
         max_pending_callbacks: int = _MAX_PENDING_CALLBACKS,
+        root_span: RootSpanLookup = _no_root_span,
     ) -> None:
         self._open_traces = open_traces
         self._per_trace = per_trace
         self._max_queued = max_queued
+        self._root_span = root_span
         self._callbacks = (
-            None if on_hint is None else _CallbackWorker(on_hint, max_pending_callbacks)
+            None if on_hint is None else _CallbackWorker(on_hint, max_pending_callbacks, root_span)
         )
         self._verify = verify
         self._lock = threading.Lock()
@@ -396,6 +449,6 @@ class HintInbox:
             for hint in self._queue:
                 (drained if hint.trace_id in (None, wanted) else kept).append(hint)
             self._queue = kept
-        # This is where a hint is handed to the agent: the place to record its
-        # delivery on the current span once the semantic conventions name it.
+        for hint in drained:
+            record_delivery(hint, RIUS_HINT_CHANNEL_DRAIN, self._root_span)
         return drained
