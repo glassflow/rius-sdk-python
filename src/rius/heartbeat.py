@@ -99,6 +99,9 @@ class OpenRootSpanTracker(SpanProcessor):
         # trace_id (32-hex) -> count of open root spans in that trace (a
         # trace id normally has one root, but be safe about duplicates).
         self._open: dict[str, int] = {}
+        # trace_id -> its open root spans, oldest first, so a hint's delivery
+        # can be recorded on its run's root. Dropped when the root ends.
+        self._roots: dict[str, list[Span]] = {}
 
     def on_start(self, span: Span, parent_context: Context | None = None) -> None:
         if span.parent is not None:
@@ -106,7 +109,10 @@ class OpenRootSpanTracker(SpanProcessor):
         context = span.get_span_context()
         if context is None:
             return
-        self._on_root_start(format(context.trace_id, "032x"))
+        trace_id = format(context.trace_id, "032x")
+        self._on_root_start(trace_id)
+        with self._lock:
+            self._roots.setdefault(trace_id, []).append(span)
 
     def on_end(self, span: ReadableSpan) -> None:
         if span.parent is not None:
@@ -121,6 +127,22 @@ class OpenRootSpanTracker(SpanProcessor):
                 self._open.pop(trace_id, None)
             else:
                 self._open[trace_id] = count
+            # on_end gets a read-only snapshot, not the started span: match by id.
+            roots = [
+                root
+                for root in self._roots.get(trace_id, [])
+                if root.get_span_context().span_id != context.span_id
+            ]
+            if roots:
+                self._roots[trace_id] = roots
+            else:
+                self._roots.pop(trace_id, None)
+
+    def root_span(self, trace_id: str) -> Span | None:
+        """The oldest open root span of ``trace_id``, or ``None`` once none is open."""
+        with self._lock:
+            roots = self._roots.get(trace_id.lower())
+            return roots[0] if roots else None
 
     def _on_root_start(self, trace_id: str) -> None:
         with self._lock:

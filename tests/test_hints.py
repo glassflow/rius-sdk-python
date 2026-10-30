@@ -795,13 +795,13 @@ def test_drain_and_accept_running_together_lose_and_duplicate_nothing() -> None:
 
 
 def _hint_client(endpoint: _Endpoint, **kwargs: Any) -> rius.GlassflowClient:
+    kwargs.setdefault("span_exporter", InMemorySpanExporter())
     return init(
         service_name="svc",
         api_key="k",
         endpoint=endpoint.base_url,
         heartbeat=True,
         heartbeat_interval=300.0,
-        span_exporter=InMemorySpanExporter(),
         **kwargs,
     )
 
@@ -956,3 +956,138 @@ def test_a_second_client_keeps_its_own_hints(endpoint: _Endpoint) -> None:
 def test_hint_names_are_public() -> None:
     assert "Hint" in rius.__all__
     assert "drain_hints" in rius.__all__
+
+
+# ---------------------------------------------------------------------------
+# Delivery events: rius.hint.delivered on the run's root span
+# ---------------------------------------------------------------------------
+
+
+def _delivered(exporter: InMemorySpanExporter, span_name: str) -> list[dict[str, Any]]:
+    (span,) = [s for s in exporter.get_finished_spans() if s.name == span_name]
+    return [dict(e.attributes or {}) for e in span.events if e.name == "rius.hint.delivered"]
+
+
+def _ping(client: rius.GlassflowClient) -> None:
+    assert client._heartbeat is not None  # noqa: SLF001
+    client._heartbeat._send_ping()  # noqa: SLF001
+
+
+def test_draining_a_hint_records_its_delivery_on_the_runs_root_span(endpoint: _Endpoint) -> None:
+    exporter = InMemorySpanExporter()
+    client = _hint_client(endpoint, set_global=False, hints=True, span_exporter=exporter)
+    try:
+        endpoint.wait_for(1)
+        tracer = client.get_tracer()
+        with tracer.start_as_current_span("run") as run:
+            this_trace = format(run.get_span_context().trace_id, "032x")
+            endpoint.reply(200, _body(_wire_hint(1, this_trace)))
+            _ping(client)
+            with tracer.start_as_current_span("model call"):
+                assert _ids(client.drain_hints()) == [_hint_id(1)]
+    finally:
+        client.shutdown()
+    assert _delivered(exporter, "run") == [
+        {
+            "rius.hint.id": _hint_id(1),
+            "rius.hint.code": "CF-01",
+            "rius.hint.template_version": 1,
+            "rius.hint.channel": "drain",
+        }
+    ]
+    assert _delivered(exporter, "model call") == []
+
+
+def test_on_hint_records_a_callback_delivery_and_drain_a_second_one(endpoint: _Endpoint) -> None:
+    exporter = InMemorySpanExporter()
+    received: list[Hint] = []
+    client = _hint_client(
+        endpoint, set_global=False, hints=True, on_hint=received.append, span_exporter=exporter
+    )
+    try:
+        endpoint.wait_for(1)
+        with client.get_tracer().start_as_current_span("run") as run:
+            this_trace = format(run.get_span_context().trace_id, "032x")
+            endpoint.reply(200, _body(_wire_hint(1, this_trace)))
+            _ping(client)
+            assert _eventually(lambda: len(received) == 1)
+            endpoint.reply(200, _body(_wire_hint(1, this_trace)))  # a redelivery
+            _ping(client)
+            assert _ids(client.drain_hints()) == [_hint_id(1)]
+            assert client.drain_hints() == []
+    finally:
+        client.shutdown()
+    channels = [event["rius.hint.channel"] for event in _delivered(exporter, "run")]
+    assert sorted(channels) == ["callback", "drain"]
+
+
+def test_a_delivery_event_never_carries_the_hints_text(endpoint: _Endpoint) -> None:
+    exporter = InMemorySpanExporter()
+    client = _hint_client(endpoint, set_global=False, hints=True, span_exporter=exporter)
+    try:
+        endpoint.wait_for(1)
+        with client.get_tracer().start_as_current_span("run") as run:
+            this_trace = format(run.get_span_context().trace_id, "032x")
+            endpoint.reply(200, _body(_wire_hint(1, this_trace, text="secret advice")))
+            _ping(client)
+            client.drain_hints()
+    finally:
+        client.shutdown()
+    (event,) = _delivered(exporter, "run")
+    assert "secret advice" not in json.dumps(event)
+
+
+def test_an_instance_wide_hint_is_recorded_on_the_current_span_or_not_at_all(
+    endpoint: _Endpoint,
+) -> None:
+    exporter = InMemorySpanExporter()
+    client = _hint_client(endpoint, set_global=False, hints=True, span_exporter=exporter)
+    try:
+        endpoint.wait_for(1)
+        endpoint.reply(200, _body(_wire_hint(1), _wire_hint(2)))
+        _ping(client)
+        tracer = client.get_tracer()
+        with tracer.start_as_current_span("run"), tracer.start_as_current_span("step"):
+            assert _ids(client.drain_hints()) == [_hint_id(1), _hint_id(2)]
+        endpoint.reply(200, _body(_wire_hint(3)))
+        _ping(client)
+        assert _ids(client.drain_hints()) == [_hint_id(3)]  # outside any span: no event
+    finally:
+        client.shutdown()
+    assert [e["rius.hint.id"] for e in _delivered(exporter, "step")] == [_hint_id(1), _hint_id(2)]
+    assert _delivered(exporter, "run") == []
+
+
+def test_draining_a_finished_runs_hint_records_nothing_and_still_returns_it(
+    endpoint: _Endpoint,
+) -> None:
+    exporter = InMemorySpanExporter()
+    client = _hint_client(endpoint, set_global=False, hints=True, span_exporter=exporter)
+    try:
+        endpoint.wait_for(1)
+        run = client.get_tracer().start_span("run")
+        this_trace = format(run.get_span_context().trace_id, "032x")
+        endpoint.reply(200, _body(_wire_hint(1, this_trace)))
+        _ping(client)
+        run.end()
+        assert _ids(client.drain_hints(trace_id=this_trace)) == [_hint_id(1)]
+    finally:
+        client.shutdown()
+    assert _delivered(exporter, "run") == []
+
+
+def test_the_tracker_returns_a_runs_open_root_span_until_it_ends() -> None:
+    exporter = InMemorySpanExporter()
+    client = init(set_global=False, service_name="svc", heartbeat=False, span_exporter=exporter)
+    tracker = OpenRootSpanTracker()
+    client._provider.add_span_processor(tracker)  # noqa: SLF001 — test wiring
+    try:
+        tracer = client.get_tracer()
+        with tracer.start_as_current_span("run") as run:
+            trace_id = format(run.get_span_context().trace_id, "032x")
+            with tracer.start_as_current_span("child"):
+                assert tracker.root_span(trace_id) is run
+        assert tracker.root_span(trace_id) is None
+        assert tracker.root_span(TRACE_A) is None
+    finally:
+        client.shutdown()

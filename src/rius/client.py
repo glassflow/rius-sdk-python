@@ -923,7 +923,10 @@ def _do_init(
         pipeline.add_span_processor(tracker)
         if config.hints and heartbeat_transport is None:
             inbox = HintInbox(
-                tracker.open_trace_ids, per_trace=config.hints_per_trace, on_hint=on_hint
+                tracker.open_trace_ids,
+                per_trace=config.hints_per_trace,
+                on_hint=on_hint,
+                root_span=tracker.root_span,
             )
         sender = HeartbeatSender(
             url=config.heartbeat_endpoint,
