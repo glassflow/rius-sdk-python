@@ -7,6 +7,8 @@ arrived beside OpenInference's: two spans normalized as LLM per call, tokens
 and cost counted twice, a second ``error.type`` spelled ``not_found_error``,
 and an unflagged duplicate after ``mark_compaction()``. When rius registered
 that instrumentor, the SDK's chat span is exported as a plain client span.
+From openinference-instrumentation-anthropic 3.2.0, OpenInference stops the
+SDK from starting that chat span at all, so the demotion has nothing to do.
 
 These run each scenario in a fresh interpreter (``anthropic_native_span_run.py``):
 the global provider is set once per process, and with ``set_global=False``,
@@ -87,10 +89,6 @@ def _sdk_traces() -> bool:
     return bool(_native(_run(instruments=())["cases"]["create"]))
 
 
-def _sdk_chat_spans(spans: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    return [s for s in _native(spans) if s["attributes"].get("gen_ai.operation.name") == "chat"]
-
-
 def _openinference_leaves_the_sdk_chat_span() -> bool:
     """Whether the SDK's chat span still starts beside OpenInference's.
 
@@ -102,6 +100,7 @@ def _openinference_leaves_the_sdk_chat_span() -> bool:
 
 
 _NO_SDK_TRACING = "this anthropic has no tracing of its own (it starts in 1.14.0)"
+_SDK_CHAT_SPAN_LEFT = "this OpenInference leaves the SDK's chat span; the demotion tests cover it"
 _NO_SDK_CHAT_SPAN = (
     "OpenInference stops the SDK's chat span (3.2.0 on): nothing to demote; "
     "see test_openinference_that_stops_the_sdk_chat_span_leaves_one_llm_span"
@@ -320,9 +319,11 @@ def test_openinference_that_stops_the_sdk_chat_span_leaves_one_llm_span(case: st
     if not _sdk_traces():
         pytest.skip(_NO_SDK_TRACING)
     if _openinference_leaves_the_sdk_chat_span():
-        pytest.skip("this OpenInference leaves the SDK's chat span; the demotion tests cover it")
+        pytest.skip(_SDK_CHAT_SPAN_LEFT)
     spans = _run()["cases"][case]
-    assert _sdk_chat_spans(spans) == []
+    # Any SDK span at all, not just one named chat: the demoter strips the
+    # operation name, so a chat span that leaked would no longer carry it.
+    assert _native(spans) == []
     assert [s["scope"] for s in _llm(spans)] == ["openinference.instrumentation.anthropic"] * (
         2 if case == "compaction" else 1
     )
