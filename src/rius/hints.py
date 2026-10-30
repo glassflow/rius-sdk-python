@@ -122,13 +122,16 @@ def record_delivery(hint: Hint, channel: str, root_span: RootSpanLookup) -> None
     """Record ``rius.hint.delivered`` for a hint the SDK has just handed over.
 
     The event goes on the root span of the hint's run while that run is open.
-    A hint with no run goes on the current span; outside any recording span the
-    event is a no-op. Carries the hint's identity, never its text. Never raises.
+    A hint with no run goes on the current span of the thread handing it over,
+    so an instance-wide hint given to ``on_hint`` (on its own thread, with no
+    current span) records nothing. Carries the hint's identity, never its text.
+    Never raises.
     """
     try:
         run = hint.trace_id
         span = root_span(run) if run is not None else trace.get_current_span()
-        if span is None:
+        # A root that ended a moment ago, before the tracker saw it end.
+        if span is None or not span.is_recording():
             return
         span.add_event(
             RIUS_HINT_DELIVERED_EVENT,

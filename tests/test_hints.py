@@ -1091,3 +1091,60 @@ def test_the_tracker_returns_a_runs_open_root_span_until_it_ends() -> None:
         assert tracker.root_span(TRACE_A) is None
     finally:
         client.shutdown()
+
+
+def test_a_root_span_that_never_ends_is_not_kept_alive_by_the_tracker() -> None:
+    import gc
+
+    client = init(
+        set_global=False, service_name="svc", heartbeat=False, span_exporter=InMemorySpanExporter()
+    )
+    tracker = OpenRootSpanTracker()
+    client._provider.add_span_processor(tracker)  # noqa: SLF001 — test wiring
+    try:
+        abandoned = client.get_tracer().start_span("run")  # never ended
+        trace_id = format(abandoned.get_span_context().trace_id, "032x")
+        assert tracker.root_span(trace_id) is abandoned
+        del abandoned
+        gc.collect()
+        assert tracker.root_span(trace_id) is None
+    finally:
+        client.shutdown()
+
+
+def test_a_forked_child_forgets_the_parents_open_runs(endpoint: _Endpoint) -> None:
+    client = init(
+        set_global=False, service_name="svc", heartbeat=False, span_exporter=InMemorySpanExporter()
+    )
+    tracker = OpenRootSpanTracker()
+    client._provider.add_span_processor(tracker)  # noqa: SLF001 — test wiring
+    sender = _sender(endpoint, inbox=_inbox(tracker), tracker=tracker)
+    run = client.get_tracer().start_span("run")
+    trace_id = format(run.get_span_context().trace_id, "032x")
+    try:
+        assert tracker.open_trace_ids() == [trace_id]
+        sender._reset_in_child()  # noqa: SLF001 — what the fork hook runs in the child
+        assert tracker.open_trace_ids() == []
+        assert tracker.root_span(trace_id) is None
+    finally:
+        sender.stop()
+        run.end()
+        client.shutdown()
+
+
+def test_a_failing_or_ended_root_span_lookup_never_breaks_a_drain() -> None:
+    def broken(trace_id: str) -> Any:
+        raise RuntimeError("lookup failed")
+
+    client = init(
+        set_global=False, service_name="svc", heartbeat=False, span_exporter=InMemorySpanExporter()
+    )
+    try:
+        ended = client.get_tracer().start_span("run")
+        ended.end()
+        for lookup in (broken, lambda trace_id: ended):
+            inbox = _inbox(_open(TRACE_A), root_span=lookup)
+            inbox.accept(_body(_wire_hint(1, TRACE_A)))
+            assert _ids(inbox.drain(TRACE_A)) == [_hint_id(1)]
+    finally:
+        client.shutdown()
