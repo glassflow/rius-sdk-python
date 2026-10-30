@@ -498,7 +498,8 @@ def test_uninstall_restores_the_hooked_classes(openai_answers: None) -> None:
         (VERIFIED_VERSIONS[0], True),
         (VERIFIED_VERSIONS[1], True),
         ("0.1.66", False),
-        ("0.1.81", False),
+        ("0.1.81", True),
+        ("0.1.82", False),
         ("0.2.0", False),
     ],
 )
