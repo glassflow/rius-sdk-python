@@ -17,11 +17,17 @@ against it unchanged:
   once (at-least-once), and is dropped once it expires.
 - A run-scoped hint is returned while its run is in ``open_traces``. When the
   list is complete and the hint is older than one ping interval, a run missing
-  from it has finished, and the hint is dropped undelivered.
+  from it has finished, and the hint is dropped undelivered. "One ping
+  interval" is ``--interval`` here (default 5 s, the agent's); the real
+  receiver uses ARGUS_HEARTBEAT_PING_INTERVAL (default 15 s), so drops come
+  later on a real stack.
+- A ``stopped`` ping removes the instance's hints. One response carries at
+  most 8 hints and 16 KiB of them; the rest wait for the next ping.
 
 ``/admin/hint`` takes ``text`` and optionally ``code``, ``template_version``,
-``params``, ``trace_id`` and ``instance_id``. It defaults to the last instance
-that pinged with authentication and to that instance's first open run.
+``params``, ``span_ids``, ``trace_id`` and ``instance_id``. It defaults to the
+last instance that pinged with authentication and to that instance's first
+open run, and only queues run-scoped hints, as the hint writer does.
 OTLP traces are accepted and dropped.
 """
 
@@ -32,6 +38,7 @@ import base64
 import hashlib
 import json
 import os
+import re
 import threading
 import time
 import uuid
@@ -40,7 +47,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
 SECRET_HEADER = "Rius-Instance-Secret"
+MIN_SECRET_BYTES, MAX_SECRET_BYTES = 32, 64
 OPEN_TRACES_CAP = 32
+# The most hints, and bytes of them, one response carries; the rest wait.
+MAX_HINTS_PER_RESPONSE, MAX_RESPONSE_BYTES = 8, 16 * 1024
 LIFETIME = timedelta(minutes=10)
 CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 
@@ -63,16 +73,33 @@ def derive_instance_id(secret: bytes) -> str:
     return str(uuid.UUID(bytes=bytes(b)))
 
 
-def authenticate(instance_id: str, header: str | None) -> bool | None:
-    """True if authenticated, False for a legacy ping, None to refuse it (403)."""
+def is_derived(instance_id: str) -> bool:
+    try:
+        return uuid.UUID(instance_id).version == 8
+    except ValueError:
+        return False
+
+
+def authenticate(instance_id: str, header: str | None) -> int | bool:
+    """True if authenticated, False for a legacy ping, else the status to refuse it with.
+
+    As the receiver's CheckInstanceSecret: a derived (v8) id without its
+    secret, or a secret that does not derive the id exactly, is 403; a header
+    that is not unpadded base64url of 32 to 64 bytes is 400. Any other id
+    without a secret is legacy.
+    """
     header = (header or "").strip()
     if not header:
-        return None if uuid.UUID(instance_id).version == 8 else False
+        return 403 if is_derived(instance_id) else False
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", header):
+        return 400
     try:
         secret = base64.urlsafe_b64decode(header + "=" * (-len(header) % 4))
     except ValueError:
-        return None
-    return derive_instance_id(secret) == instance_id
+        return 400
+    if not MIN_SECRET_BYTES <= len(secret) <= MAX_SECRET_BYTES:
+        return 400
+    return True if derive_instance_id(secret) == instance_id else 403
 
 
 def new_hint_id(now: datetime) -> str:
@@ -87,10 +114,19 @@ def stamp(t: datetime) -> str:
 
 def due(instance: str, ping: dict[str, Any], now: datetime) -> list[dict[str, Any]]:
     """Apply the ping's acks and expiry, then the hints to return on it."""
+    if ping.get("stopped"):
+        dropped = pending.pop(instance, [])
+        if dropped:
+            log(f"  stopped: removed {len(dropped)} hint(s)")
+        return []
     acked = set(ping.get("acked") or [])
-    traces = set(ping.get("open_traces") or [])
-    complete = ping.get("open_trace_count", 0) <= OPEN_TRACES_CAP
-    keep, out = [], []
+    listed = [t.lower() for t in ping.get("open_traces") or []]
+    traces = set(listed)
+    count = ping.get("open_trace_count", 0)
+    complete = count <= OPEN_TRACES_CAP and len(listed) >= count
+    keep: list[dict[str, Any]] = []
+    out: list[dict[str, Any]] = []
+    size = 0
     for hint in pending.get(instance, []):
         if hint["id"] in acked:
             log(f"  acked {hint['id']}")
@@ -100,7 +136,9 @@ def due(instance: str, ping: dict[str, Any], now: datetime) -> list[dict[str, An
             continue
         run = hint.get("trace_id")
         if run is None or run in traces or not complete:
-            out.append(hint)
+            size += len(json.dumps(hint))
+            if len(out) < MAX_HINTS_PER_RESPONSE and size <= MAX_RESPONSE_BYTES:
+                out.append(hint)
         elif now - datetime.fromisoformat(hint["created_at"].replace("Z", "+00:00")) > interval:
             log(f"  dropped {hint['id']}: run {run[:8]} has finished")
             continue
@@ -112,30 +150,44 @@ def due(instance: str, ping: dict[str, Any], now: datetime) -> list[dict[str, An
 class Handler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:  # noqa: N802
         body = self.rfile.read(int(self.headers.get("Content-Length", "0")))
-        if self.path == "/v1/heartbeat":
-            self._heartbeat(json.loads(body))
-        elif self.path == "/admin/hint":
-            self._queue(json.loads(body))
-        else:  # /v1/traces and anything else
+        if self.path not in ("/v1/heartbeat", "/admin/hint"):  # /v1/traces and the rest
             self._reply(200)
+            return
+        try:
+            item = json.loads(body)
+        except ValueError:
+            self._reply(400, {"error": "body is not JSON"})
+            return
+        if not isinstance(item, dict):
+            self._reply(400, {"error": "body is not a JSON object"})
+        elif self.path == "/v1/heartbeat":
+            self._heartbeat(item)
+        else:
+            self._queue(item)
 
     def _heartbeat(self, ping: dict[str, Any]) -> None:
         global last_instance
-        instance = ping["instance_id"]
+        instance = ping.get("instance_id")
+        if not isinstance(instance, str) or not instance:
+            self._reply(400, {"error": "no instance_id"})
+            return
         authenticated = authenticate(instance, self.headers.get(SECRET_HEADER))
-        if authenticated is None:
-            log(f"heartbeat {instance[:8]} refused: instance secret does not match")
-            self._reply(403)
+        if not isinstance(authenticated, bool):
+            log(f"heartbeat {instance[:8]} refused with {authenticated}: bad instance secret")
+            self._reply(authenticated)
             return
         now = datetime.now(timezone.utc)
         with lock:
             hints: list[dict[str, Any]] = []
             if authenticated and "hints" in (ping.get("accepts") or []):
                 last_instance = instance
-                open_runs[instance] = (ping.get("open_traces") or [], ping["open_trace_count"])
+                open_runs[instance] = (
+                    [t.lower() for t in ping.get("open_traces") or []],
+                    ping.get("open_trace_count", 0),
+                )
                 hints = due(instance, ping, now)
         log(
-            f"heartbeat {instance[:8]} open_traces={ping['open_trace_count']} "
+            f"heartbeat {instance[:8]} open_traces={ping.get('open_trace_count', 0)} "
             f"authenticated={authenticated} -> {len(hints)} hint(s)"
         )
         if hints:
@@ -144,6 +196,9 @@ class Handler(BaseHTTPRequestHandler):
             self._reply(204)
 
     def _queue(self, item: dict[str, Any]) -> None:
+        if not isinstance(item.get("text"), str) or not item["text"]:
+            self._reply(400, {"error": "text is required"})
+            return
         now = datetime.now(timezone.utc)
         with lock:
             instance = item.get("instance_id") or last_instance
@@ -151,7 +206,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._reply(409, {"error": "no instance has pinged with hints on yet"})
                 return
             runs = open_runs.get(instance, ([], 0))[0]
-            trace_id = item.get("trace_id") or (runs[0] if runs else None)
+            trace_id = (item.get("trace_id") or (runs[0] if runs else "")).lower() or None
             if trace_id is None:
                 self._reply(409, {"error": "the instance has no open run"})
                 return
