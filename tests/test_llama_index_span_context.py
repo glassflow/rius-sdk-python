@@ -380,6 +380,7 @@ def test_an_abandoned_stream_never_counts_its_usage_twice(exported: Exported) ->
     for call in outer:
         trace = [s for s in spans if s.context.trace_id == call.context.trace_id]
         assert _usage_records(trace) <= 1
+    assert _usage_records(spans) <= len(outer)
     assert _usage_records(outer) == 0
 
 
