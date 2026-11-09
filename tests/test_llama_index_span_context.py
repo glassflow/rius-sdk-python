@@ -357,9 +357,8 @@ def _usage_records(spans: list[ReadableSpan]) -> int:
 def test_an_abandoned_stream_never_counts_its_usage_twice(exported: Exported) -> None:
     # Abandoned after every chunk it yields, so the provider stream has sent
     # its usage but was never read to its end. The LlamaIndex span ends with
-    # no usage; the openai instrumentor ends its span only on the provider
-    # stream's end, so the call's usage is counted at most once (today: not
-    # at all, since that span never ends).
+    # no usage; only the openai instrumentor's span may carry the call's
+    # usage, so each call's usage is counted at most once.
     def abandon() -> None:
         stream = _llm().stream_chat(MESSAGES)
         for _ in range(5):
@@ -378,7 +377,9 @@ def test_an_abandoned_stream_never_counts_its_usage_twice(exported: Exported) ->
     spans = exported.spans()
     outer = [s for s in spans if s.name in ("OpenAI.stream_chat", "OpenAI.astream_chat")]
     assert len(outer) == 2
-    assert _usage_records(spans) <= 1
+    for call in outer:
+        trace = [s for s in spans if s.context.trace_id == call.context.trace_id]
+        assert _usage_records(trace) <= 1
     assert _usage_records(outer) == 0
 
 
