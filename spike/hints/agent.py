@@ -22,17 +22,42 @@ then puts the hint in the ``argus_hints`` bucket itself. That put overwrites
 the instance's pending hints and skips the writer's compare-and-set, which is
 fine for a test instance and nothing else.
 
-The queries change from search to search, so this loop does not meet CF-01's
-identical-arguments condition; a real detector run needs a variant that
-repeats the same call.
+The default scenario changes its query from search to search, so it does not
+meet CF-01's identical-arguments condition. ``--scenario identical`` is the
+variant the real detector needs (RIUS-1727): search_docs is called again and
+again with the same query, each call a TOOL span with its arguments captured,
+sequential and successful, while the run stays open. Run it against a real
+stack (receiver, sink, alert-manager with the tool_loop rule and the hint
+writer), with no ``--auto-hint``: the hint then comes from the real detector
+and writer.
+
+    RIUS_ENDPOINT=... RIUS_API_KEY=... MODEL=scripted \
+        uv run python spike/hints/agent.py --scenario identical --session s-1 --hold 120
+
+``MODEL=scripted`` replaces the model with a fixed script and makes no API
+call: it searches until a hint arrives, then looks the page up and answers;
+with no hint it searches until ``--hold`` seconds after its first call and
+gives up. Its model calls are LLM spans with the conversation captured (or,
+with ``--no-transcript``, none), as an instrumented provider records them.
+Scripted runs validate transport, detection, assignment and the measurement
+report; they say nothing about whether a model follows a hint.
+
+Telemetry faults, for the measurement's coverage checks: ``--duplicate-export``
+sends every batch twice (an exporter retry after a lost response);
+``--late-after A --late-by B`` holds every batch exported from A seconds after
+start for B seconds (late telemetry). ``--runs N`` runs N runs one after the
+other in the same session, so a session keeps its arm across runs.
+
+Hints need the run's root stored while it is open, so the scenario turns
+partial spans on; with them off the writer finds no open run to address.
 
 The last line printed is a JSON summary, for collecting repeated runs. It is
 printed for every run, including one that failed, with its outcome (answer,
 max_turns, refusal or error) and whether the answer was correct.
 
 Env: RIUS_ENDPOINT, RIUS_API_KEY, RIUS_HINT_WORKSPACE, ANTHROPIC_API_KEY,
-MODEL (default claude-opus-5-5), EFFORT (default low), HINT_VARIANT (slug,
-tool or vague; default slug).
+MODEL (default claude-opus-5-5; ``scripted`` for no model), EFFORT (default
+low), HINT_VARIANT (slug, tool or vague; default slug).
 """
 
 from __future__ import annotations
@@ -42,16 +67,24 @@ import json
 import logging
 import os
 import subprocess
+import threading
 import time
 import urllib.request
+from collections.abc import Sequence
+from contextlib import nullcontext
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
+from itertools import cycle
 from typing import Any
 
 import anthropic
 from opentelemetry import trace
+from opentelemetry.sdk.trace import ReadableSpan
+from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
 
 import rius
 from rius import SpanKind
+from rius.client import build_span_exporter
 
 MODEL = os.environ.get("MODEL", "claude-opus-5-5")
 EFFORT = os.environ.get("EFFORT", "low")
@@ -84,6 +117,19 @@ SYSTEM = (
     "Use search_docs to find information. The docs are known to contain the answer, "
     "so if a search finds nothing, rephrase the query and search again."
 )
+
+# The identical-arguments scenario: the same query every time, as an agent
+# does that retries a call it believes is only slow to warm up.
+IDENTICAL_QUERY = "webhook retry policy"
+SYSTEM_IDENTICAL = (
+    "You answer questions about our payments platform from the internal docs. "
+    f"Use search_docs with the query {IDENTICAL_QUERY!r}. The search index is warming up: "
+    "if it returns nothing, run exactly the same search again."
+)
+# The scripted model's pause before each call, in seconds. Irregular, so the
+# loop is no polling; --regular uses a fixed pause, which is.
+IRREGULAR_GAPS_S = (2.0, 5.5, 3.0, 8.0, 4.0, 6.5, 2.5, 7.0)
+REGULAR_GAP_S = 5.0
 
 TOOLS: list[dict[str, Any]] = [
     {
@@ -118,8 +164,8 @@ PAGES = {
 }
 
 
-def run_tool(name: str, args: dict[str, Any]) -> str:
-    time.sleep(TOOL_LATENCY_S)  # keeps the run long enough for heartbeats to land
+def run_tool(name: str, args: dict[str, Any], latency: float = TOOL_LATENCY_S) -> str:
+    time.sleep(latency)  # keeps the run long enough for heartbeats to land
     if name == "search_docs":
         return json.dumps({"results": [], "total": 0})  # the silent failure
     if name == "lookup_index":
@@ -191,16 +237,227 @@ def log(msg: str) -> None:
     print(f"{time.strftime('%H:%M:%S')} {msg}", flush=True)
 
 
+class DuplicatingExporter(SpanExporter):
+    """Sends every batch twice, as an exporter retry after a lost response does."""
+
+    def __init__(self, inner: SpanExporter) -> None:
+        self._inner = inner
+
+    def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
+        first = self._inner.export(spans)
+        self._inner.export(spans)
+        return first
+
+    def shutdown(self) -> None:
+        self._inner.shutdown()
+
+    def force_flush(self, timeout_millis: int = 30_000) -> bool:
+        return self._inner.force_flush(timeout_millis)
+
+
+class LateExporter(SpanExporter):
+    """Holds every batch exported from ``after`` seconds on for ``by`` seconds."""
+
+    def __init__(self, inner: SpanExporter, after: float, by: float) -> None:
+        self._inner, self._by = inner, by
+        self._from = time.monotonic() + after
+        self._held: list[tuple[float, Sequence[ReadableSpan]]] = []
+        self._lock = threading.Lock()
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._flush_due, daemon=True)
+        self._thread.start()
+
+    def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
+        now = time.monotonic()
+        if now < self._from:
+            return self._inner.export(spans)
+        with self._lock:
+            self._held.append((now + self._by, list(spans)))
+        return SpanExportResult.SUCCESS
+
+    def _flush_due(self, force: bool = False) -> None:
+        while True:
+            with self._lock:
+                due = [b for b in self._held if force or b[0] <= time.monotonic()]
+                self._held = [b for b in self._held if b not in due]
+            for _, batch in due:
+                self._inner.export(batch)
+            if force or self._stop.wait(1.0):
+                return
+
+    def shutdown(self) -> None:
+        # Exit waits for the held batches: late, not lost.
+        with self._lock:
+            wait = max((at for at, _ in self._held), default=0.0) - time.monotonic()
+        if wait > 0:
+            log(f"[export] waiting {wait:.0f}s for held batches")
+            time.sleep(wait)
+        self._stop.set()
+        self._flush_due(force=True)
+        self._inner.shutdown()
+
+    def force_flush(self, timeout_millis: int = 30_000) -> bool:
+        return self._inner.force_flush(timeout_millis)
+
+
+@dataclass
+class Block:
+    type: str
+    text: str = ""
+    id: str = ""
+    name: str = ""
+    input: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class Reply:
+    stop_reason: str
+    content: list[Block]
+
+
+class ScriptedModel:
+    """The identical scenario's model, with no API call.
+
+    It searches with the same query until a hint is in the conversation, then
+    looks the page up and answers; with no hint, it gives up ``hold`` seconds
+    after its first call.
+    """
+
+    def __init__(self, hold: float) -> None:
+        self._hold, self._n = hold, 0
+        self._first_call: float | None = None
+
+    def reply(self, messages: list[dict[str, Any]]) -> Reply:
+        self._n += 1
+        hinted = any(m["role"] == "system" for m in messages)
+        looked_up = any(
+            b.name == "lookup_index"
+            for m in messages
+            if m["role"] == "assistant"
+            for b in m["content"]
+        )
+        if looked_up:
+            return Reply(
+                "end_turn", [Block("text", text="Failed webhooks are retried up to 7 times.")]
+            )
+        if hinted:
+            return Reply(
+                "tool_use",
+                [
+                    Block(
+                        "tool_use",
+                        id=f"call_{self._n}",
+                        name="lookup_index",
+                        input={"topic": "payments/webhooks"},
+                    )
+                ],
+            )
+        now = time.monotonic()
+        if self._first_call is None:
+            self._first_call = now
+        if now - self._first_call >= self._hold:
+            return Reply("end_turn", [Block("text", text="I could not find it in the docs.")])
+        return Reply(
+            "tool_use",
+            [
+                Block(
+                    "tool_use",
+                    id=f"call_{self._n}",
+                    name="search_docs",
+                    input={"query": IDENTICAL_QUERY},
+                )
+            ],
+        )
+
+
+def as_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The conversation as OpenAI-style messages, the shape the SDK records."""
+    out: list[dict[str, Any]] = []
+    for m in messages:
+        content = m["content"]
+        if isinstance(content, str):
+            out.append({"role": m["role"], "content": content})
+            continue
+        if m["role"] == "assistant":
+            out.append(reply_message(content))
+            continue
+        for r in content:  # tool results
+            out.append({"role": "tool", "tool_call_id": r["tool_use_id"], "content": r["content"]})
+    return out
+
+
+def reply_message(content: list[Any]) -> dict[str, Any]:
+    message: dict[str, Any] = {
+        "role": "assistant",
+        "content": " ".join(b.text for b in content if b.type == "text"),
+    }
+    calls = [
+        {
+            "id": b.id,
+            "type": "function",
+            "function": {"name": b.name, "arguments": json.dumps(b.input)},
+        }
+        for b in content
+        if b.type == "tool_use"
+    ]
+    if calls:
+        message["tool_calls"] = calls
+    return message
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--auto-hint", type=int, metavar="N", default=0)
+    parser.add_argument("--scenario", choices=("search", "identical"), default="search")
+    parser.add_argument("--session", help="session id every run is scoped to")
+    parser.add_argument("--runs", type=int, default=1, help="runs, one after the other")
+    parser.add_argument(
+        "--hold", type=float, default=120.0, help="scripted: seconds an unhinted run keeps calling"
+    )
+    parser.add_argument("--regular", action="store_true", help="scripted: fixed pause (polling)")
+    parser.add_argument(
+        "--no-transcript", action="store_true", help="scripted: capture no messages"
+    )
+    parser.add_argument("--duplicate-export", action="store_true")
+    parser.add_argument("--late-after", type=float, default=0.0)
+    parser.add_argument("--late-by", type=float, default=0.0)
     opts = parser.parse_args()
+    scripted = MODEL == "scripted"
+    if scripted and opts.scenario != "identical":
+        parser.error("MODEL=scripted plays the identical scenario only")
 
     logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(name)s %(message)s")
     logging.getLogger("rius").setLevel(logging.INFO)
-    rius.init(agent_name="docs-agent", heartbeat_interval=5, hints=True)
+    exporter: SpanExporter | None = None
+    if opts.duplicate_export or opts.late_by:
+        exporter = build_span_exporter(rius.resolve_config())
+        if opts.duplicate_export:
+            exporter = DuplicatingExporter(exporter)
+        if opts.late_by:
+            exporter = LateExporter(exporter, opts.late_after, opts.late_by)
+    sdk = rius.init(
+        agent_name="docs-agent",
+        heartbeat_interval=5,
+        hints=True,
+        partial_spans=opts.scenario == "identical" or None,
+        span_exporter=exporter,
+    )
 
-    client = anthropic.Anthropic()
+    summaries = []
+    with rius.session(opts.session) if opts.session else nullcontext():
+        for run in range(1, opts.runs + 1):
+            summaries.append(run_once(opts, run, scripted))
+    sdk.flush()
+    for summary in summaries:
+        print(json.dumps(summary), flush=True)
+
+
+def run_once(opts: argparse.Namespace, run: int, scripted: bool) -> dict[str, Any]:
+    client = None if scripted else anthropic.Anthropic()
+    model = ScriptedModel(opts.hold) if scripted else None
+    gaps = iter(cycle((REGULAR_GAP_S,) if opts.regular else IRREGULAR_GAPS_S))
+    system = SYSTEM_IDENTICAL if opts.scenario == "identical" else SYSTEM
+    max_turns = 200 if scripted else MAX_TURNS
     messages: list[dict[str, Any]] = [
         {"role": "user", "content": "How many times are failed payment webhooks retried?"}
     ]
@@ -210,13 +467,15 @@ def main() -> None:
     queued_at: int | None = None
     searches_at_queue: int | None = None
     queue_error: str | None = None
+    trace_id = ""
     # answer, max_turns, refusal or error; correct says whether the answer has
     # the retry count from the docs page.
     outcome, answer, turn = "max_turns", "", 0
 
     try:
         with rius.start_as_current_span("docs-agent", kind=SpanKind.AGENT, agent_name="docs-agent"):
-            for turn in range(1, MAX_TURNS + 1):
+            trace_id = current_trace_id()
+            for turn in range(1, max_turns + 1):
                 # drain_hints() records rius.hint.delivered on the run's root span.
                 for hint in rius.drain_hints():
                     # The hint is an operator note, not user input: the
@@ -225,41 +484,52 @@ def main() -> None:
                     messages.append({"role": "system", "content": hint.text})
                     hint_ids.append(hint.id)
                     hinted_at = hinted_at or turn
-                    log(f"[turn {turn}] hint {hint.id} injected: {hint.text}")
+                    log(f"[run {run} turn {turn}] hint {hint.id} injected: {hint.text}")
 
-                response = client.beta.messages.create(
-                    model=MODEL,
-                    max_tokens=16000,
-                    system=SYSTEM,
-                    tools=TOOLS,  # type: ignore[arg-type]
-                    messages=messages,  # type: ignore[arg-type]
-                    output_config={"effort": EFFORT},  # type: ignore[typeddict-item]
-                    betas=["server-side-fallback-2026-07-01"],
-                    fallbacks="default",
-                )
+                if model is not None:
+                    response: Any = scripted_call(model, messages, opts.no_transcript)
+                else:
+                    response = client.beta.messages.create(  # type: ignore[union-attr]
+                        model=MODEL,
+                        max_tokens=16000,
+                        system=system,
+                        tools=TOOLS,  # type: ignore[arg-type]
+                        messages=messages,  # type: ignore[arg-type]
+                        output_config={"effort": EFFORT},  # type: ignore[typeddict-item]
+                        betas=["server-side-fallback-2026-07-01"],
+                        fallbacks="default",
+                    )
                 if response.stop_reason == "refusal":
-                    log(f"[turn {turn}] refusal: {response.stop_details}")
+                    log(f"[run {run} turn {turn}] refusal: {response.stop_details}")
                     outcome = "refusal"
                     break
                 messages.append({"role": "assistant", "content": response.content})
                 tool_uses = [b for b in response.content if b.type == "tool_use"]
                 if response.stop_reason != "tool_use" or not tool_uses:
                     answer = " ".join(b.text for b in response.content if b.type == "text")
-                    log(f"[turn {turn}] final answer: {answer}")
+                    log(f"[run {run} turn {turn}] final answer: {answer}")
                     outcome = "answer"
                     break
 
                 results = []
                 for block in tool_uses:
                     args = dict(block.input)  # type: ignore[arg-type]
-                    log(f"[turn {turn}] {block.name}({json.dumps(args)})")
+                    log(f"[run {run} turn {turn}] {block.name}({json.dumps(args)})")
                     calls.append((turn, block.name))
+                    # One TOOL span per call, its arguments captured: what
+                    # the tool_loop detector groups calls by.
+                    with rius.start_as_current_span(
+                        block.name,
+                        kind=SpanKind.TOOL,
+                        input=args,
+                        tool_name=block.name,
+                        tool_call_id=block.id,
+                    ) as span:
+                        latency = next(gaps) if scripted else TOOL_LATENCY_S
+                        result = run_tool(block.name, args, latency)
+                        span.set_output(result)
                     results.append(
-                        {
-                            "type": "tool_result",
-                            "tool_use_id": block.id,
-                            "content": run_tool(block.name, args),
-                        }
+                        {"type": "tool_result", "tool_use_id": block.id, "content": result}
                     )
                 messages.append({"role": "user", "content": results})
 
@@ -276,31 +546,48 @@ def main() -> None:
                         log(f"[detector] could not queue the hint: {queue_error}")
     except Exception as exc:  # noqa: BLE001 — every run ends with a summary line
         outcome = "error"
-        log(f"[turn {turn}] run failed: {type(exc).__name__}: {exc}")
-    finally:
-        searches = [t for t, n in calls if n == "search_docs"]
-        summary = {
-            "model": MODEL,
-            "effort": EFFORT,
-            "variant": HINT_VARIANT if opts.auto_hint else None,
-            "outcome": outcome,
-            "correct": outcome == "answer" and "7" in answer,
-            "turns": turn,
-            "queued_at_turn": queued_at,
-            "search_docs_at_queue": searches_at_queue,
-            "queue_error": queue_error,
-            "hint_ids": hint_ids,
-            "hinted_at_turn": hinted_at,
-            "search_docs_total": len(searches),
-            "search_docs_before_hint": (
-                sum(1 for t in searches if t < hinted_at) if hinted_at else None
-            ),
-            "search_docs_after_hint": (
-                sum(1 for t in searches if t >= hinted_at) if hinted_at else None
-            ),
-            "first_lookup_index_turn": next((t for t, n in calls if n == "lookup_index"), None),
-        }
-        print(json.dumps(summary), flush=True)
+        log(f"[run {run} turn {turn}] run failed: {type(exc).__name__}: {exc}")
+    searches = [t for t, n in calls if n == "search_docs"]
+    return {
+        "model": MODEL,
+        "effort": None if scripted else EFFORT,
+        "scenario": opts.scenario,
+        "session": opts.session,
+        "run": run,
+        "trace_id": trace_id,
+        "variant": HINT_VARIANT if opts.auto_hint else None,
+        "outcome": outcome,
+        "correct": outcome == "answer" and "7" in answer,
+        "turns": turn,
+        "queued_at_turn": queued_at,
+        "search_docs_at_queue": searches_at_queue,
+        "queue_error": queue_error,
+        "hint_ids": hint_ids,
+        "hinted_at_turn": hinted_at,
+        "search_docs_total": len(searches),
+        "search_docs_before_hint": (
+            sum(1 for t in searches if t < hinted_at) if hinted_at else None
+        ),
+        "search_docs_after_hint": (
+            sum(1 for t in searches if t >= hinted_at) if hinted_at else None
+        ),
+        "first_lookup_index_turn": next((t for t, n in calls if n == "lookup_index"), None),
+    }
+
+
+def scripted_call(
+    model: ScriptedModel, messages: list[dict[str, Any]], no_transcript: bool
+) -> Reply:
+    """One scripted model call, recorded as an LLM span."""
+    with rius.start_as_current_generation(
+        "chat scripted", model="scripted", provider="scripted"
+    ) as generation:
+        if not no_transcript:
+            generation.set_input(as_messages(messages))
+        response = model.reply(messages)
+        if not no_transcript:
+            generation.set_output([reply_message(response.content)])
+        return response
 
 
 if __name__ == "__main__":
