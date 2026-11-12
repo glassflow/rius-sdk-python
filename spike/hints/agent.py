@@ -614,6 +614,9 @@ def run_once(opts: argparse.Namespace, run: int, scripted: bool) -> dict[str, An
         "variant": HINT_VARIANT if opts.auto_hint else None,
         "outcome": outcome,
         "correct": outcome == "answer" and (task.correct(answer) if task else "7" in answer),
+        "input_tokens": input_tokens,
+        "cache_read_tokens": cache_read_tokens,
+        "output_tokens": output_tokens,
         "calls": {
             name: sum(1 for _, n in calls if n == name) for name in sorted({n for _, n in calls})
         },
