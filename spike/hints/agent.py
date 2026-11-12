@@ -473,7 +473,9 @@ def run_once(opts: argparse.Namespace, run: int, scripted: bool) -> dict[str, An
     outcome, answer, turn = "max_turns", "", 0
 
     try:
-        with rius.start_as_current_span("docs-agent", kind=SpanKind.AGENT, agent_name="docs-agent"):
+        with rius.start_as_current_span(
+            "docs-agent", kind=SpanKind.AGENT, agent_name="docs-agent"
+        ) as run_span:
             trace_id = current_trace_id()
             for turn in range(1, max_turns + 1):
                 # drain_hints() records rius.hint.delivered on the run's root span.
@@ -509,6 +511,9 @@ def run_once(opts: argparse.Namespace, run: int, scripted: bool) -> dict[str, An
                     answer = " ".join(b.text for b in response.content if b.type == "text")
                     log(f"[run {run} turn {turn}] final answer: {answer}")
                     outcome = "answer"
+                    # The run's output on its root: what tells a run that
+                    # ended with an answer from one that ended without.
+                    run_span.set_output(answer)
                     break
 
                 results = []
