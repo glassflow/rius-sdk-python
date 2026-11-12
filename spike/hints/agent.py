@@ -506,6 +506,7 @@ def run_once(opts: argparse.Namespace, run: int, scripted: bool) -> dict[str, An
     searches_at_queue: int | None = None
     queue_error: str | None = None
     trace_id = ""
+    input_tokens = cache_read_tokens = output_tokens = 0
     # answer, max_turns, refusal or error; correct says whether the answer has
     # the retry count from the docs page.
     outcome, answer, turn = "max_turns", "", 0
@@ -539,6 +540,13 @@ def run_once(opts: argparse.Namespace, run: int, scripted: bool) -> dict[str, An
                         betas=["server-side-fallback-2026-07-01"],
                         fallbacks="default",
                     )
+                usage = getattr(response, "usage", None)
+                if usage is not None:
+                    input_tokens += (usage.input_tokens or 0) + (
+                        getattr(usage, "cache_creation_input_tokens", 0) or 0
+                    )
+                    cache_read_tokens += getattr(usage, "cache_read_input_tokens", 0) or 0
+                    output_tokens += usage.output_tokens or 0
                 if response.stop_reason == "refusal":
                     log(f"[run {run} turn {turn}] refusal: {response.stop_details}")
                     outcome = "refusal"
