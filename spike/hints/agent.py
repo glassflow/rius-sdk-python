@@ -294,6 +294,32 @@ class LateExporter(SpanExporter):
         return self._inner.force_flush(timeout_millis)
 
 
+class DroppingExporter(SpanExporter):
+    """Never exports the k-th span of a tool, nor any snapshot of it: a lost call."""
+
+    def __init__(self, inner: SpanExporter, tool: str, k: int) -> None:
+        self._inner, self._tool, self._k = inner, tool, k
+        self._seen: list[int] = []
+
+    def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
+        kept = []
+        for span in spans:
+            if span.name == self._tool and span.context is not None:
+                sid = span.context.span_id
+                if sid not in self._seen:
+                    self._seen.append(sid)
+                if self._seen.index(sid) + 1 == self._k:
+                    continue
+            kept.append(span)
+        return self._inner.export(kept) if kept else SpanExportResult.SUCCESS
+
+    def shutdown(self) -> None:
+        self._inner.shutdown()
+
+    def force_flush(self, timeout_millis: int = 30_000) -> bool:
+        return self._inner.force_flush(timeout_millis)
+
+
 @dataclass
 class Block:
     type: str
@@ -319,21 +345,26 @@ class ScriptedModel:
     in-process model (MODEL=scripted) and the stub API (MODEL=stub).
     """
 
-    def __init__(self, task: Task, hold: float) -> None:
+    def __init__(self, task: Task, hold: float, loop_calls: int = 0, idle: float = 0.0) -> None:
         self._task, self._hold, self._n = task, hold, 0
+        self._loop_calls, self._idle = loop_calls, idle
         self._first_call: float | None = None
 
     def reply(self, messages: list[Any]) -> Reply:
         self._n += 1
         if len(messages) == 1:  # a new run
             self._first_call = None
-        calls = [
-            _field(b, "name")
+        uses = [
+            b
             for m in messages
             if _field(m, "role") == "assistant" and isinstance(_field(m, "content"), list)
             for b in _field(m, "content")
             if _field(b, "type") == "tool_use"
         ]
+        calls = [_field(b, "name") for b in uses]
+        looped = sum(
+            1 for b in uses[len(self._task.opening) :] if _field(b, "name") == self._task.loop[0]
+        )
         hinted = any(_field(m, "role") == "system" for m in messages)
         t = self._task
         if t.resolve[0] in calls:
@@ -345,7 +376,12 @@ class ScriptedModel:
         now = time.monotonic()
         if self._first_call is None:
             self._first_call = now
-        if now - self._first_call >= self._hold:
+        if now - self._first_call >= self._hold or (
+            self._loop_calls and looped >= self._loop_calls
+        ):
+            # The run stays open while it "thinks": a loop that stops is
+            # not a run that ends at once.
+            time.sleep(self._idle)
             return Reply("end_turn", [Block("text", text=t.give_up)])
         return self._call(t.loop)
 
@@ -453,6 +489,21 @@ def main() -> None:
     parser.add_argument("--duplicate-export", action="store_true")
     parser.add_argument("--late-after", type=float, default=0.0)
     parser.add_argument("--late-by", type=float, default=0.0)
+    parser.add_argument(
+        "--loop-calls",
+        type=int,
+        default=0,
+        help="scripted/stub: give up after this many loop calls",
+    )
+    parser.add_argument(
+        "--idle", type=float, default=0.0, help="scripted/stub: seconds the run stays open after"
+    )
+    parser.add_argument(
+        "--drop-call", type=int, default=0, help="never export the K-th loop-tool span (lost)"
+    )
+    parser.add_argument("--fail-first", type=int, default=0, help="the first K loop calls error")
+    parser.add_argument("--fail-every", type=int, default=0, help="every K-th loop call errors")
+    parser.add_argument("--no-hints", action="store_true", help="the SDK does not take hints")
     opts = parser.parse_args()
     scripted = MODEL in ("scripted", "stub")
     if scripted and opts.scenario == "search":
@@ -461,8 +512,13 @@ def main() -> None:
     logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(name)s %(message)s")
     logging.getLogger("rius").setLevel(logging.INFO)
     exporter: SpanExporter | None = None
-    if opts.duplicate_export or opts.late_by:
+    task = TASKS.get(opts.scenario)
+    if opts.duplicate_export or opts.late_by or opts.drop_call:
         exporter = build_span_exporter(rius.resolve_config())
+        if opts.drop_call:
+            exporter = DroppingExporter(
+                exporter, task.loop[0] if task else "search_docs", opts.drop_call
+            )
         if opts.duplicate_export:
             exporter = DuplicatingExporter(exporter)
         if opts.late_by:
@@ -470,7 +526,7 @@ def main() -> None:
     sdk = rius.init(
         agent_name="docs-agent",
         heartbeat_interval=5,
-        hints=True,
+        hints=not opts.no_hints,
         partial_spans=opts.scenario in TASKS or None,
         span_exporter=exporter,
     )
@@ -489,7 +545,9 @@ def run_once(opts: argparse.Namespace, run: int, scripted: bool) -> dict[str, An
     system = task.system if task else SYSTEM
     tools = task.tools if task else TOOLS
     question = task.question if task else WEBHOOK_QUESTION
-    model = ScriptedModel(task, opts.hold) if scripted and task else None
+    model = (
+        ScriptedModel(task, opts.hold, opts.loop_calls, opts.idle) if scripted and task else None
+    )
     client = None
     if MODEL == "stub":
         client = anthropic.Anthropic(base_url=start_stub(model), api_key="stub")  # type: ignore[arg-type]
@@ -507,6 +565,7 @@ def run_once(opts: argparse.Namespace, run: int, scripted: bool) -> dict[str, An
     queue_error: str | None = None
     trace_id = ""
     input_tokens = cache_read_tokens = output_tokens = 0
+    loop_n, failed = 0, False
     # answer, max_turns, refusal or error; correct says whether the answer has
     # the retry count from the docs page.
     outcome, answer, turn = "max_turns", "", 0
@@ -579,10 +638,22 @@ def run_once(opts: argparse.Namespace, run: int, scripted: bool) -> dict[str, An
                         latency = next(gaps) if scripted else TOOL_LATENCY_S
                         if task:
                             time.sleep(latency)
+                            if (block.name, args) == task.loop:
+                                loop_n += 1
+                                if (opts.fail_first and loop_n <= opts.fail_first) or (
+                                    opts.fail_every and loop_n % opts.fail_every == 0
+                                ):
+                                    failed = True
                             result = task.run(block.name, args)
                         else:
                             result = run_tool(block.name, args, latency)
                         span.set_output(result)
+                        if failed:
+                            # An error status on the span: a retry, which
+                            # exclude_retries leaves out of the loop.
+                            span.record_exception(TimeoutError("upstream timeout"))
+                            result = json.dumps({"error": "upstream timeout"})
+                            failed = False
                     results.append(
                         {"type": "tool_result", "tool_use_id": block.id, "content": result}
                     )
