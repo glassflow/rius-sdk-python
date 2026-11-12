@@ -48,7 +48,7 @@ sends every batch twice (an exporter retry after a lost response);
 start for B seconds (late telemetry). ``--runs N`` runs N runs one after the
 other in the same session, so a session keeps its arm across runs.
 
-Hints need the run's root stored while it is open, so the scenario turns
+Hints need the run's root stored while it is open, so every task turns
 partial spans on; with them off the writer finds no open run to address.
 
 The last line printed is a JSON summary, for collecting repeated runs. It is
@@ -74,6 +74,7 @@ from collections.abc import Sequence
 from contextlib import nullcontext
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from itertools import cycle
 from typing import Any
 
@@ -81,6 +82,7 @@ import anthropic
 from opentelemetry import trace
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
+from tasks import TASKS, WEBHOOK_QUESTION, Task
 
 import rius
 from rius import SpanKind
@@ -118,14 +120,6 @@ SYSTEM = (
     "so if a search finds nothing, rephrase the query and search again."
 )
 
-# The identical-arguments scenario: the same query every time, as an agent
-# does that retries a call it believes is only slow to warm up.
-IDENTICAL_QUERY = "webhook retry policy"
-SYSTEM_IDENTICAL = (
-    "You answer questions about our payments platform from the internal docs. "
-    f"Use search_docs with the query {IDENTICAL_QUERY!r}. The search index is warming up: "
-    "if it returns nothing, run exactly the same search again."
-)
 # The scripted model's pause before each call, in seconds. Irregular, so the
 # loop is no polling; --regular uses a fixed pause, which is.
 IRREGULAR_GAPS_S = (2.0, 5.5, 3.0, 8.0, 4.0, 6.5, 2.5, 7.0)
@@ -316,58 +310,95 @@ class Reply:
 
 
 class ScriptedModel:
-    """The identical scenario's model, with no API call.
+    """A task's fixed script in place of a model, with no API call.
 
-    It searches with the same query until a hint is in the conversation, then
-    looks the page up and answers; with no hint, it gives up ``hold`` seconds
-    after its first call.
+    It makes the task's opening calls, then repeats its loop call until a hint
+    is in the conversation, then makes the resolving call and answers; with
+    no hint it gives up ``hold`` seconds after the run's first call. It reads
+    the conversation the way a model gets it, so the same script serves the
+    in-process model (MODEL=scripted) and the stub API (MODEL=stub).
     """
 
-    def __init__(self, hold: float) -> None:
-        self._hold, self._n = hold, 0
+    def __init__(self, task: Task, hold: float) -> None:
+        self._task, self._hold, self._n = task, hold, 0
         self._first_call: float | None = None
 
-    def reply(self, messages: list[dict[str, Any]]) -> Reply:
+    def reply(self, messages: list[Any]) -> Reply:
         self._n += 1
-        hinted = any(m["role"] == "system" for m in messages)
-        looked_up = any(
-            b.name == "lookup_index"
+        if len(messages) == 1:  # a new run
+            self._first_call = None
+        calls = [
+            _field(b, "name")
             for m in messages
-            if m["role"] == "assistant"
-            for b in m["content"]
-        )
-        if looked_up:
-            return Reply(
-                "end_turn", [Block("text", text="Failed webhooks are retried up to 7 times.")]
-            )
+            if _field(m, "role") == "assistant" and isinstance(_field(m, "content"), list)
+            for b in _field(m, "content")
+            if _field(b, "type") == "tool_use"
+        ]
+        hinted = any(_field(m, "role") == "system" for m in messages)
+        t = self._task
+        if t.resolve[0] in calls:
+            return Reply("end_turn", [Block("text", text=t.answer)])
+        if len(calls) < len(t.opening):
+            return self._call(t.opening[len(calls)])
         if hinted:
-            return Reply(
-                "tool_use",
-                [
-                    Block(
-                        "tool_use",
-                        id=f"call_{self._n}",
-                        name="lookup_index",
-                        input={"topic": "payments/webhooks"},
-                    )
-                ],
-            )
+            return self._call(t.resolve)
         now = time.monotonic()
         if self._first_call is None:
             self._first_call = now
         if now - self._first_call >= self._hold:
-            return Reply("end_turn", [Block("text", text="I could not find it in the docs.")])
-        return Reply(
-            "tool_use",
-            [
-                Block(
-                    "tool_use",
-                    id=f"call_{self._n}",
-                    name="search_docs",
-                    input={"query": IDENTICAL_QUERY},
-                )
-            ],
-        )
+            return Reply("end_turn", [Block("text", text=t.give_up)])
+        return self._call(t.loop)
+
+    def _call(self, call: tuple[str, dict[str, Any]]) -> Reply:
+        name, args = call
+        return Reply("tool_use", [Block("tool_use", id=f"call_{self._n}", name=name, input=args)])
+
+
+def _field(item: Any, key: str) -> Any:
+    return item.get(key) if isinstance(item, dict) else getattr(item, key, None)
+
+
+def start_stub(model: ScriptedModel) -> str:
+    """Serve the script as the Messages API on localhost; returns its base URL.
+
+    The real Anthropic client and its instrumentation run against it, so the
+    LLM spans are the ones a paid run records, at no cost.
+    """
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self) -> None:  # noqa: N802 — http.server's name
+            body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            reply = model.reply(body["messages"])
+            content = [
+                {"type": "text", "text": b.text}
+                if b.type == "text"
+                else {"type": "tool_use", "id": b.id, "name": b.name, "input": b.input}
+                for b in reply.content
+            ]
+            out = json.dumps(
+                {
+                    "id": f"msg_stub_{time.monotonic_ns()}",
+                    "type": "message",
+                    "role": "assistant",
+                    "model": body.get("model", "stub"),
+                    "content": content,
+                    "stop_reason": reply.stop_reason,
+                    "stop_sequence": None,
+                    "usage": {"input_tokens": len(json.dumps(body)) // 4, "output_tokens": 40},
+                }
+            ).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(out)))
+            self.end_headers()
+            self.wfile.write(out)
+
+        def log_message(self, *args: Any) -> None:
+            pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    return f"http://127.0.0.1:{server.server_address[1]}"
 
 
 def as_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -408,13 +439,14 @@ def reply_message(content: list[Any]) -> dict[str, Any]:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--auto-hint", type=int, metavar="N", default=0)
-    parser.add_argument("--scenario", choices=("search", "identical"), default="search")
+    parser.add_argument("--scenario", choices=("search", *TASKS), default="search")
     parser.add_argument("--session", help="session id every run is scoped to")
     parser.add_argument("--runs", type=int, default=1, help="runs, one after the other")
     parser.add_argument(
-        "--hold", type=float, default=120.0, help="scripted: seconds an unhinted run keeps calling"
+        "--hold", type=float, default=120.0, help="scripted/stub: seconds an unhinted run loops"
     )
-    parser.add_argument("--regular", action="store_true", help="scripted: fixed pause (polling)")
+    parser.add_argument("--regular", action="store_true", help="scripted/stub: fixed pauses")
+    parser.add_argument("--max-turns", type=int, default=MAX_TURNS, help="a real model's turns")
     parser.add_argument(
         "--no-transcript", action="store_true", help="scripted: capture no messages"
     )
@@ -422,9 +454,9 @@ def main() -> None:
     parser.add_argument("--late-after", type=float, default=0.0)
     parser.add_argument("--late-by", type=float, default=0.0)
     opts = parser.parse_args()
-    scripted = MODEL == "scripted"
-    if scripted and opts.scenario != "identical":
-        parser.error("MODEL=scripted plays the identical scenario only")
+    scripted = MODEL in ("scripted", "stub")
+    if scripted and opts.scenario == "search":
+        parser.error(f"MODEL={MODEL} plays a task, not the search scenario")
 
     logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(name)s %(message)s")
     logging.getLogger("rius").setLevel(logging.INFO)
@@ -439,7 +471,7 @@ def main() -> None:
         agent_name="docs-agent",
         heartbeat_interval=5,
         hints=True,
-        partial_spans=opts.scenario == "identical" or None,
+        partial_spans=opts.scenario in TASKS or None,
         span_exporter=exporter,
     )
 
@@ -453,14 +485,20 @@ def main() -> None:
 
 
 def run_once(opts: argparse.Namespace, run: int, scripted: bool) -> dict[str, Any]:
-    client = None if scripted else anthropic.Anthropic()
-    model = ScriptedModel(opts.hold) if scripted else None
+    task = TASKS.get(opts.scenario)
+    system = task.system if task else SYSTEM
+    tools = task.tools if task else TOOLS
+    question = task.question if task else WEBHOOK_QUESTION
+    model = ScriptedModel(task, opts.hold) if scripted and task else None
+    client = None
+    if MODEL == "stub":
+        client = anthropic.Anthropic(base_url=start_stub(model), api_key="stub")  # type: ignore[arg-type]
+        model = None
+    elif not scripted:
+        client = anthropic.Anthropic()
     gaps = iter(cycle((REGULAR_GAP_S,) if opts.regular else IRREGULAR_GAPS_S))
-    system = SYSTEM_IDENTICAL if opts.scenario == "identical" else SYSTEM
-    max_turns = 200 if scripted else MAX_TURNS
-    messages: list[dict[str, Any]] = [
-        {"role": "user", "content": "How many times are failed payment webhooks retried?"}
-    ]
+    max_turns = 200 if scripted else opts.max_turns
+    messages: list[dict[str, Any]] = [{"role": "user", "content": question}]
     calls: list[tuple[int, str]] = []  # (turn, tool name)
     hint_ids: list[str] = []
     hinted_at: int | None = None
@@ -495,7 +533,7 @@ def run_once(opts: argparse.Namespace, run: int, scripted: bool) -> dict[str, An
                         model=MODEL,
                         max_tokens=16000,
                         system=system,
-                        tools=TOOLS,  # type: ignore[arg-type]
+                        tools=tools,  # type: ignore[arg-type]
                         messages=messages,  # type: ignore[arg-type]
                         output_config={"effort": EFFORT},  # type: ignore[typeddict-item]
                         betas=["server-side-fallback-2026-07-01"],
@@ -531,14 +569,19 @@ def run_once(opts: argparse.Namespace, run: int, scripted: bool) -> dict[str, An
                         tool_call_id=block.id,
                     ) as span:
                         latency = next(gaps) if scripted else TOOL_LATENCY_S
-                        result = run_tool(block.name, args, latency)
+                        if task:
+                            time.sleep(latency)
+                            result = task.run(block.name, args)
+                        else:
+                            result = run_tool(block.name, args, latency)
                         span.set_output(result)
                     results.append(
                         {"type": "tool_result", "tool_use_id": block.id, "content": result}
                     )
                 messages.append({"role": "user", "content": results})
 
-                empty = sum(1 for _, name in calls if name == "search_docs")
+                looped = task.loop[0] if task else "search_docs"
+                empty = sum(1 for _, name in calls if name == looped)
                 if opts.auto_hint and queued_at is None and empty >= opts.auto_hint:
                     # The hint reaches the model a ping or more later, after
                     # more searches: queued_at_turn and search_docs_before_hint
@@ -562,7 +605,10 @@ def run_once(opts: argparse.Namespace, run: int, scripted: bool) -> dict[str, An
         "trace_id": trace_id,
         "variant": HINT_VARIANT if opts.auto_hint else None,
         "outcome": outcome,
-        "correct": outcome == "answer" and "7" in answer,
+        "correct": outcome == "answer" and (task.correct(answer) if task else "7" in answer),
+        "calls": {
+            name: sum(1 for _, n in calls if n == name) for name in sorted({n for _, n in calls})
+        },
         "turns": turn,
         "queued_at_turn": queued_at,
         "search_docs_at_queue": searches_at_queue,
