@@ -32,6 +32,9 @@ ENV_SERVICE_VERSION = "RIUS_SERVICE_VERSION"
 ENV_DISABLED = "RIUS_DISABLED"
 ENV_SAMPLE_RATE = "RIUS_SAMPLE_RATE"
 ENV_CAPTURE_CONTENT = "RIUS_CAPTURE_CONTENT"
+# The GenAI conventions' content-capture setting, read when
+# RIUS_CAPTURE_CONTENT is unset.
+ENV_OTEL_CAPTURE_CONTENT = "OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT"
 ENV_HEARTBEAT = "RIUS_HEARTBEAT"
 ENV_HEARTBEAT_INTERVAL = "RIUS_HEARTBEAT_INTERVAL"
 ENV_AGENT_NAME = "RIUS_AGENT_NAME"
@@ -82,6 +85,42 @@ def _env_bool(name: str, *, default: bool) -> bool:
         default,
     )
     return default
+
+
+#: The conventions' capture modes, by whether Rius captures content under
+#: them. Rius records content on spans only, so EVENT_ONLY (content on events,
+#: none on spans) captures none.
+_OTEL_CAPTURE_MODES = {
+    "NO_CONTENT": False,
+    "EVENT_ONLY": False,
+    "SPAN_ONLY": True,
+    "SPAN_AND_EVENT": True,
+}
+
+
+def _capture_content_from_env() -> bool:
+    """``RIUS_CAPTURE_CONTENT`` when set, else the conventions' setting, else on.
+
+    The conventions' ``OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT`` is read
+    case-insensitively. Its own default is ``NO_CONTENT``, but Rius keeps
+    capture on when neither variable is set, and an unrecognised value keeps
+    that default with a warning, as an unrecognised boolean does.
+    """
+    if os.getenv(ENV_CAPTURE_CONTENT) is not None:
+        return _env_bool(ENV_CAPTURE_CONTENT, default=True)
+    raw = os.getenv(ENV_OTEL_CAPTURE_CONTENT)
+    if raw is None:
+        return True
+    mode = _OTEL_CAPTURE_MODES.get(raw.strip().upper())
+    if mode is not None:
+        return mode
+    logger.warning(
+        "%s=%r is not a recognised capture mode; using the default (True). "
+        "Accepted: NO_CONTENT, SPAN_ONLY, EVENT_ONLY, SPAN_AND_EVENT.",
+        ENV_OTEL_CAPTURE_CONTENT,
+        raw,
+    )
+    return True
 
 
 def _env_float(name: str, *, default: float) -> float:
@@ -297,7 +336,10 @@ def resolve_config(
         sample_rate: Head-sampling ratio for root traces
             (``RIUS_SAMPLE_RATE``).
         capture_content: When ``False``, content attributes are stripped at
-            export (``RIUS_CAPTURE_CONTENT``).
+            export (``RIUS_CAPTURE_CONTENT``; when that is unset, the
+            conventions' ``OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT``:
+            ``NO_CONTENT`` and ``EVENT_ONLY`` turn capture off, ``SPAN_ONLY``
+            and ``SPAN_AND_EVENT`` keep it on). On by default.
         heartbeat: Enable the agent-lifetime heartbeat thread
             (``RIUS_HEARTBEAT``). On by default; set ``False`` or
             ``RIUS_HEARTBEAT=false`` to opt out.
@@ -372,7 +414,7 @@ def resolve_config(
         else _finite("sample_rate", sample_rate, 1.0)
     )
     resolved_capture_content = (
-        _env_bool(ENV_CAPTURE_CONTENT, default=True) if capture_content is None else capture_content
+        _capture_content_from_env() if capture_content is None else capture_content
     )
 
     resolved_heartbeat = _env_bool(ENV_HEARTBEAT, default=True) if heartbeat is None else heartbeat
