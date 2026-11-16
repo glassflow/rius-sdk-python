@@ -9,9 +9,11 @@ every input: the rebuilt value is byte-identical across SDKs.
 
 from __future__ import annotations
 
+import functools
 import json
 import random
 import time
+import timeit
 import tracemalloc
 from typing import Any
 
@@ -300,9 +302,23 @@ def test_the_walk_still_stops_at_its_depth() -> None:
 
 # --- cost on large values ------------------------------------------------------
 
-#: 30 MB of escape-heavy text: each "\n" is an escape in the JSON text. The
-#: decoding walk took several seconds and GBs of memory on it.
-_ESCAPED_TEXT = "ab\n" * 10_000_000
+
+@functools.cache
+def _one_large_part() -> list[dict[str, Any]]:
+    """30 MB of escape-heavy text in one part: each "\\n" is an escape in the
+    JSON text. The decoding walk took several seconds and GBs of memory on it.
+    Built on first use, so runs that deselect the cost tests do not pay for it."""
+    return [{"role": "user", "parts": [{"type": "text", "content": "ab\n" * 10_000_000}]}]
+
+
+@functools.cache
+def _many_parts() -> list[dict[str, Any]]:
+    return [
+        {
+            "role": "user",
+            "parts": [{"type": "text", "content": "ab\n" * 30} for _ in range(100_000)],
+        }
+    ]
 
 
 def _export(value: Any) -> dict[str, Any]:
@@ -330,15 +346,9 @@ def _cost(value: Any) -> tuple[float, int]:
     return seconds, peak
 
 
-_ONE_LARGE_PART = [{"role": "user", "parts": [{"type": "text", "content": _ESCAPED_TEXT}]}]
-_MANY_PARTS = [
-    {"role": "user", "parts": [{"type": "text", "content": "ab\n" * 30} for _ in range(100_000)]}
-]
-
-
 @pytest.mark.parametrize("form", ["json-string", "structured"])
 def test_a_large_escaped_value_exports_in_linear_time_and_memory(form: str) -> None:
-    value = _ONE_LARGE_PART
+    value = _one_large_part()
     attribute = json.dumps(value) if form == "json-string" else value
     seconds, peak = _cost(attribute)
     # Bounds well clear of the linear walk (under a second, under three times
@@ -350,12 +360,12 @@ def test_a_large_escaped_value_exports_in_linear_time_and_memory(form: str) -> N
 
 def test_the_walk_over_many_escaped_parts_is_faster_than_the_decoding_walk() -> None:
     # Against the frozen copy on the same machine, so a slow runner slows
-    # both: the walk measured about five times faster.
-    text = json.dumps(_MANY_PARTS)
+    # both: the walk measured about five times faster. The best of several
+    # runs of each, against a 2x bound, so one GC pause or preemption on a
+    # shared runner does not flake it.
+    text = json.dumps(_many_parts())
 
     def seconds(walk: Any) -> float:
-        started = time.perf_counter()
-        walk(text, False)
-        return time.perf_counter() - started
+        return min(timeit.repeat(lambda: walk(text, False), number=1, repeat=5))
 
-    assert seconds(_media._part_spans) * 3 < seconds(plain_part_spans)
+    assert seconds(_media._part_spans) * 2 < seconds(plain_part_spans)
