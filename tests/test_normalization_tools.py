@@ -314,6 +314,28 @@ def test_a_built_in_tool_is_prefixed_with_the_span_provider() -> None:
 
 
 @pytest.mark.parametrize(
+    "route",
+    ["llm_tools", "bag_tools", "bag_declarations"],
+)
+def test_definitions_that_come_to_nothing_write_nothing(route: str) -> None:
+    # The sink writes nothing for an empty list, and the SDK must agree with
+    # it; the sources still go.
+    if route == "llm_tools":
+        attributes = _indexed([{"function_declarations": []}])
+    elif route == "bag_tools":
+        attributes = {LLM_INVOCATION_PARAMETERS: json.dumps({"tools": [], "seed": 1})}
+    else:
+        bag = {"tools": [{"function_declarations": []}], "seed": 1}
+        attributes = {LLM_INVOCATION_PARAMETERS: json.dumps(bag)}
+    out = normalize_tool_definitions(attributes)
+    assert out is not None
+    assert GEN_AI_TOOL_DEFINITIONS not in out
+    assert not any(key.startswith("llm.tools.") for key in out)
+    if route != "llm_tools":
+        assert json.loads(out[LLM_INVOCATION_PARAMETERS]) == {"seed": 1}
+
+
+@pytest.mark.parametrize(
     "bag",
     [
         "{not json",

@@ -228,3 +228,103 @@ def test_the_caller_list_is_not_mutated() -> None:
     tools = [{"name": "b", "input_schema": _PARAMETERS}, {"type": "web_search"}]
     semconv_tool_definitions(tools, "openai")
     assert tools == [{"name": "b", "input_schema": _PARAMETERS}, {"type": "web_search"}]
+
+
+# --- second-pass stability: every output is already in the conventions' shape
+
+
+def test_every_list_valued_declarations_key_expands() -> None:
+    tools = [{"function_declarations": [{"name": "a"}], "functionDeclarations": [{"name": "b"}]}]
+    assert semconv_tool_definitions(tools, "gcp.gemini") == [
+        {"type": "function", "name": "a"},
+        {"type": "function", "name": "b"},
+    ]
+
+
+def test_a_declarations_spelling_that_is_not_a_list_stays_in_the_rest() -> None:
+    tools = [{"function_declarations": [{"name": "a"}], "functionDeclarations": "odd"}]
+    assert semconv_tool_definitions(tools, "gcp.gemini") == [
+        {"type": "function", "name": "a"},
+        {"functionDeclarations": "odd"},
+    ]
+
+
+@pytest.mark.parametrize("spelling", ["input_schema", "inputSchema"])
+def test_a_declaration_schema_in_any_spelling_is_named_parameters(spelling: str) -> None:
+    tools = [{"function_declarations": [{"name": "a", spelling: _PARAMETERS}]}]
+    assert semconv_tool_definitions(tools, "gcp.gemini") == [
+        {"type": "function", "name": "a", "parameters": _PARAMETERS}
+    ]
+
+
+def test_a_nameless_declaration_takes_the_single_tool_rule() -> None:
+    tools = [{"function_declarations": [{"type": "web_search"}]}]
+    assert semconv_tool_definitions(tools, "gcp.gemini") == [{"type": "gcp.gemini.web_search"}]
+
+
+def test_the_rest_of_a_gemini_tool_takes_the_single_tool_rule() -> None:
+    tools = [{"function_declarations": [{"name": "a"}], "name": "x"}]
+    assert semconv_tool_definitions(tools, "gcp.gemini") == [
+        {"type": "function", "name": "a"},
+        {"type": "function", "name": "x"},
+    ]
+
+
+def test_a_nested_function_is_not_lifted_over_a_top_level_name() -> None:
+    named = {"name": "x", "function": {"name": "y"}}
+    typed = {"type": "function", "name": "x", "function": {"name": "y"}}
+    assert semconv_tool_definitions([named, typed], "openai") == [
+        {"type": "function", "name": "x", "function": {"name": "y"}},
+        typed,
+    ]
+
+
+def test_a_null_parameters_gives_way_to_a_schema_spelling() -> None:
+    # A Python model_dump() of a google-genai FunctionDeclaration.
+    tools = [
+        {
+            "function_declarations": [
+                {"name": "f", "parameters": None, "parameters_json_schema": _PARAMETERS}
+            ]
+        },
+        {"name": "g", "parameters": None, "input_schema": _PARAMETERS},
+    ]
+    assert semconv_tool_definitions(tools, "gcp.gemini") == [
+        {"type": "function", "name": "f", "parameters": _PARAMETERS},
+        {"type": "function", "name": "g", "parameters": _PARAMETERS},
+    ]
+
+
+def test_a_null_parameters_without_another_schema_is_kept() -> None:
+    tool = {"type": "function", "name": "f", "parameters": None}
+    assert semconv_tool_definitions([tool], "openai") == [tool]
+
+
+def test_an_empty_type_gets_no_provider_prefix() -> None:
+    tool = {"type": "", "size": 1}
+    assert semconv_tool_definitions([tool], "openai") == [tool]
+
+
+def test_mcp_tool_headers_are_dropped() -> None:
+    # OpenAI Responses' MCP tool carries the server's request headers, which
+    # can hold an Authorization credential.
+    tool = {
+        "type": "mcp",
+        "server_label": "docs",
+        "server_url": "https://mcp.example.com",
+        "headers": {"Authorization": "Bearer secret"},
+        "require_approval": "never",
+    }
+    assert semconv_tool_definitions([tool], "openai") == [
+        {
+            "type": "openai.mcp",
+            "server_label": "docs",
+            "server_url": "https://mcp.example.com",
+            "require_approval": "never",
+        }
+    ]
+    namespaced = {"type": "openai.mcp", "server_label": "docs", "headers": {"X-Key": "k"}}
+    assert semconv_tool_definitions([namespaced], None) == [
+        {"type": "openai.mcp", "server_label": "docs"}
+    ]
+    assert semconv_tool_definitions([{"type": "mcp", "headers": {}}], None) == [{"type": "mcp"}]

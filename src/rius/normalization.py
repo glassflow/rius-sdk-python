@@ -634,9 +634,7 @@ def normalize_tool_definitions(attributes: Mapping[str, Any] | None) -> dict[str
         if stripped is not None:
             rebuilt = stripped[0]
         if not native:
-            rebuilt[GEN_AI_TOOL_DEFINITIONS] = serialize(
-                semconv_tool_definitions(schemas, _provider_of(attributes))
-            )
+            _set_definitions(rebuilt, schemas, _provider_of(attributes))
         return rebuilt
 
     stripped = _bag_without_definitions(attributes)
@@ -644,10 +642,19 @@ def normalize_tool_definitions(attributes: Mapping[str, Any] | None) -> dict[str
         return None
     rebuilt, definitions = stripped
     if not native:
-        rebuilt[GEN_AI_TOOL_DEFINITIONS] = serialize(
-            semconv_tool_definitions(definitions, _provider_of(attributes))
-        )
+        _set_definitions(rebuilt, definitions, _provider_of(attributes))
     return rebuilt
+
+
+def _set_definitions(attributes: dict[str, Any], tools: list[Any], provider: str | None) -> None:
+    """``gen_ai.tool.definitions`` from tools, unless they come to no definition.
+
+    An empty list (no tools, or a Gemini tool with no declarations) writes
+    nothing, as the sink does; the sources are removed all the same.
+    """
+    definitions = semconv_tool_definitions(tools, provider)
+    if definitions:
+        attributes[GEN_AI_TOOL_DEFINITIONS] = serialize(definitions)
 
 
 def _provider_of(attributes: Mapping[str, Any]) -> str | None:

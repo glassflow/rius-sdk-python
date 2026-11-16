@@ -641,6 +641,52 @@ def test_set_tool_definitions_records_anthropic_tools_in_the_semconv_shape(
     ]
 
 
+def test_set_tool_definitions_records_a_pydantic_tool_as_its_fields(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    # google-genai's types.Tool is a pydantic model: recorded as its fields
+    # (unset ones left out), not as its repr.
+    pydantic = pytest.importorskip("pydantic")
+
+    class Declaration(pydantic.BaseModel):  # type: ignore[name-defined,misc]
+        name: str
+        description: str | None = None
+        parameters: dict[str, Any] | None = None
+        parameters_json_schema: dict[str, Any] | None = None
+
+    class Tool(pydantic.BaseModel):  # type: ignore[name-defined,misc]
+        function_declarations: list[Declaration] | None = None
+        google_search: dict[str, Any] | None = None
+
+    schema = {"type": "object", "properties": {"city": {"type": "string"}}}
+    tool = Tool(function_declarations=[Declaration(name="f", parameters_json_schema=schema)])
+    gen = start_generation("chat", model="gemini-3-pro", provider="gcp.gemini")
+    gen.set_tool_definitions([tool, {"code_execution": {}}])
+    gen.end()
+    attrs = exported_spans.get_finished_spans()[0].attributes
+    assert json.loads(attrs["gen_ai.tool.definitions"]) == [
+        {"type": "function", "name": "f", "parameters": schema},
+        {"code_execution": {}},
+    ]
+
+
+def test_set_tool_definitions_keeps_a_model_whose_dump_fails(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    class Broken:
+        def model_dump(self, **_: Any) -> Any:
+            raise RuntimeError("no")
+
+        def __repr__(self) -> str:
+            return "Broken()"
+
+    gen = start_generation("chat", provider="gcp.gemini")
+    gen.set_tool_definitions([Broken()])
+    gen.end()
+    attrs = exported_spans.get_finished_spans()[0].attributes
+    assert "gen_ai.tool.definitions" in attrs
+
+
 def test_tools_omitted_attribute_absent(exported_spans: InMemorySpanExporter) -> None:
     with start_as_current_generation("chat"):
         pass

@@ -5,8 +5,9 @@ by scripts/sync-semconv-fixtures.sh. The TypeScript SDK runs the same cases, so
 both SDKs are held to one expected result for each: how input.value and
 output.value are written, how set_attribute encodes a value, how messages and
 rius.context.sizes are recorded, what the masking exporter keeps, how RIUS_*
-variables resolve, how the resource takes in OTEL_RESOURCE_ATTRIBUTES and how
-error.type is named on the Anthropic SDK's own spans.
+variables resolve, how the resource takes in OTEL_RESOURCE_ATTRIBUTES, how
+error.type is named on the Anthropic SDK's own spans and how tool definitions
+are rewritten into the conventions' shape (the sink runs those too).
 Their README describes the format, including the tagged values JSON cannot
 hold (``{"$bytes": N}``, ``{"$number": "NaN"}``).
 """
@@ -27,6 +28,8 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from opentelemetry.trace import Status, StatusCode
 
 import rius
+from rius._serde import serialize
+from rius._tool_definitions import semconv_tool_definitions
 from rius.config import resolve_config
 from rius.masking import MaskingSpanExporter
 
@@ -249,3 +252,11 @@ def test_resource(case: dict[str, Any], monkeypatch: pytest.MonkeyPatch) -> None
         client.shutdown()
     assert {key: attributes.get(key) for key in case["expected"]} == case["expected"]
     assert [key for key in case["absent"] if key in attributes] == []
+
+
+@pytest.mark.parametrize("case", _cases("tool_definitions"), ids=_ids("tool_definitions"))
+def test_tool_definitions(case: dict[str, Any]) -> None:
+    once = semconv_tool_definitions(case["tools"], case["provider"])
+    assert serialize(once) == case["expected"]
+    # The sink rewrites what the SDK exported: a second pass changes nothing.
+    assert serialize(semconv_tool_definitions(once, case["provider"])) == case["expected"]

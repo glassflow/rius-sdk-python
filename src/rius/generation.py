@@ -166,6 +166,20 @@ def normalize_messages(messages: Messages, default_role: str) -> list[dict[str, 
     return [_normalize_message(message, default_role) for message in messages]
 
 
+def _plain(tool: Any) -> Any:
+    """A pydantic model (google-genai's ``types.Tool``) as its set fields, as JSON values.
+
+    Anything else, or a model whose dump fails, is returned as it is.
+    """
+    dump = getattr(tool, "model_dump", None)
+    if isinstance(tool, type) or not callable(dump):
+        return tool
+    try:
+        return dump(mode="json", exclude_none=True)
+    except Exception:
+        return tool
+
+
 class Generation:
     """Handle for recording gen_ai attributes on an LLM span.
 
@@ -224,13 +238,14 @@ class Generation:
         is lifted, Anthropic's ``input_schema`` becomes ``parameters``), and a
         provider's built-in tool keeps its fields with its ``type`` prefixed
         by the generation's provider (``anthropic.web_search_20250305``).
-        Definitions are content, not identity: they are masked/stripped under
-        ``capture_content=False`` like messages are.
+        A pydantic model (google-genai's ``types.Tool``) is recorded as its
+        set fields. Definitions are content, not identity: they are
+        masked/stripped under ``capture_content=False`` like messages are.
 
         Args:
             tools: The tools/functions list passed to the provider, in its own shape.
         """
-        self._tools = semconv_tool_definitions(tools, self._provider)
+        self._tools = semconv_tool_definitions([_plain(tool) for tool in tools], self._provider)
         self._span.set_attribute(GEN_AI_TOOL_DEFINITIONS, serialize(self._tools))
 
     def _set_context_sizes(self) -> None:

@@ -7,7 +7,9 @@ longer pass as the generic definition. Providers spell function tools their
 own way, so each is rewritten:
 
 * OpenAI Chat Completions nests the function, ``{"type": "function",
-  "function": {"name", ...}}``: the nested object is lifted to the top level.
+  "function": {"name", ...}}``: the nested object is lifted to the top level,
+  unless the top level already has a string ``name`` (then the tool is
+  already flat, and ``function`` is one of its fields).
 * Anthropic has no ``type`` (or ``"custom"``) and names the schema
   ``input_schema``; OpenAI's legacy ``functions`` entries have no ``type``
   either. A definition with a string ``name`` and no ``type`` is a function.
@@ -17,17 +19,22 @@ own way, so each is rewritten:
   "inputSchema": {"json": schema}}}``: it is unwrapped, and ``json`` becomes
   ``parameters``.
 * A Gemini tool holds a list of declarations, ``{"function_declarations":
-  [...]}`` (``functionDeclarations`` in camel case). Each declaration with a
-  string ``name`` becomes its own function tool, its schema taken from
-  ``parameters`` or, failing that, ``parametersJsonSchema`` /
-  ``parameters_json_schema``. A declaration without a name, and whatever else
-  the Gemini tool holds (a built-in such as ``google_search``), is kept as
-  its own entry.
+  [...]}`` (``functionDeclarations`` in camel case; every spelling holding a
+  list expands, snake case first). Each declaration with a string ``name``
+  becomes its own function tool, its schema taken from ``parameters`` or,
+  failing that, ``parametersJsonSchema`` / ``parameters_json_schema`` /
+  ``input_schema`` / ``inputSchema``. A declaration without a name, and
+  whatever else the Gemini tool holds (a built-in such as ``google_search``),
+  is its own entry, rewritten by the rules for a single tool.
+* A ``null`` ``parameters`` counts as no schema, so a schema under another
+  spelling still takes its place (a Python ``model_dump()`` of a Gemini
+  declaration holds both).
 
 Any other ``type`` is a provider's built-in tool (Anthropic's
 ``web_search_20250305``, OpenAI's ``web_search``). Its fields are kept, and its
 ``type`` is prefixed with the provider name, as the conventions recommend, so
 it cannot collide with a type they define later: ``anthropic.web_search_20250305``.
+An empty ``type`` is no type, and gets no prefix.
 A type that already holds a dot is taken as namespaced and left alone, which
 also keeps a second pass from stacking prefixes. Nothing is invented: a
 built-in tool without a ``name`` (OpenAI's ``web_search``, Gemini's
@@ -35,11 +42,22 @@ built-in tool without a ``name`` (OpenAI's ``web_search``, Gemini's
 model was offered, and an invented name would be a tool offered and never
 called by that name.
 
+An MCP tool (OpenAI Responses' ``type: "mcp"``) loses its ``headers``: they
+are the requests' headers to the MCP server, and can carry an
+``Authorization`` credential, which never belongs in telemetry.
+
 Anything else (not an object, or no usable ``type`` or ``name``) is kept as
 it is: it is the caller's data, and there is no shape to vouch for.
 
-The TypeScript SDK's ``toolDefinitions.ts`` ports this rule for rule; both
-must write the same JSON, key order included.
+Every rule's output is a fixed point: rewriting a rewritten list changes
+nothing. The sink rewrites what an SDK exported, so this keeps one tool in one
+shape.
+
+The TypeScript SDK's ``toolDefinitions.ts`` and the sink port this rule for
+rule; all three write the same canonical JSON, key order included, and
+rius-semconv's ``sdk_cases/tool_definitions.json`` holds them to it. Number
+formatting is each language's own (Python writes ``1.0``, TypeScript ``1``),
+and so is the order of integer-like keys in TypeScript.
 """
 
 from __future__ import annotations
@@ -55,6 +73,8 @@ _GEMINI_PARAMETER_SPELLINGS = ("parametersJsonSchema", "parameters_json_schema")
 _GEMINI_DECLARATIONS = ("function_declarations", "functionDeclarations")
 #: The Vercel AI SDK's provider tools, whose ``id`` is already ``<provider>.<tool>``.
 _VERCEL_PROVIDER_TYPES = ("provider-defined", "provider")
+#: OpenAI Responses' MCP tool, as given and once namespaced; its ``headers`` go.
+_MCP_TYPES = ("mcp", "openai.mcp")
 
 
 def semconv_tool_definitions(tools: list[Any], provider: str | None) -> list[Any]:
@@ -65,7 +85,7 @@ def semconv_tool_definitions(tools: list[Any], provider: str | None) -> list[Any
     """
     definitions: list[Any] = []
     for tool in tools:
-        expanded = _gemini_declarations(tool)
+        expanded = _gemini_declarations(tool, provider)
         if expanded is None:
             definitions.append(_semconv_tool_definition(tool, provider))
         else:
@@ -73,25 +93,29 @@ def semconv_tool_definitions(tools: list[Any], provider: str | None) -> list[Any
     return definitions
 
 
-def _gemini_declarations(tool: Any) -> list[Any] | None:
+def _gemini_declarations(tool: Any, provider: str | None) -> list[Any] | None:
     """A Gemini tool as one entry per declaration, then the rest; None if not one."""
     if not isinstance(tool, dict) or tool.get("type") is not None:
         return None
-    key = next((key for key in _GEMINI_DECLARATIONS if key in tool), None)
-    if key is None or not isinstance(tool[key], list):
+    keys = [key for key in _GEMINI_DECLARATIONS if isinstance(tool.get(key), list)]
+    if not keys:
         return None
-    entries = [_gemini_declaration(declaration) for declaration in tool[key]]
-    rest = {name: value for name, value in tool.items() if name != key}
+    entries: list[Any] = []
+    for key in keys:
+        for declaration in tool[key]:
+            if isinstance(declaration, dict) and isinstance(declaration.get("name"), str):
+                entries.append(_gemini_declaration(declaration))
+            else:
+                entries.extend(semconv_tool_definitions([declaration], provider))
+    rest = {name: value for name, value in tool.items() if name not in keys}
     if rest:
-        entries.append(rest)
+        entries.extend(semconv_tool_definitions([rest], provider))
     return entries
 
 
-def _gemini_declaration(declaration: Any) -> Any:
-    if not isinstance(declaration, dict) or not isinstance(declaration.get("name"), str):
-        return declaration
+def _gemini_declaration(declaration: dict[str, Any]) -> dict[str, Any]:
     flat = {"type": _FUNCTION, **{k: v for k, v in declaration.items() if k != "type"}}
-    return _with_parameters(flat, _GEMINI_PARAMETER_SPELLINGS)
+    return _with_parameters(flat, _GEMINI_PARAMETER_SPELLINGS + _PARAMETER_SPELLINGS)
 
 
 def _semconv_tool_definition(tool: Any, provider: str | None) -> Any:
@@ -100,7 +124,7 @@ def _semconv_tool_definition(tool: Any, provider: str | None) -> Any:
     kind = tool.get("type")
     if kind == _FUNCTION:
         nested = tool.get(_FUNCTION)
-        if not isinstance(nested, dict):
+        if not isinstance(nested, dict) or isinstance(tool.get("name"), str):
             return _with_parameters(tool)
         flat: dict[str, Any] = {"type": _FUNCTION}
         flat.update((key, value) for key, value in nested.items() if key != "type")
@@ -118,8 +142,10 @@ def _semconv_tool_definition(tool: Any, provider: str | None) -> Any:
     spec = tool.get("toolSpec")
     if kind is None and isinstance(spec, dict) and isinstance(spec.get("name"), str):
         return _bedrock_tool(tool, spec)
-    if not isinstance(kind, str):
+    if not isinstance(kind, str) or not kind:
         return tool
+    if kind in _MCP_TYPES and "headers" in tool:
+        tool = {key: value for key, value in tool.items() if key != "headers"}
     if kind in _VERCEL_PROVIDER_TYPES:
         identifier = tool.get("id")
         if isinstance(identifier, str) and "." in identifier:
@@ -151,12 +177,18 @@ def _bedrock_tool(tool: dict[str, Any], spec: dict[str, Any]) -> dict[str, Any]:
 def _with_parameters(
     tool: dict[str, Any], spellings: tuple[str, ...] = _PARAMETER_SPELLINGS
 ) -> dict[str, Any]:
-    """The tool with its schema under ``parameters``, renamed where it stood."""
-    if "parameters" in tool:
+    """The tool with its schema under ``parameters``, renamed where it stood.
+
+    A ``null`` ``parameters`` is no schema: when another spelling holds one,
+    the null goes and that spelling is renamed.
+    """
+    if tool.get("parameters") is not None:
         return tool
     for spelling in spellings:
         if spelling in tool:
             return {
-                ("parameters" if key == spelling else key): value for key, value in tool.items()
+                ("parameters" if key == spelling else key): value
+                for key, value in tool.items()
+                if key != "parameters"
             }
     return tool
