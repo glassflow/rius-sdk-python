@@ -7,6 +7,8 @@ result. The Python SDK and the TypeScript SDK both vendor this directory
 (`scripts/sync-semconv-fixtures.sh` copies it to
 `tests/fixtures/semconv/sdk_cases/`) and run every case through their own
 code, so the two SDKs agree with each other by agreeing with these files.
+The sink (argus-core) vendors `tool_definitions.json` too, since it rewrites
+tool definitions by the same rules.
 
 | File | What it checks | Through |
 | -- | -- | -- |
@@ -18,6 +20,7 @@ code, so the two SDKs agree with each other by agreeing with these files.
 | `resource.json` | `OTEL_RESOURCE_ATTRIBUTES` merged under the SDK's own resource keys, and the `unknown_service` placeholder never stamped as an agent name. | `init()` |
 | `anthropic_error_type.json` | `error.type` on a span the Anthropic SDK made itself: the exception class it raises for the HTTP status, for the statuses every Anthropic client in both languages maps alike (400, 401, 403, 404, 409, 422, 429, and every 5xx but 503, 504 and 529); anything else kept. | the SDK's span normalization |
 | `structured_content.json` | `gen_ai.input.messages`, `gen_ai.output.messages`, `gen_ai.system_instructions` and `gen_ai.tool.definitions` set by another instrumentation as maps and arrays: each written as its compact JSON and then normalized as that string, so it exports as its JSON string does; a blob part's byte content as its base64, any other byte object the marker. | the SDK's span normalization |
+| `tool_definitions.json` | `gen_ai.tool.definitions` in the conventions' shape from each provider's own: OpenAI chat and Responses, Anthropic, Gemini declarations, Bedrock `toolSpec`, Vercel AI SDK and MCP tools, and Chat Completions `custom` tools, and the edge cases (null `parameters`, an empty `type`, an empty `name` as no name, an MCP tool's `headers` and `authorization` dropped, in a Vercel provider tool's `args` too). Rewriting an output again writes it unchanged. | `semconv_tool_definitions` / `semconvToolDefinitions`, and the sink's |
 
 Each file holds an `about`, which says what a case's fields mean, and
 `cases`, each with a unique `name`. A field an SDK spells differently is named
