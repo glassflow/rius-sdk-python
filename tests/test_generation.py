@@ -658,6 +658,8 @@ def test_set_tool_definitions_records_a_pydantic_tool_as_its_fields(
         function_declarations: list[Declaration] | None = None
         google_search: dict[str, Any] | None = None
 
+    # Only google-genai's models are dumped: stand in for its module.
+    Declaration.__module__ = Tool.__module__ = "google.genai.types"
     schema = {"type": "object", "properties": {"city": {"type": "string"}}}
     tool = Tool(function_declarations=[Declaration(name="f", parameters_json_schema=schema)])
     gen = start_generation("chat", model="gemini-3-pro", provider="gcp.gemini")
@@ -668,6 +670,31 @@ def test_set_tool_definitions_records_a_pydantic_tool_as_its_fields(
         {"type": "function", "name": "f", "parameters": schema},
         {"code_execution": {}},
     ]
+
+
+def test_set_tool_definitions_does_not_dump_other_pydantic_models(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    # A pydantic tool from elsewhere (a LangChain StructuredTool) has no
+    # known shape: it is recorded as before, not as its dumped fields.
+    pydantic = pytest.importorskip("pydantic")
+
+    class StructuredTool(pydantic.BaseModel):  # type: ignore[name-defined,misc]
+        name: str
+        description: str
+        args_schema: dict[str, Any]
+
+        def __repr__(self) -> str:
+            return "StructuredTool(add)"
+
+    tool = StructuredTool(name="add", description="Add.", args_schema={"type": "object"})
+    gen = start_generation("chat", provider="openai")
+    gen.set_tool_definitions([tool])
+    gen.end()
+    attrs = exported_spans.get_finished_spans()[0].attributes
+    recorded = attrs["gen_ai.tool.definitions"]
+    assert "args_schema" not in recorded
+    assert "StructuredTool(add)" in recorded
 
 
 def test_set_tool_definitions_keeps_a_model_whose_dump_fails(

@@ -8,11 +8,18 @@ own way, so each is rewritten:
 
 * OpenAI Chat Completions nests the function, ``{"type": "function",
   "function": {"name", ...}}``: the nested object is lifted to the top level,
-  unless the top level already has a string ``name`` (then the tool is
-  already flat, and ``function`` is one of its fields).
+  unless the top level already has a name (then the tool is already flat,
+  and ``function`` is one of its fields).
+* Chat Completions nests a custom tool the same way, ``{"type": "custom",
+  "custom": {"name", "description", "format"}}``: the nested object is lifted
+  by the same rule, and the tool stays a custom tool (a provider tool, below),
+  unless the lifted tool is Anthropic's custom tool.
 * Anthropic has no ``type`` (or ``"custom"``) and names the schema
   ``input_schema``; OpenAI's legacy ``functions`` entries have no ``type``
-  either. A definition with a string ``name`` and no ``type`` is a function.
+  either. A definition with a name and no ``type`` is a function, and so is
+  a ``custom`` one with an ``input_schema``.
+* A name is a non-empty string. An empty ``name`` is no name, as it is for a
+  tool call: no function tool is made with an empty name.
 * The schema is ``parameters``; ``input_schema`` and the Vercel AI SDK's
   ``inputSchema`` are renamed to it, in place.
 * Bedrock Converse wraps the function, ``{"toolSpec": {"name", "description",
@@ -20,7 +27,7 @@ own way, so each is rewritten:
   ``parameters``.
 * A Gemini tool holds a list of declarations, ``{"function_declarations":
   [...]}`` (``functionDeclarations`` in camel case; every spelling holding a
-  list expands, snake case first). Each declaration with a string ``name``
+  list expands, snake case first). Each declaration with a name
   becomes its own function tool, its schema taken from ``parameters`` or,
   failing that, ``parametersJsonSchema`` / ``parameters_json_schema`` /
   ``input_schema`` / ``inputSchema``. A declaration without a name, and
@@ -42,9 +49,13 @@ built-in tool without a ``name`` (OpenAI's ``web_search``, Gemini's
 model was offered, and an invented name would be a tool offered and never
 called by that name.
 
-An MCP tool (OpenAI Responses' ``type: "mcp"``) loses its ``headers``: they
-are the requests' headers to the MCP server, and can carry an
-``Authorization`` credential, which never belongs in telemetry.
+An MCP tool (OpenAI Responses' ``type: "mcp"``, or any ``<provider>.mcp``
+type it is written as) loses its ``headers`` and its ``authorization``: the
+headers are the requests' headers to the MCP server and can carry an
+``Authorization`` credential, and ``authorization`` is an OAuth access token
+for the server or connector. Credentials never belong in telemetry. This
+applies to the definitions rewritten here, not to definitions another
+instrumentation already wrote as ``gen_ai.tool.definitions``.
 
 Anything else (not an object, or no usable ``type`` or ``name``) is kept as
 it is: it is the caller's data, and there is no shape to vouch for.
@@ -73,8 +84,16 @@ _GEMINI_PARAMETER_SPELLINGS = ("parametersJsonSchema", "parameters_json_schema")
 _GEMINI_DECLARATIONS = ("function_declarations", "functionDeclarations")
 #: The Vercel AI SDK's provider tools, whose ``id`` is already ``<provider>.<tool>``.
 _VERCEL_PROVIDER_TYPES = ("provider-defined", "provider")
-#: OpenAI Responses' MCP tool, as given and once namespaced; its ``headers`` go.
-_MCP_TYPES = ("mcp", "openai.mcp")
+_CUSTOM = "custom"
+#: OpenAI Responses' MCP tool type; ``<provider>.mcp`` once namespaced.
+_MCP = "mcp"
+#: An MCP tool's members that hold credentials, dropped.
+_MCP_CREDENTIALS = ("headers", "authorization")
+
+
+def _named(value: Any) -> bool:
+    """A usable tool name: a non-empty string."""
+    return isinstance(value, str) and bool(value)
 
 
 def semconv_tool_definitions(tools: list[Any], provider: str | None) -> list[Any]:
@@ -103,7 +122,7 @@ def _gemini_declarations(tool: Any, provider: str | None) -> list[Any] | None:
     entries: list[Any] = []
     for key in keys:
         for declaration in tool[key]:
-            if isinstance(declaration, dict) and isinstance(declaration.get("name"), str):
+            if isinstance(declaration, dict) and _named(declaration.get("name")):
                 entries.append(_gemini_declaration(declaration))
             else:
                 entries.extend(semconv_tool_definitions([declaration], provider))
@@ -124,36 +143,55 @@ def _semconv_tool_definition(tool: Any, provider: str | None) -> Any:
     kind = tool.get("type")
     if kind == _FUNCTION:
         nested = tool.get(_FUNCTION)
-        if not isinstance(nested, dict) or isinstance(tool.get("name"), str):
+        if not isinstance(nested, dict) or _named(tool.get("name")):
             return _with_parameters(tool)
-        flat: dict[str, Any] = {"type": _FUNCTION}
-        flat.update((key, value) for key, value in nested.items() if key != "type")
-        flat.update(
-            (key, value)
-            for key, value in tool.items()
-            if key not in ("type", _FUNCTION) and key not in flat
-        )
-        return _with_parameters(flat)
-    if isinstance(tool.get("name"), str) and (
-        kind is None or (kind == "custom" and "input_schema" in tool)
-    ):
+        return _with_parameters(_lifted(tool, _FUNCTION, nested))
+    if kind == _CUSTOM:
+        nested = tool.get(_CUSTOM)
+        if isinstance(nested, dict) and not _named(tool.get("name")):
+            return _semconv_tool_definition(_lifted(tool, _CUSTOM, nested), provider)
+    if _named(tool.get("name")) and (kind is None or (kind == _CUSTOM and "input_schema" in tool)):
         rest = {key: value for key, value in tool.items() if key != "type"}
         return _with_parameters({"type": _FUNCTION, **rest})
     spec = tool.get("toolSpec")
-    if kind is None and isinstance(spec, dict) and isinstance(spec.get("name"), str):
+    if kind is None and isinstance(spec, dict) and _named(spec.get("name")):
         return _bedrock_tool(tool, spec)
     if not isinstance(kind, str) or not kind:
         return tool
-    if kind in _MCP_TYPES and "headers" in tool:
-        tool = {key: value for key, value in tool.items() if key != "headers"}
     if kind in _VERCEL_PROVIDER_TYPES:
         identifier = tool.get("id")
         if isinstance(identifier, str) and "." in identifier:
-            return {**tool, "type": identifier}
+            tool = {**tool, "type": identifier}
+    elif provider and "." not in kind:
+        tool = {**tool, "type": f"{provider}.{kind}"}
+    return _without_credentials(tool)
+
+
+def _lifted(tool: dict[str, Any], kind: str, nested: dict[str, Any]) -> dict[str, Any]:
+    """The tool with its nested ``kind`` object's members at the top level.
+
+    The nested members win; the top level's other members follow.
+    """
+    flat: dict[str, Any] = {"type": kind}
+    flat.update((key, value) for key, value in nested.items() if key != "type")
+    flat.update(
+        (key, value) for key, value in tool.items() if key not in ("type", kind) and key not in flat
+    )
+    return flat
+
+
+def _without_credentials(tool: dict[str, Any]) -> dict[str, Any]:
+    """An MCP tool (``mcp`` or ``<provider>.mcp``) without its credential members.
+
+    Read from the type the tool is written with, so a second pass drops the
+    same members.
+    """
+    kind = tool.get("type")
+    if not isinstance(kind, str) or not (kind == _MCP or kind.endswith("." + _MCP)):
         return tool
-    if provider and "." not in kind:
-        return {**tool, "type": f"{provider}.{kind}"}
-    return tool
+    if not any(key in tool for key in _MCP_CREDENTIALS):
+        return tool
+    return {key: value for key, value in tool.items() if key not in _MCP_CREDENTIALS}
 
 
 def _bedrock_tool(tool: dict[str, Any], spec: dict[str, Any]) -> dict[str, Any]:

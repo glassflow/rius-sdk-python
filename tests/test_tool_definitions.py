@@ -328,3 +328,104 @@ def test_mcp_tool_headers_are_dropped() -> None:
         {"type": "openai.mcp", "server_label": "docs"}
     ]
     assert semconv_tool_definitions([{"type": "mcp", "headers": {}}], None) == [{"type": "mcp"}]
+
+
+@pytest.mark.parametrize("kind", ["mcp", "openai.mcp", "azure.mcp"])
+def test_mcp_tool_authorization_is_dropped_with_its_headers(kind: str) -> None:
+    # OpenAI's MCP tool also carries `authorization`, an OAuth access token
+    # for the remote server or connector.
+    tool = {
+        "type": kind,
+        "server_label": "gh",
+        "connector_id": "connector_gmail",
+        "authorization": "ya29.token",
+        "headers": {"Authorization": "Bearer secret"},
+    }
+    once = semconv_tool_definitions([tool], "openai")
+    assert once == [
+        {
+            "type": "openai.mcp" if kind == "mcp" else kind,
+            "server_label": "gh",
+            "connector_id": "connector_gmail",
+        }
+    ]
+    assert semconv_tool_definitions(once, "openai") == once
+
+
+def test_a_vercel_mcp_provider_tool_loses_its_credentials() -> None:
+    # The Vercel AI SDK's id becomes the type: once it reads `*.mcp`, the
+    # credentials go, as they would on a second pass.
+    tool = {"type": "provider", "id": "openai.mcp", "name": "mcp", "authorization": "t"}
+    once = semconv_tool_definitions([tool], None)
+    assert once == [{"type": "openai.mcp", "id": "openai.mcp", "name": "mcp"}]
+    assert semconv_tool_definitions(once, None) == once
+
+
+def test_other_tools_keep_an_authorization_member() -> None:
+    tool = {"type": "web_search", "authorization": "kept"}
+    assert semconv_tool_definitions([tool], "openai") == [
+        {"type": "openai.web_search", "authorization": "kept"}
+    ]
+
+
+def test_chat_completions_custom_tool_is_lifted_and_stays_custom() -> None:
+    # Chat Completions nests a custom tool's fields under `custom`; they are
+    # lifted as `function`'s are, and the tool stays a provider tool.
+    tool = {
+        "type": "custom",
+        "custom": {"name": "code_exec", "description": "Runs code", "format": {"type": "text"}},
+    }
+    once = semconv_tool_definitions([tool], "openai")
+    assert once == [
+        {
+            "type": "openai.custom",
+            "name": "code_exec",
+            "description": "Runs code",
+            "format": {"type": "text"},
+        }
+    ]
+    assert semconv_tool_definitions(once, "openai") == once
+
+
+def test_a_nested_custom_is_not_lifted_over_a_top_level_name() -> None:
+    tool = {"type": "custom", "name": "x", "custom": {"name": "y"}}
+    assert semconv_tool_definitions([tool], "openai") == [
+        {"type": "openai.custom", "name": "x", "custom": {"name": "y"}}
+    ]
+
+
+def test_a_lifted_custom_tool_with_an_input_schema_is_a_function() -> None:
+    # Anthropic's custom tool rule applies to the lifted tool too, so the
+    # output is the same whether or not the provider prefixed it.
+    tool = {"type": "custom", "custom": {"name": "f", "input_schema": _PARAMETERS}}
+    for provider in ("anthropic", None):
+        once = semconv_tool_definitions([tool], provider)
+        assert once == [{"type": "function", "name": "f", "parameters": _PARAMETERS}]
+        assert semconv_tool_definitions(once, provider) == once
+
+
+@pytest.mark.parametrize(
+    "tool",
+    [
+        {"name": ""},
+        {"name": "", "input_schema": _PARAMETERS},
+        {"type": "custom", "name": "", "input_schema": _PARAMETERS},
+        {"toolSpec": {"name": "", "inputSchema": {"json": _PARAMETERS}}},
+    ],
+)
+def test_an_empty_name_is_no_name(tool: dict[str, Any]) -> None:
+    # As for tool calls, an empty name is a missing one: no function tool
+    # with an empty name is made.
+    once = semconv_tool_definitions([tool], None)
+    assert once == [tool]
+    assert semconv_tool_definitions(once, None) == once
+
+
+def test_a_gemini_declaration_with_an_empty_name_is_not_a_function() -> None:
+    tools = [{"function_declarations": [{"name": "", "description": "d"}]}]
+    assert semconv_tool_definitions(tools, "gcp.gemini") == [{"name": "", "description": "d"}]
+
+
+def test_a_nested_function_is_lifted_over_an_empty_top_level_name() -> None:
+    tool = {"type": "function", "name": "", "function": {"name": "f"}}
+    assert semconv_tool_definitions([tool], "openai") == [{"type": "function", "name": "f"}]

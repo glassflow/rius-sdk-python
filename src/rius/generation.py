@@ -166,11 +166,21 @@ def normalize_messages(messages: Messages, default_role: str) -> list[dict[str, 
     return [_normalize_message(message, default_role) for message in messages]
 
 
-def _plain(tool: Any) -> Any:
-    """A pydantic model (google-genai's ``types.Tool``) as its set fields, as JSON values.
+#: google-genai's package, whose pydantic models (``types.Tool``) are dumped.
+_GOOGLE_GENAI = "google.genai"
 
-    Anything else, or a model whose dump fails, is returned as it is.
+
+def _plain(tool: Any) -> Any:
+    """A google-genai pydantic model (``types.Tool``) as its set fields, as JSON values.
+
+    Only google-genai's models are dumped, since their fields are the provider
+    shape the definitions are rewritten from. Anything else (another library's
+    pydantic tool, such as a LangChain ``StructuredTool``), or a model whose
+    dump fails, is returned as it is.
     """
+    module = type(tool).__module__
+    if module != _GOOGLE_GENAI and not module.startswith(_GOOGLE_GENAI + "."):
+        return tool
     dump = getattr(tool, "model_dump", None)
     if isinstance(tool, type) or not callable(dump):
         return tool
