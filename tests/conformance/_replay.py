@@ -1,4 +1,4 @@
-# Vendored from rius-semconv d270c655d2ed3641c526187df7841ed4f5d7f9ad fixtures/_replay.py by
+# Vendored from rius-semconv d826d04f4dbb87171ff763b65515a4b6355d81c5 fixtures/_replay.py by
 # scripts/sync-semconv-fixtures.sh. Do not edit: change it in rius-semconv.
 """Turn a stored recording back into OpenTelemetry ReadableSpans (Python).
 

@@ -239,10 +239,21 @@ _REPLACEMENT_HEAD, _rest = REPLACEMENT_FORMAT.split("<mime>")
 _REPLACEMENT_BETWEEN, _REPLACEMENT_TAIL = _rest.split("<byte_size>")
 
 
+#: 2^53 - 1 has 16 digits, so a run with more significant digits is past it.
+_MAX_BYTE_SIZE_DIGITS = 16
+
+
 def parse_replacement(value: str) -> tuple[str | None, int | None] | None:
     """The mime and byte_size a complete replacement names, each None when
     unknown; None when ``value`` is no complete replacement (see
-    ``is_replacement``)."""
+    ``is_replacement``).
+
+    The byte_size is the digit run read as a decimal number, leading zeros of
+    any length allowed. A run with more significant digits than 2^53 - 1 has
+    is None and is never converted: ``int()`` refuses a string over 4300
+    digits, and this runs inside the export chain. The caller still bounds a
+    shorter one to 2^53 - 1, as for a byte_size the part has.
+    """
     head, between, tail = _REPLACEMENT_HEAD, _REPLACEMENT_BETWEEN, _REPLACEMENT_TAIL
     if len(value) < len(head) + len(between) + len(tail):
         return None
@@ -252,7 +263,12 @@ def parse_replacement(value: str) -> tuple[str | None, int | None] | None:
     digits = bool(size) and all("0" <= ch <= "9" for ch in size)
     if not (sep and (mime == UNKNOWN or is_mime(mime)) and (digits or size == UNKNOWN)):
         return None
-    return (None if mime == UNKNOWN else mime), (int(size) if digits else None)
+    byte_size = None
+    if digits:
+        significant = size.lstrip("0") or "0"
+        if len(significant) <= _MAX_BYTE_SIZE_DIGITS:
+            byte_size = int(significant)
+    return (None if mime == UNKNOWN else mime), byte_size
 
 
 def is_replacement(value: str) -> bool:

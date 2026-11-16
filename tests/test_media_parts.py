@@ -144,6 +144,18 @@ CONTRACT_EXAMPLE_INPUTS: dict[str, dict[str, Any]] = {
         "type": "blob",
         "content": "[stripped image/png 0008 bytes]",
     },
+    "blob_with_content_that_is_a_replacement_with_thousands_of_leading_zeros": {
+        "type": "blob",
+        "content": "[stripped unknown " + "0" * 5000 + "8 bytes]",
+    },
+    "blob_with_content_that_is_a_replacement_whose_size_overflows_int64": {
+        "type": "blob",
+        "content": "[stripped image/png 99999999999999999999 bytes]",
+    },
+    "blob_with_content_that_is_a_replacement_with_thousands_of_digits": {
+        "type": "blob",
+        "content": "[stripped unknown " + "9" * 5000 + " bytes]",
+    },
     "blob_with_content_that_only_looks_like_a_replacement": {
         "type": "blob",
         "mime_type": "image/png",

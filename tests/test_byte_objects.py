@@ -548,3 +548,66 @@ def test_a_blob_of_bytes_in_messages_is_stored_as_its_base64_twin() -> None:
         "byte_size": 8,
         "stripped_reason": "not_captured",
     }
+
+
+#: A complete replacement whose size has more digits than Python's int()
+#: converts from a string (4300, leading zeros included).
+_LONG_REPLACEMENT = "[stripped unknown " + "9" * 4301 + " bytes]"
+
+
+@pytest.mark.parametrize(
+    ("key", "value", "stored"),
+    [
+        pytest.param(
+            "gen_ai.input.messages",
+            json.dumps(
+                [{"role": "user", "parts": [{"type": "blob", "content": _LONG_REPLACEMENT}]}]
+            ),
+            # Rebuilt with no byte_size: the size is past 2^53 - 1.
+            '"parts": [{"type":"blob","modality":"document","stripped_reason":"not_captured"}]',
+            id="blob-content",
+        ),
+        pytest.param(
+            "output",
+            json.dumps({"mime_type": _LONG_REPLACEMENT, "data": "QUJD"}),
+            _LONG_REPLACEMENT,
+            id="mime-type",
+        ),
+        pytest.param(
+            "output",
+            json.dumps({"type": "image", "source_type": "base64", "data": _LONG_REPLACEMENT}),
+            _LONG_REPLACEMENT,
+            id="data",
+        ),
+    ],
+)
+def test_a_replacement_with_a_long_digit_run_is_exported(key: str, value: str, stored: str) -> None:
+    # int() refuses such a run, and the strip asks whether each of these
+    # strings is a replacement: the export must still deliver the span.
+    inner = InMemorySpanExporter()
+    client = init(span_exporter=inner, set_global=False)
+    span = client.get_tracer().start_span("long")
+    span.set_attribute(key, value)
+    span.end()
+    client.flush()
+    [exported] = inner.get_finished_spans()
+    assert stored in str((exported.attributes or {})[key])
+
+
+def test_a_replacement_with_thousands_of_leading_zeros_names_its_size() -> None:
+    content = "[stripped unknown " + "0" * 5000 + "8 bytes]"
+    value = json.dumps([{"role": "user", "parts": [{"type": "blob", "content": content}]}])
+    inner = InMemorySpanExporter()
+    client = init(span_exporter=inner, set_global=False)
+    span = client.get_tracer().start_span("zeros")
+    span.set_attribute("gen_ai.input.messages", value)
+    span.end()
+    client.flush()
+    [exported] = inner.get_finished_spans()
+    [part] = json.loads(str((exported.attributes or {})["gen_ai.input.messages"]))[0]["parts"]
+    assert part == {
+        "type": "blob",
+        "modality": "document",
+        "byte_size": 8,
+        "stripped_reason": "not_captured",
+    }
