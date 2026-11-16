@@ -130,6 +130,7 @@ from ._serde import (
     LONE_SURROGATE,
     UNREADABLE,
     attribute_value,
+    byte_object_size,
     json_text,
     loads_json,
     loads_object,
@@ -1322,7 +1323,7 @@ def _plain_content(value: Any, ancestors: list[int]) -> Any:
             plain = {key: _plain_content(item, ancestors) for key, item in value.items()}
             content = plain.get("content")
             if plain.get("type") == "blob" and isinstance(content, BYTE_OBJECTS):
-                size = _byte_size(content)
+                size = byte_object_size(content)
                 if size is not None:
                     mime = plain.get("mime_type")
                     plain["content"] = replacement(mime if is_mime(mime) else None, size)
@@ -1330,17 +1331,6 @@ def _plain_content(value: Any, ancestors: list[int]) -> Any:
         return [_plain_content(item, ancestors) for item in value]
     finally:
         ancestors.pop()
-
-
-def _byte_size(content: bytes | bytearray | memoryview) -> int | None:
-    """A byte object's size in bytes, or None when its bytes cannot be read
-    (a released memoryview), so the part keeps the marker and no size."""
-    if isinstance(content, memoryview):
-        try:
-            return content.nbytes
-        except ValueError:
-            return None
-    return len(content)
 
 
 #: The message keys whose parts a normalizer builds (the contract's
