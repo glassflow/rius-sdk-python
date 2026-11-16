@@ -87,6 +87,10 @@ never be written at span start.
 reasons: the flattened ``llm.input_messages.N.message.*`` and
 ``llm.output_messages.N.message.*`` families become ``gen_ai.input.messages``
 and ``gen_ai.output.messages``, which are content.
+``structured_content_as_json`` comes first of all: the conventions now ask for
+the content keys as maps and arrays rather than JSON strings, and every pass
+after it reads them as JSON text, so a structured value is written as that
+text before any of them runs.
 ``drop_embedding_vectors`` removes the indexed
 ``embedding.embeddings.N.embedding.vector`` family, which is never exported.
 
@@ -98,6 +102,7 @@ mapped and the canonical key would arrive empty.
 
 from __future__ import annotations
 
+import base64
 import copy
 import json
 import logging
@@ -120,9 +125,11 @@ from ._native_spans import native_error_type
 from ._provider_compaction import ProviderCompactions, compactions_in_response
 from ._provider_response import response_json
 from ._serde import (
+    BYTE_OBJECTS,
     LONE_SURROGATE,
     UNREADABLE,
     attribute_value,
+    json_text,
     loads_json,
     loads_object,
     serialize,
@@ -1195,6 +1202,86 @@ def compactions_from_output_value(attributes: Mapping[str, Any] | None) -> Provi
     return compactions_in_response(raw)
 
 
+#: The content keys the GenAI conventions ask for as structured values (maps
+#: and arrays) rather than JSON strings. OpenTelemetry Python keeps such a
+#: value on a span from 1.45.
+_STRUCTURED_CONTENT_KEYS = (
+    GEN_AI_INPUT_MESSAGES,
+    GEN_AI_OUTPUT_MESSAGES,
+    GEN_AI_SYSTEM_INSTRUCTIONS,
+    GEN_AI_TOOL_DEFINITIONS,
+)
+
+
+def structured_content_as_json(attributes: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    """The content keys set as structured values, each written as its JSON text.
+
+    Returns the rebuilt attribute dict, or None when nothing changes. Every
+    pass after this one, the media rebuild and the strip included, reads these
+    keys as JSON text, as the conventions used to define them and as this SDK
+    still writes them. A mapping or an array is written as that text (the one
+    JSON encoding, see ``_serde``), and from then on it is that string: a
+    span carrying the structured value and a span carrying its JSON text
+    export the same attributes. A string, a scalar or a lone byte object is
+    not structured, and is left to the passes as it is.
+
+    A blob part's byte content (``{"type": "blob", "content": b"..."}``) is
+    written as its base64, as the JSON text of a blob part carries it, so the
+    part is rebuilt with its size and the bytes stripped like any other blob.
+    A byte object anywhere else is the marker, as everywhere this SDK writes
+    one.
+    """
+    if not attributes:
+        return None
+    rebuilt: dict[str, Any] | None = None
+    for key in _STRUCTURED_CONTENT_KEYS:
+        value = attributes.get(key)
+        if not isinstance(value, (Mapping, list, tuple)):
+            continue
+        try:
+            plain = _plain_content(value, [])
+        except RecursionError:
+            plain = value
+        if rebuilt is None:
+            rebuilt = dict(attributes)
+        rebuilt[key] = json_text(plain)
+    return rebuilt
+
+
+def _plain_content(value: Any, ancestors: list[int]) -> Any:
+    """``value`` with every mapping a dict and every array a list, for the encoder.
+
+    A blob part's byte content becomes its base64 (see
+    :func:`structured_content_as_json`). A cycle is left as it is, for the
+    encoder to refuse.
+    """
+    if not isinstance(value, (Mapping, list, tuple)):
+        return value
+    if id(value) in ancestors:
+        return value
+    ancestors.append(id(value))
+    try:
+        if isinstance(value, Mapping):
+            plain = {key: _plain_content(item, ancestors) for key, item in value.items()}
+            content = plain.get("content")
+            if plain.get("type") == "blob" and isinstance(content, BYTE_OBJECTS):
+                encoded = _base64(content)
+                if encoded is not None:
+                    plain["content"] = encoded
+            return plain
+        return [_plain_content(item, ancestors) for item in value]
+    finally:
+        ancestors.pop()
+
+
+def _base64(content: bytes | bytearray | memoryview) -> str | None:
+    """A byte object's base64, or None when its bytes cannot be read (a released memoryview)."""
+    try:
+        return base64.b64encode(content).decode("ascii")
+    except (ValueError, TypeError):
+        return None
+
+
 #: The message keys whose parts a normalizer builds (the contract's
 #: ``raw_payloads.message_keys`` that hold semconv JSON). The system
 #: instructions are read and rewritten here, never emitted.
@@ -1345,7 +1432,14 @@ class NormalizingSpanExporter(SpanExporter):
         return self._inner.export([self._normalized(span) for span in spans])
 
     def _normalized(self, span: ReadableSpan) -> ReadableSpan:
-        new_attributes = self._table.normalize(span.attributes)
+        # First, so every pass below reads the content keys as JSON text,
+        # however the instrumentation set them.
+        structured = structured_content_as_json(span.attributes)
+        new_attributes = self._table.normalize(
+            span.attributes if structured is None else structured
+        )
+        if new_attributes is None:
+            new_attributes = structured
         # After the table, which maps the dialects' usage onto the canonical
         # keys, so a zero it mapped goes with the native ones. On every span,
         # the SDK's own generations included, not only third-party ones.
