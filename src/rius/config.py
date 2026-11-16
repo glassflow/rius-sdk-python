@@ -101,22 +101,30 @@ _OTEL_CAPTURE_MODES = {
 def _capture_content_from_env() -> bool:
     """``RIUS_CAPTURE_CONTENT`` when set, else the conventions' setting, else on.
 
-    The conventions' ``OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT`` is read
-    case-insensitively. Its own default is ``NO_CONTENT``, but Rius keeps
-    capture on when neither variable is set, and an unrecognised value keeps
-    that default with a warning, as an unrecognised boolean does.
+    An empty (or blank) value of either variable counts as unset, as
+    OpenTelemetry reads its own variables: templated deployments render an
+    omitted value as an empty one. A blank ``RIUS_CAPTURE_CONTENT`` still logs
+    a warning, as the other blank ``RIUS_*`` flags do. The conventions'
+    ``OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT`` is read case-insensitively.
+    Its own default is ``NO_CONTENT``, and the conventions ask for that on an
+    unrecognised value too. Rius keeps capture on in both cases, on purpose:
+    capture is on by default, and an unrecognised value logs a warning naming
+    the valid ones.
     """
-    if os.getenv(ENV_CAPTURE_CONTENT) is not None:
-        return _env_bool(ENV_CAPTURE_CONTENT, default=True)
+    rius = os.getenv(ENV_CAPTURE_CONTENT)
+    if rius is not None:
+        if rius.strip():
+            return _env_bool(ENV_CAPTURE_CONTENT, default=True)
+        logger.warning("%s is empty; treated as unset.", ENV_CAPTURE_CONTENT)
     raw = os.getenv(ENV_OTEL_CAPTURE_CONTENT)
-    if raw is None:
+    if raw is None or not raw.strip():
         return True
     mode = _OTEL_CAPTURE_MODES.get(raw.strip().upper())
     if mode is not None:
         return mode
     logger.warning(
-        "%s=%r is not a recognised capture mode; using the default (True). "
-        "Accepted: NO_CONTENT, SPAN_ONLY, EVENT_ONLY, SPAN_AND_EVENT.",
+        "%s=%r is not recognised; content capture stays on. "
+        "Valid values: NO_CONTENT, SPAN_ONLY, EVENT_ONLY, SPAN_AND_EVENT.",
         ENV_OTEL_CAPTURE_CONTENT,
         raw,
     )

@@ -250,14 +250,55 @@ def test_capture_content_follows_the_otel_setting_when_rius_is_unset(
     assert not caplog.records
 
 
-@pytest.mark.parametrize("raw", ["", "maybe", "true", "SPAN"])
-def test_an_unrecognised_otel_capture_setting_keeps_the_default_and_warns(
+@pytest.mark.parametrize("raw", ["maybe", "true", "false", "SPAN", "NO-CONTENT"])
+def test_an_unrecognised_otel_capture_setting_keeps_capture_on_and_warns(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, raw: str
 ) -> None:
+    # Deliberately not the conventions' NO_CONTENT: capture is on by default in
+    # Rius, and the warning names the value and what to set instead.
     monkeypatch.setenv(OTEL_CAPTURE_CONTENT, raw)
     with caplog.at_level(logging.WARNING, logger="rius.config"):
         assert resolve_config().capture_content is True
-    assert any(OTEL_CAPTURE_CONTENT in record.getMessage() for record in caplog.records)
+    (record,) = caplog.records
+    message = record.getMessage()
+    assert f"{OTEL_CAPTURE_CONTENT}={raw!r} is not recognised" in message
+    assert "content capture stays on" in message
+    for valid in ("NO_CONTENT", "SPAN_ONLY", "EVENT_ONLY", "SPAN_AND_EVENT"):
+        assert valid in message
+
+
+@pytest.mark.parametrize("raw", ["", "  "])
+def test_an_empty_otel_capture_setting_is_unset(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, raw: str
+) -> None:
+    # OpenTelemetry reads an empty variable as unset; templated deployments
+    # render an omitted value as one.
+    monkeypatch.setenv(OTEL_CAPTURE_CONTENT, raw)
+    with caplog.at_level(logging.WARNING, logger="rius.config"):
+        assert resolve_config().capture_content is True
+    assert not caplog.records
+
+
+@pytest.mark.parametrize("raw", ["", "  "])
+@pytest.mark.parametrize(
+    ("otel", "expected"), [("NO_CONTENT", False), ("SPAN_ONLY", True), (None, True)]
+)
+def test_an_empty_rius_capture_content_is_unset_so_the_otel_setting_applies(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    raw: str,
+    otel: str | None,
+    expected: bool,
+) -> None:
+    # Still a warning, as for the other blank RIUS_* flags, but it does not
+    # shadow the OpenTelemetry setting.
+    monkeypatch.setenv("RIUS_CAPTURE_CONTENT", raw)
+    if otel is not None:
+        monkeypatch.setenv(OTEL_CAPTURE_CONTENT, otel)
+    with caplog.at_level(logging.WARNING, logger="rius.config"):
+        assert resolve_config().capture_content is expected
+    (record,) = caplog.records
+    assert "RIUS_CAPTURE_CONTENT is empty; treated as unset" in record.getMessage()
 
 
 @pytest.mark.parametrize(("rius", "expected"), [("true", True), ("false", False)])
