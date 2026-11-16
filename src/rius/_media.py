@@ -1546,7 +1546,8 @@ class _Open:
 
 #: The standard decoder's string scanner (C where available): from the index
 #: after a string's opening quote, its decoded value and the index past its
-#: closing quote. Strict, so it accepts exactly the strings ``_Parser`` does.
+#: closing quote. Strict, so CPython's C scanner accepts exactly the strings
+#: ``_Parser`` does. The pure-Python fallback is laxer on ``\u`` escapes.
 _scanstring: Callable[[str, int, bool], tuple[str, int]] = json.decoder.scanstring  # type: ignore[attr-defined]
 
 
