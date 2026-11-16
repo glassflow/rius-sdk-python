@@ -32,6 +32,9 @@ ENV_SERVICE_VERSION = "RIUS_SERVICE_VERSION"
 ENV_DISABLED = "RIUS_DISABLED"
 ENV_SAMPLE_RATE = "RIUS_SAMPLE_RATE"
 ENV_CAPTURE_CONTENT = "RIUS_CAPTURE_CONTENT"
+# The GenAI conventions' content-capture setting, read when
+# RIUS_CAPTURE_CONTENT is unset.
+ENV_OTEL_CAPTURE_CONTENT = "OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT"
 ENV_HEARTBEAT = "RIUS_HEARTBEAT"
 ENV_HEARTBEAT_INTERVAL = "RIUS_HEARTBEAT_INTERVAL"
 ENV_AGENT_NAME = "RIUS_AGENT_NAME"
@@ -82,6 +85,50 @@ def _env_bool(name: str, *, default: bool) -> bool:
         default,
     )
     return default
+
+
+#: The conventions' capture modes, by whether Rius captures content under
+#: them. Rius records content on spans only, so EVENT_ONLY (content on events,
+#: none on spans) captures none.
+_OTEL_CAPTURE_MODES = {
+    "NO_CONTENT": False,
+    "EVENT_ONLY": False,
+    "SPAN_ONLY": True,
+    "SPAN_AND_EVENT": True,
+}
+
+
+def _capture_content_from_env() -> bool:
+    """``RIUS_CAPTURE_CONTENT`` when set, else the conventions' setting, else on.
+
+    An empty (or blank) value of either variable counts as unset, as
+    OpenTelemetry reads its own variables: templated deployments render an
+    omitted value as an empty one. A blank ``RIUS_CAPTURE_CONTENT`` still logs
+    a warning, as the other blank ``RIUS_*`` flags do. The conventions'
+    ``OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT`` is read case-insensitively.
+    Its own default is ``NO_CONTENT``, and the conventions ask for that on an
+    unrecognised value too. Rius keeps capture on in both cases, on purpose:
+    capture is on by default, and an unrecognised value logs a warning naming
+    the valid ones.
+    """
+    rius = os.getenv(ENV_CAPTURE_CONTENT)
+    if rius is not None:
+        if rius.strip():
+            return _env_bool(ENV_CAPTURE_CONTENT, default=True)
+        logger.warning("%s is empty; treated as unset.", ENV_CAPTURE_CONTENT)
+    raw = os.getenv(ENV_OTEL_CAPTURE_CONTENT)
+    if raw is None or not raw.strip():
+        return True
+    mode = _OTEL_CAPTURE_MODES.get(raw.strip().upper())
+    if mode is not None:
+        return mode
+    logger.warning(
+        "%s=%r is not recognised; content capture stays on. "
+        "Valid values: NO_CONTENT, SPAN_ONLY, EVENT_ONLY, SPAN_AND_EVENT.",
+        ENV_OTEL_CAPTURE_CONTENT,
+        raw,
+    )
+    return True
 
 
 def _env_float(name: str, *, default: float) -> float:
@@ -297,7 +344,10 @@ def resolve_config(
         sample_rate: Head-sampling ratio for root traces
             (``RIUS_SAMPLE_RATE``).
         capture_content: When ``False``, content attributes are stripped at
-            export (``RIUS_CAPTURE_CONTENT``).
+            export (``RIUS_CAPTURE_CONTENT``; when that is unset, the
+            conventions' ``OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT``:
+            ``NO_CONTENT`` and ``EVENT_ONLY`` turn capture off, ``SPAN_ONLY``
+            and ``SPAN_AND_EVENT`` keep it on). On by default.
         heartbeat: Enable the agent-lifetime heartbeat thread
             (``RIUS_HEARTBEAT``). On by default; set ``False`` or
             ``RIUS_HEARTBEAT=false`` to opt out.
@@ -372,7 +422,7 @@ def resolve_config(
         else _finite("sample_rate", sample_rate, 1.0)
     )
     resolved_capture_content = (
-        _env_bool(ENV_CAPTURE_CONTENT, default=True) if capture_content is None else capture_content
+        _capture_content_from_env() if capture_content is None else capture_content
     )
 
     resolved_heartbeat = _env_bool(ENV_HEARTBEAT, default=True) if heartbeat is None else heartbeat
