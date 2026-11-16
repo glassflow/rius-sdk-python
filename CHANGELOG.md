@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.7](https://github.com/glassflow/rius-sdk-python/compare/v1.5.6...v1.5.7) (2026-11-16)
+
+
+### Bug Fixes
+
+* cover langchain 0.1.86 and llama-index 4.7.6 in the span-context stopgaps ([#282](https://github.com/glassflow/rius-sdk-python/issues/282)) ([19d4eaf](https://github.com/glassflow/rius-sdk-python/commit/19d4eaf87c3d2f6800469899f4f097d5506f8554))
+
 ## [1.5.6](https://github.com/glassflow/rius-sdk-python/compare/v1.5.5...v1.5.6) (2026-11-06)
 
 
