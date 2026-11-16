@@ -429,3 +429,38 @@ def test_a_gemini_declaration_with_an_empty_name_is_not_a_function() -> None:
 def test_a_nested_function_is_lifted_over_an_empty_top_level_name() -> None:
     tool = {"type": "function", "name": "", "function": {"name": "f"}}
     assert semconv_tool_definitions([tool], "openai") == [{"type": "function", "name": "f"}]
+
+
+def test_a_vercel_mcp_provider_tool_loses_the_credentials_in_its_args() -> None:
+    # The AI SDK's openai.mcp tool carries the request's credentials in args.
+    tool = {
+        "type": "provider",
+        "id": "openai.mcp",
+        "name": "mcp",
+        "args": {
+            "serverLabel": "docs",
+            "serverUrl": "https://mcp.example.com",
+            "authorization": "token",
+            "headers": {"Authorization": "Bearer secret"},
+            "requireApproval": "never",
+        },
+    }
+    once = semconv_tool_definitions([tool], None)
+    assert once == [
+        {
+            "type": "openai.mcp",
+            "id": "openai.mcp",
+            "name": "mcp",
+            "args": {
+                "serverLabel": "docs",
+                "serverUrl": "https://mcp.example.com",
+                "requireApproval": "never",
+            },
+        }
+    ]
+    assert semconv_tool_definitions(once, None) == once
+
+
+def test_other_tools_keep_the_credentials_in_their_args() -> None:
+    tool = {"type": "provider", "id": "openai.web_search", "args": {"authorization": "kept"}}
+    assert semconv_tool_definitions([tool], None) == [{**tool, "type": "openai.web_search"}]

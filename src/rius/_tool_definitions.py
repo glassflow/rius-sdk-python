@@ -53,7 +53,9 @@ An MCP tool (OpenAI Responses' ``type: "mcp"``, or any ``<provider>.mcp``
 type it is written as) loses its ``headers`` and its ``authorization``: the
 headers are the requests' headers to the MCP server and can carry an
 ``Authorization`` credential, and ``authorization`` is an OAuth access token
-for the server or connector. Credentials never belong in telemetry. This
+for the server or connector. The Vercel AI SDK's ``openai.mcp`` provider tool
+holds the same two members in its ``args``, and they go there too.
+Credentials never belong in telemetry. This
 applies to the definitions rewritten here, not to definitions another
 instrumentation already wrote as ``gen_ai.tool.definitions``.
 
@@ -183,15 +185,23 @@ def _lifted(tool: dict[str, Any], kind: str, nested: dict[str, Any]) -> dict[str
 def _without_credentials(tool: dict[str, Any]) -> dict[str, Any]:
     """An MCP tool (``mcp`` or ``<provider>.mcp``) without its credential members.
 
-    Read from the type the tool is written with, so a second pass drops the
-    same members.
+    Dropped at the top level and in a Vercel provider tool's ``args``. Read
+    from the type the tool is written with, so a second pass drops the same
+    members.
     """
     kind = tool.get("type")
     if not isinstance(kind, str) or not (kind == _MCP or kind.endswith("." + _MCP)):
         return tool
+    args = tool.get("args")
+    if isinstance(args, dict) and any(key in args for key in _MCP_CREDENTIALS):
+        tool = {**tool, "args": _without_members(args, _MCP_CREDENTIALS)}
     if not any(key in tool for key in _MCP_CREDENTIALS):
         return tool
-    return {key: value for key, value in tool.items() if key not in _MCP_CREDENTIALS}
+    return _without_members(tool, _MCP_CREDENTIALS)
+
+
+def _without_members(members: dict[str, Any], keys: tuple[str, ...]) -> dict[str, Any]:
+    return {key: value for key, value in members.items() if key not in keys}
 
 
 def _bedrock_tool(tool: dict[str, Any], spec: dict[str, Any]) -> dict[str, Any]:

@@ -1,5 +1,5 @@
 {
-  "about": "gen_ai.tool.definitions in the GenAI conventions' shape, from tools in each provider's own shape: `tools` is the list as the provider request or another instrumentation gave it, `provider` the span's gen_ai.provider.name (null for none), and `expected` the rewritten list's compact JSON, key order included. Each implementation (the Python SDK's semconv_tool_definitions, the TypeScript SDK's semconvToolDefinitions, the sink's semconvToolDefinitions) must write `expected`, and rewriting its own output must write `expected` again: the sink rewrites what an SDK exported, so every output is a fixed point. A name is a non-empty string, as for tool calls: an empty `name` is no name, so no function tool is made with one. An MCP tool (`mcp` or any `<provider>.mcp`) loses its `headers` and `authorization`. An empty result here is `[]`; a span whose definitions come to an empty list is written without gen_ai.tool.definitions, which each implementation tests on its own. The cases hold no float and no integer-like key, whose text differs by language.",
+  "about": "gen_ai.tool.definitions in the GenAI conventions' shape, from tools in each provider's own shape: `tools` is the list as the provider request or another instrumentation gave it, `provider` the span's gen_ai.provider.name (null for none), and `expected` the rewritten list's compact JSON, key order included. Each implementation (the Python SDK's semconv_tool_definitions, the TypeScript SDK's semconvToolDefinitions, the sink's semconvToolDefinitions) must write `expected`, and rewriting its own output must write `expected` again: the sink rewrites what an SDK exported, so every output is a fixed point. A name is a non-empty string, as for tool calls: an empty `name` is no name, so no function tool is made with one. An MCP tool (`mcp` or any `<provider>.mcp`) loses its `headers` and `authorization`, and so do the `args` of a Vercel AI SDK provider tool written as one. An empty result here is `[]`; a span whose definitions come to an empty list is written without gen_ai.tool.definitions, which each implementation tests on its own. The cases hold no float and no integer-like key, whose text differs by language.",
   "cases": [
     {
       "name": "openai_chat_function_with_strict",
@@ -783,6 +783,45 @@
         }
       ],
       "expected": "[{\"type\":\"azure.mcp\",\"server_label\":\"docs\"},{\"type\":\"openai.mcp\",\"id\":\"openai.mcp\",\"name\":\"mcp\"},{\"type\":\"web_search\",\"authorization\":\"kept\"}]"
+    },
+    {
+      "name": "vercel_mcp_provider_tool_args_credentials_dropped",
+      "provider": "openai",
+      "tools": [
+        {
+          "type": "provider",
+          "id": "openai.mcp",
+          "name": "mcp",
+          "args": {
+            "serverLabel": "docs",
+            "serverUrl": "https://mcp.example.com",
+            "authorization": "token",
+            "headers": {
+              "Authorization": "Bearer secret"
+            },
+            "requireApproval": "never"
+          }
+        },
+        {
+          "type": "provider-defined",
+          "id": "openai.mcp",
+          "name": "mcp",
+          "args": {
+            "serverLabel": "gmail",
+            "connectorId": "connector_gmail",
+            "authorization": "ya29.token"
+          }
+        },
+        {
+          "type": "provider",
+          "id": "openai.web_search",
+          "name": "web_search",
+          "args": {
+            "authorization": "kept"
+          }
+        }
+      ],
+      "expected": "[{\"type\":\"openai.mcp\",\"id\":\"openai.mcp\",\"name\":\"mcp\",\"args\":{\"serverLabel\":\"docs\",\"serverUrl\":\"https://mcp.example.com\",\"requireApproval\":\"never\"}},{\"type\":\"openai.mcp\",\"id\":\"openai.mcp\",\"name\":\"mcp\",\"args\":{\"serverLabel\":\"gmail\",\"connectorId\":\"connector_gmail\"}},{\"type\":\"openai.web_search\",\"id\":\"openai.web_search\",\"name\":\"web_search\",\"args\":{\"authorization\":\"kept\"}}]"
     },
     {
       "name": "openai_chat_custom_lifted",
