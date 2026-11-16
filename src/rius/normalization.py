@@ -136,6 +136,7 @@ from ._serde import (
     strict_json_text,
     strip_within_budget,
 )
+from ._tool_definitions import semconv_tool_definitions
 from .aggregated_usage import WrappedCallTracker, move_aggregated_usage
 from .compaction import CompactedContextProcessor
 from .semconv import (
@@ -588,9 +589,10 @@ def normalize_tool_definitions(attributes: Mapping[str, Any] | None) -> dict[str
     * ``llm.tools.N.tool.json_schema``, which every bundled OpenInference
       instrumentor that sees tools writes (openai pops ``tools`` out of the
       request bag to do it). Each value is a JSON string; the schemas are
-      parsed and re-serialized as one array, in index order, VERBATIM — an
-      Anthropic ``input_schema`` stays an Anthropic ``input_schema``, as on
-      the native ``set_tool_definitions``. The indexed keys are then deleted.
+      parsed and re-serialized as one array, in index order, in the
+      conventions' shape, as on the native ``set_tool_definitions`` (see
+      ``_tool_definitions``; a built-in tool's type is prefixed with the
+      span's ``gen_ai.provider.name``). The indexed keys are then deleted.
       If any one schema does not parse, the family is left untouched rather
       than reassembled without it: it is content by prefix already, so
       nothing escapes, and a partial array would be a silent loss.
@@ -640,7 +642,7 @@ def normalize_tool_definitions(attributes: Mapping[str, Any] | None) -> dict[str
         if stripped is not None:
             rebuilt = stripped[0]
         if not native:
-            rebuilt[GEN_AI_TOOL_DEFINITIONS] = serialize(schemas)
+            _set_definitions(rebuilt, schemas, _provider_of(attributes))
         return rebuilt
 
     stripped = _bag_without_definitions(attributes)
@@ -648,8 +650,25 @@ def normalize_tool_definitions(attributes: Mapping[str, Any] | None) -> dict[str
         return None
     rebuilt, definitions = stripped
     if not native:
-        rebuilt[GEN_AI_TOOL_DEFINITIONS] = serialize(definitions)
+        _set_definitions(rebuilt, definitions, _provider_of(attributes))
     return rebuilt
+
+
+def _set_definitions(attributes: dict[str, Any], tools: list[Any], provider: str | None) -> None:
+    """``gen_ai.tool.definitions`` from tools, unless they come to no definition.
+
+    An empty list (no tools, or a Gemini tool with no declarations) writes
+    nothing, as the sink does; the sources are removed all the same.
+    """
+    definitions = semconv_tool_definitions(tools, provider)
+    if definitions:
+        attributes[GEN_AI_TOOL_DEFINITIONS] = serialize(definitions)
+
+
+def _provider_of(attributes: Mapping[str, Any]) -> str | None:
+    """The span's ``gen_ai.provider.name``, which prefixes built-in tool types."""
+    provider = attributes.get(GEN_AI_PROVIDER_NAME)
+    return provider if isinstance(provider, str) else None
 
 
 def _bag_without_definitions(
@@ -702,6 +721,25 @@ _CONTENT_ITEM = "message_content."
 #: ``tool_call.*`` field is consumed and dropped, as the sink does.
 _TOOL_CALL_FIELDS = (("id", "id"), ("function.name", "name"), ("function.arguments", "arguments"))
 
+
+def unnamed_tool_call_part(call_id: Any, arguments: Any) -> dict[str, Any]:
+    """A tool call without a name, as a text part holding its id and arguments.
+
+    The conventions require a ``tool_call`` part's name (a string), and a part
+    of a known type may not fall back to the generic part, so a call without
+    one cannot be a ``tool_call`` part. Rather than drop it, it is kept the way
+    content with no part type is: as text, the call's id and arguments as JSON,
+    each left out when absent. Every writer of tool-call parts uses this, in
+    both SDKs and the sink, so the bytes agree.
+    """
+    call = {
+        key: value
+        for key, value in (("id", call_id), ("arguments", arguments))
+        if value is not None
+    }
+    return {"type": "text", "content": serialize(call)}
+
+
 #: An index as the sink's ``strconv.Atoi`` reads one: an optional sign and
 #: ASCII digits, within int64. The sink is the other producer of this key, and
 #: the two must agree on which keys are messages.
@@ -733,6 +771,8 @@ class _FlatMessage:
         then the tool calls, each family in index order. An empty role, id,
         name or arguments is omitted rather than written empty, as the sink
         does; empty content is still a part, because empty content was said.
+        A tool call left without a name is a text part
+        (:func:`unnamed_tool_call_part`).
         """
         message: dict[str, Any] = {}
         if self.role:
@@ -759,6 +799,8 @@ class _FlatMessage:
             for field, name in _TOOL_CALL_FIELDS:
                 if call.get(field):
                     part[name] = call[field]
+            if "name" not in part:
+                part = unnamed_tool_call_part(part.get("id"), part.get("arguments"))
             parts.append(part)
         message["parts"] = parts
         return message
