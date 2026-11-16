@@ -706,6 +706,25 @@ _CONTENT_ITEM = "message_content."
 #: ``tool_call.*`` field is consumed and dropped, as the sink does.
 _TOOL_CALL_FIELDS = (("id", "id"), ("function.name", "name"), ("function.arguments", "arguments"))
 
+
+def unnamed_tool_call_part(call_id: Any, arguments: Any) -> dict[str, Any]:
+    """A tool call without a name, as a text part holding its id and arguments.
+
+    The conventions require a ``tool_call`` part's name (a string), and a part
+    of a known type may not fall back to the generic part, so a call without
+    one cannot be a ``tool_call`` part. Rather than drop it, it is kept the way
+    content with no part type is: as text, the call's id and arguments as JSON,
+    each left out when absent. Every writer of tool-call parts uses this, in
+    both SDKs and the sink, so the bytes agree.
+    """
+    call = {
+        key: value
+        for key, value in (("id", call_id), ("arguments", arguments))
+        if value is not None
+    }
+    return {"type": "text", "content": serialize(call)}
+
+
 #: An index as the sink's ``strconv.Atoi`` reads one: an optional sign and
 #: ASCII digits, within int64. The sink is the other producer of this key, and
 #: the two must agree on which keys are messages.
@@ -737,6 +756,8 @@ class _FlatMessage:
         then the tool calls, each family in index order. An empty role, id,
         name or arguments is omitted rather than written empty, as the sink
         does; empty content is still a part, because empty content was said.
+        A tool call left without a name is a text part
+        (:func:`unnamed_tool_call_part`).
         """
         message: dict[str, Any] = {}
         if self.role:
@@ -763,6 +784,8 @@ class _FlatMessage:
             for field, name in _TOOL_CALL_FIELDS:
                 if call.get(field):
                     part[name] = call[field]
+            if "name" not in part:
+                part = unnamed_tool_call_part(part.get("id"), part.get("arguments"))
             parts.append(part)
         message["parts"] = parts
         return message

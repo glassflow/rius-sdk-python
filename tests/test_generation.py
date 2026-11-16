@@ -390,13 +390,23 @@ def test_openai_tool_call_message_converted_to_tool_call_part(
     ]
 
 
-@pytest.mark.parametrize("function", [{"arguments": "{}"}, {"name": None}, {"name": 3}, None])
-def test_a_tool_call_without_a_name_is_skipped(
-    exported_spans: InMemorySpanExporter, function: Any
+@pytest.mark.parametrize(
+    ("function", "content"),
+    [
+        ({"arguments": "{}"}, '{"id":"call_1","arguments":"{}"}'),
+        ({"name": None, "arguments": "{}"}, '{"id":"call_1","arguments":"{}"}'),
+        ({"name": 3}, '{"id":"call_1"}'),
+        ({"name": "", "arguments": '{"q":1}'}, '{"id":"call_1","arguments":"{\\"q\\":1}"}'),
+        (None, '{"id":"call_1"}'),
+    ],
+)
+def test_a_tool_call_without_a_name_is_kept_as_a_text_part(
+    exported_spans: InMemorySpanExporter, function: Any, content: str
 ) -> None:
     # The conventions require a tool_call part's name, and a part with a known
-    # type may no longer fall back to the generic part: a call with no name
-    # cannot be recorded validly, so it is left out rather than written as null.
+    # type may no longer fall back to the generic part. The call is kept as a
+    # text part holding its id and arguments, as other content with no part
+    # type is.
     call: dict[str, Any] = {"id": "call_1", "type": "function"}
     if function is not None:
         call["function"] = function
@@ -408,9 +418,20 @@ def test_a_tool_call_without_a_name_is_skipped(
             "role": "assistant",
             "parts": [
                 {"type": "text", "content": "hi"},
+                {"type": "text", "content": content},
                 {"type": "tool_call", "id": "call_2", "name": "lookup", "arguments": "{}"},
             ],
         }
+    ]
+
+
+def test_a_tool_call_without_a_name_or_an_id_keeps_what_it_has(
+    exported_spans: InMemorySpanExporter,
+) -> None:
+    with start_as_current_generation("chat") as gen:
+        gen.set_output([{"role": "assistant", "tool_calls": [{}]}])
+    assert _output_messages(exported_spans) == [
+        {"role": "assistant", "parts": [{"type": "text", "content": "{}"}]}
     ]
 
 

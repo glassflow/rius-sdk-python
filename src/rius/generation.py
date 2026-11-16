@@ -21,7 +21,7 @@ from ._media import media_parts
 from ._serde import serialize
 from ._tool_definitions import semconv_tool_definitions
 from ._tracer import sdk_tracer
-from .normalization import REQUEST_PARAMETER_GUARDS, SKIP
+from .normalization import REQUEST_PARAMETER_GUARDS, SKIP, unnamed_tool_call_part
 from .semconv import (
     GEN_AI_INPUT_MESSAGES,
     GEN_AI_OPERATION_NAME,
@@ -139,10 +139,8 @@ def _normalize_message(message: Any, default_role: str) -> dict[str, Any]:
             if not isinstance(function, dict):
                 function = {}
             name = function.get("name")
-            if not isinstance(name, str):
-                # The conventions require a tool_call part's name, and a part
-                # of a known type may not fall back to the generic part, so a
-                # call without one cannot be recorded validly: it is skipped.
+            if not isinstance(name, str) or not name:
+                parts.append(unnamed_tool_call_part(call.get("id"), function.get("arguments")))
                 continue
             parts.append(
                 {

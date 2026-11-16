@@ -313,12 +313,12 @@ def test_malformed_tool_calls_do_not_raise_out_of_a_generation(
     assert [s.name for s in exported_spans.get_finished_spans()] == ["g"]
 
 
-def test_a_tool_call_whose_function_is_not_a_mapping_is_skipped() -> None:
+def test_a_tool_call_whose_function_is_not_a_mapping_is_kept_as_text() -> None:
     # It has no name, and the conventions require one on a tool_call part.
     (message,) = normalize_messages(
         [{"role": "assistant", "tool_calls": [{"id": "c1", "function": "x"}]}], "user"
     )
-    assert message["parts"] == []
+    assert message["parts"] == [{"type": "text", "content": '{"id":"c1"}'}]
 
 
 # --- observe() on a callable without __qualname__ -----------------------------------
