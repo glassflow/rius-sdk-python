@@ -19,8 +19,9 @@ from ._context_sizes import context_sizes
 from ._errors import record_error
 from ._media import media_parts
 from ._serde import serialize
+from ._tool_definitions import semconv_tool_definitions
 from ._tracer import sdk_tracer
-from .normalization import REQUEST_PARAMETER_GUARDS, SKIP
+from .normalization import REQUEST_PARAMETER_GUARDS, SKIP, unnamed_tool_call_part
 from .semconv import (
     GEN_AI_INPUT_MESSAGES,
     GEN_AI_OPERATION_NAME,
@@ -137,11 +138,15 @@ def _normalize_message(message: Any, default_role: str) -> dict[str, Any]:
             function = call.get("function")
             if not isinstance(function, dict):
                 function = {}
+            name = function.get("name")
+            if not isinstance(name, str) or not name:
+                parts.append(unnamed_tool_call_part(call.get("id"), function.get("arguments")))
+                continue
             parts.append(
                 {
                     "type": "tool_call",
                     "id": call.get("id"),
-                    "name": function.get("name"),
+                    "name": name,
                     "arguments": function.get("arguments"),
                 }
             )
@@ -159,6 +164,30 @@ def normalize_messages(messages: Messages, default_role: str) -> list[dict[str, 
     if isinstance(messages, (str, Mapping)):
         return [_normalize_message(messages, default_role)]
     return [_normalize_message(message, default_role) for message in messages]
+
+
+#: google-genai's package, whose pydantic models (``types.Tool``) are dumped.
+_GOOGLE_GENAI = "google.genai"
+
+
+def _plain(tool: Any) -> Any:
+    """A google-genai pydantic model (``types.Tool``) as its set fields, as JSON values.
+
+    Only google-genai's models are dumped, since their fields are the provider
+    shape the definitions are rewritten from. Anything else (another library's
+    pydantic tool, such as a LangChain ``StructuredTool``), or a model whose
+    dump fails, is returned as it is.
+    """
+    module = type(tool).__module__
+    if module != _GOOGLE_GENAI and not module.startswith(_GOOGLE_GENAI + "."):
+        return tool
+    dump = getattr(tool, "model_dump", None)
+    if isinstance(tool, type) or not callable(dump):
+        return tool
+    try:
+        return dump(mode="json", exclude_none=True)
+    except Exception:
+        return tool
 
 
 class Generation:
@@ -213,18 +242,21 @@ class Generation:
     def set_tool_definitions(self, tools: list[Any]) -> None:
         """Record the request's tool/function definitions (``gen_ai.tool.definitions``).
 
-        Definitions are serialized verbatim, in whatever shape the provider
-        request used (OpenAI nests each tool under ``function``, Anthropic uses
-        top-level ``name``/``input_schema``) — no normalization, so what is
-        recorded is exactly what the model was shown. Definitions are content,
-        not identity: they are masked/stripped under ``capture_content=False``
-        like messages are.
+        Definitions are recorded in the conventions' shape whatever shape the
+        provider request used: a function tool becomes ``{"type": "function",
+        "name", "description", "parameters"}`` (OpenAI's nested ``function``
+        is lifted, Anthropic's ``input_schema`` becomes ``parameters``), and a
+        provider's built-in tool keeps its fields with its ``type`` prefixed
+        by the generation's provider (``anthropic.web_search_20250305``).
+        A pydantic model (google-genai's ``types.Tool``) is recorded as its
+        set fields. Definitions are content, not identity: they are
+        masked/stripped under ``capture_content=False`` like messages are.
 
         Args:
-            tools: The tools/functions list passed to the provider, verbatim.
+            tools: The tools/functions list passed to the provider, in its own shape.
         """
-        self._tools = tools
-        self._span.set_attribute(GEN_AI_TOOL_DEFINITIONS, serialize(tools))
+        self._tools = semconv_tool_definitions([_plain(tool) for tool in tools], self._provider)
+        self._span.set_attribute(GEN_AI_TOOL_DEFINITIONS, serialize(self._tools))
 
     def _set_context_sizes(self) -> None:
         # Computed once, as the span ends (from end() and from the scoped
@@ -563,7 +595,8 @@ def start_generation(
             ``reasoning.effort`` values. Provider-defined string, recorded
             verbatim.
         tools: The request's tool/function definitions, recorded immediately
-            via ``set_tool_definitions`` (verbatim, any provider shape).
+            via ``set_tool_definitions`` (any provider shape, recorded in the
+            conventions' shape).
         user_id: End-user identity (``user.id``) stamped on this span. Sugar
             for a single call; to attribute a whole request use ``user()``.
         output_type: The output modality the request asked for

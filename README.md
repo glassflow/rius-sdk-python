@@ -94,7 +94,7 @@ variables:
 | `service_version` | `RIUS_SERVICE_VERSION` | none                       | Sets `service.version` on the resource. Unset leaves it off, so `OTEL_RESOURCE_ATTRIBUTES` can supply it. |
 | `disabled`     | `RIUS_DISABLED`     | `false`                        | Kill switch. When true, spans are created but never exported.        |
 | `sample_rate`  | `RIUS_SAMPLE_RATE`  | `1.0`                          | Head sampling ratio `0.0`–`1.0` (whole-trace; children follow root). |
-| `capture_content` | `RIUS_CAPTURE_CONTENT` | `true`                    | When false, prompt/response content is stripped at export (metadata still sent). |
+| `capture_content` | `RIUS_CAPTURE_CONTENT` | `true`                    | When false, prompt/response content is stripped at export (metadata still sent). When `RIUS_CAPTURE_CONTENT` is unset, `OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT` is read (see below). |
 | `bridge_foreign_provider` | `RIUS_BRIDGE_FOREIGN_PROVIDER` | `false`        | Also export the spans of another OpenTelemetry SDK that owns the global provider (see below). |
 | `agent_name`   | `RIUS_AGENT_NAME`        | `service_name`                 | The agent this process is. Also the `gen_ai.main_agent.id` when `main_agent_id` is unset, so renaming it changes that id. |
 | `main_agent_id` | `RIUS_MAIN_AGENT_ID`    | a `gen_ai.main_agent.id` in `OTEL_RESOURCE_ATTRIBUTES`, else the agent name | A stable id for the agent (a registry id or an ARN), stamped as `gen_ai.main_agent.id`. Never a per-process value. |
@@ -148,6 +148,18 @@ rius.init(mask=lambda value: "[REDACTED]")  # redact all captured content
 rius.init(mask=lambda value, *, key: hash_pii(value) if "input" in key else value)
 rius.init(capture_content=False)  # drop content entirely, keep metadata
 ```
+
+Content capture also follows the OpenTelemetry GenAI setting
+`OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT` when `RIUS_CAPTURE_CONTENT` is
+unset. `NO_CONTENT` turns capture off, and so does `EVENT_ONLY`, because Rius
+records content on spans. `SPAN_ONLY` and `SPAN_AND_EVENT` keep it on. The value
+is case-insensitive. An unrecognised one keeps capture on and logs a warning
+naming the valid values (the OpenTelemetry conventions fall back to
+`NO_CONTENT` instead). An empty value of either variable counts as unset (an
+empty `RIUS_CAPTURE_CONTENT` also logs a warning).
+The `capture_content` argument wins over both variables, and
+`RIUS_CAPTURE_CONTENT` wins over the OpenTelemetry one. With neither set,
+capture is on, unlike the OpenTelemetry default of `NO_CONTENT`.
 
 ### Sessions, users and workspaces
 

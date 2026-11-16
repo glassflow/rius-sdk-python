@@ -23,6 +23,7 @@ from ._tracer import sdk_tracer
 from .semconv import (
     GEN_AI_CONVERSATION_COMPACTED,
     GEN_AI_OPERATION_NAME,
+    GEN_AI_OPERATION_NAME_COMPACTION,
     OPENINFERENCE_SPAN_KIND,
     RIUS_COMPACTION_EXECUTOR,
     RIUS_COMPACTION_EXECUTOR_CLIENT,
@@ -58,9 +59,8 @@ _KINDS = (
 )
 _TRIGGERS = (RIUS_COMPACTION_TRIGGER_AUTO, RIUS_COMPACTION_TRIGGER_MANUAL)
 
-#: ``gen_ai.operation.name`` of the span: the registry's taxonomy table knows
-#: it (it maps to CHAIN) but has no constant for it, and semconv.py defines none.
-OPERATION_COMPACTION = "compaction"
+#: ``gen_ai.operation.name`` of the span (the registry's taxonomy maps it to CHAIN).
+OPERATION_COMPACTION = GEN_AI_OPERATION_NAME_COMPACTION
 
 
 def dropped_tokens(before: int | None, after: int | None) -> int | None:

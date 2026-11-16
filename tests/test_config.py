@@ -19,11 +19,12 @@ _SUFFIXES = [
     "PARTIAL_SPANS_DELAY",
 ]
 ENV_VARS = [f"RIUS_{suffix}" for suffix in _SUFFIXES]
+OTEL_CAPTURE_CONTENT = "OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT"
 
 
 @pytest.fixture(autouse=True)
 def _clear_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    for var in ENV_VARS:
+    for var in [*ENV_VARS, OTEL_CAPTURE_CONTENT]:
         monkeypatch.delenv(var, raising=False)
 
 
@@ -221,6 +222,101 @@ def test_the_agent_definition_version_is_not_the_service_version(
     monkeypatch.delenv("RIUS_MAIN_AGENT_VERSION", raising=False)
     assert resolve_config(service_version="2.3.1").main_agent_version is None
     assert resolve_config(main_agent_version="7").service_version is None
+
+
+# --- the conventions' OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT ---
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("NO_CONTENT", False),
+        # Rius records content on spans only, so a request for events alone
+        # asks for no content on the spans Rius keeps.
+        ("EVENT_ONLY", False),
+        ("SPAN_ONLY", True),
+        ("SPAN_AND_EVENT", True),
+        # Case-insensitive, as the conventions define it.
+        ("no_content", False),
+        (" span_only ", True),
+    ],
+)
+def test_capture_content_follows_the_otel_setting_when_rius_is_unset(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, raw: str, expected: bool
+) -> None:
+    monkeypatch.setenv(OTEL_CAPTURE_CONTENT, raw)
+    with caplog.at_level(logging.WARNING, logger="rius.config"):
+        assert resolve_config().capture_content is expected
+    assert not caplog.records
+
+
+@pytest.mark.parametrize("raw", ["maybe", "true", "false", "SPAN", "NO-CONTENT"])
+def test_an_unrecognised_otel_capture_setting_keeps_capture_on_and_warns(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, raw: str
+) -> None:
+    # Deliberately not the conventions' NO_CONTENT: capture is on by default in
+    # Rius, and the warning names the value and what to set instead.
+    monkeypatch.setenv(OTEL_CAPTURE_CONTENT, raw)
+    with caplog.at_level(logging.WARNING, logger="rius.config"):
+        assert resolve_config().capture_content is True
+    (record,) = caplog.records
+    message = record.getMessage()
+    assert f"{OTEL_CAPTURE_CONTENT}={raw!r} is not recognised" in message
+    assert "content capture stays on" in message
+    for valid in ("NO_CONTENT", "SPAN_ONLY", "EVENT_ONLY", "SPAN_AND_EVENT"):
+        assert valid in message
+
+
+@pytest.mark.parametrize("raw", ["", "  "])
+def test_an_empty_otel_capture_setting_is_unset(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, raw: str
+) -> None:
+    # OpenTelemetry reads an empty variable as unset; templated deployments
+    # render an omitted value as one.
+    monkeypatch.setenv(OTEL_CAPTURE_CONTENT, raw)
+    with caplog.at_level(logging.WARNING, logger="rius.config"):
+        assert resolve_config().capture_content is True
+    assert not caplog.records
+
+
+@pytest.mark.parametrize("raw", ["", "  "])
+@pytest.mark.parametrize(
+    ("otel", "expected"), [("NO_CONTENT", False), ("SPAN_ONLY", True), (None, True)]
+)
+def test_an_empty_rius_capture_content_is_unset_so_the_otel_setting_applies(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    raw: str,
+    otel: str | None,
+    expected: bool,
+) -> None:
+    # Still a warning, as for the other blank RIUS_* flags, but it does not
+    # shadow the OpenTelemetry setting.
+    monkeypatch.setenv("RIUS_CAPTURE_CONTENT", raw)
+    if otel is not None:
+        monkeypatch.setenv(OTEL_CAPTURE_CONTENT, otel)
+    with caplog.at_level(logging.WARNING, logger="rius.config"):
+        assert resolve_config().capture_content is expected
+    (record,) = caplog.records
+    assert "RIUS_CAPTURE_CONTENT is empty; treated as unset" in record.getMessage()
+
+
+@pytest.mark.parametrize(("rius", "expected"), [("true", True), ("false", False)])
+def test_rius_capture_content_wins_over_the_otel_setting(
+    monkeypatch: pytest.MonkeyPatch, rius: str, expected: bool
+) -> None:
+    monkeypatch.setenv("RIUS_CAPTURE_CONTENT", rius)
+    monkeypatch.setenv(OTEL_CAPTURE_CONTENT, "SPAN_ONLY" if not expected else "NO_CONTENT")
+    assert resolve_config().capture_content is expected
+
+
+@pytest.mark.parametrize("argument", [True, False])
+def test_the_capture_content_argument_wins_over_both_variables(
+    monkeypatch: pytest.MonkeyPatch, argument: bool
+) -> None:
+    monkeypatch.setenv("RIUS_CAPTURE_CONTENT", str(not argument).lower())
+    monkeypatch.setenv(OTEL_CAPTURE_CONTENT, "SPAN_ONLY" if not argument else "NO_CONTENT")
+    assert resolve_config(capture_content=argument).capture_content is argument
 
 
 # --- an unrecognised boolean keeps the default, with a warning ---

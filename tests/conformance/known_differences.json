@@ -55,6 +55,66 @@
       "family": "vercel-ai-v6",
       "key": "*",
       "reason": "As vercel-ai-v5."
+    },
+    {
+      "family": "openinference-openai",
+      "key": "gen_ai.tool.definitions",
+      "reason": "The stored expected results record tool definitions in the provider's own shape (OpenAI's nested function, Anthropic's input_schema). This normalizer now records them in the conventions' function-tool shape, {type: function, name, description, parameters}, which the conventions' schema requires for a function tool. The expected results are regenerated in rius-semconv from this SDK once the change is released, and this entry goes in that re-sync."
+    },
+    {
+      "family": "openinference-anthropic",
+      "key": "gen_ai.tool.definitions",
+      "reason": "As openinference-openai."
+    },
+    {
+      "family": "openinference-js-anthropic",
+      "key": "gen_ai.tool.definitions",
+      "reason": "As openinference-openai."
+    },
+    {
+      "family": "openinference-js-langchain",
+      "key": "gen_ai.tool.definitions",
+      "reason": "As openinference-openai."
+    },
+    {
+      "family": "openinference-js-langchain-openai",
+      "key": "gen_ai.tool.definitions",
+      "reason": "As openinference-openai."
+    },
+    {
+      "family": "openinference-js-openai",
+      "key": "gen_ai.tool.definitions",
+      "reason": "As openinference-openai."
+    },
+    {
+      "family": "openinference-langchain",
+      "key": "gen_ai.tool.definitions",
+      "reason": "As openinference-openai."
+    },
+    {
+      "family": "openinference-langchain-openai",
+      "key": "gen_ai.tool.definitions",
+      "reason": "As openinference-openai."
+    },
+    {
+      "family": "openinference-litellm",
+      "key": "gen_ai.tool.definitions",
+      "reason": "As openinference-openai."
+    },
+    {
+      "family": "openinference-litellm-openai",
+      "key": "gen_ai.tool.definitions",
+      "reason": "As openinference-openai."
+    },
+    {
+      "family": "openinference-llama-index",
+      "key": "gen_ai.tool.definitions",
+      "reason": "As openinference-openai."
+    },
+    {
+      "family": "openinference-llama-index-openai",
+      "key": "gen_ai.tool.definitions",
+      "reason": "As openinference-openai."
     }
   ]
 }
