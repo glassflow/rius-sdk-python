@@ -359,12 +359,11 @@ def json_text(value: Any) -> str:
     very string the JSON form of the value is, and every pass after this one
     treats the two alike (a blob's base64 past the budget is rebuilt and
     stripped, as it is in that string). The value is already whole in memory
-    on the span, as that string would be. Never raises: a value the encoder refuses
-    (a cycle, a key that is no string or number) is its repr, its byte
-    objects markers, for the strip to read. A byte object already written as
-    a string (a blob's base64) is a bare string in that repr, which the strip
-    does not read as media: a caller that converts bytes before encoding uses
-    :func:`strict_json_text` and falls back to this on the value as it came.
+    on the span, as that string would be. Never raises: a value the encoder
+    refuses (a cycle, a key that is no string or number) is its repr, its
+    byte objects markers, for the strip to read. A caller that writes a byte
+    object as its replacement before encoding uses :func:`strict_json_text`
+    and falls back to this on the value as it came.
     """
     text = strict_json_text(value)
     if text is not None:
