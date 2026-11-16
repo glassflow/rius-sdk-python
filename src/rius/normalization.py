@@ -102,7 +102,6 @@ mapped and the canonical key would arrive empty.
 
 from __future__ import annotations
 
-import base64
 import copy
 import json
 import logging
@@ -118,7 +117,9 @@ from opentelemetry.trace import Link, StatusCode
 
 from ._attributes import rebuilt_item_attributes, replacement_attributes
 from ._media import (
+    is_mime,
     rebuild_native_parts,
+    replacement,
     url_part,
 )
 from ._native_spans import native_error_type
@@ -1269,10 +1270,11 @@ def structured_content_as_json(attributes: Mapping[str, Any] | None) -> dict[str
     not structured, and is left to the passes as it is.
 
     A blob part's byte content (``{"type": "blob", "content": b"..."}``) is
-    written as its base64, as the JSON text of a blob part carries it, so the
-    part is rebuilt with its size and the bytes stripped like any other blob.
-    A byte object anywhere else is the marker, as everywhere this SDK writes
-    one.
+    written as the replacement the strip writes for media
+    (``[stripped <mime> <byte_size> bytes]``), its mime the part's MIME type,
+    so the part is rebuilt with its size and MIME type as the same blob with
+    base64 content is, without rendering the bytes at all. A byte object
+    anywhere else is the marker, as everywhere this SDK writes one.
     """
     if not attributes:
         return None
@@ -1288,14 +1290,13 @@ def structured_content_as_json(attributes: Mapping[str, Any] | None) -> dict[str
 
 
 def _structured_json_text(value: Mapping[str, Any] | list[Any] | tuple[Any, ...]) -> str:
-    """``value`` as JSON text, a blob part's bytes as their base64.
+    """``value`` as JSON text, a blob part's bytes as their replacement.
 
-    The base64 form is kept only when the whole value encodes: then the text
-    is JSON and the media rebuild finds the blob part. A value the encoder
-    refuses (a cycle, a key that is no string or number) is the fallback text
-    of the value as it came, whose byte objects are markers. The fallback of
-    the converted value would carry the base64 as a bare string, which
-    nothing after this pass recognises as media.
+    The text is encoded whole (see ``json_text``), so a blob's base64 past the
+    strip budget is still found and stripped by the media rebuild, as it is in
+    the JSON text of the same value. A value the encoder refuses (a cycle, a
+    key that is no string or number) is the fallback text of the value as it
+    came, whose byte objects are markers.
     """
     try:
         text = strict_json_text(_plain_content(value, []))
@@ -1307,7 +1308,7 @@ def _structured_json_text(value: Mapping[str, Any] | list[Any] | tuple[Any, ...]
 def _plain_content(value: Any, ancestors: list[int]) -> Any:
     """``value`` with every mapping a dict and every array a list, for the encoder.
 
-    A blob part's byte content becomes its base64 (see
+    A blob part's byte content becomes its replacement (see
     :func:`structured_content_as_json`). A cycle is left as it is, for the
     encoder to refuse.
     """
@@ -1321,21 +1322,25 @@ def _plain_content(value: Any, ancestors: list[int]) -> Any:
             plain = {key: _plain_content(item, ancestors) for key, item in value.items()}
             content = plain.get("content")
             if plain.get("type") == "blob" and isinstance(content, BYTE_OBJECTS):
-                encoded = _base64(content)
-                if encoded is not None:
-                    plain["content"] = encoded
+                size = _byte_size(content)
+                if size is not None:
+                    mime = plain.get("mime_type")
+                    plain["content"] = replacement(mime if is_mime(mime) else None, size)
             return plain
         return [_plain_content(item, ancestors) for item in value]
     finally:
         ancestors.pop()
 
 
-def _base64(content: bytes | bytearray | memoryview) -> str | None:
-    """A byte object's base64, or None when its bytes cannot be read (a released memoryview)."""
-    try:
-        return base64.b64encode(content).decode("ascii")
-    except (ValueError, TypeError):
-        return None
+def _byte_size(content: bytes | bytearray | memoryview) -> int | None:
+    """A byte object's size in bytes, or None when its bytes cannot be read
+    (a released memoryview), so the part keeps the marker and no size."""
+    if isinstance(content, memoryview):
+        try:
+            return content.nbytes
+        except ValueError:
+            return None
+    return len(content)
 
 
 #: The message keys whose parts a normalizer builds (the contract's

@@ -170,6 +170,73 @@ def test_a_released_memoryview_blob_is_not_sized_as_empty(key: str) -> None:
     assert "byte_size" not in part
 
 
+#: A phone photo's size: its base64 is past the strip budget (1 MiB).
+LARGE_PNG = b"\x89PNG\r\n\x1a\n" + bytes(800_000 - 8)
+_LARGE_KEYS = [GEN_AI_INPUT_MESSAGES, GEN_AI_OUTPUT_MESSAGES, GEN_AI_SYSTEM_INSTRUCTIONS]
+
+
+def _with_large_blob(key: str, content: Any) -> Any:
+    parts = [
+        {"type": "text", "content": "describe this"},
+        {"type": "blob", "mime_type": "image/png", "modality": "image", "content": content},
+        {"type": "text", "content": "and this"},
+    ]
+    if key == GEN_AI_SYSTEM_INSTRUCTIONS:
+        return parts
+    return [{"role": "user", "parts": parts}, {"role": "assistant", "parts": [parts[0]]}]
+
+
+def _large_blob_parts(key: str, exported: dict[str, Any]) -> list[Any]:
+    payload = json.loads(exported[key])
+    if key == GEN_AI_SYSTEM_INSTRUCTIONS:
+        return list(payload)
+    assert payload[1] == {
+        "role": "assistant",
+        "parts": [{"type": "text", "content": "describe this"}],
+    }
+    return list(payload[0]["parts"])
+
+
+@pytest.mark.parametrize("key", _LARGE_KEYS)
+@pytest.mark.parametrize("form", ["bytes", "base64"])
+def test_a_blob_past_the_strip_budget_is_stripped_and_sized(key: str, form: str) -> None:
+    encoded = base64.b64encode(LARGE_PNG).decode()
+    content: Any = LARGE_PNG if form == "bytes" else encoded
+    exported = _export({key: _with_large_blob(key, content)})
+    assert encoded[:64] not in exported[key]
+    assert _large_blob_parts(key, exported) == [
+        {"type": "text", "content": "describe this"},
+        {
+            "type": "blob",
+            "modality": "image",
+            "mime_type": "image/png",
+            "byte_size": 800_000,
+            "stripped_reason": "not_captured",
+        },
+        {"type": "text", "content": "and this"},
+    ]
+
+
+@pytest.mark.parametrize("key", _LARGE_KEYS)
+def test_a_blob_past_the_strip_budget_exports_as_its_json_text(key: str) -> None:
+    # The bytes, their base64 and the JSON text of the base64 form are one
+    # content: they export the same attribute.
+    as_base64 = _with_large_blob(key, base64.b64encode(LARGE_PNG).decode())
+    as_text = _export({key: _json(as_base64)})
+    assert _export({key: as_base64}) == as_text
+    assert _export({key: _with_large_blob(key, LARGE_PNG)}) == as_text
+
+
+def test_a_blob_with_no_mime_type_is_sized_from_its_bytes() -> None:
+    blob = {"type": "blob", "modality": "image", "content": LARGE_PNG}
+    as_text = {"type": "blob", "modality": "image", "content": base64.b64encode(LARGE_PNG).decode()}
+    exported = _export({GEN_AI_SYSTEM_INSTRUCTIONS: [blob]})
+    assert exported == _export({GEN_AI_SYSTEM_INSTRUCTIONS: _json([as_text])})
+    [part] = json.loads(exported[GEN_AI_SYSTEM_INSTRUCTIONS])
+    assert part["byte_size"] == 800_000
+    assert "mime_type" not in part
+
+
 def test_any_mapping_is_an_object() -> None:
     value = [MappingProxyType({"type": "text", "content": "hi"})]
     assert _export({GEN_AI_SYSTEM_INSTRUCTIONS: value})[GEN_AI_SYSTEM_INSTRUCTIONS] == _json(
