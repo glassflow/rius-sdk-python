@@ -27,7 +27,7 @@ from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import SpanContext
 
-from rius._serde import MAX_ATTR_CHARS, byte_object_marker
+from rius._serde import MAX_ATTR_CHARS, MAX_STRIP_CHARS, TRUNCATION_MARKER, byte_object_marker
 from rius.normalization import NormalizingSpanExporter
 from rius.semconv import (
     GEN_AI_INPUT_MESSAGES,
@@ -225,6 +225,30 @@ def test_a_blob_past_the_strip_budget_exports_as_its_json_text(key: str) -> None
     as_text = _export({key: _json(as_base64)})
     assert _export({key: as_base64}) == as_text
     assert _export({key: _with_large_blob(key, LARGE_PNG)}) == as_text
+
+
+def test_a_value_past_the_strip_budget_with_no_blob_is_cut_with_its_media_stripped() -> None:
+    # Encoding whole leaves the strip as the bound: a structured value past
+    # the budget still lands at the cap, and base64 inside it never exports.
+    encoded = base64.b64encode(bytes(range(256)) * 8192).decode()
+    value = [
+        {"role": "user", "parts": [{"type": "text", "content": "word " * 400_000}]},
+        {
+            "role": "assistant",
+            "parts": [
+                {
+                    "type": "tool_call",
+                    "id": "call_1",
+                    "name": "upload",
+                    "arguments": {"file": encoded},
+                }
+            ],
+        },
+    ]
+    assert len(_json(value)) > MAX_STRIP_CHARS
+    out = _export({GEN_AI_INPUT_MESSAGES: value})[GEN_AI_INPUT_MESSAGES]
+    assert len(out) <= MAX_ATTR_CHARS + len(TRUNCATION_MARKER)
+    assert encoded[:64] not in out
 
 
 def test_a_blob_with_no_mime_type_is_sized_from_its_bytes() -> None:
