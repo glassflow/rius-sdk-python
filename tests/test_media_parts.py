@@ -116,6 +116,47 @@ CONTRACT_EXAMPLE_INPUTS: dict[str, dict[str, Any]] = {
     },
     "blob_with_no_content_and_no_stripped_reason": {"type": "blob", "modality": "audio"},
     "blob_with_content_that_is_not_a_string": {"type": "blob", "content": 5, "byte_size": 8.0},
+    "blob_with_content_that_is_the_bytes_marker": {
+        "type": "blob",
+        "modality": "image",
+        "mime_type": "image/png",
+        "content": "[stripped unknown 16 bytes]",
+    },
+    "blob_with_content_that_is_a_replacement_with_a_mime_and_no_hint": {
+        "type": "blob",
+        "content": "[stripped image/jpeg 10 bytes]",
+    },
+    "blob_with_content_that_is_a_replacement_and_its_own_mime_type": {
+        "type": "blob",
+        "mime_type": "application/pdf",
+        "content": "[stripped image/png 8 bytes]",
+    },
+    "blob_with_content_that_is_a_replacement_of_unknown_size": {
+        "type": "blob",
+        "modality": "audio",
+        "content": "[stripped unknown unknown bytes]",
+    },
+    "blob_with_content_that_is_a_replacement_too_large_to_keep": {
+        "type": "blob",
+        "content": "[stripped unknown 9007199254740992 bytes]",
+    },
+    "blob_with_content_that_is_a_replacement_with_leading_zeros": {
+        "type": "blob",
+        "content": "[stripped image/png 0008 bytes]",
+    },
+    "blob_with_content_that_only_looks_like_a_replacement": {
+        "type": "blob",
+        "mime_type": "image/png",
+        "content": "[stripped image/png lots bytes]",
+    },
+    "blob_with_content_that_is_a_replacement_with_an_invalid_mime": {
+        "type": "blob",
+        "content": "[stripped a b 3 bytes]",
+    },
+    "blob_with_content_that_holds_a_replacement_in_text": {
+        "type": "blob",
+        "content": "see [stripped unknown 16 bytes]",
+    },
     "uri_with_no_mime_type_and_no_modality": {
         "type": "uri",
         "uri": "https://example.com/download",

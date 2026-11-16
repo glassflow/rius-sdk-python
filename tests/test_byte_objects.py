@@ -519,3 +519,32 @@ def test_model_parameters_holding_byte_objects(exported_spans: InMemorySpanExpor
     assert written
     assert not any(_leaks(str(v)) for v in written.values())
     assert all(MARKER in str(v) for v in written.values()), written
+
+
+def test_a_blob_of_bytes_in_messages_is_stored_as_its_base64_twin() -> None:
+    # The SDK's serializer writes the bytes as the marker and strips the
+    # base64 to a replacement, and the exporter rebuilds each blob with the
+    # size its replacement names: both forms keep byte_size and store alike.
+    def messages(content: Any) -> str:
+        blob = {"type": "blob", "modality": "image", "mime_type": "image/png", "content": content}
+        return serialize([{"role": "user", "parts": [blob]}])
+
+    inner = InMemorySpanExporter()
+    client = init(span_exporter=inner, set_global=False)
+    for name, content in (("bytes", PNG), ("base64", "iVBORw0KGgo=")):
+        span = client.get_tracer().start_span(name)
+        span.set_attribute("gen_ai.input.messages", messages(content))
+        span.end()
+    client.flush()
+    stored = {
+        s.name: (s.attributes or {})["gen_ai.input.messages"] for s in inner.get_finished_spans()
+    }
+    assert stored["bytes"] == stored["base64"]
+    [part] = json.loads(str(stored["bytes"]))[0]["parts"]
+    assert part == {
+        "type": "blob",
+        "modality": "image",
+        "mime_type": "image/png",
+        "byte_size": 8,
+        "stripped_reason": "not_captured",
+    }

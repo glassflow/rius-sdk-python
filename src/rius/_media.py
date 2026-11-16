@@ -239,20 +239,29 @@ _REPLACEMENT_HEAD, _rest = REPLACEMENT_FORMAT.split("<mime>")
 _REPLACEMENT_BETWEEN, _REPLACEMENT_TAIL = _rest.split("<byte_size>")
 
 
+def parse_replacement(value: str) -> tuple[str | None, int | None] | None:
+    """The mime and byte_size a complete replacement names, each None when
+    unknown; None when ``value`` is no complete replacement (see
+    ``is_replacement``)."""
+    head, between, tail = _REPLACEMENT_HEAD, _REPLACEMENT_BETWEEN, _REPLACEMENT_TAIL
+    if len(value) < len(head) + len(between) + len(tail):
+        return None
+    if not (value.startswith(head) and value.endswith(tail)):
+        return None
+    mime, sep, size = value[len(head) : len(value) - len(tail)].rpartition(between)
+    digits = bool(size) and all("0" <= ch <= "9" for ch in size)
+    if not (sep and (mime == UNKNOWN or is_mime(mime)) and (digits or size == UNKNOWN)):
+        return None
+    return (None if mime == UNKNOWN else mime), (int(size) if digits else None)
+
+
 def is_replacement(value: str) -> bool:
     """Already a complete replacement: never stripped again, never context.
 
     The format with a mime that is unknown or token/token and a byte_size of
     ASCII digits or unknown; anything that only looks like one is a token.
     """
-    head, between, tail = _REPLACEMENT_HEAD, _REPLACEMENT_BETWEEN, _REPLACEMENT_TAIL
-    if len(value) < len(head) + len(between) + len(tail):
-        return False
-    if not (value.startswith(head) and value.endswith(tail)):
-        return False
-    mime, sep, size = value[len(head) : len(value) - len(tail)].rpartition(between)
-    digits = bool(size) and all("0" <= ch <= "9" for ch in size)
-    return bool(sep) and (mime == UNKNOWN or is_mime(mime)) and (digits or size == UNKNOWN)
+    return parse_replacement(value) is not None
 
 
 # --- the strip ---------------------------------------------------------------
@@ -1445,7 +1454,9 @@ def native_part(part: Part) -> Part | None:
 
     * A blob carrying content becomes a stripped blob: sized from it,
       ``not_captured``, its modality from its MIME type first (some producers
-      label every file an image), else the one it has, else document.
+      label every file an image), else the one it has, else document. Content
+      that is a complete replacement gives its size, and its mime when the
+      part has no valid MIME type.
     * Any other part keeps a modality it has, else takes one from its MIME
       type, else (a uri) from its filename extension, else document. A blob
       without content keeps a valid size and stripped_reason.
@@ -1457,6 +1468,14 @@ def native_part(part: Part) -> Part | None:
     part_type = part.get("type")
     mime = part.get("mime_type")
     if part_type == "blob" and isinstance(part.get("content"), str):
+        replaced = parse_replacement(part["content"])
+        if replaced is not None:
+            # Bytes a strip already measured (an OTLP bytes value, a byte
+            # object): the size the base64 of the same bytes would give, and
+            # the part's own MIME type before the replacement's.
+            replaced_mime, size = replaced
+            kept = mime if is_mime(mime) else replaced_mime
+            return blob_part(own or "document", kept, safe_size(size), NOT_CAPTURED)
         return base64_blob(part["content"], own or "document", mime)
     if part_type == "uri" and is_data_url(part.get("uri")):
         return data_url_blob(part["uri"], own or "document", mime)
