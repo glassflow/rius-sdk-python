@@ -1466,10 +1466,17 @@ _OPERATION_BY_KIND: dict[SpanKind, str] = {
 #     are LLM calls the same way chat is, and create_agent is an AGENT span
 #     just as invoke_agent is, so the mapping is many-to-one and only the
 #     chat/invoke_agent entries round-trip.
-#   - CHAIN has no operation of its own, but four operations land on it.
-#     invoke_workflow and plan are real GenAI operations with no taxonomy
-#     value of their own; CHAIN is the honest home for both, and the reverse
-#     direction is the only one that can say so. agent_step is not a
+#   - CHAIN has no operation of its own, but five operations land on it.
+#     invoke_workflow, invoke_runner and plan are real GenAI operations with
+#     no taxonomy value of their own; CHAIN is the honest home for all three,
+#     and the reverse direction is the only one that can say so.
+#     invoke_runner is a framework entrypoint (the call that starts a
+#     framework's run loop), which the conventions define as not being an
+#     agent, so CHAIN rather than AGENT. The conventions name entrypoint
+#     operations invoke_{framework_entrypoint} in general, so a table cannot
+#     list them all: every consumer maps an operation that starts with
+#     invoke_ and is not in this table to CHAIN as well. invoke_agent is in
+#     the table, so it keeps AGENT. agent_step is not a
 #     conventions operation: the Vercel AI SDK's @ai-sdk/otel writes it on
 #     each step of an agent run (one model call and the tools it asked
 #     for), a step within the run rather than an agent invocation, so
@@ -1500,6 +1507,7 @@ _KIND_BY_OPERATION: dict[str, SpanKind] = {
     "retrieval": SpanKind.RETRIEVER,
     "rerank": SpanKind.RERANKER,
     "invoke_workflow": SpanKind.CHAIN,
+    "invoke_runner": SpanKind.CHAIN,
     "plan": SpanKind.CHAIN,
     "agent_step": SpanKind.CHAIN,
     "compaction": SpanKind.CHAIN,
