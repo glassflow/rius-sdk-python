@@ -76,9 +76,20 @@ def operation_for_kind(kind: str) -> str | None:
 
 
 def kind_for_operation(operation: str) -> str | None:
-    """The taxonomy value for a ``gen_ai.operation.name``, or None if unknown."""
+    """The taxonomy value for a ``gen_ai.operation.name``, or None if unknown.
+
+    The conventions name a framework entrypoint ``invoke_{framework_entrypoint}``
+    (``invoke_runner`` is one) and define it as not being an agent, so no table
+    can list them all. An ``invoke_`` operation the table does not know is a
+    CHAIN span; ``invoke_agent`` is in the table and stays AGENT.
+    """
     kind = _KIND_BY_OPERATION.get(operation)
-    return kind.value if kind is not None else None
+    if kind is not None:
+        return kind.value
+    entrypoint = operation.removeprefix("invoke_")
+    if entrypoint and entrypoint != operation:
+        return SpanKind.CHAIN.value
+    return None
 
 
 def otel_span_kind(kind: SpanKind) -> OtelSpanKind:
