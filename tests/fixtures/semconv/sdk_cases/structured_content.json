@@ -1,5 +1,5 @@
 {
-  "about": "How an SDK exports the content keys another instrumentation set as structured values (maps and arrays) rather than JSON strings, as the GenAI conventions now ask: gen_ai.input.messages, gen_ai.output.messages, gen_ai.system_instructions and gen_ai.tool.definitions. Each such value is written as its JSON text in the one encoding (compact, raw UTF-8, no HTML escaping, a non-finite number null) and then normalized exactly as that string would be, so a structured value and its JSON string export the same attributes. A byte object that is a blob part's content is written as its base64, as a blob part's JSON carries it, so the part is rebuilt with its byte_size and its bytes stripped; any other byte object is the marker. A string, a number or a boolean is not structured and is kept. `attributes` are the span's attributes as it ends, as the third-party instrumentation set them, and `expected` every attribute the span is exported with, after normalization and before masking. Keys are never integer-like, since JavaScript orders those first in an object.",
+  "about": "How an SDK exports the content keys another instrumentation set as structured values (maps and arrays) rather than JSON strings, as the GenAI conventions now ask: gen_ai.input.messages, gen_ai.output.messages, gen_ai.system_instructions and gen_ai.tool.definitions. Each such value is written as its JSON text in the one encoding (compact, raw UTF-8, no HTML escaping, a non-finite number null) and then normalized exactly as that string would be, so a structured value and its JSON string export the same attributes. A byte object that is a blob part's content is written as its base64, as a blob part's JSON carries it, at any depth, so a part in `parts` is rebuilt with its byte_size and its bytes stripped, and one elsewhere (inside a tool call response, say) has its base64 stripped to the blob's marker; any other byte object is the marker. A data URL in a uri part is rebuilt as a blob part, as in its JSON string. A string, a number or a boolean is not structured and is kept; a lone byte object is the marker. A float's text is the SDK's own (an integral float is `2.0` in Python and `2` in TypeScript), so the cases hold no integral float and no exponent. `attributes` are the span's attributes as it ends, as the third-party instrumentation set them, and `expected` every attribute the span is exported with, after normalization and before masking. Keys are never integer-like, since JavaScript orders those first in an object.",
   "cases": [
     {
       "name": "input_messages_structured",
@@ -277,6 +277,104 @@
         "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"id\":\"call_1\",\"name\":\"get_weather\",\"arguments\":{\"city\":\"Zürich\",\"days\":2,\"units\":null}}]}]",
         "gen_ai.system_instructions": "[{\"type\":\"text\",\"content\":\"Be brief.\"}]",
         "gen_ai.tool.definitions": "[{\"type\":\"function\",\"name\":\"get_weather\",\"description\":\"Weather for a city\",\"parameters\":{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\"},\"days\":{\"type\":\"integer\",\"default\":null}},\"required\":[\"city\"]}}]"
+      }
+    },
+    {
+      "name": "lone_byte_object",
+      "attributes": {
+        "gen_ai.input.messages": {
+          "$bytes": 4
+        }
+      },
+      "expected": {
+        "gen_ai.input.messages": "[stripped unknown 4 bytes]"
+      }
+    },
+    {
+      "name": "tool_definitions_non_integral_floats",
+      "attributes": {
+        "gen_ai.tool.definitions": [
+          {
+            "type": "function",
+            "name": "set_thermostat",
+            "description": "Set a target temperature",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "celsius": {
+                  "type": "number",
+                  "minimum": -12.5,
+                  "maximum": 32.75,
+                  "default": 21.5
+                },
+                "step": {
+                  "type": "number",
+                  "default": 0.25
+                }
+              },
+              "required": [
+                "celsius"
+              ]
+            }
+          }
+        ]
+      },
+      "expected": {
+        "gen_ai.tool.definitions": "[{\"type\":\"function\",\"name\":\"set_thermostat\",\"description\":\"Set a target temperature\",\"parameters\":{\"type\":\"object\",\"properties\":{\"celsius\":{\"type\":\"number\",\"minimum\":-12.5,\"maximum\":32.75,\"default\":21.5},\"step\":{\"type\":\"number\",\"default\":0.25}},\"required\":[\"celsius\"]}}]"
+      }
+    },
+    {
+      "name": "input_messages_uri_part_with_data_url",
+      "attributes": {
+        "gen_ai.input.messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "content": "What is in this image?"
+              },
+              {
+                "type": "uri",
+                "modality": "image",
+                "mime_type": "image/png",
+                "uri": "data:image/png;base64,AAAAAAAAAAA="
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "gen_ai.input.messages": "[{\"role\":\"user\",\"parts\":[{\"type\":\"text\",\"content\":\"What is in this image?\"},{\"type\":\"blob\",\"modality\":\"image\",\"mime_type\":\"image/png\",\"byte_size\":8,\"stripped_reason\":\"not_captured\"}]}]"
+      }
+    },
+    {
+      "name": "blob_nested_outside_parts",
+      "attributes": {
+        "gen_ai.input.messages": [
+          {
+            "role": "tool",
+            "parts": [
+              {
+                "type": "tool_call_response",
+                "id": "call_1",
+                "response": {
+                  "screenshot": {
+                    "type": "blob",
+                    "modality": "image",
+                    "mime_type": "image/png",
+                    "content": {
+                      "$bytes": 8
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "gen_ai.input.messages": "[{\"role\":\"tool\",\"parts\":[{\"type\":\"tool_call_response\",\"id\":\"call_1\",\"response\":{\"screenshot\":{\"type\":\"blob\",\"modality\":\"image\",\"mime_type\":\"image/png\",\"content\":\"[stripped image/png 8 bytes]\"}}}]}]"
       }
     },
     {

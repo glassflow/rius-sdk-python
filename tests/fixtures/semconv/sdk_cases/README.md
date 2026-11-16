@@ -51,8 +51,9 @@ mapping with one tagged key, which each SDK's test decodes:
 
 A case belongs here only when both SDKs must give the same result. Where the
 languages differ by nature it is left out: JavaScript has one number type, so
-`1.0` is `"1"` in TypeScript and `"1.0"` in Python; Python writes a boolean a
-mask returns for the status description as `True`, TypeScript as `true`.
+`1.0` is `"1"` in TypeScript and `"1.0"` in Python, and `1e-7` is `"1e-7"` in
+TypeScript and `"1e-07"` in Python, inside JSON text as anywhere else; Python
+writes a boolean a mask returns for the status description as `True`, TypeScript as `true`.
 Behaviour only one SDK has is tested in that SDK alone.
 
 ## Changing a case

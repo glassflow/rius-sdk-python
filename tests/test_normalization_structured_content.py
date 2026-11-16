@@ -196,6 +196,40 @@ def test_a_byte_key_never_fails_the_export_or_leaks_its_bytes() -> None:
     assert "\\x00\\x01" not in exported[GEN_AI_INPUT_MESSAGES]
 
 
+_IMAGE = bytes(range(256)) * 40
+_IMAGE_BASE64 = base64.b64encode(_IMAGE).decode("ascii")
+
+
+def _cyclic_messages_with_a_blob() -> list[Any]:
+    blob = {"type": "blob", "mime_type": "image/png", "content": _IMAGE}
+    messages: list[Any] = [{"role": "user", "parts": [blob]}]
+    messages[0]["self"] = messages
+    return messages
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        pytest.param(_cyclic_messages_with_a_blob(), id="blob-in-a-cycle"),
+        pytest.param(
+            [{b"k": 1, "type": "blob", "mime_type": "image/png", "content": _IMAGE}],
+            id="blob-in-a-byte-keyed-map",
+        ),
+        pytest.param(
+            [{("a", 1): 1, "parts": [{"type": "blob", "content": _IMAGE}]}],
+            id="blob-beside-a-tuple-key",
+        ),
+    ],
+)
+def test_a_blob_in_a_value_that_cannot_be_encoded_never_leaks_its_bytes(value: Any) -> None:
+    exported = _export({GEN_AI_INPUT_MESSAGES: value})
+    text = exported[GEN_AI_INPUT_MESSAGES]
+    assert isinstance(text, str)
+    assert _IMAGE_BASE64[:64] not in text
+    assert "\\x00\\x01" not in text
+    assert "[stripped" in text
+
+
 @pytest.mark.parametrize("value", ["already text", 3, True, PNG])
 def test_a_value_that_is_not_structured_is_not_reencoded(value: Any) -> None:
     exported = _export({GEN_AI_INPUT_MESSAGES: value})

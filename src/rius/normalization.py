@@ -133,6 +133,7 @@ from ._serde import (
     loads_json,
     loads_object,
     serialize,
+    strict_json_text,
     strip_within_budget,
 )
 from .aggregated_usage import WrappedCallTracker, move_aggregated_usage
@@ -1238,14 +1239,27 @@ def structured_content_as_json(attributes: Mapping[str, Any] | None) -> dict[str
         value = attributes.get(key)
         if not isinstance(value, (Mapping, list, tuple)):
             continue
-        try:
-            plain = _plain_content(value, [])
-        except RecursionError:
-            plain = value
         if rebuilt is None:
             rebuilt = dict(attributes)
-        rebuilt[key] = json_text(plain)
+        rebuilt[key] = _structured_json_text(value)
     return rebuilt
+
+
+def _structured_json_text(value: Mapping[str, Any] | list[Any] | tuple[Any, ...]) -> str:
+    """``value`` as JSON text, a blob part's bytes as their base64.
+
+    The base64 form is kept only when the whole value encodes: then the text
+    is JSON and the media rebuild finds the blob part. A value the encoder
+    refuses (a cycle, a key that is no string or number) is the fallback text
+    of the value as it came, whose byte objects are markers. The fallback of
+    the converted value would carry the base64 as a bare string, which
+    nothing after this pass recognises as media.
+    """
+    try:
+        text = strict_json_text(_plain_content(value, []))
+    except RecursionError:
+        text = None
+    return json_text(value) if text is None else text
 
 
 def _plain_content(value: Any, ancestors: list[int]) -> Any:

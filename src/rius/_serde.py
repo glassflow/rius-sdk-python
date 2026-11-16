@@ -357,16 +357,28 @@ def json_text(value: Any) -> str:
     that string would be, so it is not cut at the attribute cap here, where
     ``serialize`` would. Past the strip budget it is cut as a string that long
     is (see ``_cut_past_budget``). Never raises: a value the encoder refuses
-    (a cycle, a key that is no string or number) is its repr, its bytes
-    literals markers, for the strip to read.
+    (a cycle, a key that is no string or number) is its repr, its byte
+    objects markers, for the strip to read. A byte object already written as
+    a string (a blob's base64) is a bare string in that repr, which the strip
+    does not read as media: a caller that converts bytes before encoding uses
+    :func:`strict_json_text` and falls back to this on the value as it came.
     """
+    text = strict_json_text(value)
+    if text is not None:
+        return text
+    try:
+        return safe_repr(value)
+    except Exception:
+        return f"<unserializable {type(value).__name__}>"
+
+
+def strict_json_text(value: Any) -> str | None:
+    """``value`` as JSON text as :func:`json_text` writes it, or None when the
+    encoder refuses it (a cycle, a key that is no string or number)."""
     try:
         return _bounded_dumps(value, _unchanged)
     except Exception:
-        try:
-            return safe_repr(value)
-        except Exception:
-            return f"<unserializable {type(value).__name__}>"
+        return None
 
 
 def _unchanged(text: str) -> str:
