@@ -151,6 +151,25 @@ def test_a_memoryview_blob_is_read_as_its_bytes() -> None:
     assert json.loads(exported[GEN_AI_SYSTEM_INSTRUCTIONS])[0]["byte_size"] == 8
 
 
+@pytest.mark.parametrize(
+    "key", [GEN_AI_INPUT_MESSAGES, GEN_AI_OUTPUT_MESSAGES, GEN_AI_SYSTEM_INSTRUCTIONS]
+)
+def test_a_released_memoryview_blob_is_not_sized_as_empty(key: str) -> None:
+    # Its bytes cannot be read, so the size is unknown: never 0, which would
+    # read as an empty blob once the marker's size is taken as the blob's.
+    view = memoryview(PNG)
+    view.release()
+    blob = {"type": "blob", "mime_type": "image/png", "content": view}
+    value: Any = (
+        [blob] if key == GEN_AI_SYSTEM_INSTRUCTIONS else [{"role": "user", "parts": [blob]}]
+    )
+    exported = _export({key: value})
+    payload = json.loads(exported[key])
+    part = payload[0] if key == GEN_AI_SYSTEM_INSTRUCTIONS else payload[0]["parts"][0]
+    assert part["type"] == "blob"
+    assert "byte_size" not in part
+
+
 def test_any_mapping_is_an_object() -> None:
     value = [MappingProxyType({"type": "text", "content": "hi"})]
     assert _export({GEN_AI_SYSTEM_INSTRUCTIONS: value})[GEN_AI_SYSTEM_INSTRUCTIONS] == _json(
