@@ -1544,14 +1544,41 @@ class _Open:
     spans: list[tuple[int, int]] | None = None
 
 
+#: The standard decoder's string scanner (C where available): from the index
+#: after a string's opening quote, its decoded value and the index past its
+#: closing quote. Strict, so CPython's C scanner accepts exactly the strings
+#: ``_Parser`` does. The pure-Python fallback is laxer on ``\u`` escapes.
+_scanstring: Callable[[str, int, bool], tuple[str, int]] = json.decoder.scanstring  # type: ignore[attr-defined]
+
+
+def _scan_string(scan: _Parser) -> str:
+    """The string at ``scan.i``, decoded; ``scan.i`` moves past it.
+
+    No segment map and no per-escape object, unlike ``_Parser.string``: the
+    walk reads strings only as keys, and steps over every other one, so its
+    cost stays linear in the text however many escapes a string holds."""
+    if scan.peek() != '"':
+        raise _NotJson("expected '\"'")
+    try:
+        value, scan.i = _scanstring(scan.text, scan.i + 1, True)
+    except ValueError as error:
+        raise _NotJson("bad string") from error
+    return value
+
+
 def _key(scan: _Parser) -> str:
     """An object member's key and its colon, up to its value."""
+    plain = _MEMBER_KEY.match(scan.text, scan.i)
+    if plain is not None:
+        # The commonest key, with no escape: the key, its colon and the space in one match.
+        scan.i = plain.end()
+        return plain.group(1)
     scan.space()
-    key = scan.string().value
+    key = _scan_string(scan)
     scan.space()
     scan.expect(":")
     scan.space()
-    return str(key)
+    return key
 
 
 def _role(stack: list[_Open], parts_only: bool) -> str:
@@ -1600,8 +1627,10 @@ def _part_spans(text: str, parts_only: bool) -> list[tuple[int, int]]:
                     continue
                 scan.i += 1
                 scan.depth -= 1
+            elif ch == '"':
+                _scan_string(scan)  # stepped over: a part's members are read from its span
             else:
-                scan.value()  # a string, number or literal: never nests
+                scan.value()  # a number or literal: never nests
             # The value from start to scan.i is done: hand it to its parents.
             while True:
                 if not stack:
