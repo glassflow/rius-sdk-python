@@ -390,6 +390,30 @@ def test_openai_tool_call_message_converted_to_tool_call_part(
     ]
 
 
+@pytest.mark.parametrize("function", [{"arguments": "{}"}, {"name": None}, {"name": 3}, None])
+def test_a_tool_call_without_a_name_is_skipped(
+    exported_spans: InMemorySpanExporter, function: Any
+) -> None:
+    # The conventions require a tool_call part's name, and a part with a known
+    # type may no longer fall back to the generic part: a call with no name
+    # cannot be recorded validly, so it is left out rather than written as null.
+    call: dict[str, Any] = {"id": "call_1", "type": "function"}
+    if function is not None:
+        call["function"] = function
+    named = {"id": "call_2", "function": {"name": "lookup", "arguments": "{}"}}
+    with start_as_current_generation("chat") as gen:
+        gen.set_output([{"role": "assistant", "content": "hi", "tool_calls": [call, named]}])
+    assert _output_messages(exported_spans) == [
+        {
+            "role": "assistant",
+            "parts": [
+                {"type": "text", "content": "hi"},
+                {"type": "tool_call", "id": "call_2", "name": "lookup", "arguments": "{}"},
+            ],
+        }
+    ]
+
+
 def test_tool_response_message_converted_to_tool_call_response_part(
     exported_spans: InMemorySpanExporter,
 ) -> None:
@@ -554,42 +578,46 @@ def test_record_first_token_on_span_without_start_time_measures_from_wrapping() 
 # --- tool definitions ---
 
 
-def test_cm_tools_kwarg_records_definitions_verbatim(
+def test_cm_tools_kwarg_records_openai_tools_in_the_semconv_shape(
     exported_spans: InMemorySpanExporter,
 ) -> None:
-    tools = [
-        {
-            "type": "function",
-            "function": {
-                "name": "get_weather",
-                "parameters": {"type": "object", "properties": {"city": {"type": "string"}}},
-            },
-        }
-    ]
+    parameters = {"type": "object", "properties": {"city": {"type": "string"}}}
+    tools = [{"type": "function", "function": {"name": "get_weather", "parameters": parameters}}]
     with start_as_current_generation("chat", tools=tools):
         pass
     attrs = exported_spans.get_finished_spans()[0].attributes
-    assert json.loads(attrs["gen_ai.tool.definitions"]) == tools
+    assert json.loads(attrs["gen_ai.tool.definitions"]) == [
+        {"type": "function", "name": "get_weather", "parameters": parameters}
+    ]
 
 
-def test_set_tool_definitions_accepts_anthropic_shape(
+def test_set_tool_definitions_records_anthropic_tools_in_the_semconv_shape(
     exported_spans: InMemorySpanExporter,
 ) -> None:
-    # Verbatim on purpose: provider tool formats differ (OpenAI nests under
-    # "function", Anthropic uses top-level name/input_schema) and the backend
-    # reads names and sizes from either shape.
+    # Anthropic's custom tool becomes a function tool, and its built-in tool
+    # keeps its fields with the type prefixed by the provider.
+    parameters = {"type": "object", "properties": {"q": {"type": "string"}}}
     tools = [
         {
             "name": "search_kb",
             "description": "Search the knowledge base",
-            "input_schema": {"type": "object", "properties": {"q": {"type": "string"}}},
-        }
+            "input_schema": parameters,
+        },
+        {"type": "web_search_20250305", "name": "web_search", "max_uses": 5},
     ]
     gen = start_generation("chat", model="claude-sonnet-5", provider="anthropic")
     gen.set_tool_definitions(tools)
     gen.end()
     attrs = exported_spans.get_finished_spans()[0].attributes
-    assert json.loads(attrs["gen_ai.tool.definitions"]) == tools
+    assert json.loads(attrs["gen_ai.tool.definitions"]) == [
+        {
+            "type": "function",
+            "name": "search_kb",
+            "description": "Search the knowledge base",
+            "parameters": parameters,
+        },
+        {"type": "anthropic.web_search_20250305", "name": "web_search", "max_uses": 5},
+    ]
 
 
 def test_tools_omitted_attribute_absent(exported_spans: InMemorySpanExporter) -> None:
@@ -682,7 +710,8 @@ def test_context_sizes_combine_input_output_and_tools(
     sizes = _sizes_of(exported_spans.get_finished_spans()[0])
     call_part = {"type": "tool_call", "id": "c1", "name": "lookup", "arguments": "{}"}
     call_bytes = len(json.dumps(call_part, separators=(",", ":")).encode())
-    tool_bytes = len(json.dumps(tools[0], separators=(",", ":")).encode())
+    recorded = {"type": "function", "name": "lookup", "parameters": {}}
+    tool_bytes = len(json.dumps(recorded, separators=(",", ":")).encode())
     assert sizes == {
         "version": 1,
         "tool_definitions": [{"name": "lookup", "bytes": tool_bytes}],

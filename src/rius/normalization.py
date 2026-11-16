@@ -128,6 +128,7 @@ from ._serde import (
     serialize,
     strip_within_budget,
 )
+from ._tool_definitions import semconv_tool_definitions
 from .aggregated_usage import WrappedCallTracker, move_aggregated_usage
 from .compaction import CompactedContextProcessor
 from .semconv import (
@@ -580,9 +581,10 @@ def normalize_tool_definitions(attributes: Mapping[str, Any] | None) -> dict[str
     * ``llm.tools.N.tool.json_schema``, which every bundled OpenInference
       instrumentor that sees tools writes (openai pops ``tools`` out of the
       request bag to do it). Each value is a JSON string; the schemas are
-      parsed and re-serialized as one array, in index order, VERBATIM — an
-      Anthropic ``input_schema`` stays an Anthropic ``input_schema``, as on
-      the native ``set_tool_definitions``. The indexed keys are then deleted.
+      parsed and re-serialized as one array, in index order, in the
+      conventions' shape, as on the native ``set_tool_definitions`` (see
+      ``_tool_definitions``; a built-in tool's type is prefixed with the
+      span's ``gen_ai.provider.name``). The indexed keys are then deleted.
       If any one schema does not parse, the family is left untouched rather
       than reassembled without it: it is content by prefix already, so
       nothing escapes, and a partial array would be a silent loss.
@@ -632,7 +634,9 @@ def normalize_tool_definitions(attributes: Mapping[str, Any] | None) -> dict[str
         if stripped is not None:
             rebuilt = stripped[0]
         if not native:
-            rebuilt[GEN_AI_TOOL_DEFINITIONS] = serialize(schemas)
+            rebuilt[GEN_AI_TOOL_DEFINITIONS] = serialize(
+                semconv_tool_definitions(schemas, _provider_of(attributes))
+            )
         return rebuilt
 
     stripped = _bag_without_definitions(attributes)
@@ -640,8 +644,16 @@ def normalize_tool_definitions(attributes: Mapping[str, Any] | None) -> dict[str
         return None
     rebuilt, definitions = stripped
     if not native:
-        rebuilt[GEN_AI_TOOL_DEFINITIONS] = serialize(definitions)
+        rebuilt[GEN_AI_TOOL_DEFINITIONS] = serialize(
+            semconv_tool_definitions(definitions, _provider_of(attributes))
+        )
     return rebuilt
+
+
+def _provider_of(attributes: Mapping[str, Any]) -> str | None:
+    """The span's ``gen_ai.provider.name``, which prefixes built-in tool types."""
+    provider = attributes.get(GEN_AI_PROVIDER_NAME)
+    return provider if isinstance(provider, str) else None
 
 
 def _bag_without_definitions(

@@ -62,8 +62,7 @@ _OPENAI_TOOLS = [
 
 # openinference-instrumentation-anthropic 2.1.4, _wrappers.py:567-569: the
 # request's tools, one json_schema per index, in Anthropic's own shape
-# (top-level name / input_schema) — which must survive verbatim, not be
-# rewritten into OpenAI's.
+# (top-level name / input_schema).
 _ANTHROPIC_TOOLS = [
     {
         "name": "get_weather",
@@ -73,6 +72,18 @@ _ANTHROPIC_TOOLS = [
             "properties": {"city": {"type": "string"}},
             "required": ["city"],
         },
+    }
+]
+
+
+# Both recorded in the conventions' function-tool shape.
+_OPENAI_SEMCONV = [{"type": "function", **tool["function"]} for tool in _OPENAI_TOOLS]
+_ANTHROPIC_SEMCONV = [
+    {
+        "type": "function",
+        "name": "get_weather",
+        "description": "Weather for a city",
+        "parameters": _ANTHROPIC_TOOLS[0]["input_schema"],
     }
 ]
 
@@ -122,7 +133,7 @@ def test_openai_function_tools_become_one_definitions_array() -> None:
         **_indexed(_OPENAI_TOOLS),
     }
     out = _exported_attributes(raw)
-    assert _definitions(out) == _OPENAI_TOOLS
+    assert _definitions(out) == _OPENAI_SEMCONV
     assert out == {
         "openinference.span.kind": "LLM",
         GEN_AI_OPERATION_NAME: "chat",
@@ -134,7 +145,7 @@ def test_openai_function_tools_become_one_definitions_array() -> None:
     assert not [key for key in out if key.startswith("llm.tools")]
 
 
-def test_anthropic_input_schema_tools_survive_verbatim() -> None:
+def test_anthropic_input_schema_tools_become_function_tools() -> None:
     raw = {
         "openinference.span.kind": "LLM",
         "llm.provider": "anthropic",
@@ -142,7 +153,7 @@ def test_anthropic_input_schema_tools_survive_verbatim() -> None:
         **_indexed(_ANTHROPIC_TOOLS),
     }
     out = _exported_attributes(raw)
-    assert _definitions(out) == _ANTHROPIC_TOOLS
+    assert _definitions(out) == _ANTHROPIC_SEMCONV
     assert not [key for key in out if key.startswith("llm.tools")]
 
 
@@ -153,7 +164,7 @@ def test_the_definitions_are_spelled_like_the_native_path() -> None:
 
     out = normalize_tool_definitions(_indexed(_ANTHROPIC_TOOLS))
     assert out is not None
-    assert out[GEN_AI_TOOL_DEFINITIONS] == serialize(_ANTHROPIC_TOOLS)
+    assert out[GEN_AI_TOOL_DEFINITIONS] == serialize(_ANTHROPIC_SEMCONV)
 
 
 def test_indices_are_ordered_numerically_not_lexically() -> None:
@@ -162,7 +173,7 @@ def test_indices_are_ordered_numerically_not_lexically() -> None:
     attributes = dict(reversed(list(_indexed(tools).items())))
     out = normalize_tool_definitions(attributes)
     assert out is not None
-    assert _definitions(out) == tools
+    assert _definitions(out) == [{"type": "function", **tool} for tool in tools]
 
 
 def test_a_native_definitions_key_wins_and_the_indexed_keys_still_go() -> None:
@@ -210,7 +221,7 @@ def test_bag_tools_are_promoted_when_llm_tools_is_absent() -> None:
         ),
     }
     out = _exported_attributes(raw)
-    assert _definitions(out) == _OPENAI_TOOLS
+    assert _definitions(out) == _OPENAI_SEMCONV
     assert out[GEN_AI_REQUEST_MODEL] == "gpt-4o"
     assert out["rius.request.tool_choice"] == "auto"
     # Every member was promoted somewhere, so the bag goes rather than riding as "{}".
@@ -225,7 +236,7 @@ def test_legacy_bag_functions_are_promoted() -> None:
         {LLM_INVOCATION_PARAMETERS: json.dumps({"functions": functions, "temperature": 0.1})}
     )
     assert out is not None
-    assert _definitions(out) == functions
+    assert _definitions(out) == [{"type": "function", **functions[0]}]
     assert json.loads(out[LLM_INVOCATION_PARAMETERS]) == {"temperature": 0.1}
 
 
@@ -236,7 +247,10 @@ def test_bag_tools_and_functions_are_both_kept_in_one_array() -> None:
         {LLM_INVOCATION_PARAMETERS: json.dumps({"tools": tools, "functions": functions})}
     )
     assert out is not None
-    assert _definitions(out) == tools + functions
+    assert _definitions(out) == [
+        {"type": "function", "name": "a"},
+        {"type": "function", "name": "b"},
+    ]
     # Nothing else was in the bag, so the bag goes rather than riding as "{}".
     assert LLM_INVOCATION_PARAMETERS not in out
 
@@ -249,7 +263,7 @@ def test_llm_tools_wins_over_the_bag_and_the_bag_member_still_goes() -> None:
         {LLM_INVOCATION_PARAMETERS: bag, **_indexed([{"name": "from-llm-tools"}])}
     )
     assert out is not None
-    assert _definitions(out) == [{"name": "from-llm-tools"}]
+    assert _definitions(out) == [{"type": "function", "name": "from-llm-tools"}]
     assert json.loads(out[LLM_INVOCATION_PARAMETERS]) == {"tool_choice": "auto"}
 
 
@@ -287,6 +301,16 @@ def test_a_native_definitions_key_wins_over_the_bag_and_the_member_still_goes() 
         GEN_AI_TOOL_DEFINITIONS: '[{"name": "native"}]',
         LLM_INVOCATION_PARAMETERS: '{"seed":1}',
     }
+
+
+def test_a_built_in_tool_is_prefixed_with_the_span_provider() -> None:
+    raw = {
+        "openinference.span.kind": "LLM",
+        "llm.provider": "anthropic",
+        **_indexed([{"type": "web_search_20250305", "name": "web_search"}]),
+    }
+    out = _exported_attributes(raw)
+    assert _definitions(out) == [{"type": "anthropic.web_search_20250305", "name": "web_search"}]
 
 
 @pytest.mark.parametrize(
@@ -336,7 +360,7 @@ def test_promoted_definitions_are_content(capture_content: bool, route: str) -> 
     exported = dict(span.attributes or {})
     assert not [key for key in exported if key.startswith("llm.tools")]
     if capture_content:
-        assert _definitions(exported) == secret
+        assert _definitions(exported) == [{"type": "function", **secret[0]}]
     else:
         assert GEN_AI_TOOL_DEFINITIONS not in exported
         assert "SECRET" not in json.dumps(exported)

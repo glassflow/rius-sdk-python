@@ -19,6 +19,7 @@ from ._context_sizes import context_sizes
 from ._errors import record_error
 from ._media import media_parts
 from ._serde import serialize
+from ._tool_definitions import semconv_tool_definitions
 from ._tracer import sdk_tracer
 from .normalization import REQUEST_PARAMETER_GUARDS, SKIP
 from .semconv import (
@@ -137,11 +138,17 @@ def _normalize_message(message: Any, default_role: str) -> dict[str, Any]:
             function = call.get("function")
             if not isinstance(function, dict):
                 function = {}
+            name = function.get("name")
+            if not isinstance(name, str):
+                # The conventions require a tool_call part's name, and a part
+                # of a known type may not fall back to the generic part, so a
+                # call without one cannot be recorded validly: it is skipped.
+                continue
             parts.append(
                 {
                     "type": "tool_call",
                     "id": call.get("id"),
-                    "name": function.get("name"),
+                    "name": name,
                     "arguments": function.get("arguments"),
                 }
             )
@@ -213,18 +220,20 @@ class Generation:
     def set_tool_definitions(self, tools: list[Any]) -> None:
         """Record the request's tool/function definitions (``gen_ai.tool.definitions``).
 
-        Definitions are serialized verbatim, in whatever shape the provider
-        request used (OpenAI nests each tool under ``function``, Anthropic uses
-        top-level ``name``/``input_schema``) — no normalization, so what is
-        recorded is exactly what the model was shown. Definitions are content,
-        not identity: they are masked/stripped under ``capture_content=False``
-        like messages are.
+        Definitions are recorded in the conventions' shape whatever shape the
+        provider request used: a function tool becomes ``{"type": "function",
+        "name", "description", "parameters"}`` (OpenAI's nested ``function``
+        is lifted, Anthropic's ``input_schema`` becomes ``parameters``), and a
+        provider's built-in tool keeps its fields with its ``type`` prefixed
+        by the generation's provider (``anthropic.web_search_20250305``).
+        Definitions are content, not identity: they are masked/stripped under
+        ``capture_content=False`` like messages are.
 
         Args:
-            tools: The tools/functions list passed to the provider, verbatim.
+            tools: The tools/functions list passed to the provider, in its own shape.
         """
-        self._tools = tools
-        self._span.set_attribute(GEN_AI_TOOL_DEFINITIONS, serialize(tools))
+        self._tools = semconv_tool_definitions(tools, self._provider)
+        self._span.set_attribute(GEN_AI_TOOL_DEFINITIONS, serialize(self._tools))
 
     def _set_context_sizes(self) -> None:
         # Computed once, as the span ends (from end() and from the scoped
@@ -563,7 +572,8 @@ def start_generation(
             ``reasoning.effort`` values. Provider-defined string, recorded
             verbatim.
         tools: The request's tool/function definitions, recorded immediately
-            via ``set_tool_definitions`` (verbatim, any provider shape).
+            via ``set_tool_definitions`` (any provider shape, recorded in the
+            conventions' shape).
         user_id: End-user identity (``user.id``) stamped on this span. Sugar
             for a single call; to attribute a whole request use ``user()``.
         output_type: The output modality the request asked for
