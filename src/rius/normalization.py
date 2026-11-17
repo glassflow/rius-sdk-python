@@ -1653,6 +1653,8 @@ PROVIDER_NAME_ALIASES: Mapping[str, str] = {
     "gemini": "gcp.gemini",
     "az.ai.inference": "azure.ai.inference",
     "az.ai.openai": "azure.ai.openai",
+    # LiteLLM's route for Ollama's chat endpoint
+    "ollama_chat": "ollama",
     # the registry's own former spellings
     **PROVIDER_NAME_RENAMES,
 }

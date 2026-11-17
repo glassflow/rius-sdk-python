@@ -284,6 +284,8 @@ def test_an_unparseable_token_count_maps_to_nothing() -> None:
         ("aws", "aws"),
         ("google", "google"),
         ("ollama", "ollama"),
+        # LiteLLM's route for Ollama's chat endpoint
+        ("ollama_chat", "ollama"),
     ],
 )
 def test_provider_spellings(source_value: str, expected: str) -> None:
@@ -524,6 +526,7 @@ def test_no_provider_without_a_named_ls_provider(metadata: str) -> None:
         # compared under the registry's spelling
         ("vertex_ai", "vertex_ai/gemini-2.5-flash", "gemini-2.5-flash"),
         ("mistralai", "mistral/mistral-small-latest", "mistral-small-latest"),
+        ("ollama_chat", "ollama_chat/llama3.2", "llama3.2"),
         # a prefix naming anyone else is part of the name
         ("openai", "openai/google/gemini-2.5-flash", "google/gemini-2.5-flash"),
         ("openai", "google/gemini-2.5-flash", "google/gemini-2.5-flash"),
