@@ -7,7 +7,7 @@ arrived beside OpenInference's: two spans normalized as LLM per call, tokens
 and cost counted twice, a second ``error.type`` spelled ``not_found_error``,
 and an unflagged duplicate after ``mark_compaction()``. When rius registered
 that instrumentor, the SDK's chat span is exported as a plain client span.
-From openinference-instrumentation-anthropic 3.2.0, OpenInference stops the
+From openinference-instrumentation-anthropic 3.1.1, OpenInference stops the
 SDK from starting that chat span at all, so the demotion has nothing to do.
 
 These run each scenario in a fresh interpreter (``anthropic_native_span_run.py``):
@@ -92,7 +92,7 @@ def _sdk_traces() -> bool:
 def _openinference_leaves_the_sdk_chat_span() -> bool:
     """Whether the SDK's chat span still starts beside OpenInference's.
 
-    From openinference-instrumentation-anthropic 3.2.0 it does not: OpenInference
+    From openinference-instrumentation-anthropic 3.1.1 it does not: OpenInference
     stops the SDK from starting a chat span for a call it traces, so there is
     nothing to demote. The SDK's tool-runner and other API spans still start.
     """
@@ -102,7 +102,7 @@ def _openinference_leaves_the_sdk_chat_span() -> bool:
 _NO_SDK_TRACING = "this anthropic has no tracing of its own (it starts in 1.14.0)"
 _SDK_CHAT_SPAN_LEFT = "this OpenInference leaves the SDK's chat span; the demotion tests cover it"
 _NO_SDK_CHAT_SPAN = (
-    "OpenInference stops the SDK's chat span (3.2.0 on): nothing to demote; "
+    "OpenInference stops the SDK's chat span (3.1.1 on): nothing to demote; "
     "see test_openinference_that_stops_the_sdk_chat_span_leaves_one_llm_span"
 )
 
@@ -314,7 +314,7 @@ def test_bridged_to_another_sdk_each_call_still_counts_once(case: str) -> None:
 @pytest.mark.integration
 @pytest.mark.parametrize("case", [*_CASES, "compaction", "rate_limited"])
 def test_openinference_that_stops_the_sdk_chat_span_leaves_one_llm_span(case: str) -> None:
-    # The SDK traces on its own, but OpenInference (3.2.0 on) keeps it from
+    # The SDK traces on its own, but OpenInference (3.1.1 on) keeps it from
     # starting a chat span for the calls it traces: no duplicate to demote.
     if not _sdk_traces():
         pytest.skip(_NO_SDK_TRACING)

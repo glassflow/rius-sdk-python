@@ -239,20 +239,45 @@ _REPLACEMENT_HEAD, _rest = REPLACEMENT_FORMAT.split("<mime>")
 _REPLACEMENT_BETWEEN, _REPLACEMENT_TAIL = _rest.split("<byte_size>")
 
 
+#: 2^53 - 1 has 16 digits, so a run with more significant digits is past it.
+_MAX_BYTE_SIZE_DIGITS = 16
+
+
+def parse_replacement(value: str) -> tuple[str | None, int | None] | None:
+    """The mime and byte_size a complete replacement names, each None when
+    unknown; None when ``value`` is no complete replacement (see
+    ``is_replacement``).
+
+    The byte_size is the digit run read as a decimal number, leading zeros of
+    any length allowed. A run with more significant digits than 2^53 - 1 has
+    is None and is never converted: ``int()`` refuses a string over 4300
+    digits, and this runs inside the export chain. The caller still bounds a
+    shorter one to 2^53 - 1, as for a byte_size the part has.
+    """
+    head, between, tail = _REPLACEMENT_HEAD, _REPLACEMENT_BETWEEN, _REPLACEMENT_TAIL
+    if len(value) < len(head) + len(between) + len(tail):
+        return None
+    if not (value.startswith(head) and value.endswith(tail)):
+        return None
+    mime, sep, size = value[len(head) : len(value) - len(tail)].rpartition(between)
+    digits = bool(size) and all("0" <= ch <= "9" for ch in size)
+    if not (sep and (mime == UNKNOWN or is_mime(mime)) and (digits or size == UNKNOWN)):
+        return None
+    byte_size = None
+    if digits:
+        significant = size.lstrip("0") or "0"
+        if len(significant) <= _MAX_BYTE_SIZE_DIGITS:
+            byte_size = int(significant)
+    return (None if mime == UNKNOWN else mime), byte_size
+
+
 def is_replacement(value: str) -> bool:
     """Already a complete replacement: never stripped again, never context.
 
     The format with a mime that is unknown or token/token and a byte_size of
     ASCII digits or unknown; anything that only looks like one is a token.
     """
-    head, between, tail = _REPLACEMENT_HEAD, _REPLACEMENT_BETWEEN, _REPLACEMENT_TAIL
-    if len(value) < len(head) + len(between) + len(tail):
-        return False
-    if not (value.startswith(head) and value.endswith(tail)):
-        return False
-    mime, sep, size = value[len(head) : len(value) - len(tail)].rpartition(between)
-    digits = bool(size) and all("0" <= ch <= "9" for ch in size)
-    return bool(sep) and (mime == UNKNOWN or is_mime(mime)) and (digits or size == UNKNOWN)
+    return parse_replacement(value) is not None
 
 
 # --- the strip ---------------------------------------------------------------
@@ -1445,7 +1470,9 @@ def native_part(part: Part) -> Part | None:
 
     * A blob carrying content becomes a stripped blob: sized from it,
       ``not_captured``, its modality from its MIME type first (some producers
-      label every file an image), else the one it has, else document.
+      label every file an image), else the one it has, else document. Content
+      that is a complete replacement gives its size, and its mime when the
+      part has no valid MIME type.
     * Any other part keeps a modality it has, else takes one from its MIME
       type, else (a uri) from its filename extension, else document. A blob
       without content keeps a valid size and stripped_reason.
@@ -1457,6 +1484,14 @@ def native_part(part: Part) -> Part | None:
     part_type = part.get("type")
     mime = part.get("mime_type")
     if part_type == "blob" and isinstance(part.get("content"), str):
+        replaced = parse_replacement(part["content"])
+        if replaced is not None:
+            # Bytes a strip already measured (an OTLP bytes value, a byte
+            # object): the size the base64 of the same bytes would give, and
+            # the part's own MIME type before the replacement's.
+            replaced_mime, size = replaced
+            kept = mime if is_mime(mime) else replaced_mime
+            return blob_part(own or "document", kept, safe_size(size), NOT_CAPTURED)
         return base64_blob(part["content"], own or "document", mime)
     if part_type == "uri" and is_data_url(part.get("uri")):
         return data_url_blob(part["uri"], own or "document", mime)
@@ -1509,14 +1544,41 @@ class _Open:
     spans: list[tuple[int, int]] | None = None
 
 
+#: The standard decoder's string scanner (C where available): from the index
+#: after a string's opening quote, its decoded value and the index past its
+#: closing quote. Strict, so CPython's C scanner accepts exactly the strings
+#: ``_Parser`` does. The pure-Python fallback is laxer on ``\u`` escapes.
+_scanstring: Callable[[str, int, bool], tuple[str, int]] = json.decoder.scanstring  # type: ignore[attr-defined]
+
+
+def _scan_string(scan: _Parser) -> str:
+    """The string at ``scan.i``, decoded; ``scan.i`` moves past it.
+
+    No segment map and no per-escape object, unlike ``_Parser.string``: the
+    walk reads strings only as keys, and steps over every other one, so its
+    cost stays linear in the text however many escapes a string holds."""
+    if scan.peek() != '"':
+        raise _NotJson("expected '\"'")
+    try:
+        value, scan.i = _scanstring(scan.text, scan.i + 1, True)
+    except ValueError as error:
+        raise _NotJson("bad string") from error
+    return value
+
+
 def _key(scan: _Parser) -> str:
     """An object member's key and its colon, up to its value."""
+    plain = _MEMBER_KEY.match(scan.text, scan.i)
+    if plain is not None:
+        # The commonest key, with no escape: the key, its colon and the space in one match.
+        scan.i = plain.end()
+        return plain.group(1)
     scan.space()
-    key = scan.string().value
+    key = _scan_string(scan)
     scan.space()
     scan.expect(":")
     scan.space()
-    return str(key)
+    return key
 
 
 def _role(stack: list[_Open], parts_only: bool) -> str:
@@ -1565,8 +1627,10 @@ def _part_spans(text: str, parts_only: bool) -> list[tuple[int, int]]:
                     continue
                 scan.i += 1
                 scan.depth -= 1
+            elif ch == '"':
+                _scan_string(scan)  # stepped over: a part's members are read from its span
             else:
-                scan.value()  # a string, number or literal: never nests
+                scan.value()  # a number or literal: never nests
             # The value from start to scan.i is done: hand it to its parents.
             while True:
                 if not stack:

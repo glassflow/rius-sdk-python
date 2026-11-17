@@ -381,7 +381,10 @@ def init(
         headers: Extra headers for the OTLP exporter.
         disabled: If True, no exporter is attached (spans are dropped).
         sample_rate: Head sampling ratio 0.0-1.0 (whole-trace). Default 1.0.
-        capture_content: If False, strip prompt/response content at export. Default True.
+        capture_content: If False, strip prompt/response content at export. Default True,
+            or ``RIUS_CAPTURE_CONTENT``, or when that is unset
+            ``OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT`` (``NO_CONTENT`` and
+            ``EVENT_ONLY`` turn capture off).
         mask: Redact content attribute values at export (applies to all spans).
         instruments: Auto-instrumentation selection. ``None`` (default) enables
             every bundled instrumentor whose package is installed; a list

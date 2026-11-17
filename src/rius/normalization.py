@@ -87,6 +87,10 @@ never be written at span start.
 reasons: the flattened ``llm.input_messages.N.message.*`` and
 ``llm.output_messages.N.message.*`` families become ``gen_ai.input.messages``
 and ``gen_ai.output.messages``, which are content.
+``structured_content_as_json`` comes first of all: the conventions now ask for
+the content keys as maps and arrays rather than JSON strings, and every pass
+after it reads them as JSON text, so a structured value is written as that
+text before any of them runs.
 ``drop_embedding_vectors`` removes the indexed
 ``embedding.embeddings.N.embedding.vector`` family, which is never exported.
 
@@ -113,21 +117,28 @@ from opentelemetry.trace import Link, StatusCode
 
 from ._attributes import rebuilt_item_attributes, replacement_attributes
 from ._media import (
+    is_mime,
     rebuild_native_parts,
+    replacement,
     url_part,
 )
 from ._native_spans import native_error_type
 from ._provider_compaction import ProviderCompactions, compactions_in_response
 from ._provider_response import response_json
 from ._serde import (
+    BYTE_OBJECTS,
     LONE_SURROGATE,
     UNREADABLE,
     attribute_value,
+    byte_object_size,
+    json_text,
     loads_json,
     loads_object,
     serialize,
+    strict_json_text,
     strip_within_budget,
 )
+from ._tool_definitions import semconv_tool_definitions
 from .aggregated_usage import WrappedCallTracker, move_aggregated_usage
 from .compaction import CompactedContextProcessor
 from .semconv import (
@@ -564,6 +575,12 @@ def error_type_from_exception_event(span: ReadableSpan) -> dict[str, Any]:
 #: keys, not one key), so it is spelled here.
 _LLM_TOOL_SCHEMA = re.compile(r"llm\.tools\.(\d+)\.tool\.json_schema")
 
+#: The members of a tool the anthropic instrumentor (3.3.6 on) also writes on
+#: their own beside its schema, as ``llm.tools.{i}.tool.<member>``. Copies of
+#: the schema's own fields, so they go wherever the schema goes.
+_LLM_TOOL_SCHEMA_COPIES = ("name", "description")
+_LLM_TOOL_SCHEMA_SUFFIX = ".tool.json_schema"
+
 
 def normalize_tool_definitions(attributes: Mapping[str, Any] | None) -> dict[str, Any] | None:
     """Reassemble a span's tool definitions into one ``gen_ai.tool.definitions``.
@@ -580,9 +597,12 @@ def normalize_tool_definitions(attributes: Mapping[str, Any] | None) -> dict[str
     * ``llm.tools.N.tool.json_schema``, which every bundled OpenInference
       instrumentor that sees tools writes (openai pops ``tools`` out of the
       request bag to do it). Each value is a JSON string; the schemas are
-      parsed and re-serialized as one array, in index order, VERBATIM — an
-      Anthropic ``input_schema`` stays an Anthropic ``input_schema``, as on
-      the native ``set_tool_definitions``. The indexed keys are then deleted.
+      parsed and re-serialized as one array, in index order, in the
+      conventions' shape, as on the native ``set_tool_definitions`` (see
+      ``_tool_definitions``; a built-in tool's type is prefixed with the
+      span's ``gen_ai.provider.name``). The indexed keys are then deleted,
+      with the ``llm.tools.N.tool.name`` and ``.description`` copies some
+      instrumentors write beside a schema.
       If any one schema does not parse, the family is left untouched rather
       than reassembled without it: it is content by prefix already, so
       nothing escapes, and a partial array would be a silent loss.
@@ -622,6 +642,13 @@ def normalize_tool_definitions(attributes: Mapping[str, Any] | None) -> dict[str
                 return None
             schemas.append(schema)
         drop = set(indexed.values())
+        # Each copy is spelled from its schema key as written, so a copy
+        # goes only when its index is spelled exactly like its schema's.
+        drop.update(
+            f"{key.removesuffix(_LLM_TOOL_SCHEMA_SUFFIX)}.tool.{member}"
+            for key in indexed.values()
+            for member in _LLM_TOOL_SCHEMA_COPIES
+        )
         rebuilt = {k: v for k, v in attributes.items() if k not in drop}
         # litellm and langchain write the same definitions into the request
         # bag as well. They are duplicates of the ones just reassembled, and
@@ -632,7 +659,7 @@ def normalize_tool_definitions(attributes: Mapping[str, Any] | None) -> dict[str
         if stripped is not None:
             rebuilt = stripped[0]
         if not native:
-            rebuilt[GEN_AI_TOOL_DEFINITIONS] = serialize(schemas)
+            _set_definitions(rebuilt, schemas, _provider_of(attributes))
         return rebuilt
 
     stripped = _bag_without_definitions(attributes)
@@ -640,8 +667,25 @@ def normalize_tool_definitions(attributes: Mapping[str, Any] | None) -> dict[str
         return None
     rebuilt, definitions = stripped
     if not native:
-        rebuilt[GEN_AI_TOOL_DEFINITIONS] = serialize(definitions)
+        _set_definitions(rebuilt, definitions, _provider_of(attributes))
     return rebuilt
+
+
+def _set_definitions(attributes: dict[str, Any], tools: list[Any], provider: str | None) -> None:
+    """``gen_ai.tool.definitions`` from tools, unless they come to no definition.
+
+    An empty list (no tools, or a Gemini tool with no declarations) writes
+    nothing, as the sink does; the sources are removed all the same.
+    """
+    definitions = semconv_tool_definitions(tools, provider)
+    if definitions:
+        attributes[GEN_AI_TOOL_DEFINITIONS] = serialize(definitions)
+
+
+def _provider_of(attributes: Mapping[str, Any]) -> str | None:
+    """The span's ``gen_ai.provider.name``, which prefixes built-in tool types."""
+    provider = attributes.get(GEN_AI_PROVIDER_NAME)
+    return provider if isinstance(provider, str) else None
 
 
 def _bag_without_definitions(
@@ -694,6 +738,25 @@ _CONTENT_ITEM = "message_content."
 #: ``tool_call.*`` field is consumed and dropped, as the sink does.
 _TOOL_CALL_FIELDS = (("id", "id"), ("function.name", "name"), ("function.arguments", "arguments"))
 
+
+def unnamed_tool_call_part(call_id: Any, arguments: Any) -> dict[str, Any]:
+    """A tool call without a name, as a text part holding its id and arguments.
+
+    The conventions require a ``tool_call`` part's name (a string), and a part
+    of a known type may not fall back to the generic part, so a call without
+    one cannot be a ``tool_call`` part. Rather than drop it, it is kept the way
+    content with no part type is: as text, the call's id and arguments as JSON,
+    each left out when absent. Every writer of tool-call parts uses this, in
+    both SDKs and the sink, so the bytes agree.
+    """
+    call = {
+        key: value
+        for key, value in (("id", call_id), ("arguments", arguments))
+        if value is not None
+    }
+    return {"type": "text", "content": serialize(call)}
+
+
 #: An index as the sink's ``strconv.Atoi`` reads one: an optional sign and
 #: ASCII digits, within int64. The sink is the other producer of this key, and
 #: the two must agree on which keys are messages.
@@ -725,6 +788,8 @@ class _FlatMessage:
         then the tool calls, each family in index order. An empty role, id,
         name or arguments is omitted rather than written empty, as the sink
         does; empty content is still a part, because empty content was said.
+        A tool call left without a name is a text part
+        (:func:`unnamed_tool_call_part`).
         """
         message: dict[str, Any] = {}
         if self.role:
@@ -751,6 +816,8 @@ class _FlatMessage:
             for field, name in _TOOL_CALL_FIELDS:
                 if call.get(field):
                     part[name] = call[field]
+            if "name" not in part:
+                part = unnamed_tool_call_part(part.get("id"), part.get("arguments"))
             parts.append(part)
         message["parts"] = parts
         return message
@@ -1195,6 +1262,92 @@ def compactions_from_output_value(attributes: Mapping[str, Any] | None) -> Provi
     return compactions_in_response(raw)
 
 
+#: The content keys the GenAI conventions ask for as structured values (maps
+#: and arrays) rather than JSON strings. OpenTelemetry Python keeps such a
+#: value on a span from 1.45.
+_STRUCTURED_CONTENT_KEYS = (
+    GEN_AI_INPUT_MESSAGES,
+    GEN_AI_OUTPUT_MESSAGES,
+    GEN_AI_SYSTEM_INSTRUCTIONS,
+    GEN_AI_TOOL_DEFINITIONS,
+)
+
+
+def structured_content_as_json(attributes: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    """The content keys set as structured values, each written as its JSON text.
+
+    Returns the rebuilt attribute dict, or None when nothing changes. Every
+    pass after this one, the media rebuild and the strip included, reads these
+    keys as JSON text, as the conventions used to define them and as this SDK
+    still writes them. A mapping or an array is written as that text (the one
+    JSON encoding, see ``_serde``), and from then on it is that string: a
+    span carrying the structured value and a span carrying its JSON text
+    export the same attributes. A string, a scalar or a lone byte object is
+    not structured, and is left to the passes as it is.
+
+    A blob part's byte content (``{"type": "blob", "content": b"..."}``) is
+    written as the replacement the strip writes for media
+    (``[stripped <mime> <byte_size> bytes]``), its mime the part's MIME type,
+    so the part is rebuilt with its size and MIME type as the same blob with
+    base64 content is, without rendering the bytes at all. A byte object
+    anywhere else is the marker, as everywhere this SDK writes one.
+    """
+    if not attributes:
+        return None
+    rebuilt: dict[str, Any] | None = None
+    for key in _STRUCTURED_CONTENT_KEYS:
+        value = attributes.get(key)
+        if not isinstance(value, (Mapping, list, tuple)):
+            continue
+        if rebuilt is None:
+            rebuilt = dict(attributes)
+        rebuilt[key] = _structured_json_text(value)
+    return rebuilt
+
+
+def _structured_json_text(value: Mapping[str, Any] | list[Any] | tuple[Any, ...]) -> str:
+    """``value`` as JSON text, a blob part's bytes as their replacement.
+
+    The text is encoded whole (see ``json_text``), so a blob's base64 past the
+    strip budget is still found and stripped by the media rebuild, as it is in
+    the JSON text of the same value. A value the encoder refuses (a cycle, a
+    key that is no string or number) is the fallback text of the value as it
+    came, whose byte objects are markers.
+    """
+    try:
+        text = strict_json_text(_plain_content(value, []))
+    except RecursionError:
+        text = None
+    return json_text(value) if text is None else text
+
+
+def _plain_content(value: Any, ancestors: list[int]) -> Any:
+    """``value`` with every mapping a dict and every array a list, for the encoder.
+
+    A blob part's byte content becomes its replacement (see
+    :func:`structured_content_as_json`). A cycle is left as it is, for the
+    encoder to refuse.
+    """
+    if not isinstance(value, (Mapping, list, tuple)):
+        return value
+    if id(value) in ancestors:
+        return value
+    ancestors.append(id(value))
+    try:
+        if isinstance(value, Mapping):
+            plain = {key: _plain_content(item, ancestors) for key, item in value.items()}
+            content = plain.get("content")
+            if plain.get("type") == "blob" and isinstance(content, BYTE_OBJECTS):
+                size = byte_object_size(content)
+                if size is not None:
+                    mime = plain.get("mime_type")
+                    plain["content"] = replacement(mime if is_mime(mime) else None, size)
+            return plain
+        return [_plain_content(item, ancestors) for item in value]
+    finally:
+        ancestors.pop()
+
+
 #: The message keys whose parts a normalizer builds (the contract's
 #: ``raw_payloads.message_keys`` that hold semconv JSON). The system
 #: instructions are read and rewritten here, never emitted.
@@ -1345,7 +1498,14 @@ class NormalizingSpanExporter(SpanExporter):
         return self._inner.export([self._normalized(span) for span in spans])
 
     def _normalized(self, span: ReadableSpan) -> ReadableSpan:
-        new_attributes = self._table.normalize(span.attributes)
+        # First, so every pass below reads the content keys as JSON text,
+        # however the instrumentation set them.
+        structured = structured_content_as_json(span.attributes)
+        new_attributes = self._table.normalize(
+            span.attributes if structured is None else structured
+        )
+        if new_attributes is None:
+            new_attributes = structured
         # After the table, which maps the dialects' usage onto the canonical
         # keys, so a zero it mapped goes with the native ones. On every span,
         # the SDK's own generations included, not only third-party ones.
@@ -1496,6 +1656,8 @@ PROVIDER_NAME_ALIASES: Mapping[str, str] = {
     "gemini": "gcp.gemini",
     "az.ai.inference": "azure.ai.inference",
     "az.ai.openai": "azure.ai.openai",
+    # LiteLLM's route for Ollama's chat endpoint
+    "ollama_chat": "ollama",
     # the registry's own former spellings
     **PROVIDER_NAME_RENAMES,
 }

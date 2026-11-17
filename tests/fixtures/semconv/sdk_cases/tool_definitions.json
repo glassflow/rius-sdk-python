@@ -1,0 +1,987 @@
+{
+  "about": "gen_ai.tool.definitions in the GenAI conventions' shape, from tools in each provider's own shape: `tools` is the list as the provider request or another instrumentation gave it, `provider` the span's gen_ai.provider.name (null for none), and `expected` the rewritten list's compact JSON, key order included. Each implementation (the Python SDK's semconv_tool_definitions, the TypeScript SDK's semconvToolDefinitions, the sink's semconvToolDefinitions) must write `expected`, and rewriting its own output must write `expected` again: the sink rewrites what an SDK exported, so every output is a fixed point. A name is a non-empty string, as for tool calls: an empty `name` is no name, so no function tool is made with one. An MCP tool (`mcp` or any `<provider>.mcp`) loses its `headers` and `authorization`, and so do the `args` of a Vercel AI SDK provider tool written as one. An empty result here is `[]`; a span whose definitions come to an empty list is written without gen_ai.tool.definitions, which each implementation tests on its own. The cases hold no float and no integer-like key, whose text differs by language.",
+  "cases": [
+    {
+      "name": "openai_chat_function_with_strict",
+      "provider": "openai",
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "get_weather",
+            "description": "Weather for a city",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "city"
+              ]
+            },
+            "strict": true
+          }
+        }
+      ],
+      "expected": "[{\"type\":\"function\",\"name\":\"get_weather\",\"description\":\"Weather for a city\",\"parameters\":{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"]},\"strict\":true}]"
+    },
+    {
+      "name": "openai_responses_function",
+      "provider": "openai",
+      "tools": [
+        {
+          "type": "function",
+          "name": "get_weather",
+          "description": "Weather for a city",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "city": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "city"
+            ]
+          },
+          "strict": true
+        }
+      ],
+      "expected": "[{\"type\":\"function\",\"name\":\"get_weather\",\"description\":\"Weather for a city\",\"parameters\":{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"]},\"strict\":true}]"
+    },
+    {
+      "name": "openai_responses_built_ins",
+      "provider": "openai",
+      "tools": [
+        {
+          "type": "web_search_preview",
+          "search_context_size": "low"
+        },
+        {
+          "type": "file_search",
+          "vector_store_ids": [
+            "vs_1"
+          ],
+          "max_num_results": 5
+        },
+        {
+          "type": "computer_use_preview",
+          "display_width": 1024,
+          "display_height": 768,
+          "environment": "browser"
+        }
+      ],
+      "expected": "[{\"type\":\"openai.web_search_preview\",\"search_context_size\":\"low\"},{\"type\":\"openai.file_search\",\"vector_store_ids\":[\"vs_1\"],\"max_num_results\":5},{\"type\":\"openai.computer_use_preview\",\"display_width\":1024,\"display_height\":768,\"environment\":\"browser\"}]"
+    },
+    {
+      "name": "openai_responses_custom_freeform",
+      "provider": "openai",
+      "tools": [
+        {
+          "type": "custom",
+          "name": "code_exec",
+          "description": "Runs code",
+          "format": {
+            "type": "text"
+          }
+        }
+      ],
+      "expected": "[{\"type\":\"openai.custom\",\"name\":\"code_exec\",\"description\":\"Runs code\",\"format\":{\"type\":\"text\"}}]"
+    },
+    {
+      "name": "openai_responses_mcp_headers_dropped",
+      "provider": "openai",
+      "tools": [
+        {
+          "type": "mcp",
+          "server_label": "docs",
+          "server_url": "https://mcp.example.com",
+          "headers": {
+            "Authorization": "Bearer secret"
+          },
+          "require_approval": "never"
+        }
+      ],
+      "expected": "[{\"type\":\"openai.mcp\",\"server_label\":\"docs\",\"server_url\":\"https://mcp.example.com\",\"require_approval\":\"never\"}]"
+    },
+    {
+      "name": "mcp_headers_dropped_once_namespaced",
+      "provider": null,
+      "tools": [
+        {
+          "type": "openai.mcp",
+          "server_label": "docs",
+          "headers": {
+            "X-Api-Key": "secret"
+          }
+        },
+        {
+          "type": "mcp",
+          "headers": {}
+        }
+      ],
+      "expected": "[{\"type\":\"openai.mcp\",\"server_label\":\"docs\"},{\"type\":\"mcp\"}]"
+    },
+    {
+      "name": "openai_legacy_functions",
+      "provider": "openai",
+      "tools": [
+        {
+          "name": "get_weather",
+          "description": "Weather for a city",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "city": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "city"
+            ]
+          }
+        }
+      ],
+      "expected": "[{\"type\":\"function\",\"name\":\"get_weather\",\"description\":\"Weather for a city\",\"parameters\":{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"]}}]"
+    },
+    {
+      "name": "anthropic_custom_with_cache_control",
+      "provider": "anthropic",
+      "tools": [
+        {
+          "name": "search_kb",
+          "description": "Search",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "q": {
+                "type": "string"
+              }
+            }
+          },
+          "cache_control": {
+            "type": "ephemeral"
+          }
+        }
+      ],
+      "expected": "[{\"type\":\"function\",\"name\":\"search_kb\",\"description\":\"Search\",\"parameters\":{\"type\":\"object\",\"properties\":{\"q\":{\"type\":\"string\"}}},\"cache_control\":{\"type\":\"ephemeral\"}}]"
+    },
+    {
+      "name": "anthropic_explicit_custom_type",
+      "provider": "anthropic",
+      "tools": [
+        {
+          "type": "custom",
+          "name": "search_kb",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "q": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      ],
+      "expected": "[{\"type\":\"function\",\"name\":\"search_kb\",\"parameters\":{\"type\":\"object\",\"properties\":{\"q\":{\"type\":\"string\"}}}}]"
+    },
+    {
+      "name": "anthropic_server_and_client_tools",
+      "provider": "anthropic",
+      "tools": [
+        {
+          "type": "web_search_20250305",
+          "name": "web_search",
+          "max_uses": 5
+        },
+        {
+          "type": "text_editor_20250124",
+          "name": "str_replace_editor"
+        },
+        {
+          "type": "bash_20250124",
+          "name": "bash"
+        },
+        {
+          "type": "computer_20250124",
+          "name": "computer",
+          "display_width_px": 1024,
+          "display_height_px": 768
+        }
+      ],
+      "expected": "[{\"type\":\"anthropic.web_search_20250305\",\"name\":\"web_search\",\"max_uses\":5},{\"type\":\"anthropic.text_editor_20250124\",\"name\":\"str_replace_editor\"},{\"type\":\"anthropic.bash_20250124\",\"name\":\"bash\"},{\"type\":\"anthropic.computer_20250124\",\"name\":\"computer\",\"display_width_px\":1024,\"display_height_px\":768}]"
+    },
+    {
+      "name": "gemini_snake_declarations_with_a_built_in",
+      "provider": "gcp.gemini",
+      "tools": [
+        {
+          "function_declarations": [
+            {
+              "name": "get_weather",
+              "description": "Weather",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "city": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "city"
+                ]
+              }
+            },
+            {
+              "name": "get_time"
+            }
+          ],
+          "google_search": {}
+        },
+        {
+          "code_execution": {}
+        }
+      ],
+      "expected": "[{\"type\":\"function\",\"name\":\"get_weather\",\"description\":\"Weather\",\"parameters\":{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"]}},{\"type\":\"function\",\"name\":\"get_time\"},{\"google_search\":{}},{\"code_execution\":{}}]"
+    },
+    {
+      "name": "gemini_camel_parameters_json_schema",
+      "provider": "gcp.gemini",
+      "tools": [
+        {
+          "functionDeclarations": [
+            {
+              "name": "get_weather",
+              "parametersJsonSchema": {
+                "type": "object",
+                "properties": {
+                  "city": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "city"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "expected": "[{\"type\":\"function\",\"name\":\"get_weather\",\"parameters\":{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"]}}]"
+    },
+    {
+      "name": "gemini_snake_parameters_json_schema",
+      "provider": "gcp.gemini",
+      "tools": [
+        {
+          "function_declarations": [
+            {
+              "name": "get_weather",
+              "parameters_json_schema": {
+                "type": "object",
+                "properties": {
+                  "city": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "city"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "expected": "[{\"type\":\"function\",\"name\":\"get_weather\",\"parameters\":{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"]}}]"
+    },
+    {
+      "name": "gemini_both_declaration_spellings",
+      "provider": "gcp.gemini",
+      "tools": [
+        {
+          "function_declarations": [
+            {
+              "name": "a"
+            }
+          ],
+          "functionDeclarations": [
+            {
+              "name": "b"
+            }
+          ]
+        }
+      ],
+      "expected": "[{\"type\":\"function\",\"name\":\"a\"},{\"type\":\"function\",\"name\":\"b\"}]"
+    },
+    {
+      "name": "gemini_declarations_spelling_not_a_list_stays",
+      "provider": "gcp.gemini",
+      "tools": [
+        {
+          "function_declarations": [
+            {
+              "name": "a"
+            }
+          ],
+          "functionDeclarations": "odd"
+        }
+      ],
+      "expected": "[{\"type\":\"function\",\"name\":\"a\"},{\"functionDeclarations\":\"odd\"}]"
+    },
+    {
+      "name": "gemini_declaration_with_input_schema",
+      "provider": "gcp.gemini",
+      "tools": [
+        {
+          "function_declarations": [
+            {
+              "name": "a",
+              "input_schema": {
+                "type": "object",
+                "properties": {
+                  "q": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            {
+              "name": "b",
+              "inputSchema": {
+                "type": "object",
+                "properties": {
+                  "q": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "expected": "[{\"type\":\"function\",\"name\":\"a\",\"parameters\":{\"type\":\"object\",\"properties\":{\"q\":{\"type\":\"string\"}}}},{\"type\":\"function\",\"name\":\"b\",\"parameters\":{\"type\":\"object\",\"properties\":{\"q\":{\"type\":\"string\"}}}}]"
+    },
+    {
+      "name": "gemini_nameless_typed_declaration",
+      "provider": "gcp.gemini",
+      "tools": [
+        {
+          "function_declarations": [
+            {
+              "type": "web_search"
+            }
+          ]
+        }
+      ],
+      "expected": "[{\"type\":\"gcp.gemini.web_search\"}]"
+    },
+    {
+      "name": "gemini_nameless_declarations_kept",
+      "provider": "gcp.gemini",
+      "tools": [
+        {
+          "functionDeclarations": [
+            {
+              "description": "no name"
+            },
+            "odd",
+            {
+              "name": 3
+            }
+          ]
+        }
+      ],
+      "expected": "[{\"description\":\"no name\"},\"odd\",{\"name\":3}]"
+    },
+    {
+      "name": "gemini_rest_with_a_name",
+      "provider": "gcp.gemini",
+      "tools": [
+        {
+          "function_declarations": [
+            {
+              "name": "a"
+            }
+          ],
+          "name": "x"
+        }
+      ],
+      "expected": "[{\"type\":\"function\",\"name\":\"a\"},{\"type\":\"function\",\"name\":\"x\"}]"
+    },
+    {
+      "name": "gemini_declarations_not_a_list",
+      "provider": "gcp.gemini",
+      "tools": [
+        {
+          "function_declarations": {
+            "name": "f"
+          }
+        }
+      ],
+      "expected": "[{\"function_declarations\":{\"name\":\"f\"}}]"
+    },
+    {
+      "name": "gemini_no_declarations",
+      "provider": "gcp.gemini",
+      "tools": [
+        {
+          "function_declarations": []
+        }
+      ],
+      "expected": "[]"
+    },
+    {
+      "name": "gemini_model_dump_null_parameters",
+      "provider": "gcp.gemini",
+      "tools": [
+        {
+          "function_declarations": [
+            {
+              "name": "f",
+              "description": "d",
+              "parameters": null,
+              "parameters_json_schema": {
+                "type": "object",
+                "properties": {
+                  "city": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "city"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "expected": "[{\"type\":\"function\",\"name\":\"f\",\"description\":\"d\",\"parameters\":{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"]}}]"
+    },
+    {
+      "name": "null_parameters_gives_way_to_input_schema",
+      "provider": "anthropic",
+      "tools": [
+        {
+          "name": "g",
+          "parameters": null,
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "q": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      ],
+      "expected": "[{\"type\":\"function\",\"name\":\"g\",\"parameters\":{\"type\":\"object\",\"properties\":{\"q\":{\"type\":\"string\"}}}}]"
+    },
+    {
+      "name": "null_parameters_alone_kept",
+      "provider": "openai",
+      "tools": [
+        {
+          "type": "function",
+          "name": "f",
+          "parameters": null
+        }
+      ],
+      "expected": "[{\"type\":\"function\",\"name\":\"f\",\"parameters\":null}]"
+    },
+    {
+      "name": "bedrock_tool_spec",
+      "provider": "aws.bedrock",
+      "tools": [
+        {
+          "toolSpec": {
+            "name": "get_weather",
+            "description": "Weather for a city",
+            "inputSchema": {
+              "json": {
+                "type": "object",
+                "properties": {
+                  "city": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "city"
+                ]
+              }
+            }
+          }
+        }
+      ],
+      "expected": "[{\"type\":\"function\",\"name\":\"get_weather\",\"description\":\"Weather for a city\",\"parameters\":{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"]}}]"
+    },
+    {
+      "name": "bedrock_cache_point_system_tool_and_nameless_spec",
+      "provider": "aws.bedrock",
+      "tools": [
+        {
+          "cachePoint": {
+            "type": "default"
+          }
+        },
+        {
+          "systemTool": {
+            "name": "nova_grounding"
+          }
+        },
+        {
+          "toolSpec": {
+            "inputSchema": {
+              "json": {
+                "type": "object",
+                "properties": {
+                  "q": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "expected": "[{\"cachePoint\":{\"type\":\"default\"}},{\"systemTool\":{\"name\":\"nova_grounding\"}},{\"toolSpec\":{\"inputSchema\":{\"json\":{\"type\":\"object\",\"properties\":{\"q\":{\"type\":\"string\"}}}}}}]"
+    },
+    {
+      "name": "bedrock_input_schema_without_json",
+      "provider": "aws.bedrock",
+      "tools": [
+        {
+          "toolSpec": {
+            "name": "f",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "q": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "expected": "[{\"type\":\"function\",\"name\":\"f\",\"parameters\":{\"type\":\"object\",\"properties\":{\"q\":{\"type\":\"string\"}}}}]"
+    },
+    {
+      "name": "vercel_function_tools",
+      "provider": "openai",
+      "tools": [
+        {
+          "type": "function",
+          "name": "get_weather",
+          "description": "Weather",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "city": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "city"
+            ]
+          }
+        },
+        {
+          "type": "function",
+          "name": "lookup",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "q": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      ],
+      "expected": "[{\"type\":\"function\",\"name\":\"get_weather\",\"description\":\"Weather\",\"parameters\":{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"]}},{\"type\":\"function\",\"name\":\"lookup\",\"parameters\":{\"type\":\"object\",\"properties\":{\"q\":{\"type\":\"string\"}}}}]"
+    },
+    {
+      "name": "vercel_provider_tools",
+      "provider": "anthropic",
+      "tools": [
+        {
+          "type": "provider-defined",
+          "id": "anthropic.web_search_20250305",
+          "name": "web_search",
+          "args": {}
+        },
+        {
+          "type": "provider",
+          "id": "openai.web_search",
+          "name": "web_search",
+          "args": {}
+        },
+        {
+          "type": "provider-defined",
+          "id": "nodot",
+          "name": "x"
+        }
+      ],
+      "expected": "[{\"type\":\"anthropic.web_search_20250305\",\"id\":\"anthropic.web_search_20250305\",\"name\":\"web_search\",\"args\":{}},{\"type\":\"openai.web_search\",\"id\":\"openai.web_search\",\"name\":\"web_search\",\"args\":{}},{\"type\":\"provider-defined\",\"id\":\"nodot\",\"name\":\"x\"}]"
+    },
+    {
+      "name": "mcp_server_tool",
+      "provider": null,
+      "tools": [
+        {
+          "name": "read_file",
+          "description": "Read a file",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "q": {
+                "type": "string"
+              }
+            }
+          },
+          "outputSchema": {
+            "type": "object"
+          },
+          "annotations": {
+            "readOnlyHint": true
+          }
+        }
+      ],
+      "expected": "[{\"type\":\"function\",\"name\":\"read_file\",\"description\":\"Read a file\",\"parameters\":{\"type\":\"object\",\"properties\":{\"q\":{\"type\":\"string\"}}},\"outputSchema\":{\"type\":\"object\"},\"annotations\":{\"readOnlyHint\":true}}]"
+    },
+    {
+      "name": "nested_function_not_lifted_over_a_name",
+      "provider": "openai",
+      "tools": [
+        {
+          "name": "x",
+          "function": {
+            "name": "y"
+          }
+        },
+        {
+          "type": "function",
+          "name": "x",
+          "function": {
+            "name": "y"
+          }
+        }
+      ],
+      "expected": "[{\"type\":\"function\",\"name\":\"x\",\"function\":{\"name\":\"y\"}},{\"type\":\"function\",\"name\":\"x\",\"function\":{\"name\":\"y\"}}]"
+    },
+    {
+      "name": "both_schema_spellings_first_wins",
+      "provider": null,
+      "tools": [
+        {
+          "name": "x",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "q": {
+                "type": "string"
+              }
+            }
+          },
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "city": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "city"
+            ]
+          }
+        }
+      ],
+      "expected": "[{\"type\":\"function\",\"name\":\"x\",\"parameters\":{\"type\":\"object\",\"properties\":{\"q\":{\"type\":\"string\"}}},\"inputSchema\":{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"]}}]"
+    },
+    {
+      "name": "built_in_without_a_provider",
+      "provider": null,
+      "tools": [
+        {
+          "type": "web_search_20250305",
+          "name": "web_search"
+        }
+      ],
+      "expected": "[{\"type\":\"web_search_20250305\",\"name\":\"web_search\"}]"
+    },
+    {
+      "name": "already_namespaced_type",
+      "provider": "azure.ai.openai",
+      "tools": [
+        {
+          "type": "anthropic.web_search_20250305",
+          "name": "web_search"
+        }
+      ],
+      "expected": "[{\"type\":\"anthropic.web_search_20250305\",\"name\":\"web_search\"}]"
+    },
+    {
+      "name": "empty_type_and_name",
+      "provider": "openai",
+      "tools": [
+        {
+          "type": "",
+          "size": 1
+        },
+        {
+          "name": ""
+        }
+      ],
+      "expected": "[{\"type\":\"\",\"size\":1},{\"name\":\"\"}]"
+    },
+    {
+      "name": "openai_responses_mcp_authorization_dropped",
+      "provider": "openai",
+      "tools": [
+        {
+          "type": "mcp",
+          "server_label": "gmail",
+          "connector_id": "connector_gmail",
+          "authorization": "ya29.token",
+          "require_approval": "never"
+        },
+        {
+          "type": "mcp",
+          "server_label": "docs",
+          "server_url": "https://mcp.example.com",
+          "authorization": "token",
+          "headers": {
+            "Authorization": "Bearer secret"
+          }
+        }
+      ],
+      "expected": "[{\"type\":\"openai.mcp\",\"server_label\":\"gmail\",\"connector_id\":\"connector_gmail\",\"require_approval\":\"never\"},{\"type\":\"openai.mcp\",\"server_label\":\"docs\",\"server_url\":\"https://mcp.example.com\"}]"
+    },
+    {
+      "name": "mcp_credentials_dropped_for_any_provider_prefix",
+      "provider": null,
+      "tools": [
+        {
+          "type": "azure.mcp",
+          "server_label": "docs",
+          "authorization": "token",
+          "headers": {
+            "X-Api-Key": "secret"
+          }
+        },
+        {
+          "type": "provider",
+          "id": "openai.mcp",
+          "name": "mcp",
+          "authorization": "token"
+        },
+        {
+          "type": "web_search",
+          "authorization": "kept"
+        }
+      ],
+      "expected": "[{\"type\":\"azure.mcp\",\"server_label\":\"docs\"},{\"type\":\"openai.mcp\",\"id\":\"openai.mcp\",\"name\":\"mcp\"},{\"type\":\"web_search\",\"authorization\":\"kept\"}]"
+    },
+    {
+      "name": "vercel_mcp_provider_tool_args_credentials_dropped",
+      "provider": "openai",
+      "tools": [
+        {
+          "type": "provider",
+          "id": "openai.mcp",
+          "name": "mcp",
+          "args": {
+            "serverLabel": "docs",
+            "serverUrl": "https://mcp.example.com",
+            "authorization": "token",
+            "headers": {
+              "Authorization": "Bearer secret"
+            },
+            "requireApproval": "never"
+          }
+        },
+        {
+          "type": "provider-defined",
+          "id": "openai.mcp",
+          "name": "mcp",
+          "args": {
+            "serverLabel": "gmail",
+            "connectorId": "connector_gmail",
+            "authorization": "ya29.token"
+          }
+        },
+        {
+          "type": "provider",
+          "id": "openai.web_search",
+          "name": "web_search",
+          "args": {
+            "authorization": "kept"
+          }
+        }
+      ],
+      "expected": "[{\"type\":\"openai.mcp\",\"id\":\"openai.mcp\",\"name\":\"mcp\",\"args\":{\"serverLabel\":\"docs\",\"serverUrl\":\"https://mcp.example.com\",\"requireApproval\":\"never\"}},{\"type\":\"openai.mcp\",\"id\":\"openai.mcp\",\"name\":\"mcp\",\"args\":{\"serverLabel\":\"gmail\",\"connectorId\":\"connector_gmail\"}},{\"type\":\"openai.web_search\",\"id\":\"openai.web_search\",\"name\":\"web_search\",\"args\":{\"authorization\":\"kept\"}}]"
+    },
+    {
+      "name": "openai_chat_custom_lifted",
+      "provider": "openai",
+      "tools": [
+        {
+          "type": "custom",
+          "custom": {
+            "name": "code_exec",
+            "description": "Runs code",
+            "format": {
+              "type": "text"
+            }
+          }
+        },
+        {
+          "type": "custom",
+          "custom": {
+            "description": "No name"
+          }
+        }
+      ],
+      "expected": "[{\"type\":\"openai.custom\",\"name\":\"code_exec\",\"description\":\"Runs code\",\"format\":{\"type\":\"text\"}},{\"type\":\"openai.custom\",\"description\":\"No name\"}]"
+    },
+    {
+      "name": "custom_nested_not_lifted_over_a_name",
+      "provider": "openai",
+      "tools": [
+        {
+          "type": "custom",
+          "name": "x",
+          "custom": {
+            "name": "y"
+          }
+        }
+      ],
+      "expected": "[{\"type\":\"openai.custom\",\"name\":\"x\",\"custom\":{\"name\":\"y\"}}]"
+    },
+    {
+      "name": "custom_lifted_with_input_schema_is_a_function",
+      "provider": null,
+      "tools": [
+        {
+          "type": "custom",
+          "custom": {
+            "name": "search_kb",
+            "input_schema": {
+              "type": "object",
+              "properties": {
+                "q": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "expected": "[{\"type\":\"function\",\"name\":\"search_kb\",\"parameters\":{\"type\":\"object\",\"properties\":{\"q\":{\"type\":\"string\"}}}}]"
+    },
+    {
+      "name": "empty_name_is_no_name",
+      "provider": "anthropic",
+      "tools": [
+        {
+          "name": "",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "q": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "type": "custom",
+          "name": "",
+          "input_schema": {
+            "type": "object",
+            "properties": {
+              "q": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "toolSpec": {
+            "name": "",
+            "inputSchema": {
+              "json": {
+                "type": "object",
+                "properties": {
+                  "q": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "function_declarations": [
+            {
+              "name": "",
+              "description": "d"
+            }
+          ]
+        },
+        {
+          "type": "function",
+          "name": "",
+          "function": {
+            "name": "f"
+          }
+        }
+      ],
+      "expected": "[{\"name\":\"\",\"input_schema\":{\"type\":\"object\",\"properties\":{\"q\":{\"type\":\"string\"}}}},{\"type\":\"anthropic.custom\",\"name\":\"\",\"input_schema\":{\"type\":\"object\",\"properties\":{\"q\":{\"type\":\"string\"}}}},{\"toolSpec\":{\"name\":\"\",\"inputSchema\":{\"json\":{\"type\":\"object\",\"properties\":{\"q\":{\"type\":\"string\"}}}}}},{\"name\":\"\",\"description\":\"d\"},{\"type\":\"function\",\"name\":\"f\"}]"
+    },
+    {
+      "name": "unreadable_entries_kept",
+      "provider": "openai",
+      "tools": [
+        "plain",
+        3,
+        null,
+        [
+          "x"
+        ],
+        {
+          "description": "no name or type"
+        },
+        {
+          "type": 7,
+          "name": "n"
+        },
+        {
+          "name": false
+        }
+      ],
+      "expected": "[\"plain\",3,null,[\"x\"],{\"description\":\"no name or type\"},{\"type\":7,\"name\":\"n\"},{\"name\":false}]"
+    },
+    {
+      "name": "proto_key_kept_as_a_member",
+      "provider": "openai",
+      "tools": [
+        {
+          "name": "p",
+          "__proto__": {
+            "x": 1
+          }
+        }
+      ],
+      "expected": "[{\"type\":\"function\",\"name\":\"p\",\"__proto__\":{\"x\":1}}]"
+    },
+    {
+      "name": "empty_list",
+      "provider": "openai",
+      "tools": [],
+      "expected": "[]"
+    }
+  ]
+}

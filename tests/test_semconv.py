@@ -44,7 +44,7 @@ def test_set_span_kind_without_operation(exported_spans: InMemorySpanExporter) -
     [
         (SpanKind.LLM, OtelSpanKind.CLIENT),
         (SpanKind.EMBEDDING, OtelSpanKind.CLIENT),
-        (SpanKind.RETRIEVER, OtelSpanKind.CLIENT),
+        (SpanKind.RETRIEVER, OtelSpanKind.INTERNAL),
         (SpanKind.RERANKER, OtelSpanKind.CLIENT),
         (SpanKind.TOOL, OtelSpanKind.INTERNAL),
         (SpanKind.AGENT, OtelSpanKind.INTERNAL),
@@ -54,8 +54,9 @@ def test_set_span_kind_without_operation(exported_spans: InMemorySpanExporter) -
 def test_otel_span_kind_follows_the_genai_conventions(
     kind: SpanKind, expected: OtelSpanKind
 ) -> None:
-    """Inference, embeddings and retrieval cross a process boundary (CLIENT);
-    an in-process tool, agent or step does not (INTERNAL)."""
+    """Inference and embeddings cross a process boundary (CLIENT); retrieval
+    and an in-process tool, agent or step do not (INTERNAL). A retriever wraps
+    the embedding, database or HTTP calls that carry CLIENT spans of their own."""
     assert otel_span_kind(kind) is expected
 
 
@@ -89,6 +90,29 @@ def test_reranker_round_trips_with_the_ai_sdks_rerank_operation() -> None:
     assert kind_attributes(SpanKind.RERANKER)[GEN_AI_OPERATION_NAME] == "rerank"
     assert operation_for_kind("RERANKER") == "rerank"
     assert kind_for_operation("rerank") == "RERANKER"
+
+
+def test_framework_entrypoint_operations_are_chain_spans() -> None:
+    """The conventions name a framework entrypoint ``invoke_runner``, and
+    ``invoke_{framework_entrypoint}`` in general, and define it as not being an
+    agent. The table lists ``invoke_runner``; any other ``invoke_`` operation
+    the table does not list lands on CHAIN too, while ``invoke_agent`` stays
+    AGENT."""
+    from rius.semconv import kind_for_operation
+
+    assert kind_for_operation("invoke_runner") == "CHAIN"
+    assert kind_for_operation("invoke_crew") == "CHAIN"
+    assert kind_for_operation("invoke_workflow") == "CHAIN"
+    assert kind_for_operation("invoke_agent") == "AGENT"
+
+
+def test_an_unknown_operation_without_the_entrypoint_prefix_has_no_kind() -> None:
+    from rius.semconv import kind_for_operation
+
+    assert kind_for_operation("invoke_") is None
+    assert kind_for_operation("invoke") is None
+    assert kind_for_operation("reinvoke_runner") is None
+    assert kind_for_operation("made_up") is None
 
 
 def test_data_source_id_is_set_only_on_retriever_spans() -> None:
