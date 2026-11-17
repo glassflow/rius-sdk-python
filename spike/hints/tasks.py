@@ -26,6 +26,13 @@ model is more likely to repeat itself on its own:
 * ``cursor``: the orders task without the monthly summary. The model has to
   notice the cursor hands back the same page; pages 1 and 2 hold the answer.
 
+Final task answers use a JSON response contract (``answer_instruction``),
+identical in both arms and containing field names/types but no expected values.
+``correct`` validates the exact facts, including decimal totals and status.
+Malformed, incomplete, contradictory and unverified answers are not successes.
+Earlier harness runs used substring grading; their completion rates are not
+interchangeable with runs using this contract without inspecting the answers.
+
 ``correct`` is each task's success criterion, checked on the final answer.
 ``loop``, ``resolve`` and the answers drive the scripted model (MODEL=scripted
 or MODEL=stub); a real model gets only ``system``, ``question`` and ``tools``.
@@ -34,8 +41,10 @@ or MODEL=stub); a real model gets only ``system``, ``question`` and ``tools``.
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 Call = tuple[str, dict[str, Any]]
@@ -49,6 +58,8 @@ class Task:
     tools: list[dict[str, Any]]
     run: Callable[[str, dict[str, Any]], str]
     correct: Callable[[str], bool]
+    # A response contract, never the expected values: both experiment arms get it.
+    answer_fields: str
     # The scripted model: the opening calls, then ``loop`` until a hint
     # arrives or it gives up, then ``resolve`` and ``answer``.
     loop: Call
@@ -56,6 +67,15 @@ class Task:
     answer: str
     give_up: str
     opening: list[Call] = field(default_factory=list)
+
+    @property
+    def answer_instruction(self) -> str:
+        return (
+            " When you have verified the answer, your final response must be only a JSON object "
+            f"with these fields: {self.answer_fields}. Do not include Markdown or other fields. "
+            "If you cannot establish the answer, return a JSON object with an error field instead. "
+            "Do not guess missing facts."
+        )
 
 
 def _tool(name: str, description: str, **props: dict[str, Any]) -> dict[str, Any]:
@@ -209,9 +229,41 @@ def _retry(name: str, args: dict[str, Any]) -> str:
     return json.dumps({"error": f"unknown tool {name}"})
 
 
-def _has(answer: str, *words: str) -> bool:
-    a = answer.lower().replace(",", "")
-    return all(w in a for w in words)
+def _unique_fields(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate answer field")
+        result[key] = value
+    return result
+
+
+def _answer_matches(answer: str, expected: dict[str, Any]) -> bool:
+    """Grade explicit facts, not substrings in free text or explanations.
+
+    Numeric totals accept a JSON number or a decimal string, compared exactly.
+    Counts require integers (not booleans); status/reason fields require the
+    exact requested enum. Missing, extra and duplicate fields are not answers.
+    """
+    try:
+        actual = json.loads(answer, parse_float=Decimal, object_pairs_hook=_unique_fields)
+        if not isinstance(actual, dict) or actual.keys() != expected.keys():
+            return False
+        for key, want in expected.items():
+            value = actual[key]
+            if isinstance(want, Decimal):
+                if isinstance(value, bool) or not isinstance(value, (str, int, Decimal)):
+                    return False
+                if isinstance(value, str) and not re.fullmatch(r"[0-9]+(?:\.[0-9]+)?", value):
+                    return False
+                amount = Decimal(value)
+                if not amount.is_finite() or amount != want:
+                    return False
+            elif type(value) is not type(want) or value != want:
+                return False
+        return True
+    except (ValueError, TypeError, InvalidOperation):
+        return False
 
 
 TASKS: dict[str, Task] = {
@@ -225,10 +277,11 @@ TASKS: dict[str, Task] = {
         question=WEBHOOK_QUESTION,
         tools=DOCS_TOOLS,
         run=_docs,
-        correct=lambda a: "7" in a,
+        correct=lambda a: _answer_matches(a, {"retry_count": 7}),
+        answer_fields="retry_count (integer)",
         loop=("search_docs", {"query": IDENTICAL_QUERY}),
         resolve=("lookup_index", {"topic": "payments/webhooks"}),
-        answer="Failed webhooks are retried up to 7 times.",
+        answer='{"retry_count": 7}',
         give_up="I could not find it in the docs.",
     ),
     "docs": Task(
@@ -240,10 +293,11 @@ TASKS: dict[str, Task] = {
         question=WEBHOOK_QUESTION,
         tools=DOCS_TOOLS,
         run=_docs,
-        correct=lambda a: "7" in a,
+        correct=lambda a: _answer_matches(a, {"retry_count": 7}),
+        answer_fields="retry_count (integer)",
         loop=("search_docs", {"query": "webhook retries"}),
         resolve=("lookup_index", {"topic": "payments/webhooks"}),
-        answer="Failed webhooks are retried up to 7 times.",
+        answer='{"retry_count": 7}',
         give_up="I could not find it in the docs.",
     ),
     "orders": Task(
@@ -269,11 +323,12 @@ TASKS: dict[str, Task] = {
             ),
         ],
         run=_orders,
-        correct=lambda a: _has(a, "4") and _has(a, "1280.50"),
+        correct=lambda a: _answer_matches(a, {"order_count": 4, "total": Decimal("1280.50")}),
+        answer_fields="order_count (integer), total (decimal amount without currency symbols)",
         opening=[("list_orders", {"customer_id": "C-1042"})],
         loop=("list_orders", {"customer_id": "C-1042", "page_token": "pg_2"}),
         resolve=("get_customer_summary", {"customer_id": "C-1042", "month": "2026-10"}),
-        answer="4 orders in October 2026, totalling $1,280.50.",
+        answer='{"order_count": 4, "total": "1280.50"}',
         give_up="I could not get the full order list.",
     ),
     "refund": Task(
@@ -296,10 +351,11 @@ TASKS: dict[str, Task] = {
             ),
         ],
         run=_refund,
-        correct=lambda a: _has(a, "reject") or _has(a, "expired"),
+        correct=lambda a: _answer_matches(a, {"status": "rejected", "reason": "card_expired"}),
+        answer_fields="status (string), reason (string using the processor event reason)",
         loop=("get_refund_status", {"refund_id": "R-7731"}),
         resolve=("get_refund_events", {"refund_id": "R-7731"}),
-        answer="It was rejected: the card has expired. Ask the customer for another card.",
+        answer='{"status": "rejected", "reason": "card_expired"}',
         give_up="The refund is still processing.",
     ),
     "polling": Task(
@@ -323,10 +379,11 @@ TASKS: dict[str, Task] = {
             ),
         ],
         run=_polling,
-        correct=lambda a: _has(a, "reject") or _has(a, "expired"),
+        correct=lambda a: _answer_matches(a, {"status": "rejected", "reason": "card_expired"}),
+        answer_fields="status (string), reason (string using the processor event reason)",
         loop=("get_refund_status", {"refund_id": "R-7731"}),
         resolve=("get_refund_events", {"refund_id": "R-7731"}),
-        answer="It was rejected: the card has expired. Ask the customer for another card.",
+        answer='{"status": "rejected", "reason": "card_expired"}',
         give_up="The refund is still processing.",
     ),
     "retry": Task(
@@ -347,10 +404,11 @@ TASKS: dict[str, Task] = {
             ),
         ],
         run=_retry,
-        correct=lambda a: _has(a, "312.40") and _has(a, "paid"),
+        correct=lambda a: _answer_matches(a, {"total": Decimal("312.40"), "status": "paid"}),
+        answer_fields="total (decimal amount without currency symbols), status (string)",
         loop=("get_invoice", {"invoice_id": "INV-2048"}),
         resolve=("list_invoices", {"customer_id": "C-1042"}),
-        answer="INV-2048 totals $312.40 and has been paid.",
+        answer='{"total": "312.40", "status": "paid"}',
         give_up="The billing service is unavailable.",
     ),
     "cursor": Task(
@@ -370,11 +428,12 @@ TASKS: dict[str, Task] = {
             ),
         ],
         run=_orders,
-        correct=lambda a: _has(a, "4") and _has(a, "1280.50"),
+        correct=lambda a: _answer_matches(a, {"order_count": 4, "total": Decimal("1280.50")}),
+        answer_fields="order_count (integer), total (decimal amount without currency symbols)",
         opening=[("list_orders", {"customer_id": "C-1042"})],
         loop=("list_orders", {"customer_id": "C-1042", "page_token": "pg_2"}),
         resolve=("list_orders", {"customer_id": "C-1042"}),
-        answer="4 orders in October 2026, totalling $1,280.50.",
+        answer='{"order_count": 4, "total": "1280.50"}',
         give_up="I could not get the full order list.",
     ),
 }

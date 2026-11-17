@@ -542,7 +542,7 @@ def main() -> None:
 
 def run_once(opts: argparse.Namespace, run: int, scripted: bool) -> dict[str, Any]:
     task = TASKS.get(opts.scenario)
-    system = task.system if task else SYSTEM
+    system = task.system + task.answer_instruction if task else SYSTEM
     tools = task.tools if task else TOOLS
     question = task.question if task else WEBHOOK_QUESTION
     model = (
