@@ -15,6 +15,17 @@ tool that leads to the answer:
   identical calls: this task shows how often a natural loop does NOT meet
   CF-01.
 
+Three more give a real integration's flaw with no instruction to repeat, where a
+model is more likely to repeat itself on its own:
+
+* ``polling``: the refund question asks for the final state, and the status
+  stays ``processing`` with a "check again" field. The event history shows it
+  was rejected.
+* ``retry``: the invoice service always answers "temporarily unavailable,
+  retry". The reporting replica's invoice list has the answer.
+* ``cursor``: the orders task without the monthly summary. The model has to
+  notice the cursor hands back the same page; pages 1 and 2 hold the answer.
+
 ``correct`` is each task's success criterion, checked on the final answer.
 ``loop``, ``resolve`` and the answers drive the scripted model (MODEL=scripted
 or MODEL=stub); a real model gets only ``system``, ``question`` and ``tools``.
@@ -157,6 +168,47 @@ def _refund(name: str, args: dict[str, Any]) -> str:
     return json.dumps({"error": f"unknown tool {name}"})
 
 
+# --- polling ---------------------------------------------------------------
+
+
+def _polling(name: str, args: dict[str, Any]) -> str:
+    if name == "get_refund_status" and args.get("refund_id") == "R-7731":
+        return json.dumps(
+            {
+                "refund_id": "R-7731",
+                "status": "processing",
+                "final": False,
+                "check_again_in_seconds": 5,
+            }
+        )
+    return _refund(name, args)
+
+
+# --- retry -----------------------------------------------------------------
+
+
+def _retry(name: str, args: dict[str, Any]) -> str:
+    if name == "get_invoice":
+        if args.get("invoice_id") != "INV-2048":
+            return json.dumps({"error": "invoice not found"})
+        return json.dumps(
+            {"error": "billing service temporarily unavailable, please retry", "retryable": True}
+        )
+    if name == "list_invoices":
+        if args.get("customer_id") != "C-1042":
+            return json.dumps({"error": "customer not found"})
+        return json.dumps(
+            {
+                "invoices": [
+                    {"id": "INV-2048", "date": "2026-10-31", "total": "312.40", "status": "paid"},
+                    {"id": "INV-1977", "date": "2026-09-30", "total": "198.00", "status": "paid"},
+                ],
+                "as_of": "2026-11-17T08:00:00Z",
+            }
+        )
+    return json.dumps({"error": f"unknown tool {name}"})
+
+
 def _has(answer: str, *words: str) -> bool:
     a = answer.lower().replace(",", "")
     return all(w in a for w in words)
@@ -249,5 +301,80 @@ TASKS: dict[str, Task] = {
         resolve=("get_refund_events", {"refund_id": "R-7731"}),
         answer="It was rejected: the card has expired. Ask the customer for another card.",
         give_up="The refund is still processing.",
+    ),
+    "polling": Task(
+        name="polling",
+        system=SUPPORT,
+        question=(
+            "Refund R-7731 was submitted earlier today. Wait until it reaches a final "
+            "state, then tell me whether it went through and what to tell the customer."
+        ),
+        tools=[
+            _tool(
+                "get_refund_status",
+                "The current status of a refund. A refund that is still processing is "
+                "not final yet: check again later.",
+                refund_id={"type": "string"},
+            ),
+            _tool(
+                "get_refund_events",
+                "A refund's event history, as reported by the payment processor.",
+                refund_id={"type": "string"},
+            ),
+        ],
+        run=_polling,
+        correct=lambda a: _has(a, "reject") or _has(a, "expired"),
+        loop=("get_refund_status", {"refund_id": "R-7731"}),
+        resolve=("get_refund_events", {"refund_id": "R-7731"}),
+        answer="It was rejected: the card has expired. Ask the customer for another card.",
+        give_up="The refund is still processing.",
+    ),
+    "retry": Task(
+        name="retry",
+        system=SUPPORT,
+        question="What is the total of invoice INV-2048, and has it been paid?",
+        tools=[
+            _tool(
+                "get_invoice",
+                "Fetch an invoice from the billing service by id.",
+                invoice_id={"type": "string"},
+            ),
+            _tool(
+                "list_invoices",
+                "A customer's invoices from the reporting replica, refreshed hourly. "
+                "Invoices are numbered per customer: INV-2048 belongs to C-1042.",
+                customer_id={"type": "string"},
+            ),
+        ],
+        run=_retry,
+        correct=lambda a: _has(a, "312.40") and _has(a, "paid"),
+        loop=("get_invoice", {"invoice_id": "INV-2048"}),
+        resolve=("list_invoices", {"customer_id": "C-1042"}),
+        answer="INV-2048 totals $312.40 and has been paid.",
+        give_up="The billing service is unavailable.",
+    ),
+    "cursor": Task(
+        name="cursor",
+        system=SUPPORT,
+        question=(
+            "How many orders did customer C-1042 place in October 2026, and what was "
+            "their total value?"
+        ),
+        tools=[
+            _tool(
+                "list_orders",
+                "List a customer's orders, newest first, one page at a time. Pass the "
+                "next_page_token of a page to get the page after it.",
+                customer_id={"type": "string"},
+                page_token={"type": "string", "optional": True},
+            ),
+        ],
+        run=_orders,
+        correct=lambda a: _has(a, "4") and _has(a, "1280.50"),
+        opening=[("list_orders", {"customer_id": "C-1042"})],
+        loop=("list_orders", {"customer_id": "C-1042", "page_token": "pg_2"}),
+        resolve=("list_orders", {"customer_id": "C-1042"}),
+        answer="4 orders in October 2026, totalling $1,280.50.",
+        give_up="I could not get the full order list.",
     ),
 }
