@@ -1050,8 +1050,8 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "openinference-instrumentation-anthropic", marker = "extra == 'anthropic'", specifier = ">=2.1.0" },
-    { name = "openinference-instrumentation-anthropic", marker = "extra == 'instruments'", specifier = ">=2.1.0" },
+    { name = "openinference-instrumentation-anthropic", marker = "extra == 'anthropic'", specifier = ">=3.1.1" },
+    { name = "openinference-instrumentation-anthropic", marker = "extra == 'instruments'", specifier = ">=3.1.1" },
     { name = "openinference-instrumentation-langchain", marker = "extra == 'instruments'", specifier = ">=0.1.67" },
     { name = "openinference-instrumentation-langchain", marker = "extra == 'langchain'", specifier = ">=0.1.67" },
     { name = "openinference-instrumentation-litellm", marker = "extra == 'instruments'", specifier = ">=0.1.34" },
