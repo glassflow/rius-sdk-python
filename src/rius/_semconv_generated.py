@@ -1,4 +1,4 @@
-# Vendored from rius-semconv v1.13.0 out/python/_semconv_generated.py by
+# Vendored from rius-semconv v1.13.1 out/python/_semconv_generated.py by
 # scripts/sync-semconv.sh. Do not edit: change the registry in rius-semconv.
 """Rius semantic conventions: the constants and tables, generated.
 
@@ -1604,11 +1604,13 @@ _KIND_BY_OPERATION: dict[str, SpanKind] = {
 
 # SpanKind (our taxonomy ATTRIBUTE) -> the OpenTelemetry SpanKind FIELD, set
 # centrally at span creation. The GenAI conventions decide the field per
-# operation: inference, embeddings and retrieval call out of the process
-# (CLIENT); execute_tool is INTERNAL; invoke_agent is CLIENT only for a hosted
-# agent. Hence:
-# - LLM / EMBEDDING / RETRIEVER / RERANKER -> CLIENT: a remote model or
-#   index is called.
+# operation: inference and embeddings call out of the process (CLIENT);
+# retrieval and execute_tool are INTERNAL; invoke_agent is CLIENT only for a
+# hosted agent. Hence:
+# - LLM / EMBEDDING / RERANKER -> CLIENT: a remote model is called.
+# - RETRIEVER -> INTERNAL: the conventions deprecated their client retrieval
+#   span for an internal one, since a retriever wraps embedding, database,
+#   HTTP or rerank calls that have CLIENT spans of their own.
 # - TOOL -> INTERNAL: a bare TOOL span is an in-process function, and the
 #   execute-tool convention says INTERNAL. The MCP wrapper overrides this to
 #   CLIENT at its own call site because a tools/call crosses a process
@@ -1625,7 +1627,7 @@ _KIND_BY_OPERATION: dict[str, SpanKind] = {
 _OTEL_KIND_BY_KIND: dict[SpanKind, str] = {
     SpanKind.LLM: "CLIENT",
     SpanKind.EMBEDDING: "CLIENT",
-    SpanKind.RETRIEVER: "CLIENT",
+    SpanKind.RETRIEVER: "INTERNAL",
     SpanKind.RERANKER: "CLIENT",
     SpanKind.TOOL: "INTERNAL",
     SpanKind.AGENT: "INTERNAL",

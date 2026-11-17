@@ -44,7 +44,7 @@ def test_set_span_kind_without_operation(exported_spans: InMemorySpanExporter) -
     [
         (SpanKind.LLM, OtelSpanKind.CLIENT),
         (SpanKind.EMBEDDING, OtelSpanKind.CLIENT),
-        (SpanKind.RETRIEVER, OtelSpanKind.CLIENT),
+        (SpanKind.RETRIEVER, OtelSpanKind.INTERNAL),
         (SpanKind.RERANKER, OtelSpanKind.CLIENT),
         (SpanKind.TOOL, OtelSpanKind.INTERNAL),
         (SpanKind.AGENT, OtelSpanKind.INTERNAL),
@@ -54,8 +54,9 @@ def test_set_span_kind_without_operation(exported_spans: InMemorySpanExporter) -
 def test_otel_span_kind_follows_the_genai_conventions(
     kind: SpanKind, expected: OtelSpanKind
 ) -> None:
-    """Inference, embeddings and retrieval cross a process boundary (CLIENT);
-    an in-process tool, agent or step does not (INTERNAL)."""
+    """Inference and embeddings cross a process boundary (CLIENT); retrieval
+    and an in-process tool, agent or step do not (INTERNAL). A retriever wraps
+    the embedding, database or HTTP calls that carry CLIENT spans of their own."""
     assert otel_span_kind(kind) is expected
 
 
