@@ -461,12 +461,14 @@ def test_otel_kind_field_follows_taxonomy_on_sync_path(
 def test_otel_kind_field_follows_taxonomy_on_async_path(
     exported_spans: InMemorySpanExporter,
 ) -> None:
-    @observe(kind=SpanKind.RETRIEVER)
-    async def search() -> None:
+    # A CLIENT kind, because INTERNAL is OTel's default and would pass even if
+    # the async path ignored the taxonomy.
+    @observe(kind=SpanKind.EMBEDDING)
+    async def embed() -> None:
         pass
 
-    asyncio.run(search())
-    assert exported_spans.get_finished_spans()[0].kind is OtelSpanKind.INTERNAL
+    asyncio.run(embed())
+    assert exported_spans.get_finished_spans()[0].kind is OtelSpanKind.CLIENT
 
 
 def test_otel_kind_field_follows_taxonomy_on_generator_paths(
