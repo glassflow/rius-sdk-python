@@ -575,6 +575,11 @@ def error_type_from_exception_event(span: ReadableSpan) -> dict[str, Any]:
 #: keys, not one key), so it is spelled here.
 _LLM_TOOL_SCHEMA = re.compile(r"llm\.tools\.(\d+)\.tool\.json_schema")
 
+#: The members of a tool the anthropic instrumentor (3.3.6 on) also writes on
+#: their own beside its schema, as ``llm.tools.{i}.tool.<member>``. Copies of
+#: the schema's own fields, so they go wherever the schema goes.
+_LLM_TOOL_SCHEMA_COPIES = ("name", "description")
+
 
 def normalize_tool_definitions(attributes: Mapping[str, Any] | None) -> dict[str, Any] | None:
     """Reassemble a span's tool definitions into one ``gen_ai.tool.definitions``.
@@ -594,7 +599,9 @@ def normalize_tool_definitions(attributes: Mapping[str, Any] | None) -> dict[str
       parsed and re-serialized as one array, in index order, in the
       conventions' shape, as on the native ``set_tool_definitions`` (see
       ``_tool_definitions``; a built-in tool's type is prefixed with the
-      span's ``gen_ai.provider.name``). The indexed keys are then deleted.
+      span's ``gen_ai.provider.name``). The indexed keys are then deleted,
+      with the ``llm.tools.N.tool.name`` and ``.description`` copies some
+      instrumentors write beside a schema.
       If any one schema does not parse, the family is left untouched rather
       than reassembled without it: it is content by prefix already, so
       nothing escapes, and a partial array would be a silent loss.
@@ -634,6 +641,11 @@ def normalize_tool_definitions(attributes: Mapping[str, Any] | None) -> dict[str
                 return None
             schemas.append(schema)
         drop = set(indexed.values())
+        drop.update(
+            f"llm.tools.{index}.tool.{member}"
+            for index in indexed
+            for member in _LLM_TOOL_SCHEMA_COPIES
+        )
         rebuilt = {k: v for k, v in attributes.items() if k not in drop}
         # litellm and langchain write the same definitions into the request
         # bag as well. They are duplicates of the ones just reassembled, and
