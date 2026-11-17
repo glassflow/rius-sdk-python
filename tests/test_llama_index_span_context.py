@@ -17,6 +17,7 @@ import socket
 import threading
 from collections.abc import AsyncIterator, Iterator
 from concurrent.futures import ThreadPoolExecutor
+from importlib.metadata import version
 from typing import Any
 
 import pytest
@@ -41,6 +42,15 @@ from llama_index.core.llms.callbacks import llm_chat_callback  # noqa: E402
 OpenAI = llama_index_openai.OpenAI
 LlamaIndexInstrumentor = llama_index_instrumentation.LlamaIndexInstrumentor
 OpenAIInstrumentor = openai_instrumentation.OpenAIInstrumentor
+
+
+#: The stopgap installs only on the verified releases. From 4.7.7 the
+#: instrumentor nests streamed calls by itself and the stopgap stays out, so
+#: the tests of how it installs and uninstalls have nothing to look at there.
+installs = pytest.mark.skipif(
+    not _verified(version("openinference-instrumentation-llama-index")),
+    reason="the stopgap stays out of releases past the verified ones (4.7.7 nests by itself)",
+)
 
 CHAT = "https://api.openai.com/v1/chat/completions"
 USAGE = {"prompt_tokens": 42, "completion_tokens": 9, "total_tokens": 51}
@@ -502,6 +512,7 @@ def test_a_subclass_defined_after_init_is_covered(exported: Exported) -> None:
     assert names[provider.parent.span_id] == "LaterOpenAI.stream_chat"
 
 
+@installs
 def test_the_subclass_hook_still_runs_an_ancestors_hook(
     openai_answers: Answers, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -558,6 +569,7 @@ def _stream_methods() -> dict[str, Any]:
     return {name: OpenAI.__dict__[name] for name in llama_index_span_context._STREAM_METHODS}
 
 
+@installs
 def test_reinit_does_not_stack_hooks(openai_answers: Answers) -> None:
     for _ in range(2):
         client = init(
@@ -587,6 +599,7 @@ def test_reinit_does_not_stack_hooks(openai_answers: Answers) -> None:
     assert len(ours) == 1
 
 
+@installs
 def test_installing_twice_does_not_stack(openai_answers: Answers) -> None:
     instrumentor = LlamaIndexInstrumentor()
     instrumentor.instrument()
@@ -601,6 +614,7 @@ def test_installing_twice_does_not_stack(openai_answers: Answers) -> None:
         instrumentor.uninstrument()
 
 
+@installs
 def test_our_handler_runs_after_the_instrumentors_after_a_reinstrument(
     openai_answers: Answers,
 ) -> None:
@@ -622,6 +636,7 @@ def test_our_handler_runs_after_the_instrumentors_after_a_reinstrument(
         instrumentor.uninstrument()
 
 
+@installs
 def test_uninstall_restores_everything(openai_answers: Answers) -> None:
     originals = _stream_methods()
     hook = BaseLLM.__dict__.get("__pydantic_init_subclass__")
@@ -669,11 +684,13 @@ def test_an_unverified_version_installs_nothing(
     openai_answers: Answers, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(llama_index_span_context, "version", lambda name: "9.9.9")
-    originals = _stream_methods()
     handlers = list(get_dispatcher().span_handlers)
     instrumentor = LlamaIndexInstrumentor()
     instrumentor.instrument()
     try:
+        # Taken after instrument(): from 4.7.7 the instrumentor wraps the
+        # stream methods itself.
+        originals = _stream_methods()
         assert not llama_index_span_context.install(instrumentor)
         assert _stream_methods() == originals
         assert [h for h in get_dispatcher().span_handlers if h not in handlers] == [
@@ -818,6 +835,7 @@ def test_a_stream_hands_its_span_over_once(handler: Any) -> None:
     assert handler.take_stream_span(result) is None
 
 
+@installs
 def test_uninstall_keeps_a_busy_handler_until_its_call_ends(
     openai_answers: Answers,
 ) -> None:

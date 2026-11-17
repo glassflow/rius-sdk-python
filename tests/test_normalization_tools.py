@@ -194,6 +194,39 @@ def test_an_unparseable_schema_leaves_the_whole_family_alone() -> None:
     assert normalize_tool_definitions(attributes) is None
 
 
+def test_a_tools_name_and_description_go_with_its_schema() -> None:
+    # The anthropic instrumentor (3.3.6 on) writes each tool's name and
+    # description beside its schema. They are copies of the schema's own
+    # fields, so they leave with it rather than ride next to the definitions.
+    attributes = {
+        **_indexed(_ANTHROPIC_TOOLS),
+        "llm.tools.0.tool.name": "get_weather",
+        "llm.tools.0.tool.description": "Weather for a city",
+    }
+    out = normalize_tool_definitions(attributes)
+    assert out is not None
+    assert _definitions(out) == _ANTHROPIC_SEMCONV
+    assert not [key for key in out if key.startswith("llm.tools")]
+
+
+def test_a_name_without_a_schema_is_not_touched() -> None:
+    # Only the copies of a reassembled schema go: a name at an index with no
+    # schema is nothing the definitions hold.
+    attributes = {**_indexed([{"name": "a"}]), "llm.tools.1.tool.name": "b"}
+    out = normalize_tool_definitions(attributes)
+    assert out is not None
+    assert out["llm.tools.1.tool.name"] == "b"
+
+
+def test_an_unparseable_schema_leaves_the_name_and_description_too() -> None:
+    attributes = {
+        "llm.tools.0.tool.json_schema": "{not json",
+        "llm.tools.0.tool.name": "ok",
+        "llm.tools.0.tool.description": "fine",
+    }
+    assert normalize_tool_definitions(attributes) is None
+
+
 def test_other_keys_under_llm_tools_are_not_touched() -> None:
     attributes = {**_indexed([{"name": "a"}]), "llm.tools.0.tool.something_else": "x"}
     out = normalize_tool_definitions(attributes)
