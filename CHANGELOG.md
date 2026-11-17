@@ -1,5 +1,33 @@
 # Changelog
 
+## [1.6.0](https://github.com/glassflow/rius-sdk-python/compare/v1.5.7...v1.6.0) (2026-11-17)
+
+
+### Features
+
+* honour OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT when RIUS_CAPTURE_CONTENT is unset ([8f954b9](https://github.com/glassflow/rius-sdk-python/commit/8f954b905bf7a826a258f81cdd6a4fce60092653))
+* map invoke_runner and other framework entrypoint operations to the CHAIN kind ([8f954b9](https://github.com/glassflow/rius-sdk-python/commit/8f954b905bf7a826a258f81cdd6a4fce60092653))
+
+
+### Bug Fixes
+
+* accept structured content attributes from third-party spans ([8f954b9](https://github.com/glassflow/rius-sdk-python/commit/8f954b905bf7a826a258f81cdd6a4fce60092653))
+* cover langchain 0.1.87, llama-index 4.7.7 and anthropic 3.3.6 in the newest-instrumentor checks ([#294](https://github.com/glassflow/rius-sdk-python/issues/294)) ([db59afc](https://github.com/glassflow/rius-sdk-python/commit/db59afcaaff08ee40b6d2a0079badc022be860a5))
+* drop MCP credentials from recorded tool definitions ([8f954b9](https://github.com/glassflow/rius-sdk-python/commit/8f954b905bf7a826a258f81cdd6a4fce60092653))
+* drop the llm.tools copies only when spelled like their schema key, and cover the orphan and native cases ([#295](https://github.com/glassflow/rius-sdk-python/issues/295)) ([c40cdf1](https://github.com/glassflow/rius-sdk-python/commit/c40cdf1327a7b20d9fc1c8da9c630b0ebedce06c))
+* map LiteLLM's ollama_chat provider to the registry's ollama ([#292](https://github.com/glassflow/rius-sdk-python/issues/292)) ([5741a2a](https://github.com/glassflow/rius-sdk-python/commit/5741a2afa8dbcdaaef331ca150369ef247112f98))
+* record tool definitions in the conventions' function-tool shape ([8f954b9](https://github.com/glassflow/rius-sdk-python/commit/8f954b905bf7a826a258f81cdd6a4fce60092653))
+* require openinference-instrumentation-anthropic 3.1.1 ([#293](https://github.com/glassflow/rius-sdk-python/issues/293)) ([4df9784](https://github.com/glassflow/rius-sdk-python/commit/4df9784a1f2045bb34571fa0ca2b7d2f592c1b84))
+* retriever spans use OpenTelemetry span kind INTERNAL ([#296](https://github.com/glassflow/rius-sdk-python/issues/296)) ([fef9fad](https://github.com/glassflow/rius-sdk-python/commit/fef9fad818ad5973eb9122f67f11ae1c3f544e14))
+* size a blob whose content is a complete strip replacement from that replacement ([8f954b9](https://github.com/glassflow/rius-sdk-python/commit/8f954b905bf7a826a258f81cdd6a4fce60092653))
+* sync rius-semconv v1.13.0 ([8f954b9](https://github.com/glassflow/rius-sdk-python/commit/8f954b905bf7a826a258f81cdd6a4fce60092653))
+* write a tool call without a name as a text part instead of an invalid tool-call part ([8f954b9](https://github.com/glassflow/rius-sdk-python/commit/8f954b905bf7a826a258f81cdd6a4fce60092653))
+
+
+### Performance Improvements
+
+* step over JSON strings in the media rebuild walk instead of decoding them ([#291](https://github.com/glassflow/rius-sdk-python/issues/291)) ([e46f3d1](https://github.com/glassflow/rius-sdk-python/commit/e46f3d100801a87dd756dab5bea36b0cc959f30f))
+
 ## [1.5.7](https://github.com/glassflow/rius-sdk-python/compare/v1.5.6...v1.5.7) (2026-11-16)
 
 
