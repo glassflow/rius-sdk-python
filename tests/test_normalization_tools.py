@@ -237,6 +237,21 @@ def test_a_native_definitions_key_wins_and_the_name_and_description_still_go() -
     }
 
 
+def test_a_copy_goes_only_when_spelled_like_its_schema_key() -> None:
+    # The copy key is the schema key as written, so a zero-padded index
+    # takes its own padded copy and leaves the unpadded one alone.
+    attributes = {
+        "llm.tools.01.tool.json_schema": json.dumps({"name": "a"}),
+        "llm.tools.1.tool.name": "kept",
+        "llm.tools.01.tool.name": "a",
+    }
+    out = normalize_tool_definitions(attributes)
+    assert out is not None
+    assert _definitions(out) == [{"type": "function", "name": "a"}]
+    assert out["llm.tools.1.tool.name"] == "kept"
+    assert "llm.tools.01.tool.name" not in out
+
+
 def test_an_unparseable_schema_leaves_the_name_and_description_too() -> None:
     attributes = {
         "llm.tools.0.tool.json_schema": "{not json",
