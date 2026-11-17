@@ -439,7 +439,7 @@ def test_non_tool_kind_has_no_gen_ai_tool_name(exported_spans: InMemorySpanExpor
     [
         (SpanKind.LLM, OtelSpanKind.CLIENT),
         (SpanKind.EMBEDDING, OtelSpanKind.CLIENT),
-        (SpanKind.RETRIEVER, OtelSpanKind.CLIENT),
+        (SpanKind.RETRIEVER, OtelSpanKind.INTERNAL),
         (SpanKind.TOOL, OtelSpanKind.INTERNAL),
         (SpanKind.AGENT, OtelSpanKind.INTERNAL),
         (SpanKind.CHAIN, OtelSpanKind.INTERNAL),
@@ -466,7 +466,7 @@ def test_otel_kind_field_follows_taxonomy_on_async_path(
         pass
 
     asyncio.run(search())
-    assert exported_spans.get_finished_spans()[0].kind is OtelSpanKind.CLIENT
+    assert exported_spans.get_finished_spans()[0].kind is OtelSpanKind.INTERNAL
 
 
 def test_otel_kind_field_follows_taxonomy_on_generator_paths(

@@ -280,7 +280,7 @@ def test_retrieved_documents_are_recorded_as_json(exported_spans: InMemorySpanEx
     [
         (SpanKind.LLM, OtelSpanKind.CLIENT),
         (SpanKind.EMBEDDING, OtelSpanKind.CLIENT),
-        (SpanKind.RETRIEVER, OtelSpanKind.CLIENT),
+        (SpanKind.RETRIEVER, OtelSpanKind.INTERNAL),
         (SpanKind.TOOL, OtelSpanKind.INTERNAL),
         (SpanKind.AGENT, OtelSpanKind.INTERNAL),
         (SpanKind.CHAIN, OtelSpanKind.INTERNAL),
