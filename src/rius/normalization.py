@@ -579,6 +579,7 @@ _LLM_TOOL_SCHEMA = re.compile(r"llm\.tools\.(\d+)\.tool\.json_schema")
 #: their own beside its schema, as ``llm.tools.{i}.tool.<member>``. Copies of
 #: the schema's own fields, so they go wherever the schema goes.
 _LLM_TOOL_SCHEMA_COPIES = ("name", "description")
+_LLM_TOOL_SCHEMA_SUFFIX = ".tool.json_schema"
 
 
 def normalize_tool_definitions(attributes: Mapping[str, Any] | None) -> dict[str, Any] | None:
@@ -641,9 +642,11 @@ def normalize_tool_definitions(attributes: Mapping[str, Any] | None) -> dict[str
                 return None
             schemas.append(schema)
         drop = set(indexed.values())
+        # Each copy is spelled from its schema key as written, so a copy
+        # goes only when its index is spelled exactly like its schema's.
         drop.update(
-            f"llm.tools.{index}.tool.{member}"
-            for index in indexed
+            f"{key.removesuffix(_LLM_TOOL_SCHEMA_SUFFIX)}.tool.{member}"
+            for key in indexed.values()
             for member in _LLM_TOOL_SCHEMA_COPIES
         )
         rebuilt = {k: v for k, v in attributes.items() if k not in drop}
