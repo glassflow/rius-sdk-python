@@ -218,6 +218,25 @@ def test_a_name_without_a_schema_is_not_touched() -> None:
     assert out["llm.tools.1.tool.name"] == "b"
 
 
+def test_a_description_without_a_schema_is_not_touched() -> None:
+    attributes = {**_indexed([{"name": "a"}]), "llm.tools.1.tool.description": "orphan"}
+    out = normalize_tool_definitions(attributes)
+    assert out is not None
+    assert out["llm.tools.1.tool.description"] == "orphan"
+
+
+def test_a_native_definitions_key_wins_and_the_name_and_description_still_go() -> None:
+    attributes = {
+        GEN_AI_TOOL_DEFINITIONS: '[{"name": "native"}]',
+        **_indexed(_ANTHROPIC_TOOLS),
+        "llm.tools.0.tool.name": "get_weather",
+        "llm.tools.0.tool.description": "Weather for a city",
+    }
+    assert normalize_tool_definitions(attributes) == {
+        GEN_AI_TOOL_DEFINITIONS: '[{"name": "native"}]'
+    }
+
+
 def test_an_unparseable_schema_leaves_the_name_and_description_too() -> None:
     attributes = {
         "llm.tools.0.tool.json_schema": "{not json",
