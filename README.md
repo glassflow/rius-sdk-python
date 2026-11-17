@@ -259,7 +259,7 @@ which it already is in any project that calls Anthropic. When an
 instrumentation's library is missing or too old, `init()` logs a warning naming
 the version it needs and leaves that one integration off. For example,
 `openinference-instrumentation-anthropic` 3.x needs `anthropic>=1.8.0`; with
-an older `anthropic`, upgrade it or keep the instrumentation on 2.x.
+an older `anthropic`, upgrade it.
 
 ```python
 rius.init()  # auto-enables installed instrumentors
