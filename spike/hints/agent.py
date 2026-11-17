@@ -511,6 +511,10 @@ def main() -> None:
 
     logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(name)s %(message)s")
     logging.getLogger("rius").setLevel(logging.INFO)
+    # The hint path's receipt side: the SDK logs, with a millisecond time, each
+    # hint it drops (trace not open, budget, verification) or prunes undrained,
+    # and on_hint below logs each one it accepts.
+    logging.getLogger("rius.hints").setLevel(logging.DEBUG)
     exporter: SpanExporter | None = None
     task = TASKS.get(opts.scenario)
     if opts.duplicate_export or opts.late_by or opts.drop_call:
@@ -527,6 +531,7 @@ def main() -> None:
         agent_name="docs-agent",
         heartbeat_interval=5,
         hints=not opts.no_hints,
+        on_hint=_log_hint_receipt,
         partial_spans=opts.scenario in TASKS or None,
         span_exporter=exporter,
     )
@@ -538,6 +543,12 @@ def main() -> None:
     sdk.flush()
     for summary in summaries:
         print(json.dumps(summary), flush=True)
+
+
+def _log_hint_receipt(hint: Any) -> None:
+    """The time the SDK accepted a hint for an open run, before any injection."""
+    at = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
+    log(f"[hint {hint.id} received at {at} for trace {hint.trace_id}]")
 
 
 def run_once(opts: argparse.Namespace, run: int, scripted: bool) -> dict[str, Any]:
@@ -584,7 +595,8 @@ def run_once(opts: argparse.Namespace, run: int, scripted: bool) -> dict[str, An
                     messages.append({"role": "system", "content": hint.text})
                     hint_ids.append(hint.id)
                     hinted_at = hinted_at or turn
-                    log(f"[run {run} turn {turn}] hint {hint.id} injected: {hint.text}")
+                    at = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
+                    log(f"[run {run} turn {turn}] hint {hint.id} injected at {at}: {hint.text}")
 
                 if model is not None:
                     response: Any = scripted_call(model, messages, opts.no_transcript)

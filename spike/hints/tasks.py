@@ -188,6 +188,54 @@ def _refund(name: str, args: dict[str, Any]) -> str:
     return json.dumps({"error": f"unknown tool {name}"})
 
 
+# --- refund_case -----------------------------------------------------------
+
+REFUND_POLICIES = {
+    "card_expired": {
+        "reason": "card_expired",
+        "action": "Do not retry the expired card. Offer store credit, or refund to a new "
+        "card the customer provides.",
+    },
+}
+
+
+def _refund_case(name: str, args: dict[str, Any]) -> str:
+    if name in ("get_refund_status", "get_refund_events"):
+        if args.get("refund_id") != "R-7731":
+            return json.dumps({"error": "refund not found"})
+        if name == "get_refund_status":
+            return json.dumps(
+                {
+                    "refund_id": "R-7731",
+                    "status": "processing",
+                    "final": False,
+                    "check_again_in_seconds": 5,
+                }
+            )
+        events = json.loads(_refund(name, args))
+        events["customer_id"] = "C-1042"
+        return json.dumps(events)
+    if name == "list_customer_refunds":
+        if args.get("customer_id") != "C-1042":
+            return json.dumps({"error": "customer not found"})
+        return json.dumps(
+            {
+                "refunds": [
+                    {"id": "R-7731", "amount": "89.90", "status": "processing"},
+                    {"id": "R-7012", "amount": "45.00", "status": "succeeded"},
+                    {"id": "R-6950", "amount": "12.99", "status": "succeeded"},
+                    {"id": "R-6611", "amount": "30.00", "status": "cancelled"},
+                ]
+            }
+        )
+    if name == "get_refund_policy":
+        policy = REFUND_POLICIES.get(str(args.get("reason", "")).strip().lower())
+        if policy is None:
+            return json.dumps({"error": f"no policy for reason {args.get('reason')!r}"})
+        return json.dumps(policy)
+    return json.dumps({"error": f"unknown tool {name}"})
+
+
 # --- polling ---------------------------------------------------------------
 
 
@@ -384,6 +432,62 @@ TASKS: dict[str, Task] = {
         loop=("get_refund_status", {"refund_id": "R-7731"}),
         resolve=("get_refund_events", {"refund_id": "R-7731"}),
         answer='{"status": "rejected", "reason": "card_expired"}',
+        give_up="The refund is still processing.",
+    ),
+    "refund_case": Task(
+        name="refund_case",
+        system=SUPPORT,
+        question=(
+            "A customer is asking about refund R-7731, submitted earlier today. Wait until "
+            "it reaches a final state. Then work out what we should do for them under our "
+            "refund policy, and how many of this customer's other refunds succeeded, so "
+            "I can write the reply."
+        ),
+        tools=[
+            _tool(
+                "get_refund_status",
+                "The current status of a refund. A refund that is still processing is "
+                "not final yet: check again later.",
+                refund_id={"type": "string"},
+            ),
+            _tool(
+                "get_refund_events",
+                "A refund's event history, as reported by the payment processor.",
+                refund_id={"type": "string"},
+            ),
+            _tool(
+                "list_customer_refunds",
+                "All refunds of a customer, with their current status.",
+                customer_id={"type": "string"},
+            ),
+            _tool(
+                "get_refund_policy",
+                "What our refund policy says to do for a processor rejection reason.",
+                reason={"type": "string"},
+            ),
+        ],
+        run=_refund_case,
+        correct=lambda a: _answer_matches(
+            a,
+            {
+                "status": "rejected",
+                "reason": "card_expired",
+                "resolution": "store_credit_or_new_card",
+                "other_succeeded_refunds": 2,
+            },
+        ),
+        answer_fields=(
+            "status (string), reason (string using the processor event reason), resolution "
+            "(one of: retry_same_card, store_credit_or_new_card, escalate), "
+            "other_succeeded_refunds (integer: this customer's succeeded refunds other than "
+            "R-7731)"
+        ),
+        loop=("get_refund_status", {"refund_id": "R-7731"}),
+        resolve=("get_refund_events", {"refund_id": "R-7731"}),
+        answer=(
+            '{"status": "rejected", "reason": "card_expired", '
+            '"resolution": "store_credit_or_new_card", "other_succeeded_refunds": 2}'
+        ),
         give_up="The refund is still processing.",
     ),
     "retry": Task(
