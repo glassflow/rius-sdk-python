@@ -113,3 +113,24 @@ def test_the_export_is_done_only_after_its_time(monkeypatch):
         "row_count": 18234,
         "file": "orders-2026-11.csv",
     }
+
+
+def test_the_lagging_refund_shows_its_outcome_only_in_later_events(monkeypatch):
+    module = runpy.run_path(str(Path(__file__).parents[1] / "spike/hints/tasks.py"))
+    now = [1000.0]
+    monkeypatch.setattr(module["time"], "monotonic", lambda: now[0])
+    task = module["TASKS"]["refund_lag"]
+    status = json.loads(task.run("get_refund_status", {"refund_id": "R-7731"}))
+    assert status["status"] == "processing" and status["final"] is False
+    early = json.loads(task.run("get_refund_events", {"refund_id": "R-7731"}))
+    assert early["final"] is False
+    assert [e["type"] for e in early["events"]] == ["created", "submitted_to_processor"]
+    now[0] += module["LAG_EVENTS_AFTER_S"]
+    status = json.loads(task.run("get_refund_status", {"refund_id": "R-7731"}))
+    assert status["status"] == "processing"
+    late = json.loads(task.run("get_refund_events", {"refund_id": "R-7731"}))
+    assert late["final"] is True and late["events"][-1]["reason"] == "card_expired"
+    assert task.correct(
+        '{"status": "rejected", "reason": "card_expired", "resolution": "store_credit_or_new_card"}'
+    )
+    assert not task.correct('{"status": "processing", "reason": "", "resolution": "escalate"}')

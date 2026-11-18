@@ -327,6 +327,45 @@ def _refund_records(name: str, args: dict[str, Any]) -> str:
     return json.dumps({"error": f"unknown tool {name}"})
 
 
+# --- refund_lag ----------------------------------------------------------------
+
+# The processor's rejection reaches the event history only LAG_EVENTS_AFTER_S
+# after the run's first refund call; the status endpoint never moves. An agent
+# that reads the events at once sees no outcome yet, and only a second look at
+# them, not more status checks, finds the answer.
+LAG_EVENTS_AFTER_S = 25.0
+_lag_first_call: dict[str, float] = {}
+
+
+def _refund_lag(name: str, args: dict[str, Any]) -> str:
+    if name in ("get_refund_status", "get_refund_events"):
+        first = _lag_first_call.setdefault("R-7731", time.monotonic())
+        if args.get("refund_id") != "R-7731":
+            return json.dumps({"error": "refund not found"})
+        if name == "get_refund_status":
+            return json.dumps(
+                {
+                    "refund_id": "R-7731",
+                    "status": "processing",
+                    "final": False,
+                    "check_again_in_seconds": 5,
+                }
+            )
+        record = REFUND_RECORDS["R-7731"]
+        settled = time.monotonic() - first >= LAG_EVENTS_AFTER_S
+        return json.dumps(
+            {
+                "refund_id": "R-7731",
+                "customer_id": "C-1042",
+                "amount": record["amount"],
+                "events": record["events"] if settled else record["events"][:2],
+                "final": settled,
+                "note": RECORD_NOTE,
+            }
+        )
+    return _refund_records(name, args)
+
+
 REFUND_RECORD_TOOLS = [
     _tool(
         "get_refund_status",
@@ -665,6 +704,36 @@ TASKS: dict[str, Task] = {
         ),
         tools=REFUND_RECORD_TOOLS,
         run=_refund_records,
+        correct=lambda a: _answer_matches(
+            a,
+            {
+                "status": "rejected",
+                "reason": "card_expired",
+                "resolution": "store_credit_or_new_card",
+            },
+        ),
+        answer_fields=(
+            "status (string: the refund's final status), reason (string using the processor "
+            f"event reason), resolution ({RESOLUTIONS})"
+        ),
+        loop=("get_refund_status", {"refund_id": "R-7731"}),
+        resolve=("get_refund_events", {"refund_id": "R-7731"}),
+        answer=(
+            '{"status": "rejected", "reason": "card_expired", '
+            '"resolution": "store_credit_or_new_card"}'
+        ),
+        give_up="The refund is still processing.",
+    ),
+    "refund_lag": Task(
+        name="refund_lag",
+        system=SUPPORT,
+        question=(
+            "A customer is asking about refund R-7731, submitted earlier today. Wait until "
+            "it reaches a final state, then tell me its outcome and what we should do for "
+            "the customer under our refund policy."
+        ),
+        tools=REFUND_RECORD_TOOLS,
+        run=_refund_lag,
         correct=lambda a: _answer_matches(
             a,
             {
