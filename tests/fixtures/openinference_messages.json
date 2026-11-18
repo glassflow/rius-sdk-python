@@ -185,7 +185,7 @@
       }
     },
     {
-      "name": "tool-call fields: missing or empty ones are omitted, unknown ones are consumed and dropped",
+      "name": "tool-call fields: missing or empty ones are omitted, unknown ones are consumed and dropped, a call left without a name is text",
       "sink_identical": true,
       "attributes": {
         "llm.input_messages.0.message.role": "assistant",
@@ -198,7 +198,25 @@
         "llm.input_messages.0.message.tool_calls.3.tool_call.reasoning_signature": "sig"
       },
       "expected": {
-        "gen_ai.input.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"name\":\"only_name\"},{\"type\":\"tool_call\",\"name\":\"empty_id\"},{\"type\":\"tool_call\"},{\"type\":\"tool_call\",\"id\":\"call_3\"}]}]"
+        "gen_ai.input.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"tool_call\",\"name\":\"only_name\"},{\"type\":\"tool_call\",\"name\":\"empty_id\"},{\"type\":\"text\",\"content\":\"{}\"},{\"type\":\"text\",\"content\":\"{\\\"id\\\":\\\"call_3\\\"}\"}]}]"
+      }
+    },
+    {
+      "name": "a tool call without a name is kept as a text part holding its id and arguments",
+      "sink_identical": true,
+      "attributes": {
+        "llm.output_messages.0.message.role": "assistant",
+        "llm.output_messages.0.message.tool_calls.0.tool_call.id": "call_1",
+        "llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments": "{\"q\":\"otel\"}",
+        "llm.output_messages.0.message.tool_calls.1.tool_call.id": "call_2",
+        "llm.output_messages.0.message.tool_calls.1.tool_call.function.name": "",
+        "llm.output_messages.0.message.tool_calls.1.tool_call.function.arguments": "{}",
+        "llm.output_messages.0.message.tool_calls.2.tool_call.id": "call_3",
+        "llm.output_messages.0.message.tool_calls.2.tool_call.function.name": "search",
+        "llm.output_messages.0.message.tool_calls.2.tool_call.function.arguments": "{}"
+      },
+      "expected": {
+        "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"{\\\"id\\\":\\\"call_1\\\",\\\"arguments\\\":\\\"{\\\\\\\"q\\\\\\\":\\\\\\\"otel\\\\\\\"}\\\"}\"},{\"type\":\"text\",\"content\":\"{\\\"id\\\":\\\"call_2\\\",\\\"arguments\\\":\\\"{}\\\"}\"},{\"type\":\"tool_call\",\"id\":\"call_3\",\"name\":\"search\",\"arguments\":\"{}\"}]}]"
       }
     },
     {
@@ -410,7 +428,7 @@
         "llm.output_messages.2.message.contents.0.tool_call.id": "toolu_C"
       },
       "expected": {
-        "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"{\\\"tool_call.id\\\":\\\"toolu_B\\\",\\\"type\\\":\\\"tool_use\\\"}\"},{\"type\":\"tool_call\",\"id\":\"toolu_A\"}]},{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"{\\\"tool_call.function.name\\\":\\\"orphan\\\",\\\"type\\\":\\\"tool_use\\\"}\"}]},{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"{\\\"text\\\":\\\"an extra field\\\",\\\"tool_call.id\\\":\\\"toolu_C\\\",\\\"type\\\":\\\"tool_use\\\"}\"},{\"type\":\"tool_call\",\"id\":\"toolu_C\"}]}]"
+        "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"{\\\"tool_call.id\\\":\\\"toolu_B\\\",\\\"type\\\":\\\"tool_use\\\"}\"},{\"type\":\"text\",\"content\":\"{\\\"id\\\":\\\"toolu_A\\\"}\"}]},{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"{\\\"tool_call.function.name\\\":\\\"orphan\\\",\\\"type\\\":\\\"tool_use\\\"}\"}]},{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"{\\\"text\\\":\\\"an extra field\\\",\\\"tool_call.id\\\":\\\"toolu_C\\\",\\\"type\\\":\\\"tool_use\\\"}\"},{\"type\":\"text\",\"content\":\"{\\\"id\\\":\\\"toolu_C\\\"}\"}]}]"
       }
     },
     {
@@ -424,7 +442,7 @@
         "llm.output_messages.0.message.contents.0.tool_call.id": "toolu_D"
       },
       "expected": {
-        "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"{\\\"text\\\":\\\"\\\",\\\"tool_call.id\\\":\\\"toolu_D\\\",\\\"type\\\":\\\"tool_use\\\"}\"},{\"type\":\"tool_call\",\"id\":\"toolu_D\"}]}]"
+        "gen_ai.output.messages": "[{\"role\":\"assistant\",\"parts\":[{\"type\":\"text\",\"content\":\"{\\\"text\\\":\\\"\\\",\\\"tool_call.id\\\":\\\"toolu_D\\\",\\\"type\\\":\\\"tool_use\\\"}\"},{\"type\":\"text\",\"content\":\"{\\\"id\\\":\\\"toolu_D\\\"}\"}]}]"
       }
     },
     {

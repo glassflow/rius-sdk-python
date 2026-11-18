@@ -439,7 +439,7 @@ def test_non_tool_kind_has_no_gen_ai_tool_name(exported_spans: InMemorySpanExpor
     [
         (SpanKind.LLM, OtelSpanKind.CLIENT),
         (SpanKind.EMBEDDING, OtelSpanKind.CLIENT),
-        (SpanKind.RETRIEVER, OtelSpanKind.CLIENT),
+        (SpanKind.RETRIEVER, OtelSpanKind.INTERNAL),
         (SpanKind.TOOL, OtelSpanKind.INTERNAL),
         (SpanKind.AGENT, OtelSpanKind.INTERNAL),
         (SpanKind.CHAIN, OtelSpanKind.INTERNAL),
@@ -461,11 +461,13 @@ def test_otel_kind_field_follows_taxonomy_on_sync_path(
 def test_otel_kind_field_follows_taxonomy_on_async_path(
     exported_spans: InMemorySpanExporter,
 ) -> None:
-    @observe(kind=SpanKind.RETRIEVER)
-    async def search() -> None:
+    # A CLIENT kind, because INTERNAL is OTel's default and would pass even if
+    # the async path ignored the taxonomy.
+    @observe(kind=SpanKind.EMBEDDING)
+    async def embed() -> None:
         pass
 
-    asyncio.run(search())
+    asyncio.run(embed())
     assert exported_spans.get_finished_spans()[0].kind is OtelSpanKind.CLIENT
 
 

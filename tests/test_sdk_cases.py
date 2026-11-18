@@ -5,8 +5,10 @@ by scripts/sync-semconv-fixtures.sh. The TypeScript SDK runs the same cases, so
 both SDKs are held to one expected result for each: how input.value and
 output.value are written, how set_attribute encodes a value, how messages and
 rius.context.sizes are recorded, what the masking exporter keeps, how RIUS_*
-variables resolve, how the resource takes in OTEL_RESOURCE_ATTRIBUTES and how
-error.type is named on the Anthropic SDK's own spans.
+variables resolve, how the resource takes in OTEL_RESOURCE_ATTRIBUTES, how
+error.type is named on the Anthropic SDK's own spans, how a content key
+another instrumentation set as a structured value is exported and how tool
+definitions are rewritten into the conventions' shape (the sink runs those too).
 Their README describes the format, including the tagged values JSON cannot
 hold (``{"$bytes": N}``, ``{"$number": "NaN"}``).
 """
@@ -21,14 +23,17 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-from opentelemetry.trace import Status, StatusCode
+from opentelemetry.trace import SpanContext, Status, StatusCode
 
 import rius
+from rius._serde import serialize
+from rius._tool_definitions import semconv_tool_definitions
 from rius.config import resolve_config
 from rius.masking import MaskingSpanExporter
+from rius.normalization import NormalizingSpanExporter
 
 CASES = Path(__file__).parent / "fixtures" / "semconv" / "sdk_cases"
 
@@ -121,6 +126,21 @@ def test_anthropic_error_type(case: dict[str, Any], exporter: _Spans) -> None:
     span.set_status(Status(StatusCode.ERROR))
     span.end()
     assert exporter.attributes()["error.type"] == case["expected"]
+
+
+@pytest.mark.parametrize("case", _cases("structured_content"), ids=_ids("structured_content"))
+def test_structured_content(case: dict[str, Any]) -> None:
+    # Built directly rather than through a tracer: OpenTelemetry before 1.45
+    # drops a mapping attribute when it is set, and the floor CI job runs
+    # this suite on 1.25.
+    attributes = {key: _value(raw) for key, raw in case["attributes"].items()}
+    context = SpanContext(trace_id=1, span_id=2, is_remote=False)
+    sink = InMemorySpanExporter()
+    NormalizingSpanExporter(sink).export(
+        [ReadableSpan(name="chat", context=context, attributes=attributes)]
+    )
+    (span,) = sink.get_finished_spans()
+    assert dict(span.attributes or {}) == case["expected"]
 
 
 @pytest.mark.parametrize("case", _cases("attributes"), ids=_ids("attributes"))
@@ -249,3 +269,11 @@ def test_resource(case: dict[str, Any], monkeypatch: pytest.MonkeyPatch) -> None
         client.shutdown()
     assert {key: attributes.get(key) for key in case["expected"]} == case["expected"]
     assert [key for key in case["absent"] if key in attributes] == []
+
+
+@pytest.mark.parametrize("case", _cases("tool_definitions"), ids=_ids("tool_definitions"))
+def test_tool_definitions(case: dict[str, Any]) -> None:
+    once = semconv_tool_definitions(case["tools"], case["provider"])
+    assert serialize(once) == case["expected"]
+    # The sink rewrites what the SDK exported: a second pass changes nothing.
+    assert serialize(semconv_tool_definitions(once, case["provider"])) == case["expected"]

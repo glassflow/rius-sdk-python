@@ -418,7 +418,9 @@ def test_openai_instrumentor_emits_tool_definitions() -> None:
 
         (llm,) = inner.get_finished_spans()
         assert llm.attributes is not None
-        assert json.loads(str(llm.attributes["gen_ai.tool.definitions"])) == _TOOLS_OPENAI
+        assert json.loads(str(llm.attributes["gen_ai.tool.definitions"])) == [
+            {"type": "function", **tool["function"]} for tool in _TOOLS_OPENAI
+        ]
         assert not [key for key in llm.attributes if key.startswith("llm.tools")]
     finally:
         instrumentor.uninstrument()
@@ -428,8 +430,8 @@ def test_openai_instrumentor_emits_tool_definitions() -> None:
 @pytest.mark.integration
 def test_anthropic_instrumentor_emits_tool_definitions_and_system_message() -> None:
     """Same contract for Anthropic: `llm.tools.{i}.tool.json_schema` per tool,
-    reassembled into `gen_ai.tool.definitions` in Anthropic's own shape
-    (`input_schema`), not rewritten into OpenAI's.
+    reassembled into `gen_ai.tool.definitions` as conventions function tools
+    (Anthropic's `input_schema` becomes `parameters`).
 
     Also pins that the request's `system` param surfaces as a role=system
     input message — the segmentation the backend's context attribution
@@ -461,8 +463,15 @@ def test_anthropic_instrumentor_emits_tool_definitions_and_system_message() -> N
         (llm,) = inner.get_finished_spans()
         assert llm.attributes is not None
         recorded = json.loads(str(llm.attributes["gen_ai.tool.definitions"]))
-        assert recorded == _TOOLS_ANTHROPIC
-        assert "input_schema" in recorded[0]
+        assert recorded == [
+            {
+                "type": "function",
+                "name": tool["name"],
+                "description": tool["description"],
+                "parameters": tool["input_schema"],
+            }
+            for tool in _TOOLS_ANTHROPIC
+        ]
         assert not [key for key in llm.attributes if key.startswith("llm.tools")]
         # The instrumentor's flattened messages leave the process reassembled.
         messages = json.loads(str(llm.attributes["gen_ai.input.messages"]))

@@ -331,7 +331,7 @@ def test_a_twenty_turn_agent_span_keeps_model_tools_usage_and_first_messages(
     assert attributes["gen_ai.request.model"] == "gpt-4o"
     assert attributes["gen_ai.request.temperature"] == 0.2
     tools = json.loads(str(attributes["gen_ai.tool.definitions"]))
-    assert [t["function"]["name"] for t in tools] == [f"tool_{i}" for i in range(10)]
+    assert [t["name"] for t in tools] == [f"tool_{i}" for i in range(10)]
     assert attributes["gen_ai.usage.input_tokens"] == 1200
     assert attributes["gen_ai.usage.output_tokens"] == 30
     messages = json.loads(str(attributes["gen_ai.input.messages"]))

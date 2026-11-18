@@ -1,4 +1,4 @@
-# Vendored from rius-semconv v1.11.0 out/python/_semconv_generated.py by
+# Vendored from rius-semconv v1.13.1 out/python/_semconv_generated.py by
 # scripts/sync-semconv.sh. Do not edit: change the registry in rius-semconv.
 """Rius semantic conventions: the constants and tables, generated.
 
@@ -186,6 +186,7 @@ WORKSPACE_ROUTE = "rius.workspace"
 
 # OTel GenAI (subset we emit)
 GEN_AI_OPERATION_NAME = "gen_ai.operation.name"
+GEN_AI_OPERATION_NAME_COMPACTION = "compaction"
 GEN_AI_PROVIDER_NAME = "gen_ai.provider.name"
 GEN_AI_REQUEST_MODEL = "gen_ai.request.model"
 GEN_AI_REQUEST_REASONING_LEVEL = "gen_ai.request.reasoning.level"
@@ -340,9 +341,17 @@ GEN_AI_TOOL_CALL_ID = "gen_ai.tool.call.id"
 # A free string, not an enum, in the registry.
 GEN_AI_TOOL_TYPE = "gen_ai.tool.type"
 
-# The request's tool/function definitions, serialized verbatim (provider
-# shapes differ; the backend reads names and sizes from either). Content,
-# not identity, so it is listed in CONTENT_ATTRIBUTES.
+# The request's tool/function definitions, in the conventions' shape
+# where the SDKs recognise the provider's spelling: a function tool
+# (OpenAI, Anthropic, Bedrock toolSpec, Gemini function declarations,
+# the Vercel AI SDK) becomes {type: function, name, description,
+# parameters}, and a provider's built-in tool keeps its fields with its
+# type prefixed by the provider name. A built-in tool without a name
+# (OpenAI's web_search, Gemini's google_search) stays without one on
+# purpose: an invented name would read as a tool that was offered and
+# never called. A definition in a shape the SDKs do not recognise is
+# recorded as given. Content, not identity, so it is listed in
+# CONTENT_ATTRIBUTES.
 GEN_AI_TOOL_DEFINITIONS = "gen_ai.tool.definitions"
 
 # The arguments the model passed to the tool. The TypeScript SDK writes it
@@ -1542,10 +1551,17 @@ _OPERATION_BY_KIND: dict[SpanKind, str] = {
 #     are LLM calls the same way chat is, and create_agent is an AGENT span
 #     just as invoke_agent is, so the mapping is many-to-one and only the
 #     chat/invoke_agent entries round-trip.
-#   - CHAIN has no operation of its own, but four operations land on it.
-#     invoke_workflow and plan are real GenAI operations with no taxonomy
-#     value of their own; CHAIN is the honest home for both, and the reverse
-#     direction is the only one that can say so. agent_step is not a
+#   - CHAIN has no operation of its own, but five operations land on it.
+#     invoke_workflow, invoke_runner and plan are real GenAI operations with
+#     no taxonomy value of their own; CHAIN is the honest home for all three,
+#     and the reverse direction is the only one that can say so.
+#     invoke_runner is a framework entrypoint (the call that starts a
+#     framework's run loop), which the conventions define as not being an
+#     agent, so CHAIN rather than AGENT. The conventions name entrypoint
+#     operations invoke_{framework_entrypoint} in general, so a table cannot
+#     list them all: every consumer maps an operation that starts with
+#     invoke_ and is not in this table to CHAIN as well. invoke_agent is in
+#     the table, so it keeps AGENT. agent_step is not a
 #     conventions operation: the Vercel AI SDK's @ai-sdk/otel writes it on
 #     each step of an agent run (one model call and the tools it asked
 #     for), a step within the run rather than an agent invocation, so
@@ -1576,6 +1592,7 @@ _KIND_BY_OPERATION: dict[str, SpanKind] = {
     "retrieval": SpanKind.RETRIEVER,
     "rerank": SpanKind.RERANKER,
     "invoke_workflow": SpanKind.CHAIN,
+    "invoke_runner": SpanKind.CHAIN,
     "plan": SpanKind.CHAIN,
     "agent_step": SpanKind.CHAIN,
     "compaction": SpanKind.CHAIN,
@@ -1587,11 +1604,13 @@ _KIND_BY_OPERATION: dict[str, SpanKind] = {
 
 # SpanKind (our taxonomy ATTRIBUTE) -> the OpenTelemetry SpanKind FIELD, set
 # centrally at span creation. The GenAI conventions decide the field per
-# operation: inference, embeddings and retrieval call out of the process
-# (CLIENT); execute_tool is INTERNAL; invoke_agent is CLIENT only for a hosted
-# agent. Hence:
-# - LLM / EMBEDDING / RETRIEVER / RERANKER -> CLIENT: a remote model or
-#   index is called.
+# operation: inference and embeddings call out of the process (CLIENT);
+# retrieval and execute_tool are INTERNAL; invoke_agent is CLIENT only for a
+# hosted agent. Hence:
+# - LLM / EMBEDDING / RERANKER -> CLIENT: a remote model is called.
+# - RETRIEVER -> INTERNAL: the conventions deprecated their client retrieval
+#   span for an internal one, since a retriever wraps embedding, database,
+#   HTTP or rerank calls that have CLIENT spans of their own.
 # - TOOL -> INTERNAL: a bare TOOL span is an in-process function, and the
 #   execute-tool convention says INTERNAL. The MCP wrapper overrides this to
 #   CLIENT at its own call site because a tools/call crosses a process
@@ -1608,7 +1627,7 @@ _KIND_BY_OPERATION: dict[str, SpanKind] = {
 _OTEL_KIND_BY_KIND: dict[SpanKind, str] = {
     SpanKind.LLM: "CLIENT",
     SpanKind.EMBEDDING: "CLIENT",
-    SpanKind.RETRIEVER: "CLIENT",
+    SpanKind.RETRIEVER: "INTERNAL",
     SpanKind.RERANKER: "CLIENT",
     SpanKind.TOOL: "INTERNAL",
     SpanKind.AGENT: "INTERNAL",
@@ -1689,6 +1708,7 @@ __all__ = [
     "GEN_AI_MAIN_AGENT_ID",
     "GEN_AI_MAIN_AGENT_NAME",
     "GEN_AI_OPERATION_NAME",
+    "GEN_AI_OPERATION_NAME_COMPACTION",
     "GEN_AI_OUTPUT_MESSAGES",
     "GEN_AI_OUTPUT_TYPE",
     "GEN_AI_PROVIDER_NAME",

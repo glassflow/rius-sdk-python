@@ -349,21 +349,64 @@ def serialize(value: Any) -> str:
             return f"<unserializable {type(value).__name__}>"
 
 
-def _bounded_dumps(value: Any) -> str:
+def json_text(value: Any) -> str:
+    """``value`` as JSON text in the one encoding, neither stripped nor cut.
+
+    For a value another instrumentation set structured where the conventions
+    also allow its JSON text: the text is then read and stripped exactly as
+    that string would be. So it is encoded whole, neither cut at the attribute
+    cap, where ``serialize`` would, nor at the strip budget: the text is the
+    very string the JSON form of the value is, and every pass after this one
+    treats the two alike (a blob's base64 past the budget is rebuilt and
+    stripped, as it is in that string). The value is already whole in memory
+    on the span, as that string would be. Never raises: a value the encoder
+    refuses (a cycle, a key that is no string or number) is its repr, its
+    byte objects markers, for the strip to read. A caller that writes a byte
+    object as its replacement before encoding uses :func:`strict_json_text`
+    and falls back to this on the value as it came.
+    """
+    text = strict_json_text(value)
+    if text is not None:
+        return text
+    try:
+        return safe_repr(value)
+    except Exception:
+        return f"<unserializable {type(value).__name__}>"
+
+
+def strict_json_text(value: Any) -> str | None:
+    """``value`` as JSON text as :func:`json_text` writes it, or None when the
+    encoder refuses it (a cycle, a key that is no string or number)."""
+    try:
+        return _dumps(value, _encode_whole)
+    except Exception:
+        return None
+
+
+def _bounded_dumps(value: Any, finish: Callable[[str], str] = truncate) -> str:
+    return _dumps(value, lambda plain: _encode_within_budget(plain, finish))
+
+
+def _dumps(value: Any, encode: Callable[[Any], str]) -> str:
     # A lone non-finite number is its name, as the TypeScript SDK writes a
     # number with String(); inside a value it is null (see _finite).
     if isinstance(value, float) and not math.isfinite(value):
         return _non_finite_name(value)
     try:
-        return _encode_within_budget(value)
+        return encode(value)
     except ValueError:
         # The encoder refuses NaN and the infinities (allow_nan=False). Only
         # then is the value walked to replace them; a cycle raises again and
         # serialize falls back to repr, as it always has.
-        return _encode_within_budget(_finite(value))
+        return encode(_finite(value))
 
 
-def _encode_within_budget(value: Any) -> str:
+def _encode_whole(value: Any) -> str:
+    # The same text the budgeted walk renders, by the C encoder in one pass.
+    return LONE_SURROGATE.sub(_escape_surrogate, _encoder.encode(value))
+
+
+def _encode_within_budget(value: Any, finish: Callable[[str], str]) -> str:
     # iterencode without _one_shot takes the pure-Python path, which yields
     # chunks lazily as it walks the value; the C encoder renders everything
     # first. A small payload costs a few extra microseconds this way; a large
@@ -386,4 +429,4 @@ def _encode_within_budget(value: Any) -> str:
         if size > MAX_STRIP_CHARS:
             kept = "".join(chunks)[:MAX_ATTR_CHARS]
             return _cut_past_budget(LONE_SURROGATE.sub(_escape_surrogate, kept))
-    return truncate("".join(chunks))
+    return finish("".join(chunks))
