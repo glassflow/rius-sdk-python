@@ -366,6 +366,70 @@ def _refund_lag(name: str, args: dict[str, Any]) -> str:
     return _refund_records(name, args)
 
 
+# --- refund_consistency ----------------------------------------------------------
+
+# The status endpoint reads a replica by default ("eventual") that never sees
+# the processor's rejection; asked for "strong" consistency it reads the
+# primary, which has it. The only way to the answer is to change the call's
+# arguments, which is what a loop hint suggests. Each eventual read takes a
+# different time, as a replica under load does, so the calls do not come at the
+# fixed interval that reads as polling.
+CONSISTENCY_DELAYS_S = (0.3, 4.0, 0.6, 5.5, 0.4, 3.5, 1.0, 6.0)
+_consistency_reads: dict[str, int] = {}
+
+
+def _refund_consistency(name: str, args: dict[str, Any]) -> str:
+    if name == "get_refund_status":
+        if args.get("refund_id") != "R-7731":
+            return json.dumps({"error": "refund not found"})
+        if str(args.get("consistency", "eventual")).strip().lower() == "strong":
+            return json.dumps(
+                {
+                    "refund_id": "R-7731",
+                    "status": "rejected",
+                    "reason": "card_expired",
+                    "final": True,
+                }
+            )
+        n = _consistency_reads.get("R-7731", 0)
+        _consistency_reads["R-7731"] = n + 1
+        time.sleep(CONSISTENCY_DELAYS_S[n % len(CONSISTENCY_DELAYS_S)])
+        return json.dumps(
+            {
+                "refund_id": "R-7731",
+                "status": "processing",
+                "final": False,
+                "check_again_in_seconds": 5,
+            }
+        )
+    if name == "get_refund_policy":
+        return _refund_records(name, args)
+    return json.dumps({"error": f"unknown tool {name}"})
+
+
+REFUND_CONSISTENCY_TOOLS = [
+    _tool(
+        "get_refund_status",
+        "The current status of a refund. A refund that is still processing is not final "
+        "yet: check again later.",
+        refund_id={"type": "string"},
+        consistency={
+            "type": "string",
+            "enum": ["eventual", "strong"],
+            "description": "eventual (default) reads a replica, which can lag the primary by "
+            "up to ten minutes. strong reads the primary; it is rate-limited per account, "
+            "so use it only when a replica read cannot answer.",
+            "optional": True,
+        },
+    ),
+    _tool(
+        "get_refund_policy",
+        "What our refund policy says to do for a rejection reason.",
+        reason={"type": "string"},
+    ),
+]
+
+
 REFUND_RECORD_TOOLS = [
     _tool(
         "get_refund_status",
@@ -748,6 +812,36 @@ TASKS: dict[str, Task] = {
         ),
         loop=("get_refund_status", {"refund_id": "R-7731"}),
         resolve=("get_refund_events", {"refund_id": "R-7731"}),
+        answer=(
+            '{"status": "rejected", "reason": "card_expired", '
+            '"resolution": "store_credit_or_new_card"}'
+        ),
+        give_up="The refund is still processing.",
+    ),
+    "refund_consistency": Task(
+        name="refund_consistency",
+        system=SUPPORT,
+        question=(
+            "A customer is asking about refund R-7731, submitted earlier today. Wait until "
+            "it reaches a final state, then tell me its outcome and what we should do for "
+            "the customer under our refund policy."
+        ),
+        tools=REFUND_CONSISTENCY_TOOLS,
+        run=_refund_consistency,
+        correct=lambda a: _answer_matches(
+            a,
+            {
+                "status": "rejected",
+                "reason": "card_expired",
+                "resolution": "store_credit_or_new_card",
+            },
+        ),
+        answer_fields=(
+            "status (string: the refund's final status), reason (string: the rejection "
+            f"reason), resolution ({RESOLUTIONS})"
+        ),
+        loop=("get_refund_status", {"refund_id": "R-7731"}),
+        resolve=("get_refund_status", {"refund_id": "R-7731", "consistency": "strong"}),
         answer=(
             '{"status": "rejected", "reason": "card_expired", '
             '"resolution": "store_credit_or_new_card"}'

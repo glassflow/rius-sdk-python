@@ -134,3 +134,31 @@ def test_the_lagging_refund_shows_its_outcome_only_in_later_events(monkeypatch):
         '{"status": "rejected", "reason": "card_expired", "resolution": "store_credit_or_new_card"}'
     )
     assert not task.correct('{"status": "processing", "reason": "", "resolution": "escalate"}')
+
+
+def test_the_replica_never_settles_and_the_primary_has_the_answer(monkeypatch):
+    module = runpy.run_path(str(Path(__file__).parents[1] / "spike/hints/tasks.py"))
+    slept = []
+    monkeypatch.setattr(module["time"], "sleep", slept.append)
+    task = module["TASKS"]["refund_consistency"]
+    for consistency in (None, "eventual", None):
+        args = {"refund_id": "R-7731"} | ({"consistency": consistency} if consistency else {})
+        status = json.loads(task.run("get_refund_status", args))
+        assert status["status"] == "processing" and status["final"] is False
+    assert slept == list(module["CONSISTENCY_DELAYS_S"][:3])
+    gaps = slept
+    mean = sum(gaps) / len(gaps)
+    cv = (sum((g - mean) ** 2 for g in gaps) / len(gaps)) ** 0.5 / mean
+    assert cv > 0.2, "the replica's delays must not read as polling"
+    strong = json.loads(
+        task.run("get_refund_status", {"refund_id": "R-7731", "consistency": "strong"})
+    )
+    assert strong == {
+        "refund_id": "R-7731",
+        "status": "rejected",
+        "reason": "card_expired",
+        "final": True,
+    }
+    assert task.correct(
+        '{"status": "rejected", "reason": "card_expired", "resolution": "store_credit_or_new_card"}'
+    )
