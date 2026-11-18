@@ -26,6 +26,22 @@ model is more likely to repeat itself on its own:
 * ``cursor``: the orders task without the monthly summary. The model has to
   notice the cursor hands back the same page; pages 1 and 2 hold the answer.
 
+Three more test whether steering helps, harms or lasts, rather than whether
+a loop happens:
+
+* ``refund_record``: a genuine loop with a reachable answer. The status stays
+  ``processing``; the processor's event history is final and says it is the
+  system of record, and the policy gives the resolution. Steering can only
+  help completion here if the hint leads to the events sooner than the
+  model's own turns would.
+* ``export_poll``: legitimate polling. The export job's status really
+  changes: it is done 40 seconds after the first status check, and only the
+  status says how many rows it exported. A hint that says the repeated check
+  returns the same result is wrong here, and stopping early fails the task.
+* ``refund_batch``: a longer task with the same stuck status on three
+  refunds. A model that stops polling the first after a hint may poll the
+  next two all the same: the recurrence the comparison counts.
+
 Final task answers use a JSON response contract (``answer_instruction``),
 identical in both arms and containing field names/types but no expected values.
 ``correct`` validates the exact facts, including decimal totals and status.
@@ -42,6 +58,7 @@ from __future__ import annotations
 
 import json
 import re
+import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
@@ -196,6 +213,11 @@ REFUND_POLICIES = {
         "action": "Do not retry the expired card. Offer store credit, or refund to a new "
         "card the customer provides.",
     },
+    "account_closed": {
+        "reason": "account_closed",
+        "action": "The customer's bank account is closed. Refund as store credit only; "
+        "do not ask for new card details.",
+    },
 }
 
 
@@ -233,6 +255,149 @@ def _refund_case(name: str, args: dict[str, Any]) -> str:
         if policy is None:
             return json.dumps({"error": f"no policy for reason {args.get('reason')!r}"})
         return json.dumps(policy)
+    return json.dumps({"error": f"unknown tool {name}"})
+
+
+# --- refund_record and refund_batch -----------------------------------------
+
+# Each refund's processor events: the status endpoint says ``processing`` for
+# every one of them, whatever the events say.
+REFUND_RECORDS: dict[str, dict[str, Any]] = {
+    "R-7731": {
+        "amount": "89.90",
+        "events": [
+            {"at": "2026-11-17T09:11:58Z", "type": "created"},
+            {"at": "2026-11-17T09:12:00Z", "type": "submitted_to_processor"},
+            {"at": "2026-11-17T09:14:31Z", "type": "rejected", "reason": "card_expired"},
+        ],
+    },
+    "R-7744": {
+        "amount": "24.50",
+        "events": [
+            {"at": "2026-11-17T09:20:05Z", "type": "created"},
+            {"at": "2026-11-17T09:20:07Z", "type": "submitted_to_processor"},
+            {"at": "2026-11-17T09:21:40Z", "type": "succeeded"},
+        ],
+    },
+    "R-7759": {
+        "amount": "152.00",
+        "events": [
+            {"at": "2026-11-17T09:31:12Z", "type": "created"},
+            {"at": "2026-11-17T09:31:14Z", "type": "submitted_to_processor"},
+            {"at": "2026-11-17T09:33:02Z", "type": "rejected", "reason": "account_closed"},
+        ],
+    },
+}
+RECORD_NOTE = (
+    "The processor's event history is the system of record. The refund status "
+    "endpoint is refreshed from it and can lag behind it."
+)
+
+
+def _refund_records(name: str, args: dict[str, Any]) -> str:
+    if name in ("get_refund_status", "get_refund_events"):
+        refund_id = args.get("refund_id")
+        record = REFUND_RECORDS.get(str(refund_id))
+        if record is None:
+            return json.dumps({"error": "refund not found"})
+        if name == "get_refund_status":
+            return json.dumps(
+                {
+                    "refund_id": refund_id,
+                    "status": "processing",
+                    "final": False,
+                    "check_again_in_seconds": 5,
+                }
+            )
+        return json.dumps(
+            {
+                "refund_id": refund_id,
+                "customer_id": "C-1042",
+                "amount": record["amount"],
+                "events": record["events"],
+                "final": True,
+                "note": RECORD_NOTE,
+            }
+        )
+    if name == "get_refund_policy":
+        policy = REFUND_POLICIES.get(str(args.get("reason", "")).strip().lower())
+        if policy is None:
+            return json.dumps({"error": f"no policy for reason {args.get('reason')!r}"})
+        return json.dumps(policy)
+    return json.dumps({"error": f"unknown tool {name}"})
+
+
+REFUND_RECORD_TOOLS = [
+    _tool(
+        "get_refund_status",
+        "The current status of a refund. A refund that is still processing is not final "
+        "yet: check again later.",
+        refund_id={"type": "string"},
+    ),
+    _tool(
+        "get_refund_events",
+        "A refund's event history, as reported by the payment processor.",
+        refund_id={"type": "string"},
+    ),
+    _tool(
+        "get_refund_policy",
+        "What our refund policy says to do for a processor rejection reason.",
+        reason={"type": "string"},
+    ),
+]
+RESOLUTIONS = (
+    "one of: succeeded, retry_same_card, store_credit_or_new_card, store_credit_only, escalate"
+)
+
+
+# --- export_poll -------------------------------------------------------------
+
+EXPORT_DONE_AFTER_S = 40.0
+WAIT_MAX_S = 15.0
+# When each job's status was first checked, in this process: the job is done
+# EXPORT_DONE_AFTER_S later, however often it is checked meanwhile.
+_export_first_check: dict[str, float] = {}
+
+
+def _export(name: str, args: dict[str, Any]) -> str:
+    if name == "wait":
+        seconds = args.get("seconds")
+        if isinstance(seconds, bool) or not isinstance(seconds, (int, float)) or seconds <= 0:
+            return json.dumps({"error": "seconds must be a positive number"})
+        slept = min(float(seconds), WAIT_MAX_S)
+        time.sleep(slept)
+        return json.dumps({"waited_seconds": slept})
+    if name == "get_export_status":
+        if args.get("job_id") != "EX-5521":
+            return json.dumps({"error": "export job not found"})
+        first = _export_first_check.setdefault("EX-5521", time.monotonic())
+        elapsed = time.monotonic() - first
+        if elapsed < EXPORT_DONE_AFTER_S:
+            return json.dumps(
+                {
+                    "job_id": "EX-5521",
+                    "status": "running",
+                    "progress_percent": 35 + int(60 * elapsed / EXPORT_DONE_AFTER_S),
+                    "check_again_in_seconds": 10,
+                }
+            )
+        return json.dumps(
+            {
+                "job_id": "EX-5521",
+                "status": "done",
+                "row_count": 18234,
+                "file": "orders-2026-11.csv",
+            }
+        )
+    if name == "list_exports":
+        return json.dumps(
+            {
+                "exports": [
+                    {"job_id": "EX-5521", "kind": "orders", "started": "2026-11-17T10:02:00Z"},
+                    {"job_id": "EX-5488", "kind": "customers", "started": "2026-11-16T08:15:00Z"},
+                ]
+            }
+        )
     return json.dumps({"error": f"unknown tool {name}"})
 
 
@@ -489,6 +654,101 @@ TASKS: dict[str, Task] = {
             '"resolution": "store_credit_or_new_card", "other_succeeded_refunds": 2}'
         ),
         give_up="The refund is still processing.",
+    ),
+    "refund_record": Task(
+        name="refund_record",
+        system=SUPPORT,
+        question=(
+            "A customer is asking about refund R-7731, submitted earlier today. Wait until "
+            "it reaches a final state, then tell me its outcome and what we should do for "
+            "the customer under our refund policy."
+        ),
+        tools=REFUND_RECORD_TOOLS,
+        run=_refund_records,
+        correct=lambda a: _answer_matches(
+            a,
+            {
+                "status": "rejected",
+                "reason": "card_expired",
+                "resolution": "store_credit_or_new_card",
+            },
+        ),
+        answer_fields=(
+            "status (string: the refund's final status), reason (string using the processor "
+            f"event reason), resolution ({RESOLUTIONS})"
+        ),
+        loop=("get_refund_status", {"refund_id": "R-7731"}),
+        resolve=("get_refund_events", {"refund_id": "R-7731"}),
+        answer=(
+            '{"status": "rejected", "reason": "card_expired", '
+            '"resolution": "store_credit_or_new_card"}'
+        ),
+        give_up="The refund is still processing.",
+    ),
+    "export_poll": Task(
+        name="export_poll",
+        system=(
+            "You are an operations assistant. Use the tools to look up what you need, then "
+            "answer the question. Be concise."
+        ),
+        question=(
+            "I started export job EX-5521 a moment ago. Wait for it to finish, then tell me "
+            "how many rows it exported and the name of the file."
+        ),
+        tools=[
+            _tool(
+                "get_export_status",
+                "The current status of an export job. A running job reports its progress.",
+                job_id={"type": "string"},
+            ),
+            _tool(
+                "wait",
+                f"Wait the given number of seconds (at most {WAIT_MAX_S:.0f}) before continuing.",
+                seconds={"type": "number"},
+            ),
+            _tool("list_exports", "Recent export jobs of this workspace."),
+        ],
+        run=_export,
+        correct=lambda a: _answer_matches(
+            a, {"status": "done", "row_count": 18234, "file": "orders-2026-11.csv"}
+        ),
+        answer_fields=(
+            "status (string: the job's final status), row_count (integer), file (string)"
+        ),
+        loop=("get_export_status", {"job_id": "EX-5521"}),
+        resolve=("get_export_status", {"job_id": "EX-5521"}),
+        answer='{"status": "done", "row_count": 18234, "file": "orders-2026-11.csv"}',
+        give_up="The export is still running.",
+    ),
+    "refund_batch": Task(
+        name="refund_batch",
+        system=SUPPORT,
+        question=(
+            "Customer C-1042 has three refunds from today: R-7731, R-7744 and R-7759. For "
+            "each, wait until it reaches a final state, then tell me what we should do under "
+            "our refund policy so I can write one reply."
+        ),
+        tools=REFUND_RECORD_TOOLS,
+        run=_refund_records,
+        correct=lambda a: _answer_matches(
+            a,
+            {
+                "R-7731": "store_credit_or_new_card",
+                "R-7744": "succeeded",
+                "R-7759": "store_credit_only",
+            },
+        ),
+        answer_fields=(
+            "one field per refund id (R-7731, R-7744, R-7759), each a string: succeeded for "
+            f"a refund that succeeded, otherwise the policy's resolution ({RESOLUTIONS})"
+        ),
+        loop=("get_refund_status", {"refund_id": "R-7731"}),
+        resolve=("get_refund_events", {"refund_id": "R-7731"}),
+        answer=(
+            '{"R-7731": "store_credit_or_new_card", "R-7744": "succeeded", '
+            '"R-7759": "store_credit_only"}'
+        ),
+        give_up="The refunds are still processing.",
     ),
     "retry": Task(
         name="retry",

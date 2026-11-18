@@ -124,6 +124,8 @@ SYSTEM = (
 # loop is no polling; --regular uses a fixed pause, which is.
 IRREGULAR_GAPS_S = (2.0, 5.5, 3.0, 8.0, 4.0, 6.5, 2.5, 7.0)
 REGULAR_GAP_S = 5.0
+# A changed approach's pace: a call every few seconds, as a model's turns go.
+SWITCH_GAP_S = 3.0
 
 TOOLS: list[dict[str, Any]] = [
     {
@@ -345,9 +347,27 @@ class ScriptedModel:
     in-process model (MODEL=scripted) and the stub API (MODEL=stub).
     """
 
-    def __init__(self, task: Task, hold: float, loop_calls: int = 0, idle: float = 0.0) -> None:
+    def __init__(
+        self,
+        task: Task,
+        hold: float,
+        loop_calls: int = 0,
+        idle: float = 0.0,
+        switch_after: int = 0,
+        switch_for: float = 0.0,
+        relapse: int = 0,
+    ) -> None:
         self._task, self._hold, self._n = task, hold, 0
         self._loop_calls, self._idle = loop_calls, idle
+        # switch_after: after this many loop calls the script changes
+        # approach (the loop tool with a new argument each time, every
+        # SWITCH_GAP_S) for switch_for seconds, then gives up: a hint that
+        # arrives meanwhile is a late one.
+        self._switch_after, self._switch_for = switch_after, switch_for
+        self._switch_started: float | None = None
+        # relapse: the script ignores the first hint for this many more loop
+        # calls, as a model that returns to the loop would.
+        self._relapse = relapse
         self._first_call: float | None = None
 
     def reply(self, messages: list[Any]) -> Reply:
@@ -362,20 +382,46 @@ class ScriptedModel:
             if _field(b, "type") == "tool_use"
         ]
         calls = [_field(b, "name") for b in uses]
-        looped = sum(
-            1 for b in uses[len(self._task.opening) :] if _field(b, "name") == self._task.loop[0]
-        )
-        hinted = any(_field(m, "role") == "system" for m in messages)
         t = self._task
-        if t.resolve[0] in calls:
+        looped = sum(
+            1 for b in uses[len(t.opening) :] if (_field(b, "name"), _field(b, "input")) == t.loop
+        )
+        hinted, after_hint = False, 0
+        for m in messages:
+            if _field(m, "role") == "system":
+                hinted = True
+            elif (
+                hinted
+                and _field(m, "role") == "assistant"
+                and isinstance(_field(m, "content"), list)
+            ):
+                after_hint += sum(
+                    1
+                    for b in _field(m, "content")
+                    if _field(b, "type") == "tool_use"
+                    and (_field(b, "name"), _field(b, "input")) == t.loop
+                )
+        if t.resolve[0] in calls and t.resolve != t.loop:
             return Reply("end_turn", [Block("text", text=t.answer)])
         if len(calls) < len(t.opening):
             return self._call(t.opening[len(calls)])
         if hinted:
+            if after_hint < self._relapse:
+                return self._call(t.loop)
+            if t.resolve == t.loop:
+                return Reply("end_turn", [Block("text", text=t.answer)])
             return self._call(t.resolve)
         now = time.monotonic()
         if self._first_call is None:
             self._first_call = now
+        if self._switch_after and looped >= self._switch_after:
+            if self._switch_started is None:
+                self._switch_started = now
+            if now - self._switch_started < self._switch_for:
+                time.sleep(SWITCH_GAP_S)
+                name, args = t.loop
+                return self._call((name, {**args, "attempt": self._n}))
+            return Reply("end_turn", [Block("text", text=t.give_up)])
         if now - self._first_call >= self._hold or (
             self._loop_calls and looped >= self._loop_calls
         ):
@@ -504,6 +550,30 @@ def main() -> None:
     parser.add_argument("--fail-first", type=int, default=0, help="the first K loop calls error")
     parser.add_argument("--fail-every", type=int, default=0, help="every K-th loop call errors")
     parser.add_argument("--no-hints", action="store_true", help="the SDK does not take hints")
+    parser.add_argument(
+        "--heartbeat",
+        type=float,
+        default=5.0,
+        help="seconds between pings (the SDK's own default is 15, its minimum 5)",
+    )
+    parser.add_argument(
+        "--switch-after",
+        type=int,
+        default=0,
+        help="scripted/stub: change approach after this many loop calls",
+    )
+    parser.add_argument(
+        "--switch-for",
+        type=float,
+        default=0.0,
+        help="scripted/stub: seconds the changed approach lasts before giving up",
+    )
+    parser.add_argument(
+        "--relapse",
+        type=int,
+        default=0,
+        help="scripted/stub: loop calls made after the first hint before resolving",
+    )
     opts = parser.parse_args()
     scripted = MODEL in ("scripted", "stub")
     if scripted and opts.scenario == "search":
@@ -529,7 +599,7 @@ def main() -> None:
             exporter = LateExporter(exporter, opts.late_after, opts.late_by)
     sdk = rius.init(
         agent_name="docs-agent",
-        heartbeat_interval=5,
+        heartbeat_interval=opts.heartbeat,
         hints=not opts.no_hints,
         on_hint=_log_hint_receipt,
         partial_spans=opts.scenario in TASKS or None,
@@ -557,7 +627,17 @@ def run_once(opts: argparse.Namespace, run: int, scripted: bool) -> dict[str, An
     tools = task.tools if task else TOOLS
     question = task.question if task else WEBHOOK_QUESTION
     model = (
-        ScriptedModel(task, opts.hold, opts.loop_calls, opts.idle) if scripted and task else None
+        ScriptedModel(
+            task,
+            opts.hold,
+            opts.loop_calls,
+            opts.idle,
+            opts.switch_after,
+            opts.switch_for,
+            opts.relapse,
+        )
+        if scripted and task
+        else None
     )
     client = None
     if MODEL == "stub":

@@ -62,3 +62,54 @@ def test_order_total_accepts_exact_decimal_string_or_json_number(name, count, to
 
 def test_invoice_total_accepts_json_number():
     assert TASKS["retry"].correct('{"total": 312.40, "status": "paid"}')
+
+
+@pytest.mark.parametrize(
+    ("name", "answer"),
+    [
+        ("refund_record", '{"status": "processing", "reason": "", "resolution": "escalate"}'),
+        (
+            "refund_record",
+            '{"status": "rejected", "reason": "card_expired", "resolution": "retry_same_card"}',
+        ),
+        ("export_poll", '{"status": "running", "row_count": 0, "file": ""}'),
+        ("export_poll", '{"status": "done", "row_count": "18234", "file": "orders-2026-11.csv"}'),
+        (
+            "refund_batch",
+            '{"R-7731": "store_credit_or_new_card", "R-7744": "succeeded", '
+            '"R-7759": "store_credit_or_new_card"}',
+        ),
+        ("refund_batch", '{"R-7731": "store_credit_or_new_card", "R-7744": "succeeded"}'),
+    ],
+)
+def test_behavioural_tasks_grade_every_fact(name, answer):
+    assert not TASKS[name].correct(answer)
+
+
+def test_refund_records_say_the_events_are_final_and_the_status_never_moves():
+    task = TASKS["refund_batch"]
+    for refund_id, outcome in (("R-7731", "rejected"), ("R-7744", "succeeded")):
+        status = json.loads(task.run("get_refund_status", {"refund_id": refund_id}))
+        assert status["status"] == "processing" and status["final"] is False
+        events = json.loads(task.run("get_refund_events", {"refund_id": refund_id}))
+        assert events["final"] is True and events["events"][-1]["type"] == outcome
+    policy = json.loads(task.run("get_refund_policy", {"reason": "account_closed"}))
+    assert "store credit only" in policy["action"]
+
+
+def test_the_export_is_done_only_after_its_time(monkeypatch):
+    module = runpy.run_path(str(Path(__file__).parents[1] / "spike/hints/tasks.py"))
+    now = [1000.0]
+    monkeypatch.setattr(module["time"], "monotonic", lambda: now[0])
+    run = module["TASKS"]["export_poll"].run
+    assert json.loads(run("get_export_status", {"job_id": "EX-5521"}))["status"] == "running"
+    now[0] += module["EXPORT_DONE_AFTER_S"] - 1
+    assert json.loads(run("get_export_status", {"job_id": "EX-5521"}))["status"] == "running"
+    now[0] += 1
+    done = json.loads(run("get_export_status", {"job_id": "EX-5521"}))
+    assert done == {
+        "job_id": "EX-5521",
+        "status": "done",
+        "row_count": 18234,
+        "file": "orders-2026-11.csv",
+    }
