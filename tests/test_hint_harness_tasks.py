@@ -162,3 +162,18 @@ def test_the_replica_never_settles_and_the_primary_has_the_answer(monkeypatch):
     assert task.correct(
         '{"status": "rejected", "reason": "card_expired", "resolution": "store_credit_or_new_card"}'
     )
+
+
+def test_the_ledger_returns_every_field_unless_asked_for_fewer():
+    module = runpy.run_path(str(Path(__file__).parents[1] / "spike/hints/tasks.py"))
+    task = module["TASKS"]["ledger_lookup"]
+    full = json.loads(task.run("search_transactions", {"customer_id": "C-1042"}))
+    assert full["count"] == 120 and len(full["transactions"][0]) == 10
+    narrow = task.run(
+        "search_transactions", {"customer_id": "C-1042", "fields": ["amount", "status", "method"]}
+    )
+    assert len(narrow) * 3 < len(json.dumps(full))
+    answer = module["ledger_answer"]()
+    assert task.correct(json.dumps(answer))
+    answer["C-2210"]["failed"] -= 1
+    assert not task.correct(json.dumps(answer))

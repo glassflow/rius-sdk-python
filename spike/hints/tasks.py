@@ -430,6 +430,102 @@ REFUND_CONSISTENCY_TOOLS = [
 ]
 
 
+# --- ledger_lookup (context rot: one tool's results fill the input) ------------
+
+# Each customer has 120 November transactions. search_transactions returns
+# every field of all of them unless asked for fewer fields, so the first
+# result is most of the model's input and stays there. The question takes six
+# lookups, one customer at a time, so a hint that arrives after the first few
+# can change the rest.
+LEDGER_CUSTOMERS = ("C-1042", "C-2210", "C-3307", "C-4415", "C-5068", "C-6123")
+LEDGER_FIELDS = (
+    "id",
+    "created_at",
+    "amount",
+    "currency",
+    "status",
+    "method",
+    "card_brand",
+    "last4",
+    "merchant_ref",
+    "description",
+)
+
+
+def _ledger(customer_id: str) -> list[dict[str, Any]]:
+    seed = sum(ord(c) for c in customer_id)
+    out = []
+    for i in range(120):
+        x = (seed * 7919 + i * 104729) % 1000003
+        method = "card" if x % 3 else "bank_transfer"
+        status = (
+            "failed" if x % 11 == 0 or x % 13 == 0 else ("refunded" if x % 17 == 0 else "succeeded")
+        )
+        card = method == "card"
+        out.append(
+            {
+                "id": f"tx_{customer_id[2:]}_{i:03d}",
+                "created_at": f"2026-11-{1 + i % 28:02d}T{(x % 24):02d}:{(x % 60):02d}:00Z",
+                "amount": f"{(x % 9000) / 100 + 5:.2f}",
+                "currency": "EUR",
+                "status": status,
+                "method": method,
+                "card_brand": ("visa", "mastercard", "amex")[x % 3] if card else None,
+                "last4": f"{x % 10000:04d}" if card else None,
+                "merchant_ref": f"ORD-{(x * 31) % 100000:05d}",
+                "description": f"Order ORD-{(x * 31) % 100000:05d}, {1 + x % 4} item(s)",
+            }
+        )
+    return out
+
+
+def ledger_answer() -> dict[str, dict[str, Any]]:
+    answer = {}
+    for c in LEDGER_CUSTOMERS:
+        failed = [t for t in _ledger(c) if t["status"] == "failed" and t["method"] == "card"]
+        answer[c] = {
+            "failed": len(failed),
+            "amount": f"{sum(float(t['amount']) for t in failed):.2f}",
+        }
+    return answer
+
+
+def _ledger_search(name: str, args: dict[str, Any]) -> str:
+    if name != "search_transactions":
+        return json.dumps({"error": f"unknown tool {name}"})
+    customer = args.get("customer_id")
+    if customer not in LEDGER_CUSTOMERS:
+        return json.dumps({"error": "customer not found"})
+    rows = _ledger(customer)
+    fields = args.get("fields")
+    if isinstance(fields, list) and fields:
+        keep = [f for f in fields if f in LEDGER_FIELDS]
+        rows = [{f: t[f] for f in keep} for t in rows]
+    return json.dumps({"customer_id": customer, "count": len(rows), "transactions": rows})
+
+
+def _ledger_correct(answer: str) -> bool:
+    try:
+        got = json.loads(answer)
+    except (TypeError, ValueError):
+        return False
+    if not isinstance(got, dict):
+        return False
+    for c, want in ledger_answer().items():
+        g = got.get(c)
+        if not isinstance(g, dict):
+            return False
+        try:
+            if (
+                int(g.get("failed")) != want["failed"]
+                or abs(float(g.get("amount")) - float(want["amount"])) > 0.005
+            ):
+                return False
+        except (TypeError, ValueError):
+            return False
+    return True
+
+
 REFUND_RECORD_TOOLS = [
     _tool(
         "get_refund_status",
@@ -847,6 +943,45 @@ TASKS: dict[str, Task] = {
             '"resolution": "store_credit_or_new_card"}'
         ),
         give_up="The refund is still processing.",
+    ),
+    "ledger_lookup": Task(
+        name="ledger_lookup",
+        system=(
+            "You are a payments operations assistant. Use the tools to look up what you "
+            "need, then answer the question. Be concise."
+        ),
+        question=(
+            "For customers C-1042, C-2210, C-3307, C-4415, C-5068 and C-6123, how many "
+            "card payments failed in "
+            "November 2026, and what was the total failed card amount for each? Look the "
+            "customers up one at a time."
+        ),
+        tools=[
+            _tool(
+                "search_transactions",
+                "A customer's transactions in November 2026.",
+                customer_id={"type": "string"},
+                fields={
+                    "type": "array",
+                    "items": {"type": "string", "enum": list(LEDGER_FIELDS)},
+                    "description": "Fields of each transaction to return (default: all).",
+                    "optional": True,
+                },
+            ),
+        ],
+        run=_ledger_search,
+        correct=_ledger_correct,
+        answer_fields=(
+            "one key per customer id, each an object with failed (integer: failed card "
+            "payments) and amount (string: their total in EUR, two decimals)"
+        ),
+        loop=("search_transactions", {"customer_id": "C-1042"}),
+        resolve=(
+            "search_transactions",
+            {"customer_id": "C-1042", "status": "failed", "method": "card"},
+        ),
+        answer=json.dumps(ledger_answer()),
+        give_up="",
     ),
     "export_poll": Task(
         name="export_poll",
