@@ -32,6 +32,7 @@ from ._agent import (
 from ._errors import record_error
 from ._serde import attribute_value, serialize, text_value
 from ._tracer import sdk_tracer
+from .run import mark_skipped
 from .semconv import (
     GEN_AI_RETRIEVAL_DOCUMENTS,
     INPUT_VALUE,
@@ -127,6 +128,14 @@ class Observation:
 
     def __init__(self, span: Span) -> None:
         self._span = span
+
+    def mark_skipped(self, reason: str) -> bool:
+        """Mark this agent span's run as skipped on purpose, with a short reason.
+
+        See :func:`rius.mark_run_skipped`; this marks this span instead of the
+        current one. Returns False when the span is not a recording AGENT span.
+        """
+        return mark_skipped(self._span, reason)
 
     def set_input(self, value: Any) -> None:
         """Record the span input (the ``input.value`` attribute).

@@ -8,6 +8,7 @@ from .config import GlassflowConfig, resolve_config
 from .export_health import ProbeTransport
 from .generation import Generation, start_as_current_generation, start_generation
 from .observe import observe
+from .run import mark_run_skipped
 from .semconv import SpanKind
 from .session import session
 from .spans import Observation, start_as_current_span, start_span
@@ -26,6 +27,7 @@ __all__ = [
     "get_tracer",
     "init",
     "mark_compaction",
+    "mark_run_skipped",
     "observe",
     "register_workspace",
     "resolve_config",

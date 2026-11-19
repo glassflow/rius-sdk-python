@@ -377,6 +377,31 @@ that started it; it reaches only copies of the context made after the call.
 The summary is content: its size in bytes is always sent, and its text follows
 `capture_content` and `mask` like a prompt does.
 
+## Intentional skips
+
+A run that finishes without calling a model or a tool looks, to Rius, like a
+run whose work went missing, and Rius's empty-run detection flags it when the
+agent usually does work. When the run had nothing to do on purpose, say so on
+its agent span:
+
+```python
+@rius.observe(kind=rius.SpanKind.AGENT)
+def triage() -> None:
+    tickets = load_new_tickets()
+    if not tickets:
+        rius.mark_run_skipped("no new tickets")
+        return
+    ...
+```
+
+The run is then an informational finding that alerts nobody, and it stays out
+of the agent's baseline. `Observation.mark_skipped(reason)` marks a span you
+hold instead of the current one. The marker belongs on the run's outermost
+agent span; on any other span it returns `False` and sets nothing. The reason
+is shown to people as quoted text: keep it short and operational. It is
+metadata, so it is sent even with `capture_content=False`; never put user
+input or secrets in it. An empty reason raises `ValueError`.
+
 ## Reliability
 
 Export is designed to never block or crash your application:
