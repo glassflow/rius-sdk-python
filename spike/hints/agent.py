@@ -528,6 +528,27 @@ def main() -> None:
         "--hold", type=float, default=120.0, help="scripted/stub: seconds an unhinted run loops"
     )
     parser.add_argument("--regular", action="store_true", help="scripted/stub: fixed pauses")
+    parser.add_argument(
+        "--gap", type=float, default=REGULAR_GAP_S, help="scripted/stub: the --regular pause"
+    )
+    parser.add_argument("--agent-name", default="docs-agent", help="the agent's name")
+    parser.add_argument(
+        "--ok-status",
+        action="store_true",
+        help="a run that answers (or is --empty) ends its root with an explicit Ok status, "
+        "which CF-05 needs to judge it",
+    )
+    parser.add_argument(
+        "--empty",
+        action="store_true",
+        help="each run opens and ends with no model or tool call (a skipped run, CF-05)",
+    )
+    parser.add_argument(
+        "--wait-hint",
+        type=float,
+        default=0.0,
+        help="seconds a run waits, open, for a hint before its first model call",
+    )
     parser.add_argument("--max-turns", type=int, default=MAX_TURNS, help="a real model's turns")
     parser.add_argument(
         "--no-transcript", action="store_true", help="scripted: capture no messages"
@@ -598,7 +619,7 @@ def main() -> None:
         if opts.late_by:
             exporter = LateExporter(exporter, opts.late_after, opts.late_by)
     sdk = rius.init(
-        agent_name="docs-agent",
+        agent_name=opts.agent_name,
         heartbeat_interval=opts.heartbeat,
         hints=not opts.no_hints,
         on_hint=_log_hint_receipt,
@@ -645,7 +666,7 @@ def run_once(opts: argparse.Namespace, run: int, scripted: bool) -> dict[str, An
         model = None
     elif not scripted:
         client = anthropic.Anthropic()
-    gaps = iter(cycle((REGULAR_GAP_S,) if opts.regular else IRREGULAR_GAPS_S))
+    gaps = iter(cycle((opts.gap,) if opts.regular else IRREGULAR_GAPS_S))
     max_turns = 200 if scripted else opts.max_turns
     messages: list[dict[str, Any]] = [{"role": "user", "content": question}]
     calls: list[tuple[int, str]] = []  # (turn, tool name)
@@ -663,12 +684,32 @@ def run_once(opts: argparse.Namespace, run: int, scripted: bool) -> dict[str, An
 
     try:
         with rius.start_as_current_span(
-            "docs-agent", kind=SpanKind.AGENT, agent_name="docs-agent"
+            opts.agent_name, kind=SpanKind.AGENT, agent_name=opts.agent_name
         ) as run_span:
             trace_id = current_trace_id()
+            if opts.empty:
+                # A run that skipped its work: no model or tool call at all.
+                log(f"[run {run}] empty run {trace_id}")
+                max_turns, outcome = 0, "empty"
+            # Hints that arrived while the run waited, open, before its first
+            # model call: feedback about an earlier run (CF-05, RIUS-1926)
+            # is about the instance as a whole and lands on a run like this.
+            early: list[Any] = []
+            if opts.wait_hint and not opts.empty:
+                began = time.monotonic()
+                while time.monotonic() - began < opts.wait_hint:
+                    early = rius.drain_hints()
+                    if early:
+                        break
+                    time.sleep(0.5)
+                log(
+                    f"[run {run}] waited {time.monotonic() - began:.1f}s for a hint: "
+                    f"{len(early)} received"
+                )
             for turn in range(1, max_turns + 1):
                 # drain_hints() records rius.hint.delivered on the run's root span.
-                for hint in rius.drain_hints():
+                arrived, early = [*early, *rius.drain_hints()], []
+                for hint in arrived:
                     # The hint is an operator note, not user input: the
                     # mid-conversation system role is the channel the model
                     # treats that way, and it leaves the cached prefix intact.
@@ -763,6 +804,9 @@ def run_once(opts: argparse.Namespace, run: int, scripted: bool) -> dict[str, An
                     except Exception as exc:  # noqa: BLE001 — the run goes on, unhinted
                         queue_error = f"{type(exc).__name__}: {exc}"
                         log(f"[detector] could not queue the hint: {queue_error}")
+            if opts.ok_status and outcome in ("answer", "empty"):
+                # The current span is the run's root here.
+                trace.get_current_span().set_status(trace.Status(trace.StatusCode.OK))
     except Exception as exc:  # noqa: BLE001 — every run ends with a summary line
         outcome = "error"
         log(f"[run {run} turn {turn}] run failed: {type(exc).__name__}: {exc}")
