@@ -2803,7 +2803,7 @@ wheels = [
 
 [[package]]
 name = "openinference-instrumentation-anthropic"
-version = "3.3.5"
+version = "3.3.6"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "openinference-instrumentation" },
@@ -2815,9 +2815,9 @@ dependencies = [
     { name = "typing-extensions", version = "4.16.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.15'" },
     { name = "wrapt" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/6d/b6/9035d61099697ec0d624bc2689c93fc015a6e72a9cafbebbd44411ea9a15/openinference_instrumentation_anthropic-3.3.5.tar.gz", hash = "sha256:4bddf55d838b2360fe7a9e1785cc43dbb09bbf27b5debb2e74ca89783ade4614", size = 29717, upload-time = "2026-11-12T08:19:34.063Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/3b/07/f374d2a2f894efc384dfef23a5685014049505c153aadab66688ed8ddb5c/openinference_instrumentation_anthropic-3.3.6.tar.gz", hash = "sha256:2e818116a501ec5edb2b2d272f0a75d129f7187f34174914c8d82ead173b74cd", size = 29909, upload-time = "2026-11-16T23:47:56.868Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2d/f4/804f93d0090c31583d9860fb49db9838dbbec2304dc8399c4da5b5bc70e6/openinference_instrumentation_anthropic-3.3.5-py3-none-any.whl", hash = "sha256:8fee758dfb0519b22ac661bfdda6e9f4075d3cc8cbb13a64ff6e6f7c7b2ff96f", size = 34723, upload-time = "2026-11-12T08:19:31.953Z" },
+    { url = "https://files.pythonhosted.org/packages/27/b2/57ebbe2d1b1bb4c5928bde32dbeb0aad4d6424258ec816055fb0fcd657f3/openinference_instrumentation_anthropic-3.3.6-py3-none-any.whl", hash = "sha256:4f8c5cd94a41b270ecd589f7266ec6d25a9d2f704ab49015c59d48e9af04e717", size = 34931, upload-time = "2026-11-16T23:47:55.663Z" },
 ]
 
 [[package]]
